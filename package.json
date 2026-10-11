@@ -1,14 +1,16 @@
 {
   "name": "keepassnc",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "KeePassNC - schlanker KDBX-Client im Browser (Nextcloud/WebDAV), Entschluesselung ausschliesslich im Browser",
   "scripts": {
-    "build": "node tools/build.mjs",
+    "build": "node tools/build.mjs && node tools/build-nextcloud.mjs",
     "test:compat": "node -r ts-node/register/transpile-only tests/compat/run.ts",
     "test:e2e": "node tests/e2e/run.mjs",
-    "test:unit": "node --test tests/unit/totp.test.mjs",
-    "test": "npm run build && npm run test:unit && npm run test:compat && npm run test:e2e"
+    "test:unit": "node --test tests/unit/*.test.mjs",
+    "test": "npm run build && npm run test:unit && npm run test:compat && npm run test:e2e",
+    "package:nc": "npm run build && tar czf keepassnc-nextcloud-app.tar.gz -C nextcloud-app keepassnc",
+    "test:nc": "node tests/nextcloud/run.mjs"
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.8.15",
@@ -16,6 +18,8 @@
     "hash-wasm": "^4.11.0"
   },
   "devDependencies": {
+    "@nextcloud/files": "^4.1.0",
+    "@nextcloud/router": "^3.2.0",
     "@types/node": "^26.6.5",
     "esbuild": "^0.24.0",
     "playwright-core": "^1.48.0",

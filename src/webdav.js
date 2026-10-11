@@ -20,59 +20,71 @@ function etagOf(res) {
     return res.headers.get('etag') || res.headers.get('oc-etag') || null;
 }
 
-export class DavFile {
-    /** @param {{url: string, user?: string, pass?: string, headers?: () => Record<string,string>}} opts */
-    constructor({ url, user, pass, headers }) {
-        this.url = url;
-        this.user = user;
-        this.pass = pass;
-        this.extraHeaders = headers;
-    }
-
-    _headers(extra = {}) {
-        const h = { ...(this.extraHeaders ? this.extraHeaders() : {}), ...extra };
-        if (this.user) {
-            const bytes = new TextEncoder().encode(`${this.user}:${this.pass ?? ''}`);
+/** Anmeldung per HTTP-Basic (Benutzer + App-Passwort), z. B. fuer die eigenstaendige Webseite. */
+export function basicAuth(user, pass) {
+    return {
+        credentials: 'omit',
+        async headers() {
+            if (!user) return {};
+            const bytes = new TextEncoder().encode(`${user}:${pass ?? ''}`);
             let bin = '';
             for (const b of bytes) bin += String.fromCharCode(b);
-            h.Authorization = 'Basic ' + btoa(bin);
+            return { Authorization: 'Basic ' + btoa(bin) };
         }
-        return h;
+    };
+}
+
+export class DavFile {
+    /**
+     * @param {{url: string, user?: string, pass?: string, auth?: {credentials: RequestCredentials, headers: () => Promise<Record<string,string>>, refresh?: () => Promise<void>}}} opts
+     * auth: wahlweise eigener Anbieter (z. B. Nextcloud-Sitzung); sonst Basic mit user/pass.
+     */
+    constructor({ url, user, pass, auth }) {
+        this.url = url;
+        this.auth = auth || basicAuth(user, pass);
+    }
+
+    async _fetch(url, init = {}) {
+        for (let attempt = 0; ; attempt++) {
+            const headers = { ...(await this.auth.headers()), ...(init.headers || {}) };
+            const res = await fetch(url, { ...init, headers, cache: 'no-store', credentials: this.auth.credentials });
+            // Abgelaufenes Sitzungs-Token (Nextcloud): einmal erneuern und wiederholen
+            if (res.status === 401 && this.auth.refresh && attempt === 0) {
+                await this.auth.refresh();
+                continue;
+            }
+            return res;
+        }
     }
 
     async get() {
-        const res = await fetch(this.url, { headers: this._headers(), cache: 'no-store', credentials: 'omit' });
-        if (res.status === 401 || res.status === 403) throw new DavError(res.status, 'Zugriff verweigert - Benutzer oder App-Passwort pruefen.');
-        if (res.status === 404) throw new DavError(404, 'Datei nicht gefunden - URL pruefen.');
+        const res = await this._fetch(this.url);
+        if (res.status === 401 || res.status === 403) throw new DavError(res.status, 'Zugriff verweigert - Anmeldung bzw. Zugangsdaten pruefen.');
+        if (res.status === 404) throw new DavError(404, 'Datei nicht gefunden - Pfad pruefen.');
         if (!res.ok) throw new DavError(res.status, `Server antwortete mit Status ${res.status}.`);
         return { buf: await res.arrayBuffer(), etag: etagOf(res) };
     }
 
     async head() {
-        const res = await fetch(this.url, { method: 'HEAD', headers: this._headers(), cache: 'no-store', credentials: 'omit' });
+        const res = await this._fetch(this.url, { method: 'HEAD' });
         if (!res.ok) throw new DavError(res.status, `HEAD fehlgeschlagen (${res.status}).`);
         return etagOf(res);
     }
 
     /** Ueberschreibt die Datei nur, wenn sie noch dem erwarteten ETag entspricht. Liefert den neuen ETag. */
     async put(buf, ifMatch) {
-        const headers = this._headers({ 'Content-Type': 'application/octet-stream' });
+        const headers = { 'Content-Type': 'application/octet-stream' };
         if (ifMatch) headers['If-Match'] = ifMatch;
-        const res = await fetch(this.url, { method: 'PUT', headers, body: buf, credentials: 'omit' });
+        const res = await this._fetch(this.url, { method: 'PUT', headers, body: buf });
         if (res.status === 412) throw new ConflictError();
         if (!res.ok) throw new DavError(res.status, `Speichern fehlgeschlagen (Status ${res.status}).`);
         return etagOf(res) || (await this.head());
     }
 
-    /** Legt eine Sicherungskopie unter neuem Namen an (schlaegt fehl, falls der Name schon existiert). */
+    /** Legt eine Sicherungskopie unter neuem Namen an (schlaegt nicht fehl, falls der Name schon existiert). */
     async putCopy(buf, suffix) {
         const url = `${this.url}.${suffix}.bak`;
-        const res = await fetch(url, {
-            method: 'PUT',
-            headers: this._headers({ 'Content-Type': 'application/octet-stream', 'If-None-Match': '*' }),
-            body: buf,
-            credentials: 'omit'
-        });
+        const res = await this._fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'If-None-Match': '*' }, body: buf });
         if (!res.ok && res.status !== 412) throw new DavError(res.status, `Sicherungskopie fehlgeschlagen (Status ${res.status}).`);
         return url;
     }

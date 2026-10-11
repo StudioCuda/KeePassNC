@@ -8,15 +8,26 @@ KeePassXC, KeePassDX, Strongbox usw. geoeffnet werden.
 zurueckgeschrieben. Master-Passwort und Klartext verlassen den Browser nie; der Server sieht nur die verschluesselte Datei.
 Es werden keine externen Skripte, Schriften oder Dienste geladen (strikte Content-Security-Policy).
 
-## Stand (v0.1)
+## Stand (v0.2)
 Funktioniert und ist automatisch getestet (siehe `STATUS.md`): Oeffnen per WebDAV (Nextcloud-App-Passwort) oder lokaler Datei,
 KDBX 3.1 / 4.0 / 4.1, AES und ChaCha20, Argon2d/Argon2id/AES-KDF, Schluesseldatei, Gruppen, Suche, Eintraege anlegen/bearbeiten/
 loeschen (Papierkorb), geschuetzte Zusatzfelder, Tags, TOTP, Anhaenge herunterladen, Passwortgenerator, Auto-Sperre,
 Zwischenablage-Bereinigung, Speichern mit ETag-Pruefung, Sicherungskopie und Zusammenfuehrung bei Konflikten.
 
-Noch **nicht** vorhanden: Verpackung als Nextcloud-App, Gruppenverwaltung, Anhaenge hochladen, Verlaufsansicht, Passkeys, Steam-TOTP.
+Neu in v0.2: **Nextcloud-App** (`nextcloud-app/keepassnc`). Klick auf eine `.kdbx`-Datei in der Dateiansicht oeffnet sie in KeePassNC;
+Anmeldung laeuft ueber die bestehende Nextcloud-Sitzung (kein App-Passwort noetig), Entschluesselung weiterhin nur im Browser.
 
-## Benutzen
+Noch **nicht** vorhanden: Uebersetzungen (Oberflaeche nur Deutsch), Gruppenverwaltung, Anhaenge hochladen, Verlaufsansicht, Passkeys, Steam-TOTP.
+
+## Als Nextcloud-App installieren
+    npm install && npm run package:nc      # erzeugt keepassnc-nextcloud-app.tar.gz
+    # Archiv im Nextcloud-Verzeichnis nach apps/ (oder custom_apps/) entpacken, dann:
+    php occ app:enable keepassnc
+Getestet mit Nextcloud 34.0.4 und 35.0.1 (PHP 8.3, SQLite). Die App nutzt nur oeffentliche Schnittstellen (WebDAV, `/csrftoken`,
+`LoadAdditionalScriptsEvent`, `registerFileAction`); in `info.xml` steht `max-version="99"`, damit kuenftige Versionen nicht
+ausgesperrt werden. Der Test `npm run test:nc` (mit `NC_DIR`/`NC_PORT`) installiert eine frische Nextcloud aus einem Quellordner.
+
+## Benutzen (eigenstaendige Webseite)
 Die Dateien in `web/` auf einen HTTPS-Webserver legen (WebCrypto verlangt HTTPS oder localhost), `index.html` oeffnen,
 WebDAV-Adresse der KDBX-Datei, Benutzer und **App-Passwort** (nicht das Kontopasswort) eintragen.
 Wichtig: Liegt die Seite auf einer anderen Domain als die Nextcloud, muss die Nextcloud CORS fuer WebDAV erlauben; einfacher ist
@@ -38,4 +49,4 @@ Voraussetzungen fuer die Tests: Node 20+, `keepassxc-cli` (KeePassXC 2.7.x), Pyt
 
 ## Lizenz und Herkunft
 kdbxweb: MIT (Antelle). Ideen und Verhalten orientieren sich an KeePassXC (GPL); es wurde kein KeePassXC-Code uebernommen.
-Eine spaetere Nextcloud-Huelle auf Basis von jhass/nextcloud-keeweb waere AGPL-3.
+Die Nextcloud-App ist von jhass/nextcloud-keeweb (AGPL-3) inspiriert und steht unter AGPL-3; `COPYING` liegt bei.

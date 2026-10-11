@@ -1,0 +1,24 @@
+# Prueft die App gegen mehrere Nextcloud-Versionen (frische SQLite-Installation + Browser-Test). Nicht lokal ausgefuehrt.
+name: nextcloud-compat
+on: [push, pull_request]
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ref: [stable34, stable35, master]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: shivammathur/setup-php@v2
+        with: { php-version: '8.3', extensions: 'sqlite3, pdo_sqlite, gd, zip, curl, mbstring, xml, intl, bcmath, gmp' }
+      - run: sudo apt-get update && sudo apt-get install -y keepassxc python3-pip && pip install --break-system-packages pykeepass
+      - run: npm ci || npm install
+      - run: npm run build && npm run test:unit
+      - name: Nextcloud holen und bauen
+        run: |
+          git clone --depth 1 --branch ${{ matrix.ref }} https://github.com/nextcloud/server.git nc
+          cd nc && git submodule update --init --depth 1 && npm ci && npm run build
+      - run: NC_DIR=$PWD/nc NC_PORT=18080 node tests/nextcloud/run.mjs

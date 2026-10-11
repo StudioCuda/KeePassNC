@@ -1,6 +1,7 @@
 // KeePassNC - Oberflaeche. Es wird ausschliesslich mit DOM-Methoden und textContent gearbeitet (kein innerHTML mit Daten).
 import { Vault, VaultError, fieldText, isProtected, generatePassword, STANDARD_FIELDS } from './vault.js';
 import { DavFile, DavError } from './webdav.js';
+import { readNextcloudContext, nextcloudAuth, davUrlFor, normalizeUserPath } from './nextcloud.js';
 import { parseOtpConfig, totp } from './totp.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -33,6 +34,7 @@ const state = {
 };
 
 const app = $('#app');
+const NC = readNextcloudContext(app);
 let statusEl;
 
 function setStatus(msg, kind = 'info') {
@@ -62,10 +64,15 @@ function renderLogin(message) {
     const fileInput = h('input', { id: 'local-file', type: 'file', accept: '.kdbx' });
     const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', required: true });
     const keyInput = h('input', { id: 'keyfile', type: 'file' });
-    const davBox = h('div', { id: 'dav-box' },
-        h('label', {}, 'WebDAV-Adresse der Datei', urlInput),
-        h('label', {}, 'Benutzername', userInput),
-        h('label', {}, 'App-Passwort (Nextcloud: Einstellungen > Sicherheit)', passInput));
+    const ncPathInput = h('input', { id: 'nc-path', type: 'text', placeholder: '/Dokumente/Passwoerter.kdbx', value: NC?.file || pref('ncfile'), autocomplete: 'off', readonly: !!NC?.file });
+    const davBox = NC
+        ? h('div', { id: 'dav-box' },
+            h('label', {}, NC.file ? 'Datei in Ihrer Nextcloud' : 'Pfad der KDBX-Datei in Ihrer Nextcloud', ncPathInput),
+            h('p', { class: 'muted small-note', text: NC.file ? '' : 'Tipp: In "Dateien" eine .kdbx-Datei anklicken, dann wird sie direkt hier geoeffnet.' }))
+        : h('div', { id: 'dav-box' },
+            h('label', {}, 'WebDAV-Adresse der Datei', urlInput),
+            h('label', {}, 'Benutzername', userInput),
+            h('label', {}, 'App-Passwort (Nextcloud: Einstellungen > Sicherheit)', passInput));
     const fileBox = h('div', { id: 'file-box', hidden: true }, h('label', {}, 'KDBX-Datei', fileInput));
     const radio = (value, label) => h('label', { class: 'inline' },
         h('input', { type: 'radio', name: 'src', value, checked: mode === value, onchange: () => { davBox.hidden = value !== 'dav'; fileBox.hidden = value !== 'file'; } }), ' ' + label);
@@ -75,8 +82,9 @@ function renderLogin(message) {
     const btn = h('button', { type: 'submit', id: 'open-btn', class: 'primary', text: 'Oeffnen' });
     const form = h('form', { class: 'card', id: 'login-form' },
         h('h1', { text: 'KeePassNC' }),
+        NC?.filesUrl ? h('p', {}, h('a', { href: NC.filesUrl, id: 'back-link', text: '\u2190 Zurueck zu Dateien' })) : null,
         h('p', { class: 'muted', text: 'Die Datenbank wird nur in diesem Browser entschluesselt. Der Server sieht nur die verschluesselte Datei.' }),
-        h('div', { class: 'row' }, radio('dav', 'Nextcloud / WebDAV'), radio('file', 'Lokale Datei')),
+        h('div', { class: 'row' }, radio('dav', NC ? 'Nextcloud-Datei' : 'Nextcloud / WebDAV'), radio('file', 'Lokale Datei')),
         davBox, fileBox,
         h('label', {}, 'Master-Passwort', masterInput),
         h('label', {}, 'Schluesseldatei (optional)', keyInput),
@@ -91,10 +99,17 @@ function renderLogin(message) {
             pref('mode', src);
             let buf, dav = null, etag = null, name;
             if (src === 'dav') {
-                if (!urlInput.value.trim()) throw new VaultError('Bitte die WebDAV-Adresse eintragen.');
-                pref('url', urlInput.value.trim());
-                pref('user', userInput.value);
-                dav = new DavFile({ url: urlInput.value.trim(), user: userInput.value, pass: passInput.value });
+                if (NC) {
+                    const userPath = normalizeUserPath(ncPathInput.value);
+                    if (!userPath || userPath.endsWith('/')) throw new VaultError('Bitte den Pfad der KDBX-Datei eintragen.');
+                    if (!NC.file) pref('ncfile', userPath);
+                    dav = new DavFile({ url: davUrlFor(NC, userPath), auth: nextcloudAuth(NC) });
+                } else {
+                    if (!urlInput.value.trim()) throw new VaultError('Bitte die WebDAV-Adresse eintragen.');
+                    pref('url', urlInput.value.trim());
+                    pref('user', userInput.value);
+                    dav = new DavFile({ url: urlInput.value.trim(), user: userInput.value, pass: passInput.value });
+                }
                 const got = await dav.get();
                 buf = got.buf; etag = got.etag;
                 name = decodeURIComponent(new URL(dav.url, location.href).pathname.split('/').pop());
@@ -107,7 +122,7 @@ function renderLogin(message) {
             const keyfile = keyInput.files[0] ? new Uint8Array(await keyInput.files[0].arrayBuffer()) : undefined;
             await new Promise((r) => setTimeout(r, 0)); // UI-Text vor der KDF-Berechnung anzeigen
             const vault = await Vault.open({ buf, password: masterInput.value, keyfile, dav, etag });
-            masterInput.value = ''; passInput.value = '';
+            masterInput.value = ''; if (passInput) passInput.value = '';
             state.vault = vault;
             state.source = { type: src, name };
             state.selectedGroup = null;
@@ -142,7 +157,8 @@ function renderMain() {
         search,
         h('button', { id: 'new-btn', onclick: () => startEdit(null), text: 'Neuer Eintrag' }),
         saveBtn,
-        h('button', { id: 'lock-btn', onclick: () => lock('Gesperrt.'), text: 'Sperren' }));
+        h('button', { id: 'lock-btn', onclick: () => lock('Gesperrt.'), text: 'Sperren' }),
+        NC?.filesUrl ? h('a', { href: NC.filesUrl, id: 'files-link', class: 'muted', text: 'Dateien' }) : null);
     app.replaceChildren(h('div', { class: 'shell' }, bar,
         h('div', { class: 'panes' },
             h('nav', { id: 'groups', 'aria-label': 'Gruppen' }),
