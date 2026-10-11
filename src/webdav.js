@@ -16,6 +16,20 @@ export class DavError extends Error {
     }
 }
 
+/** Server nicht erreichbar (Netz, DNS, Verbindung abgelehnt, Zeitueberschreitung). */
+export class NetworkError extends Error {
+    constructor(cause) {
+        super('Server nicht erreichbar.');
+        this.name = 'NetworkError';
+        this.cause = cause;
+    }
+}
+
+/** true, wenn der Fehler "Server gerade nicht verfuegbar" bedeutet (Ausfall, Wartungsmodus, Gateway-Fehler) - dann darf der lokale Cache einspringen. */
+export function isOffline(e) {
+    return e instanceof NetworkError || (e instanceof DavError && (e.status >= 500 || e.status === 0));
+}
+
 function etagOf(res) {
     return res.headers.get('etag') || res.headers.get('oc-etag') || null;
 }
@@ -47,7 +61,12 @@ export class DavFile {
     async _fetch(url, init = {}) {
         for (let attempt = 0; ; attempt++) {
             const headers = { ...(await this.auth.headers()), ...(init.headers || {}) };
-            const res = await fetch(url, { ...init, headers, cache: 'no-store', credentials: this.auth.credentials });
+            let res;
+            try {
+                res = await fetch(url, { ...init, headers, cache: 'no-store', credentials: this.auth.credentials });
+            } catch (e) {
+                throw new NetworkError(e);
+            }
             // Abgelaufenes Sitzungs-Token (Nextcloud): einmal erneuern und wiederholen
             if (res.status === 401 && this.auth.refresh && attempt === 0) {
                 await this.auth.refresh();

@@ -29,3 +29,7 @@ await build({
     legalComments: 'none',
     logLevel: 'info'
 });
+
+// Service Worker unveraendert nach web/ (Nextcloud-App: siehe build-nextcloud.mjs)
+import fs from 'node:fs';
+fs.copyFileSync(path.join(root, 'src/sw.js'), path.join(root, 'web/sw.js'));

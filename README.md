@@ -8,7 +8,7 @@ KeePassXC, KeePassDX, Strongbox usw. geoeffnet werden.
 zurueckgeschrieben. Master-Passwort und Klartext verlassen den Browser nie; der Server sieht nur die verschluesselte Datei.
 Es werden keine externen Skripte, Schriften oder Dienste geladen (strikte Content-Security-Policy).
 
-## Stand (v0.2)
+## Stand (v0.3)
 Funktioniert und ist automatisch getestet (siehe `STATUS.md`): Oeffnen per WebDAV (Nextcloud-App-Passwort) oder lokaler Datei,
 KDBX 3.1 / 4.0 / 4.1, AES und ChaCha20, Argon2d/Argon2id/AES-KDF, Schluesseldatei, Gruppen, Suche, Eintraege anlegen/bearbeiten/
 loeschen (Papierkorb), geschuetzte Zusatzfelder, Tags, TOTP, Anhaenge herunterladen, Passwortgenerator, Auto-Sperre,
@@ -17,7 +17,17 @@ Zwischenablage-Bereinigung, Speichern mit ETag-Pruefung, Sicherungskopie und Zus
 Neu in v0.2: **Nextcloud-App** (`nextcloud-app/keepassnc`). Klick auf eine `.kdbx`-Datei in der Dateiansicht oeffnet sie in KeePassNC;
 Anmeldung laeuft ueber die bestehende Nextcloud-Sitzung (kein App-Passwort noetig), Entschluesselung weiterhin nur im Browser.
 
-Noch **nicht** vorhanden: Uebersetzungen (Oberflaeche nur Deutsch), Gruppenverwaltung, Anhaenge hochladen, Verlaufsansicht, Passkeys, Steam-TOTP.
+Neu in v0.3 (Ausfallsicherheit, siehe `STATUS.md`):
+- **Offline-Kopie** (optional, pro Browser): die *verschluesselte* KDBX wird in IndexedDB vorgehalten. Faellt der Server aus
+  (Wartungsmodus, Absturz, kein Netz), laesst sich die Datei weiter oeffnen und bearbeiten; Aenderungen werden lokal gesichert
+  und automatisch hochgeladen bzw. mit Fremdaenderungen zusammengefuehrt, sobald der Server wieder da ist.
+- **App-Seite offline** per Service Worker: KeePassNC startet auch, wenn Nextcloud gar nicht antwortet (einmal online geoeffnet haben).
+- **Automatisches Speichern/Abgleichen**: bei jeder Aenderung, alle 1/2/5/10 Minuten oder nur manuell; Intervall-Modus holt auch
+  Aenderungen anderer Geraete. Merge-Schleife (max. 3 Versuche), Sicherungskopien wie bisher.
+- **Einstellungen**: Auto-Sperre (1-60 min), Zwischenablage-Dauer, Sperren bei Tab im Hintergrund.
+- Auf fremden Geraeten die Offline-Option ausgeschaltet lassen; "Lokale Daten dieses Browsers loeschen" entfernt alles wieder.
+
+Noch **nicht** vorhanden: Speichern der Schluesseldatei auf dem Geraet, Uebersetzungen (Oberflaeche nur Deutsch), Gruppenverwaltung, Anhaenge hochladen, Verlaufsansicht, Passkeys, Steam-TOTP.
 
 ## Als Nextcloud-App installieren
     npm install && npm run package:nc      # erzeugt keepassnc-nextcloud-app.tar.gz
@@ -37,7 +47,8 @@ es, die Seite auf derselben Domain auszuliefern (spaeter: als Nextcloud-App, dan
 ## Entwickeln
     npm install
     npm run build      # baut web/keepassnc.js (kdbxweb + hash-wasm + App-Code, ca. 140 KB)
-    npm test           # Build, Unit-, Kompatibilitaets- und End-to-End-Tests
+    npm test           # Build, Unit-, Kompatibilitaets-, End-to-End- und Ausfall-Tests
+    NC_DIR=/pfad/nextcloud NC_PORT=18035 npm run test:nc   # Nextcloud-Integration inkl. Wartungsmodus/Serverabsturz
 
 Voraussetzungen fuer die Tests: Node 20+, `keepassxc-cli` (KeePassXC 2.7.x), Python 3 mit `pykeepass`, Chromium
 (`/opt/pw-browsers` oder Umgebungsvariable `CHROMIUM`).

@@ -57,6 +57,7 @@ async function main() {
         page.on('request', (r) => { if (!r.url().startsWith(base) && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) problems.external.push(r.url()); });
         page.on('pageerror', (e) => problems.pageErrors.push(String(e)));
         page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.consoleErrors.push(m.text()); });
+        await ctx.addInitScript(() => { try { if (!localStorage.getItem("kpnc.settings")) localStorage.setItem("kpnc.settings", JSON.stringify({ autosync: "off" })); } catch {} });
         await page.goto(`${base}/${query}`);
         return page;
     }

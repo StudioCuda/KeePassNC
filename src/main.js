@@ -1,6 +1,8 @@
 // KeePassNC - Oberflaeche. Es wird ausschliesslich mit DOM-Methoden und textContent gearbeitet (kein innerHTML mit Daten).
 import { Vault, VaultError, fieldText, isProtected, generatePassword, STANDARD_FIELDS } from './vault.js';
-import { DavFile, DavError } from './webdav.js';
+import { DavFile, DavError, NetworkError, isOffline } from './webdav.js';
+import { cacheGet, wipeLocalData } from './cache.js';
+import { loadSettings, saveSettings, AUTOSYNC_OPTIONS, AUTOLOCK_OPTIONS, CLIPBOARD_OPTIONS } from './settings.js';
 import { readNextcloudContext, nextcloudAuth, davUrlFor, normalizeUserPath } from './nextcloud.js';
 import { parseOtpConfig, totp } from './totp.js';
 
@@ -19,8 +21,9 @@ function h(tag, attrs = {}, ...children) {
 }
 
 const params = new URLSearchParams(location.search);
-const AUTOLOCK_SECONDS = Math.max(5, parseInt(params.get('autolock') || '300', 10) || 300);
-const CLIPBOARD_CLEAR_MS = 20000;
+let settings = loadSettings();
+const SYNC_RETRY_MS = (parseFloat(params.get('syncretry')) || 30) * 1000; // ungesyncte Offline-Staende werden alle 30 s erneut versucht (?syncretry= ueberschreibt)
+const SW_CACHE = 'kpnc-app-v1';
 
 const state = {
     vault: null,
@@ -30,7 +33,10 @@ const state = {
     editing: null, // {entry|null, group}
     query: '',
     lastActivity: Date.now(),
-    totpTimer: null
+    totpTimer: null,
+    showSettings: false,
+    offlineMode: false, // aktuelle Sitzung wurde aus der Offline-Kopie geoeffnet / Server war nicht erreichbar
+    hiddenSince: 0
 };
 
 const app = $('#app');
@@ -78,6 +84,15 @@ function renderLogin(message) {
         h('input', { type: 'radio', name: 'src', value, checked: mode === value, onchange: () => { davBox.hidden = value !== 'dav'; fileBox.hidden = value !== 'file'; } }), ' ' + label);
     davBox.hidden = mode !== 'dav';
     fileBox.hidden = mode !== 'file';
+    const offlineBox = h('input', { type: 'checkbox', id: 'offline-opt', checked: settings.offline });
+    const offlineRow = h('label', { class: 'inline small-note' }, offlineBox, ' Verschluesselte Offline-Kopie und App in diesem Browser vorhalten (nur auf eigenen Geraeten)');
+    let wipeArmed = false;
+    const wipeBtn = h('button', { type: 'button', id: 'wipe-btn', class: 'small', text: 'Lokale Daten dieses Browsers loeschen', onclick: async () => {
+        if (!wipeArmed) { wipeArmed = true; wipeBtn.textContent = 'Wirklich loeschen? (nochmal klicken)'; return; }
+        await wipeLocalData();
+        settings = loadSettings();
+        renderLogin('Lokale Daten (Offline-Kopien, App-Cache, Einstellungen) wurden geloescht.');
+    } });
     const err = h('p', { class: 'error', id: 'login-error', role: 'alert', text: message || '' });
     const btn = h('button', { type: 'submit', id: 'open-btn', class: 'primary', text: 'Oeffnen' });
     const form = h('form', { class: 'card', id: 'login-form' },
@@ -88,7 +103,8 @@ function renderLogin(message) {
         davBox, fileBox,
         h('label', {}, 'Master-Passwort', masterInput),
         h('label', {}, 'Schluesseldatei (optional)', keyInput),
-        err, btn);
+        offlineRow,
+        err, btn, h('p', {}, wipeBtn));
     form.addEventListener('submit', async (ev) => {
         ev.preventDefault();
         err.textContent = '';
@@ -97,12 +113,14 @@ function renderLogin(message) {
         try {
             const src = form.querySelector('input[name=src]:checked').value;
             pref('mode', src);
-            let buf, dav = null, etag = null, name;
+            let buf, dav = null, etag = null, name, cacheInfo = null, unsynced = false, remoteBuf, fromCache = false, offlineOpen = false, cachedAt = null;
+            settings.offline = offlineBox.checked && src === 'dav';
+            if (offlineBox.checked !== loadSettings().offline) saveSettings({ ...loadSettings(), offline: offlineBox.checked });
             if (src === 'dav') {
                 if (NC) {
                     const userPath = normalizeUserPath(ncPathInput.value);
                     if (!userPath || userPath.endsWith('/')) throw new VaultError('Bitte den Pfad der KDBX-Datei eintragen.');
-                    if (!NC.file) pref('ncfile', userPath);
+                    pref('ncfile', userPath); // merken: der Offline-Start der App-Seite kennt den ?open=-Parameter nicht
                     dav = new DavFile({ url: davUrlFor(NC, userPath), auth: nextcloudAuth(NC) });
                 } else {
                     if (!urlInput.value.trim()) throw new VaultError('Bitte die WebDAV-Adresse eintragen.');
@@ -110,9 +128,23 @@ function renderLogin(message) {
                     pref('user', userInput.value);
                     dav = new DavFile({ url: urlInput.value.trim(), user: userInput.value, pass: passInput.value });
                 }
-                const got = await dav.get();
-                buf = got.buf; etag = got.etag;
                 name = decodeURIComponent(new URL(dav.url, location.href).pathname.split('/').pop());
+                if (settings.offline) cacheInfo = { key: NC ? `nc:${NC.user}:${normalizeUserPath(ncPathInput.value)}` : `dav:${urlInput.value.trim()}`, name };
+                const cached = cacheInfo ? await cacheGet(cacheInfo.key).catch(() => null) : null;
+                let got = null;
+                try {
+                    got = await dav.get();
+                } catch (e) {
+                    if (!isOffline(e)) throw e;
+                    if (!cached) throw new VaultError(cacheInfo ? 'Der Server ist nicht erreichbar und auf diesem Geraet liegt noch keine Offline-Kopie dieser Datei.' : 'Der Server ist nicht erreichbar. (Mit aktivierter Offline-Kopie waere die Datei lokal verfuegbar.)');
+                }
+                if (!got) { // Ausfall: aus der lokalen Kopie oeffnen
+                    buf = cached.bytes; etag = cached.etag; unsynced = !!cached.modified; fromCache = true; offlineOpen = true; cachedAt = cached.syncDate;
+                } else if (cached?.modified) { // lokale Aenderungen noch nicht auf dem Server: lokalen Stand oeffnen, danach abgleichen/zusammenfuehren
+                    buf = cached.bytes; etag = cached.etag; unsynced = true; fromCache = true; remoteBuf = got.buf;
+                } else {
+                    buf = got.buf; etag = got.etag;
+                }
             } else {
                 const f = fileInput.files[0];
                 if (!f) throw new VaultError('Bitte eine KDBX-Datei waehlen.');
@@ -121,18 +153,24 @@ function renderLogin(message) {
             }
             const keyfile = keyInput.files[0] ? new Uint8Array(await keyInput.files[0].arrayBuffer()) : undefined;
             await new Promise((r) => setTimeout(r, 0)); // UI-Text vor der KDF-Berechnung anzeigen
-            const vault = await Vault.open({ buf, password: masterInput.value, keyfile, dav, etag });
+            const vault = await Vault.open({ buf, password: masterInput.value, keyfile, dav, etag, cache: cacheInfo, unsynced, remoteBuf, fromCache });
             masterInput.value = ''; if (passInput) passInput.value = '';
             state.vault = vault;
             state.source = { type: src, name };
             state.selectedGroup = null;
             state.lastActivity = Date.now();
+            state.offlineMode = offlineOpen;
             renderMain();
-            setStatus(`${name} geoeffnet (${vault.versionLabel})`);
+            if (offlineOpen) setStatus(`${name} aus der Offline-Kopie geoeffnet (${vault.versionLabel}, Stand ${new Date(cachedAt).toLocaleString('de-AT')}) - Server nicht erreichbar.${unsynced ? ' Lokale Aenderungen werden spaeter uebertragen.' : ''}`, 'warn');
+            else setStatus(`${name} geoeffnet (${vault.versionLabel})${unsynced ? ' - lokale Aenderungen werden abgeglichen ...' : ''}`);
+            refreshSyncState();
             startTimers();
+            ensureOfflineApp();
+            if (unsynced && !offlineOpen) syncNow({ announce: true });
         } catch (e) {
-            err.textContent = e instanceof VaultError || e instanceof DavError ? e.message : `Fehler: ${e.message || e}`;
-            if (!(e instanceof VaultError || e instanceof DavError)) console.error(e);
+            const known = e instanceof VaultError || e instanceof DavError || e instanceof NetworkError;
+            err.textContent = known ? e.message : `Fehler: ${e.message || e}`;
+            if (!known) console.error(e);
         } finally {
             btn.disabled = false;
             btn.textContent = 'Oeffnen';
@@ -157,6 +195,8 @@ function renderMain() {
         search,
         h('button', { id: 'new-btn', onclick: () => startEdit(null), text: 'Neuer Eintrag' }),
         saveBtn,
+        h('span', { id: 'sync-state', class: 'muted sync-state', 'data-testid': 'sync-state', role: 'status' }),
+        h('button', { id: 'settings-btn', onclick: () => { state.showSettings = !state.showSettings; renderDetail(); }, text: 'Einstellungen' }),
         h('button', { id: 'lock-btn', onclick: () => lock('Gesperrt.'), text: 'Sperren' }),
         NC?.filesUrl ? h('a', { href: NC.filesUrl, id: 'files-link', class: 'muted', text: 'Dateien' }) : null);
     app.replaceChildren(h('div', { class: 'shell' }, bar,
@@ -174,8 +214,25 @@ function renderMain() {
 function refreshDirtyIndicator() {
     const b = $('#save-btn');
     if (!b || !state.vault) return;
-    b.textContent = state.vault.dirty ? 'Speichern *' : 'Speichern';
-    b.disabled = !state.vault.dirty;
+    const pending = state.vault.dirty || state.vault.unsynced;
+    b.textContent = state.vault.dirty ? 'Speichern *' : state.vault.unsynced ? 'Hochladen *' : 'Speichern';
+    b.disabled = !pending && state.source?.type !== 'dav';
+    if (state.source?.type === 'dav') b.disabled = !pending;
+    refreshSyncState();
+}
+
+function refreshSyncState() {
+    const el = $('#sync-state');
+    const v = state.vault;
+    if (!el || !v) return;
+    let text = '';
+    if (state.source?.type === 'dav') {
+        if (v.dirty) text = 'Ungespeicherte Aenderungen';
+        else if (v.unsynced) text = state.offlineMode || state.lastSyncFailed ? 'Offline - lokal gesichert, noch nicht auf dem Server' : 'Lokal gesichert, Upload ausstehend';
+        else text = state.offlineMode ? 'Offline - Stand der Offline-Kopie' : 'Synchron';
+    }
+    el.textContent = text;
+    el.dataset.state = !text ? '' : v.dirty ? 'dirty' : v.unsynced ? 'unsynced' : state.offlineMode ? 'offline' : 'synced';
 }
 
 function renderGroups() {
@@ -224,11 +281,13 @@ function renderList() {
 }
 
 // ---------------------------------------------------------------- Details
+let clipboardTimer = null;
 async function copy(text, label) {
     try {
         await navigator.clipboard.writeText(text);
-        setStatus(`${label} kopiert - wird in ${CLIPBOARD_CLEAR_MS / 1000} s aus der Zwischenablage entfernt.`);
-        setTimeout(() => { navigator.clipboard.writeText('').catch(() => {}); }, CLIPBOARD_CLEAR_MS);
+        setStatus(`${label} kopiert - wird in ${settings.clipboard} s aus der Zwischenablage entfernt.`);
+        clearTimeout(clipboardTimer);
+        clipboardTimer = setTimeout(() => { navigator.clipboard.writeText('').catch(() => {}); }, settings.clipboard * 1000);
     } catch {
         setStatus('Kopieren nicht moeglich (Browser-Berechtigung).', 'error');
     }
@@ -241,6 +300,7 @@ function fieldRow(label, valueNode, actions = []) {
 function renderDetail() {
     clearInterval(state.totpTimer);
     const box = $('#detail');
+    if (state.showSettings) return renderSettings(box);
     if (state.editing) return renderEditor(box);
     const e = state.selectedEntry;
     if (!e) { box.replaceChildren(h('p', { class: 'muted pad', text: 'Eintrag auswaehlen oder neu anlegen.' })); return; }
@@ -302,7 +362,7 @@ function renderDetail() {
     box.replaceChildren(h('div', { class: 'card' }, ...rows,
         h('div', { class: 'row actions' },
             h('button', { id: 'edit-btn', onclick: () => startEdit(e), text: 'Bearbeiten' }),
-            h('button', { id: 'del-btn', class: 'danger', onclick: () => { v.removeEntry(e); state.selectedEntry = null; renderGroups(); renderList(); renderDetail(); refreshDirtyIndicator(); setStatus(inBin ? 'Endgueltig geloescht (noch nicht gespeichert).' : 'In den Papierkorb verschoben (noch nicht gespeichert).'); }, text: inBin ? 'Endgueltig loeschen' : 'Loeschen' }))));
+            h('button', { id: 'del-btn', class: 'danger', onclick: () => { v.removeEntry(e); state.selectedEntry = null; renderGroups(); renderList(); renderDetail(); refreshDirtyIndicator(); setStatus(inBin ? 'Endgueltig geloescht (noch nicht gespeichert).' : 'In den Papierkorb verschoben (noch nicht gespeichert).'); scheduleAutoSave(); }, text: inBin ? 'Endgueltig loeschen' : 'Loeschen' }))));
 }
 
 function download(name, data) {
@@ -371,60 +431,179 @@ function renderEditor(box) {
         state.selectedEntry = saved;
         state.editing = null;
         renderGroups(); renderList(); renderDetail(); refreshDirtyIndicator();
-        setStatus('Uebernommen - zum Sichern "Speichern" klicken.');
+        setStatus(settings.autosync === 'change' && state.source.type === 'dav' ? 'Uebernommen - wird automatisch gespeichert.' : 'Uebernommen - zum Sichern "Speichern" klicken.');
+        scheduleAutoSave();
     });
     box.replaceChildren(form);
     inputs.Title.focus();
 }
 
-// ---------------------------------------------------------------- Speichern / Sperren
-async function doSave() {
+// ---------------------------------------------------------------- Einstellungen
+function renderSettings(box) {
+    const select = (id, options, value, onchange) => h('select', { id, onchange: (e) => onchange(e.target.value) },
+        ...options.map(([v, l]) => h('option', { value: String(v), selected: String(v) === String(value), text: l })));
+    const update = (patch) => { settings = { ...settings, ...patch }; saveSettings(settings); startTimers(); ensureOfflineApp(); };
+    const isDav = state.source?.type === 'dav';
+    box.replaceChildren(h('div', { class: 'card', id: 'settings' },
+        h('h2', { text: 'Einstellungen' }),
+        isDav ? h('label', {}, 'Automatisch speichern / abgleichen', select('s-autosync', AUTOSYNC_OPTIONS, settings.autosync, (v) => update({ autosync: v }))) : null,
+        h('label', {}, 'Automatisch sperren nach Inaktivitaet', select('s-autolock', AUTOLOCK_OPTIONS, settings.autolock, (v) => update({ autolock: Number(v), autolockSeconds: Number(v) * 60 }))),
+        h('label', {}, 'Zwischenablage leeren nach', select('s-clipboard', CLIPBOARD_OPTIONS, settings.clipboard, (v) => update({ clipboard: Number(v) }))),
+        h('label', { class: 'inline' }, h('input', { type: 'checkbox', id: 's-lockhide', checked: settings.lockOnHide, onchange: (e) => update({ lockOnHide: e.target.checked }) }), ' Sperren, wenn der Tab laenger als 60 s im Hintergrund ist'),
+        isDav ? h('label', { class: 'inline' }, h('input', { type: 'checkbox', id: 's-offline', checked: settings.offline, onchange: (e) => update({ offline: e.target.checked }) }), ' Verschluesselte Offline-Kopie und App in diesem Browser vorhalten (gilt ab der naechsten Anmeldung)') : null,
+        h('p', { class: 'muted small-note', text: 'Die Offline-Kopie enthaelt nur die verschluesselte Datei - ohne Master-Passwort (und ggf. Schluesseldatei) ist sie nutzlos. Auf fremden Geraeten trotzdem ausgeschaltet lassen.' }),
+        h('div', { class: 'row actions' }, h('button', { id: 'settings-close', class: 'primary', text: 'Fertig', onclick: () => { state.showSettings = false; renderDetail(); } }))));
+}
+
+// ---------------------------------------------------------------- Speichern / Abgleichen / Sperren
+let autoSaveTimer = null;
+/** Nach jeder Aenderung: im Modus "Bei jeder Aenderung" kurz warten (mehrere Klicks zusammenfassen), dann speichern. */
+function scheduleAutoSave() {
+    if (state.source?.type !== 'dav' || settings.autosync !== 'change') return;
+    clearTimeout(autoSaveTimer);
+    autoSaveTimer = setTimeout(() => { if (state.vault?.dirty && !state.editing) doSave({ auto: true }); }, 800);
+}
+
+function rebind() {
+    // Nach einem Austausch der Datenbank (Aenderungen anderer Geraete) zeigen Auswahl-Verweise auf alte Objekte: ueber UUID neu aufloesen.
+    const v = state.vault;
+    const gid = state.selectedGroup?.uuid, eid = state.selectedEntry?.uuid;
+    state.selectedGroup = gid ? v.db.getGroup(gid) || null : null;
+    state.selectedEntry = null;
+    if (eid) for (const e of v.root.allEntries()) if (e.uuid.equals(eid)) { state.selectedEntry = e; break; }
+}
+
+async function doSave({ auto = false } = {}) {
     const v = state.vault;
     if (!v) return;
     const btn = $('#save-btn');
-    btn.disabled = true;
-    setStatus('Speichere ...');
+    if (btn) btn.disabled = true;
+    setStatus(auto ? 'Speichere automatisch ...' : 'Speichere ...');
     try {
-        const res = await v.save();
+        const res = await (v.dirty ? v.save() : v.sync());
+        state.lastSyncFailed = !!res.offline;
         if (state.source.type === 'file') {
             download(state.source.name, res.bytes);
             setStatus(`Als Download gespeichert: ${state.source.name}. Bitte die alte Datei damit ersetzen.`);
+        } else if (res.offline) {
+            setStatus('Server nicht erreichbar - Aenderungen sind in der lokalen Offline-Kopie gesichert und werden uebertragen, sobald der Server wieder erreichbar ist.', 'warn');
         } else if (res.merged) {
             renderGroups(); renderList(); renderDetail();
             setStatus('Gespeichert. Aenderungen eines anderen Geraets wurden zusammengefuehrt; beide Staende liegen als .bak-Kopie auf dem Server.', 'warn');
+            state.offlineMode = false;
         } else {
+            state.offlineMode = false;
             setStatus('Gespeichert.');
         }
     } catch (e) {
         console.error(e);
+        state.lastSyncFailed = isOffline(e);
         setStatus(`Speichern fehlgeschlagen: ${e.message || e}`, 'error');
     } finally {
         refreshDirtyIndicator();
     }
 }
 
-async function lock(message) {
-    const auto = message === 'Automatisch gesperrt.';
-    if (state.vault?.dirty) {
-        if (auto) {
-            // Unbeaufsichtigt: bei WebDAV zuerst automatisch speichern, damit nichts verloren geht; sonst offen lassen und warnen.
-            if (state.source.type === 'dav') await doSave();
-            if (state.vault?.dirty) { setStatus('Ungespeicherte Aenderungen - bitte speichern, danach sperrt die Sitzung.', 'warn'); return; }
-        } else if (!confirm('Ungespeicherte Aenderungen gehen verloren. Trotzdem sperren?')) {
-            return;
+/** Hintergrund-Abgleich (Intervall, Wiederverbinden, Tab sichtbar): schiebt Lokales hoch oder holt Fremdaenderungen. */
+let syncing = false;
+async function syncNow({ announce = false } = {}) {
+    const v = state.vault;
+    if (!v || state.source?.type !== 'dav' || syncing || state.editing) return;
+    syncing = true;
+    try {
+        const res = await (v.dirty ? v.save() : v.sync());
+        state.lastSyncFailed = !!res.offline;
+        if (res.offline) {
+            if (announce) setStatus('Server nicht erreichbar - lokale Aenderungen bleiben gesichert und werden spaeter uebertragen.', 'warn');
+        } else {
+            const wasOffline = state.offlineMode;
+            state.offlineMode = false;
+            if (res.pulled) {
+                rebind(); renderGroups(); renderList(); renderDetail();
+                setStatus('Aenderungen von einem anderen Geraet uebernommen.', 'info');
+            } else if (res.merged) {
+                rebind(); renderGroups(); renderList(); renderDetail();
+                setStatus('Lokale Aenderungen hochgeladen und mit dem Server-Stand zusammengefuehrt (Sicherungskopien liegen auf dem Server).', 'warn');
+            } else if (wasOffline || announce) {
+                setStatus('Mit dem Server abgeglichen.');
+            }
         }
+    } catch (e) {
+        console.error(e);
+        state.lastSyncFailed = isOffline(e);
+        if (announce || !isOffline(e)) setStatus(`Abgleich fehlgeschlagen: ${e.message || e}`, 'error');
+    } finally {
+        syncing = false;
+        refreshDirtyIndicator();
     }
+}
+
+async function lock(message) {
+    const auto = typeof message === 'string' && message.startsWith('Automatisch');
+    const v = state.vault;
+    if (v && (v.dirty || v.unsynced) && state.source.type === 'dav') {
+        // WebDAV: erst sichern. Lokal gesicherte (offline) Staende duerfen bleiben, das Entsperren uebertraegt sie spaeter.
+        if (v.dirty) await doSave({ auto: true });
+        if (state.vault?.dirty) {
+            if (auto) { setStatus('Ungespeicherte Aenderungen - bitte speichern, danach sperrt die Sitzung.', 'warn'); return; }
+            if (!confirm('Ungespeicherte Aenderungen gehen verloren. Trotzdem sperren?')) return;
+        }
+    } else if (v?.dirty) {
+        if (auto) { setStatus('Ungespeicherte Aenderungen - bitte speichern, danach sperrt die Sitzung.', 'warn'); return; }
+        if (!confirm('Ungespeicherte Aenderungen gehen verloren. Trotzdem sperren?')) return;
+    }
+    clearTimeout(autoSaveTimer);
+    state.showSettings = false;
     renderLogin(message);
 }
 
 function startTimers() {
     stopTimers();
     state.idleTimer = setInterval(() => {
-        if (state.vault && Date.now() - state.lastActivity > AUTOLOCK_SECONDS * 1000) lock('Automatisch gesperrt.');
+        if (!state.vault) return;
+        if (Date.now() - state.lastActivity > settings.autolockSeconds * 1000) lock('Automatisch gesperrt.');
+        else if (settings.lockOnHide && document.hidden && state.hiddenSince && Date.now() - state.hiddenSince > 60000) lock('Automatisch gesperrt (Tab im Hintergrund).');
     }, 1000);
+    if (state.source?.type === 'dav') {
+        state.retryTimer = setInterval(() => { if (state.vault?.unsynced) syncNow(); }, SYNC_RETRY_MS);
+        const minutes = parseInt(settings.autosync, 10);
+        if (minutes > 0) state.syncTimer = setInterval(() => syncNow(), params.has('syncinterval') ? parseFloat(params.get('syncinterval')) * 1000 : minutes * 60000);
+    }
 }
-function stopTimers() { clearInterval(state.idleTimer); clearInterval(state.totpTimer); }
+function stopTimers() { clearInterval(state.idleTimer); clearInterval(state.totpTimer); clearInterval(state.retryTimer); clearInterval(state.syncTimer); }
 for (const ev of ['mousemove', 'keydown', 'click', 'touchstart']) addEventListener(ev, () => { state.lastActivity = Date.now(); }, { passive: true });
 addEventListener('beforeunload', (e) => { if (state.vault?.dirty) { e.preventDefault(); e.returnValue = ''; } });
+addEventListener('online', () => { if (state.vault?.unsynced || state.offlineMode) syncNow({ announce: true }); });
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { state.hiddenSince = Date.now(); return; }
+    state.hiddenSince = 0;
+    if (state.vault && settings.autosync !== 'off') syncNow();
+});
+
+// ---------------------------------------------------------------- App-Seite offline vorhalten (Service Worker)
+async function ensureOfflineApp() {
+    if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
+    try {
+        if (!settings.offline) {
+            for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+            if (typeof caches !== 'undefined') await caches.delete(SW_CACHE);
+            return;
+        }
+        const swUrl = NC ? NC.swUrl : 'sw.js';
+        if (!swUrl) return;
+        await navigator.serviceWorker.register(swUrl);
+        await navigator.serviceWorker.ready;
+        const cache = await caches.open(SW_CACHE);
+        const shell = location.origin + location.pathname;
+        const assets = [...document.querySelectorAll('script[src], link[rel=stylesheet][href]')].map((n) => n.src || n.href);
+        const wanted = new Set([shell, ...assets]);
+        await Promise.all([...wanted].map((u) => cache.add(new Request(u, { cache: 'reload', credentials: 'same-origin' })).catch(() => {})));
+        for (const k of await cache.keys()) if (!wanted.has(k.url)) await cache.delete(k); // alte Versionen entfernen
+        document.documentElement.dataset.offlineReady = '1';
+    } catch (e) {
+        console.warn('Offline-App nicht verfuegbar', e);
+    }
+}
 
 renderLogin();
+ensureOfflineApp();

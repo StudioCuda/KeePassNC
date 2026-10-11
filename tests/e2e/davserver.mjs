@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-secret' }) {
+export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-secret', port = 0 }) {
     const log = [];
     const etagOf = (buf) => `"${crypto.createHash('sha1').update(buf).digest('hex')}"`;
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
@@ -51,5 +51,8 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
         res.writeHead(200, { 'Content-Type': types[path.extname(file)] || 'application/octet-stream' });
         fs.createReadStream(file).pipe(res);
     });
-    return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve({ server, port: server.address().port, log, user, pass })));
+    return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve({
+        server, port: server.address().port, log, user, pass,
+        stop: () => new Promise((r) => { server.close(() => r()); server.closeAllConnections?.(); }) // simuliert einen Serverausfall
+    })));
 }

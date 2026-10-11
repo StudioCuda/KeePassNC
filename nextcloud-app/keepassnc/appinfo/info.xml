@@ -9,7 +9,7 @@
 Die Datenbank wird ausschliesslich im Browser entschluesselt; das Master-Passwort verlaesst den Browser nie und der Server sieht nur die verschluesselte Datei. Aenderungen werden mit ETag-Pruefung zurueckgeschrieben, vorher wird eine Sicherungskopie angelegt; bei gleichzeitigen Aenderungen auf mehreren Geraeten werden die Staende zusammengefuehrt.
 
 Die Datei bleibt ein normales KeePass-Format und kann jederzeit mit KeePassXC, KeePassDX, Strongbox & Co. weiterverwendet werden.]]></description>
-    <version>0.2.0</version>
+    <version>0.3.0</version>
     <licence>agpl</licence>
     <author>KeePassNC</author>
     <namespace>Keepassnc</namespace>

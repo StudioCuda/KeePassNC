@@ -9,6 +9,7 @@ use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
+use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\EmptyContentSecurityPolicy;
 use OCP\AppFramework\Http\Response;
@@ -54,7 +55,14 @@ class PageController extends Controller {
 			$file = (string)preg_replace('/[\x00-\x1F\x7F]/', '', $open);
 		}
 
+		try {
+			$swUrl = $this->urlGenerator->linkToRoute('keepassnc.page.sw');
+		} catch (\Throwable) {
+			$swUrl = '';
+		}
+
 		$vars = [
+			'__SW_URL__' => $swUrl,
 			'__DAV_BASE__' => $davBase,
 			'__CSRF_URL__' => $indexPhp . '/csrftoken',
 			'__FILES_URL__' => $filesUrl,
@@ -70,6 +78,21 @@ class PageController extends Controller {
 		$response = new DataDisplayResponse($html, 200, ['Content-Type' => 'text/html; charset=utf-8']);
 		$response->addHeader('Cache-Control', 'no-store');
 		$response->addHeader('Referrer-Policy', 'no-referrer');
+		$response->setContentSecurityPolicy($this->contentSecurityPolicy());
+		return $response;
+	}
+
+	/**
+	 * Service Worker (haelt die App-Seite fuer den Offline-Start vor). Oeffentlich und ohne Anmeldung abrufbar, weil der Browser
+	 * Aktualisierungen ohne Weiterleitung auf die Login-Seite pruefen muss; der Inhalt ist reiner, fuer alle gleicher App-Code.
+	 * Er liegt unter demselben Pfad wie die Seite, damit sein Geltungsbereich die Seite umfasst.
+	 */
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function sw(): Response {
+		$js = (string)file_get_contents(__DIR__ . '/../../js/sw.js');
+		$response = new DataDisplayResponse($js, 200, ['Content-Type' => 'text/javascript; charset=utf-8']);
+		$response->addHeader('Cache-Control', 'no-cache');
 		$response->setContentSecurityPolicy($this->contentSecurityPolicy());
 		return $response;
 	}

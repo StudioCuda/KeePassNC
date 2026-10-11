@@ -41,6 +41,11 @@ function resetNextcloud() {
     return occ('app:enable', 'keepassnc').trim();
 }
 let php;
+async function stopPhp() {
+    if (!php) return;
+    const p = php; php = null;
+    await new Promise((r) => { p.once('exit', r); p.kill('SIGKILL'); });
+}
 async function startPhp() {
     php = spawn('php', ['-d', 'memory_limit=512M', '-S', `127.0.0.1:${PORT}`, '-t', NC_DIR], { cwd: NC_DIR, env: { ...process.env, PHP_CLI_SERVER_WORKERS: '4' }, stdio: 'ignore' });
     for (let i = 0; i < 60; i++) {
@@ -76,15 +81,16 @@ async function main() {
     const exe = process.env.CHROMIUM || fs.readdirSync('/opt/pw-browsers').filter((d) => /^chromium-\d+$/.test(d)).map((d) => `/opt/pw-browsers/${d}/chrome-linux/chrome`)[0];
     const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
     const problems = { external: [], pageErrors: [], consoleErrors: [], csp: [] };
-    async function newSession() {
+    async function newSession(settingsFor = { autosync: 'off' }) {
         const ctx = await browser.newContext({ acceptDownloads: true, viewport: { width: 1280, height: 800 } });
+        await ctx.addInitScript((st) => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify(st)); } catch {} }, settingsFor);
         const page = await ctx.newPage();
         page.on('request', (r) => { if (!r.url().startsWith(BASE) && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) problems.external.push(r.url()); });
         page.on('pageerror', (e) => problems.pageErrors.push(String(e)));
         page.on('console', (m) => {
             const t = m.text();
             if (/Content Security Policy|Refused to/.test(t) && /keepassnc/i.test(m.location()?.url + t)) problems.csp.push(t);
-            if (m.type() === 'error' && m.location()?.url?.includes('keepassnc')) problems.consoleErrors.push(t);
+            if (m.type() === 'error' && m.location()?.url?.includes('keepassnc') && !/Failed to load resource/.test(t)) problems.consoleErrors.push(t); // Netzfehler gehoeren zu den absichtlichen Ausfaellen
         });
         await page.goto(`${BASE}/login`);
         await page.fill('input[name=user]', ADMIN); await page.fill('input[name=password]', ADMIN_PW);
@@ -189,6 +195,57 @@ async function main() {
         await page.locator('#header, header').first().waitFor();
         const html = await page.content();
         expect(/apps\/keepassnc/.test(html), 'Link auf die App fehlt im Menue');
+    });
+
+    // ---- Ausfall-Szenarien: erst Wartungsmodus (503), dann harter Serverausfall ----
+    const page2 = await newSession({ autosync: 'change', offline: true });
+    const appUrl = `${BASE}/index.php/apps/keepassnc/`;
+    const rows2 = () => page2.locator('[data-testid=entry-row]');
+    const waitStatus2 = (re, t = 30000) => page2.waitForFunction((s) => new RegExp(s).test(document.querySelector('#status')?.textContent || ''), re.source, { timeout: t });
+    const login2 = async () => { await page2.fill('#master', PW); await page2.click('#open-btn'); };
+    await step('Offline-Option: Online-Anmeldung legt Offline-Kopie und App-Cache an', async () => {
+        await page2.goto(`${appUrl}?syncretry=2&open=${encodeURIComponent('/Passwörter privat/vault4.kdbx')}`);
+        await login2(); await rows2().first().waitFor({ timeout: 30000 });
+        await page2.waitForSelector('html[data-offline-ready="1"]', { timeout: 30000 });
+    });
+
+    await step('Wartungsmodus (503): App-Seite startet aus dem Cache, Oeffnen aus der Offline-Kopie, Aenderung lokal gesichert', async () => {
+        occ('maintenance:mode', '--on');
+        const direct = await fetch(appUrl, { redirect: 'manual' });
+        expect(direct.status === 503, 'Server sollte 503 liefern, war ' + direct.status);
+        await page2.goto(`${appUrl}?syncretry=2`);
+        await page2.locator('#login-form').waitFor({ timeout: 20000 });
+        expect(await page2.inputValue('#nc-path') === '/Passwörter privat/vault4.kdbx', 'zuletzt benutzter Pfad nicht vorbelegt: ' + await page2.inputValue('#nc-path'));
+        await login2(); await rows2().first().waitFor({ timeout: 30000 });
+        expect(/Offline-Kopie/.test(await page2.locator('#status').innerText()), await page2.locator('#status').innerText());
+        await page2.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
+        await page2.click('#edit-btn'); await page2.fill('#e-user', 'alice-wartung'); await page2.click('#apply-btn');
+        await waitStatus2(/Server nicht erreichbar/);
+        expect(!xc(['show', srvFile, 'Web/Mail']).includes('alice-wartung'), 'Server darf die Aenderung noch nicht haben');
+    });
+
+    await step('Wartungsmodus endet: Aenderung wird automatisch hochgeladen', async () => {
+        occ('maintenance:mode', '--off');
+        await page2.waitForFunction(() => document.querySelector('#sync-state')?.dataset.state === 'synced', null, { timeout: 40000 });
+        expect(xc(['show', srvFile, 'Web/Mail']).includes('alice-wartung'), 'Aenderung nicht auf dem Server');
+    });
+
+    await step('Harter Serverausfall (Prozess beendet): App startet aus dem Cache, Aenderung offline, nach Neustart Upload + Zusammenfuehrung mit Fremdaenderung', async () => {
+        await stopPhp();
+        await page2.goto(`${appUrl}?syncretry=2`);
+        await page2.locator('#login-form').waitFor({ timeout: 20000 });
+        await login2(); await rows2().first().waitFor({ timeout: 30000 });
+        await page2.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
+        await page2.click('#edit-btn'); await page2.fill('#e-user', 'alice-ausfall'); await page2.click('#apply-btn');
+        await waitStatus2(/Server nicht erreichbar/);
+        // Fremdaenderung direkt in der Datei (anderes Geraet synchronisiert z. B. per Syncthing/Dateisystem)
+        const other = path.join(tmp, 'other2.kdbx'); fs.copyFileSync(srvFile, other);
+        xc(['edit', '-q', other, 'Bank/Konto', '--url', 'https://wartung.example']);
+        fs.copyFileSync(other, srvFile); occ('files:scan', '--path', `${ADMIN}/files/Passwörter privat`);
+        await startPhp();
+        await page2.waitForFunction(() => document.querySelector('#sync-state')?.dataset.state === 'synced', null, { timeout: 60000 });
+        expect(xc(['show', srvFile, 'Web/Mail']).includes('alice-ausfall'), 'Offline-Aenderung fehlt');
+        expect(xc(['show', srvFile, 'Bank/Konto']).includes('https://wartung.example'), 'Fremdaenderung verloren');
     });
 
     await step('Abmelden/Fremder Benutzer: ohne Sitzung kein Zugriff auf die App-Seite', async () => {
