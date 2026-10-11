@@ -1,6 +1,6 @@
 {
   "name": "keepassnc",
-  "version": "0.3.0",
+  "version": "0.5.2",
   "private": true,
   "description": "KeePassNC - schlanker KDBX-Client im Browser (Nextcloud/WebDAV), Entschluesselung ausschliesslich im Browser",
   "scripts": {
@@ -8,10 +8,13 @@
     "test:compat": "node -r ts-node/register/transpile-only tests/compat/run.ts",
     "test:e2e": "node tests/e2e/run.mjs",
     "test:unit": "node --test tests/unit/*.test.mjs",
-    "test": "npm run build && npm run test:unit && npm run test:compat && npm run test:e2e && npm run test:offline",
+    "test": "npm run build && npm run test:unit && npm run test:compat && npm run test:e2e && npm run test:ui && npm run test:keyfile && npm run test:offline && npm run test:fidelity",
     "package:nc": "npm run build && tar czf keepassnc-nextcloud-app.tar.gz -C nextcloud-app keepassnc",
     "test:nc": "node tests/nextcloud/run.mjs",
-    "test:offline": "node tests/e2e/offline.mjs"
+    "test:offline": "node tests/e2e/offline.mjs",
+    "test:fidelity": "node tests/fidelity/run.mjs",
+    "test:ui": "node tests/e2e/ui.mjs",
+    "test:keyfile": "node tests/e2e/keyfile.mjs && node tests/e2e/keyfile-nc.mjs"
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.8.15",

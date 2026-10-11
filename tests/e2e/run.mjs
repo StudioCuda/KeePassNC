@@ -52,7 +52,7 @@ async function main() {
     const problems = { external: [], pageErrors: [], consoleErrors: [] };
 
     async function newPage(query = '') {
-        const ctx = await browser.newContext({ acceptDownloads: true, viewport: { width: 1280, height: 800 } });
+        const ctx = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport: { width: 1280, height: 800 } });
         const page = await ctx.newPage();
         page.on('request', (r) => { if (!r.url().startsWith(base) && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) problems.external.push(r.url()); });
         page.on('pageerror', (e) => problems.pageErrors.push(String(e)));
@@ -62,7 +62,7 @@ async function main() {
         return page;
     }
     async function login(page, file, { master = PW, pass = 'app-secret' } = {}) {
-        await page.locator('input[value=dav]').check();
+        await page.locator('input[value=dav]').check({ force: true });
         await page.fill('#dav-url', `${base}/dav/${file}`);
         await page.fill('#dav-user', 'tester');
         await page.fill('#dav-pass', pass);
@@ -117,7 +117,7 @@ async function main() {
         await page.click('[data-testid=pw-toggle]');
         expect(await page.locator('[data-testid=pw-value]').innerText() === 'pw-eins', 'Passwort nach Anzeigen');
         expect(/äöü € \(KeePassXC\)/.test(await page.locator('#detail').innerText()), 'Notiz mit Umlauten');
-        expect(/mail, privat|privat, mail/.test(await page.locator('[data-testid=f-tags]').innerText()), 'Tags');
+        expect(/mail[\s,]+privat|privat[\s,]+mail/.test(await page.locator('[data-testid=f-tags]').innerText()), 'Tags');
         expect(!/1234/.test(await page.locator('[data-testid=custom-PIN]').innerText()), 'geschuetztes Feld darf nicht offen stehen');
         // TOTP gegen KeePassXC vergleichen (bis zu 3 Versuche wegen Fenstergrenze)
         let ok = false, a, b;
@@ -143,7 +143,8 @@ async function main() {
         await page.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
         await page.click('#edit-btn');
         await page.click('#gen-btn');
-        await page.check('#e-show');
+        await page.click('#gen-use');
+        await page.click('#e-show');
         newPassword = await page.inputValue('#e-pass');
         expect(newPassword.length === 24, 'erzeugtes Passwort hat 24 Zeichen, ist: ' + newPassword.length);
         await page.fill('#e-user', 'alice-neu');
@@ -218,6 +219,7 @@ async function main() {
         await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
         await p.click('#edit-btn'); await p.fill('#e-user', 'bob-auto-gespeichert'); await p.click('#apply-btn');
         await p.waitForFunction(() => /Automatisch gesperrt/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 20000 });
+        for (let i = 0; i < 20 && !xc(['show', f4, 'Bank/Konto']).includes('bob-auto-gespeichert'); i++) await new Promise((r) => setTimeout(r, 500));
         expect(xc(['show', f4, 'Bank/Konto']).includes('bob-auto-gespeichert'), 'Aenderung ging beim Auto-Sperren verloren');
         await p.context().close();
     });
@@ -238,7 +240,7 @@ async function main() {
 
     await step('Lokale Datei: oeffnen, aendern, "Speichern" liefert Download, der in KeePassXC oeffnet', async () => {
         const p = await newPage();
-        await p.locator('input[value=file]').check();
+        await p.locator('input[value=file]').check({ force: true });
         await p.setInputFiles('#local-file', path.join(davRoot, 'vault3.kdbx'));
         await p.fill('#master', PW); await p.click('#open-btn'); await rows(p).first().waitFor();
         await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();

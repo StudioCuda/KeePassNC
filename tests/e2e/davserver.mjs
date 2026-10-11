@@ -41,6 +41,18 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
                 });
                 return;
             }
+            if (req.method === 'DELETE') {
+                if (!fs.existsSync(file)) { res.writeHead(404).end(); return; }
+                fs.unlinkSync(file);
+                res.writeHead(204).end();
+                return;
+            }
+            if (req.method === 'PROPFIND' && fs.existsSync(file) && fs.statSync(file).isDirectory()) {
+                const base = url.pathname.endsWith('/') ? url.pathname : url.pathname + '/';
+                const items = fs.readdirSync(file).map((n) => `<d:response><d:href>${base}${encodeURIComponent(n)}</d:href><d:propstat><d:prop/><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`);
+                res.writeHead(207, { 'Content-Type': 'application/xml' }).end(`<?xml version="1.0"?><d:multistatus xmlns:d="DAV:"><d:response><d:href>${base}</d:href></d:response>${items.join('')}</d:multistatus>`);
+                return;
+            }
             res.writeHead(405).end();
             return;
         }

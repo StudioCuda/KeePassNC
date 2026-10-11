@@ -61,7 +61,7 @@ export function parse(xml: string): Document {
 
     let doc;
     // eslint-disable-next-line no-control-regex
-    xml = xml.replace(/[\x00-\x09\x0B-\x0C\x0E-\x1F]/g, '');
+    xml = xml.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F]/g, ""); // Tab (0x09) ist in XML 1.0 erlaubt und muss erhalten bleiben (Upstream entfernte es faelschlich)
     try {
         doc = parser.parseFromString(xml, 'application/xml');
     } catch (e) {

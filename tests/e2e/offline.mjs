@@ -36,7 +36,7 @@ async function main() {
     const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
     const pageErrors = [];
 
-    const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    const ctx = await browser.newContext({ locale: 'de-DE', viewport: { width: 1280, height: 800 } });
     await ctx.addInitScript(() => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'change', offline: true })); } catch {} });
     const page = await ctx.newPage();
     page.on('pageerror', (e) => pageErrors.push(String(e)));
@@ -46,7 +46,7 @@ async function main() {
     const waitStatus = (re, t = 25000) => page.waitForFunction((s) => new RegExp(s).test(document.querySelector('#status')?.textContent || ''), re.source, { timeout: t });
     const syncState = () => page.locator('#sync-state').getAttribute('data-state');
     const login = async () => {
-        await page.locator('input[value=dav]').check();
+        await page.locator('input[value=dav]').check({ force: true });
         await page.fill('#dav-url', `${base}/dav/vault4.kdbx`); await page.fill('#dav-user', 'tester'); await page.fill('#dav-pass', 'app-secret');
         await page.fill('#master', PW); await page.click('#open-btn');
     };
@@ -102,11 +102,11 @@ async function main() {
         await page.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
         xc(['edit', '-q', f4, 'Bank/Konto', '--username', 'bob-extern']);
         await page.waitForFunction(() => /bob-extern/.test(document.querySelector('[data-testid=f-user]')?.textContent || ''), null, { timeout: 20000 });
-        expect(/Aenderungen von einem anderen Geraet/.test(await status()), await status());
+        expect(/Änderungen von einem anderen Gerät/.test(await status()), await status());
     });
 
     await step('Ohne Offline-Option: Ausfall beim Speichern -> Fehlermeldung, Aenderung bleibt ungespeichert (nichts geht still verloren); Anmeldung bei Ausfall -> klare Meldung', async () => {
-        const ctx2 = await browser.newContext();
+        const ctx2 = await browser.newContext({ locale: 'de-DE' });
         await ctx2.addInitScript(() => { try { localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'change', offline: false })); } catch {} });
         const p2 = await ctx2.newPage();
         await p2.goto(url());
@@ -119,12 +119,12 @@ async function main() {
         expect(/Speichern \*/.test(await p2.locator('#save-btn').innerText()), 'Aenderung muss als ungespeichert markiert bleiben');
         await p2.click('#lock-btn').catch(() => {});
         await ctx2.close();
-        const ctx3 = await browser.newContext();
+        const ctx3 = await browser.newContext({ locale: 'de-DE' });
         const p3 = await ctx3.newPage();
         await p3.goto(url()).catch(() => {});
         await ctx3.close();
         await recover();
-        const ctx4 = await browser.newContext();
+        const ctx4 = await browser.newContext({ locale: 'de-DE' });
         await ctx4.addInitScript(() => { try { localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'off', offline: false })); } catch {} });
         const p4 = await ctx4.newPage();
         await p4.goto(url());
@@ -139,7 +139,7 @@ async function main() {
     await step('"Lokale Daten loeschen" entfernt Offline-Kopie, App-Cache und Service Worker', async () => {
         await page.goto(url()); await page.locator('#login-form').waitFor();
         await page.click('#wipe-btn'); await page.click('#wipe-btn');
-        await page.waitForFunction(() => /geloescht/.test(document.querySelector('#login-error')?.textContent || ''));
+        await page.waitForFunction(() => /gelöscht/.test(document.querySelector('#login-error')?.textContent || ''));
         const left = await page.evaluate(async () => {
             const regs = (await navigator.serviceWorker.getRegistrations()).length;
             const caches_ = (await caches.keys()).filter((k) => k.startsWith('kpnc-')).length;

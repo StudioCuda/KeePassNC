@@ -15,6 +15,7 @@ use OCP\AppFramework\Http\EmptyContentSecurityPolicy;
 use OCP\AppFramework\Http\Response;
 use OCP\IRequest;
 use OCP\IURLGenerator;
+use OCP\L10N\IFactory;
 use OCP\IUserSession;
 
 /**
@@ -29,6 +30,7 @@ class PageController extends Controller {
 		private IURLGenerator $urlGenerator,
 		private IUserSession $userSession,
 		private IAppManager $appManager,
+		private IFactory $l10nFactory,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -61,8 +63,22 @@ class PageController extends Controller {
 			$swUrl = '';
 		}
 
+		try {
+			$pepperUrl = $this->urlGenerator->linkToRoute('keepassnc.pepper.get');
+		} catch (\Throwable) {
+			$pepperUrl = '';
+		}
+
+		try {
+			$lang = (string)$this->l10nFactory->findLanguage();
+		} catch (\Throwable) {
+			$lang = 'en';
+		}
+		$lang = preg_match('/^[a-z]{2,3}/i', $lang, $m) ? strtolower($m[0]) : 'en';
+
 		$vars = [
 			'__SW_URL__' => $swUrl,
+			'__PEPPER_URL__' => $pepperUrl,
 			'__DAV_BASE__' => $davBase,
 			'__CSRF_URL__' => $indexPhp . '/csrftoken',
 			'__FILES_URL__' => $filesUrl,
@@ -70,7 +86,7 @@ class PageController extends Controller {
 			'__FILE__' => $file,
 			'__CSS__' => $this->urlGenerator->linkTo(Application::APP_ID, 'css/keepassnc.css') . '?v=' . $version,
 			'__JS__' => $this->urlGenerator->linkTo(Application::APP_ID, 'js/keepassnc.js') . '?v=' . $version,
-			'__LANG__' => 'de',
+			'__LANG__' => $lang,
 		];
 		$template = file_get_contents(__DIR__ . '/../../templates/page.html');
 		$html = strtr($template, array_map(static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8'), $vars));
@@ -105,7 +121,8 @@ class PageController extends Controller {
 		$csp->addAllowedImageDomain("'self'");
 		$csp->addAllowedImageDomain('data:');
 		$csp->addAllowedConnectDomain("'self'");
-		$csp->addAllowedFrameAncestorDomain("'self'");
+		// Kein addAllowedFrameAncestorDomain(): EmptyContentSecurityPolicy setzt dann frame-ancestors 'none'. Die Seite wird nie eingebettet;
+		// so koennen andere Apps derselben Nextcloud-Herkunft sie nicht unsichtbar einrahmen (Clickjacking, verdecktes Mitlesen).
 		return $csp;
 	}
 }

@@ -1,63 +1,71 @@
+**English** · [Deutsch](README.de.md)
+
 # KeePassNC
 
-Schlanker KDBX-Passwortmanager fuer den Browser, gedacht als Nachfolger der Nextcloud-App "KeeWeb".
-Die Datenbank bleibt eine ganz normale KeePass-Datei (KDBX 3.x/4.x) in der Nextcloud und kann jederzeit weiterhin mit
-KeePassXC, KeePassDX, Strongbox usw. geoeffnet werden.
+Your KeePass file, opened in a browser tab, on your own Nextcloud. That's it. That's the app.
 
-**Sicherheitsmodell:** Die Datei wird im Browser geladen, dort entschluesselt, dort bearbeitet und verschluesselt wieder
-zurueckgeschrieben. Master-Passwort und Klartext verlassen den Browser nie; der Server sieht nur die verschluesselte Datei.
-Es werden keine externen Skripte, Schriften oder Dienste geladen (strikte Content-Security-Policy).
+KeeWeb stopped getting updates, so this is its replacement: it reads and writes plain **KDBX 3.1 / 4.x** files, so
+KeePassXC, KeePassDX and Strongbox keep working on the very same file. No lock-in, no special format, no drama.
 
-## Stand (v0.3)
-Funktioniert und ist automatisch getestet (siehe `STATUS.md`): Oeffnen per WebDAV (Nextcloud-App-Passwort) oder lokaler Datei,
-KDBX 3.1 / 4.0 / 4.1, AES und ChaCha20, Argon2d/Argon2id/AES-KDF, Schluesseldatei, Gruppen, Suche, Eintraege anlegen/bearbeiten/
-loeschen (Papierkorb), geschuetzte Zusatzfelder, Tags, TOTP, Anhaenge herunterladen, Passwortgenerator, Auto-Sperre,
-Zwischenablage-Bereinigung, Speichern mit ETag-Pruefung, Sicherungskopie und Zusammenfuehrung bei Konflikten.
+## How it behaves
 
-Neu in v0.2: **Nextcloud-App** (`nextcloud-app/keepassnc`). Klick auf eine `.kdbx`-Datei in der Dateiansicht oeffnet sie in KeePassNC;
-Anmeldung laeuft ueber die bestehende Nextcloud-Sitzung (kein App-Passwort noetig), Entschluesselung weiterhin nur im Browser.
+- **Everything is decrypted in your browser.** The master password and the plaintext never leave it. The server only ever sees the
+  encrypted file. No external scripts, no fonts from somewhere else, strict CSP.
+- **Saving is careful.** Writes use ETag checks, a backup copy goes next to the file first, and if two devices edited at once the
+  two versions get merged instead of one quietly winning. Old backups are cleaned up so your folder doesn't turn into a museum.
+- **Outages are survivable.** Optional encrypted offline copy plus a service worker: if the server is down for weeks, you can still
+  open the database, edit it, and it syncs back when the server returns.
+- **Works on a phone and on a big screen.** Three-pane layout on desktop, single pane with a drawer on mobile, light and dark,
+  English and German (it follows your Nextcloud language).
 
-Neu in v0.3 (Ausfallsicherheit, siehe `STATUS.md`):
-- **Offline-Kopie** (optional, pro Browser): die *verschluesselte* KDBX wird in IndexedDB vorgehalten. Faellt der Server aus
-  (Wartungsmodus, Absturz, kein Netz), laesst sich die Datei weiter oeffnen und bearbeiten; Aenderungen werden lokal gesichert
-  und automatisch hochgeladen bzw. mit Fremdaenderungen zusammengefuehrt, sobald der Server wieder da ist.
-- **App-Seite offline** per Service Worker: KeePassNC startet auch, wenn Nextcloud gar nicht antwortet (einmal online geoeffnet haben).
-- **Automatisches Speichern/Abgleichen**: bei jeder Aenderung, alle 1/2/5/10 Minuten oder nur manuell; Intervall-Modus holt auch
-  Aenderungen anderer Geraete. Merge-Schleife (max. 3 Versuche), Sicherungskopien wie bisher.
-- **Einstellungen**: Auto-Sperre (1-60 min), Zwischenablage-Dauer, Sperren bei Tab im Hintergrund.
-- Auf fremden Geraeten die Offline-Option ausgeschaltet lassen; "Lokale Daten dieses Browsers loeschen" entfernt alles wieder.
+## What's in the box
 
-Noch **nicht** vorhanden: Speichern der Schluesseldatei auf dem Geraet, Uebersetzungen (Oberflaeche nur Deutsch), Gruppenverwaltung, Anhaenge hochladen, Verlaufsansicht, Passkeys, Steam-TOTP.
+Search with KeePassXC-style syntax (`user:`, `tag:`, `-nope`, `is:weak`, `has:totp` …), command palette (`Ctrl+K`), groups with drag and
+drop, recycle bin, tags, expiry, attachments, entry history, TOTP, passkey fields preserved, password and passphrase generator,
+a health report (weak, reused, expired), and an opt-in "remember my key file" helper that is tied to a server-side secret so a
+copied browser profile alone can't be used to guess your master password. Design notes live in
+[`docs/KEYFILE-MEMORY.md`](docs/KEYFILE-MEMORY.md).
 
-## Als Nextcloud-App installieren
-    npm install && npm run package:nc      # erzeugt keepassnc-nextcloud-app.tar.gz
-    # Archiv im Nextcloud-Verzeichnis nach apps/ (oder custom_apps/) entpacken, dann:
-    php occ app:enable keepassnc
-Getestet mit Nextcloud 34.0.4 und 35.0.1 (PHP 8.3, SQLite). Die App nutzt nur oeffentliche Schnittstellen (WebDAV, `/csrftoken`,
-`LoadAdditionalScriptsEvent`, `registerFileAction`); in `info.xml` steht `max-version="99"`, damit kuenftige Versionen nicht
-ausgesperrt werden. Der Test `npm run test:nc` (mit `NC_DIR`/`NC_PORT`) installiert eine frische Nextcloud aus einem Quellordner.
+Not there yet: Steam TOTP, shared folders, autofill, creating new passkeys (existing ones are kept and shown).
 
-## Benutzen (eigenstaendige Webseite)
-Die Dateien in `web/` auf einen HTTPS-Webserver legen (WebCrypto verlangt HTTPS oder localhost), `index.html` oeffnen,
-WebDAV-Adresse der KDBX-Datei, Benutzer und **App-Passwort** (nicht das Kontopasswort) eintragen.
-Wichtig: Liegt die Seite auf einer anderen Domain als die Nextcloud, muss die Nextcloud CORS fuer WebDAV erlauben; einfacher ist
-es, die Seite auf derselben Domain auszuliefern (spaeter: als Nextcloud-App, dann gleiche Herkunft und Anmeldung per Sitzung).
-`?autolock=SEKUNDEN` ueberschreibt die Auto-Sperre (Standard 300 s).
+## Install (Nextcloud 34 and up)
 
-## Entwickeln
-    npm install
-    npm run build      # baut web/keepassnc.js (kdbxweb + hash-wasm + App-Code, ca. 140 KB)
-    npm test           # Build, Unit-, Kompatibilitaets-, End-to-End- und Ausfall-Tests
-    NC_DIR=/pfad/nextcloud NC_PORT=18035 npm run test:nc   # Nextcloud-Integration inkl. Wartungsmodus/Serverabsturz
+```sh
+npm install
+npm run package:nc        # builds keepassnc-nextcloud-app.tar.gz
+# unpack into your Nextcloud apps/ (or custom_apps/) folder, then:
+php occ app:enable keepassnc
+```
 
-Voraussetzungen fuer die Tests: Node 20+, `keepassxc-cli` (KeePassXC 2.7.x), Python 3 mit `pykeepass`, Chromium
-(`/opt/pw-browsers` oder Umgebungsvariable `CHROMIUM`).
+Click a `.kdbx` in Files, type your master password, done. Tested against Nextcloud 34.0.4 and 35.0.1 (PHP 8.3). The app only uses
+public interfaces (WebDAV, the CSRF token endpoint, the files action API), and `info.xml` doesn't cap the version, so newer
+releases aren't locked out in advance.
 
-## Aufbau
-- `src/vault.js` Tresor-Logik (laden, aendern, speichern, Konflikte), `src/webdav.js` WebDAV mit If-Match, `src/totp.js` TOTP, `src/main.js` Oberflaeche
-- `vendor/kdbxweb/` kdbxweb (MIT, Git-Stand siehe `UPSTREAM_COMMIT`) mit Patch gegen leere optionale Gruppenfelder
-- `tests/unit` RFC-6238-Vektoren, `tests/compat` kdbxweb gegen KeePassXC, `tests/e2e` Browser gegen WebDAV-Testserver + KeePassXC
+### Standalone page
 
-## Lizenz und Herkunft
-kdbxweb: MIT (Antelle). Ideen und Verhalten orientieren sich an KeePassXC (GPL); es wurde kein KeePassXC-Code uebernommen.
-Die Nextcloud-App ist von jhass/nextcloud-keeweb (AGPL-3) inspiriert und steht unter AGPL-3; `COPYING` liegt bei.
+Serve `web/` over HTTPS, enter the WebDAV URL of your file, your user name and an **app password** (not your account password).
+If the page lives on a different domain than the Nextcloud, you need CORS for WebDAV. Same domain is easier.
+
+## Hack on it
+
+```sh
+npm install
+npm run build
+npm test                  # unit, KeePassXC compatibility, e2e, UI, key file, offline, fidelity
+NC_DIR=/path/to/nextcloud NC_PORT=18035 npm run test:nc   # fresh Nextcloud install + browser run
+```
+
+Tests need Node 20+, `keepassxc-cli` 2.7.x, Python 3 with `pykeepass`, and Chromium.
+Layout: `src/` app code (`src/ui/` interface, `src/vault.js` the interesting part), `vendor/kdbxweb/` the KDBX library,
+`nextcloud-app/keepassnc/` the Nextcloud wrapper, `tests/` the safety net.
+
+## Security
+
+This is a password manager, so please be picky. Found something? Read [`SECURITY.md`](SECURITY.md) first. Until someone independent has
+audited it, keep your regular KeePassXC copy around. The file format being boring is the point.
+
+## License and credits
+
+AGPL-3.0-or-later for the app. [kdbxweb](https://github.com/keeweb/kdbxweb) (MIT) does the KDBX heavy lifting.
+Behaviour is inspired by KeePassXC (GPL), but no KeePassXC code was copied. The Nextcloud side owes a nod to
+jhass/nextcloud-keeweb.

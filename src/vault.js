@@ -4,8 +4,9 @@ import * as kdbxweb from '../vendor/kdbxweb/lib/index';
 import { argon2d, argon2id } from 'hash-wasm';
 import { ConflictError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
+import { isSystemField, valueText } from './core/util.js';
 
-const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts } = kdbxweb;
+const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid } = kdbxweb;
 
 kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type) => {
     const fn = type === 2 ? argon2id : argon2d;
@@ -23,12 +24,12 @@ kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, le
 
 export const STANDARD_FIELDS = ['Title', 'UserName', 'Password', 'URL', 'Notes'];
 
-export class VaultError extends Error {}
-
-export function fieldText(v) {
-    if (v === undefined || v === null) return '';
-    return typeof v === 'string' ? v : v.getText();
+/** message: deutscher Ersatztext; key/vars: Schluessel der Uebersetzung (siehe errText in i18n.js). */
+export class VaultError extends Error {
+    constructor(message, key, vars) { super(message); this.name = 'VaultError'; this.key = key; this.vars = vars; }
 }
+
+export const fieldText = valueText;
 
 export function isProtected(v) {
     return v instanceof ProtectedValue;
@@ -71,10 +72,10 @@ export class Vault {
             db = await Kdbx.load(buf, new Credentials(pw, kf));
         } catch (e) {
             if (e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) {
-                throw new VaultError('Falsches Master-Passwort oder falsche Schluesseldatei.');
+                throw new VaultError('Falsches Master-Passwort oder falsche Schluesseldatei.', 'e.badkey');
             }
             if (e instanceof KdbxError && (e.code === Consts.ErrorCodes.BadSignature || e.code === Consts.ErrorCodes.InvalidVersion)) {
-                throw new VaultError('Das ist keine gueltige KDBX-Datei (oder eine nicht unterstuetzte Version).');
+                throw new VaultError('Das ist keine gueltige KDBX-Datei (oder eine nicht unterstuetzte Version).', 'e.badfile');
             }
             throw e;
         }
@@ -92,6 +93,7 @@ export class Vault {
         this.etag = etag;
         this._remoteBytes = remoteBytes;
         this._backedUp = false;
+        this.backupKeep = 10; // Anzahl behaltener Sicherungskopien je Art (0 = nie loeschen)
         this.dirty = false; // Aenderungen nur im Arbeitsspeicher (noch nicht serialisiert)
         this.cache = cache || null;
         this.unsynced = false; // lokal gesichert (Offline-Kopie), Server hat den Stand noch nicht
@@ -156,35 +158,210 @@ export class Vault {
 
     /**
      * Wendet Formularwerte auf einen Eintrag an (neuer Eintrag: entry === null -> in group anlegen).
-     * data: {Title, UserName, Password, URL, Notes, tags: string[], custom: [{name, value, protect}]}
+     * data: {Title, UserName, Password, URL, Notes, tags: string[], custom: [{name, value, protect}], expires?: boolean, expiryTime?: Date|null, otp?: string}
+     * Unveraendert bleibt alles, was der Editor nicht anzeigt (Passkey-Felder, Browser-Daten, Farben, Auto-Type ...). Ohne tatsaechliche Aenderung
+     * entsteht kein Verlaufseintrag (wie in KeePassXC).
      */
     applyEntry(entry, group, data) {
         const isNew = !entry;
         if (isNew) entry = this.db.createEntry(group);
-        else entry.pushHistory();
-        entry.fields.set('Title', data.Title ?? '');
-        entry.fields.set('UserName', data.UserName ?? '');
-        entry.fields.set('Password', ProtectedValue.fromString(data.Password ?? ''));
-        entry.fields.set('URL', data.URL ?? '');
-        entry.fields.set('Notes', data.Notes ?? '');
-        entry.tags = data.tags || [];
+        else if (!this.entryDiffers(entry, data)) return entry;
+        else this._pushHistory(entry);
+        const set = (k, v) => entry.fields.set(k, v);
+        set('Title', data.Title ?? '');
+        set('UserName', data.UserName ?? '');
+        set('Password', ProtectedValue.fromString(data.Password ?? ''));
+        set('URL', data.URL ?? '');
+        set('Notes', data.Notes ?? '');
+        entry.tags = [...new Set((data.tags || []).map((t) => t.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
         const wanted = new Set();
         for (const c of data.custom || []) {
             const name = (c.name || '').trim();
-            if (!name || STANDARD_FIELDS.includes(name)) continue;
+            if (!name || STANDARD_FIELDS.includes(name) || isSystemField(name)) continue;
             wanted.add(name);
-            entry.fields.set(name, c.protect ? ProtectedValue.fromString(c.value ?? '') : (c.value ?? ''));
+            const old = entry.fields.get(name);
+            const same = old !== undefined && valueText(old) === (c.value ?? '') && isProtected(old) === !!c.protect;
+            if (!same) entry.fields.set(name, c.protect ? ProtectedValue.fromString(c.value ?? '') : (c.value ?? ''));
         }
-        for (const k of [...entry.fields.keys()]) if (!STANDARD_FIELDS.includes(k) && !wanted.has(k)) entry.fields.delete(k);
+        for (const k of [...entry.fields.keys()]) if (!STANDARD_FIELDS.includes(k) && !isSystemField(k) && !wanted.has(k)) entry.fields.delete(k);
+        if (data.otp !== undefined) {
+            if (data.otp) entry.fields.set('otp', ProtectedValue.fromString(data.otp));
+            else for (const k of ['otp', 'TOTP Seed', 'TOTP Settings']) entry.fields.delete(k);
+        }
+        if (data.expires !== undefined) {
+            entry.times.expires = !!data.expires;
+            if (data.expires) entry.times.expiryTime = data.expiryTime || new Date(Date.now() + 365 * 86400000);
+        }
         entry.times.update();
         this.dirty = true;
         return entry;
+    }
+
+    /** true, wenn die Formularwerte vom gespeicherten Eintrag abweichen. */
+    entryDiffers(entry, data) {
+        const same = (k, v) => valueText(entry.fields.get(k)) === (v ?? '');
+        if (!(same('Title', data.Title) && same('UserName', data.UserName) && same('Password', data.Password) && same('URL', data.URL) && same('Notes', data.Notes))) return true;
+        const tags = [...new Set((data.tags || []).map((t) => t.trim()).filter(Boolean))].sort().join('\n');
+        if (tags !== [...entry.tags].sort().join('\n')) return true;
+        const custom = (data.custom || []).filter((c) => (c.name || '').trim() && !STANDARD_FIELDS.includes(c.name.trim()) && !isSystemField(c.name.trim()));
+        const existing = [...entry.fields].filter(([k]) => !STANDARD_FIELDS.includes(k) && !isSystemField(k));
+        if (custom.length !== existing.length) return true;
+        for (const c of custom) { const o = entry.fields.get(c.name.trim()); if (o === undefined || valueText(o) !== (c.value ?? '') || isProtected(o) !== !!c.protect) return true; }
+        if (data.otp !== undefined) { const cur = valueText(entry.fields.get('otp')); if ((data.otp || '') !== cur && !(data.otp === '' && !entry.fields.has('otp') && !entry.fields.has('TOTP Seed'))) return true; }
+        if (data.expires !== undefined) {
+            if (!!data.expires !== !!entry.times.expires) return true;
+            if (data.expires && (data.expiryTime?.getTime() ?? 0) !== (entry.times.expiryTime?.getTime() ?? 0)) return true;
+        }
+        return false;
+    }
+
+    /** Verlaufseintrag anlegen und gemaess Datenbank-Einstellungen kuerzen (Standard 10 Staende / 6 MiB, aelteste zuerst). */
+    _pushHistory(entry) {
+        entry.pushHistory();
+        const maxItems = this.db.meta.historyMaxItems ?? 10;
+        const maxSize = this.db.meta.historyMaxSize ?? 6 * 1024 * 1024;
+        if (maxItems === 0) { entry.removeHistory(0, entry.history.length); return; }
+        if (maxItems > 0 && entry.history.length > maxItems) entry.removeHistory(0, entry.history.length - maxItems);
+        if (maxSize > 0) {
+            const size = (h) => [...h.fields].reduce((n, [k, v]) => n + k.length + valueText(v).length * 2, 0) + [...h.binaries.values()].reduce((n, b) => n + (b.value?.byteLength ?? b.byteLength ?? 0), 0);
+            while (entry.history.length > 1 && entry.history.reduce((n, h) => n + size(h), 0) > maxSize) entry.removeHistory(0, 1);
+        }
     }
 
     removeEntry(entry) {
         if (this.isInRecycleBin(entry)) this.db.move(entry, null); // endgueltig loeschen
         else this.db.remove(entry);
         this.dirty = true;
+    }
+
+    /** Kopie mit neuer UUID, neuen Zeitstempeln und ohne Verlauf, in derselben Gruppe. */
+    duplicateEntry(entry, suffix = ' - Kopie') {
+        const copy = this.db.createEntry(entry.parentGroup);
+        copy.copyFrom(entry);
+        copy.uuid = KdbxUuid.random();
+        copy.history = [];
+        copy.previousParentGroup = undefined;
+        copy.times = entry.times.clone();
+        const now = new Date();
+        copy.times.creationTime = now; copy.times.lastModTime = now; copy.times.lastAccessTime = now; copy.times.locationChanged = now; copy.times.usageCount = 0;
+        copy.fields.set('Title', valueText(entry.fields.get('Title')) + suffix);
+        this.dirty = true;
+        return copy;
+    }
+
+    moveEntry(entry, group) {
+        if (entry.parentGroup === group) return;
+        this.db.move(entry, group);
+        this.dirty = true;
+    }
+
+    // ---------------------------------------------------------------- Gruppen
+    allGroups() {
+        const out = [];
+        const walk = (g, depth) => { out.push({ group: g, depth }); for (const c of g.groups) walk(c, depth + 1); };
+        walk(this.root, 0);
+        return out;
+    }
+    createGroup(parent, name) { const g = this.db.createGroup(parent, name.trim() || 'Neue Gruppe'); this.dirty = true; return g; }
+    updateGroup(group, { name, notes, icon }) {
+        if (name !== undefined) group.name = name.trim() || group.name;
+        if (notes !== undefined) group.notes = notes;
+        if (icon !== undefined) group.icon = icon;
+        group.times.update();
+        this.dirty = true;
+    }
+    /** Papierkorb ist aktiv -> Gruppe wandert hinein; sonst endgueltig. */
+    removeGroup(group) {
+        if (group === this.root) throw new VaultError('Die Wurzelgruppe kann nicht geloescht werden.', 'e.root.delete');
+        if (group === this.recycleBin) throw new VaultError('Der Papierkorb kann nicht geloescht werden - nur leeren.', 'e.bin.delete');
+        if (this.isInRecycleBin(group)) this.db.move(group, null); else this.db.remove(group);
+        this.dirty = true;
+    }
+    canMoveGroup(group, target) {
+        if (group === this.root || !target || group === target || group.parentGroup === target) return false;
+        for (let g = target; g; g = g.parentGroup) if (g === group) return false; // nicht in sich selbst/Nachkommen
+        return true;
+    }
+    moveGroup(group, target) {
+        if (!this.canMoveGroup(group, target)) return false;
+        this.db.move(group, target);
+        this.dirty = true;
+        return true;
+    }
+    emptyRecycleBin() {
+        const rb = this.recycleBin;
+        if (!rb) return 0;
+        let n = 0;
+        for (const e of [...rb.entries]) { this.db.move(e, null); n++; }
+        for (const g of [...rb.groups]) { this.db.move(g, null); n++; }
+        if (n) this.dirty = true;
+        return n;
+    }
+
+    // ---------------------------------------------------------------- Verlauf
+    /** Stellt einen frueheren Stand wieder her; der aktuelle Stand wird dabei selbst zum Verlaufseintrag. */
+    restoreHistory(entry, index) {
+        const old = entry.history[index];
+        if (!old) return;
+        const created = entry.times.creationTime, keep = entry.history, uuid = entry.uuid, parent = entry.parentGroup, prev = entry.previousParentGroup, loc = entry.times.locationChanged, usage = entry.times.usageCount;
+        this._pushHistory(entry);
+        const hist = entry.history;
+        entry.copyFrom(old);
+        entry.uuid = uuid; entry.history = hist; entry.parentGroup = parent; entry.previousParentGroup = prev;
+        entry.times.creationTime = created; entry.times.locationChanged = loc; entry.times.usageCount = usage;
+        entry.times.update();
+        this.dirty = true;
+    }
+    deleteHistory(entry, index) { entry.removeHistory(index, 1); entry.times.update(); this.dirty = true; }
+    clearHistory(entry) { entry.removeHistory(0, entry.history.length); this.dirty = true; }
+
+    // ---------------------------------------------------------------- Anhaenge
+    async addAttachment(entry, name, buffer) {
+        if (!name || entry.binaries.has(name)) throw new VaultError(`Ein Anhang namens "${name}" existiert bereits.`, 'e.att.exists', { name });
+        const bin = await this.db.createBinary(buffer);
+        this._pushHistory(entry);
+        entry.binaries.set(name, bin);
+        entry.times.update();
+        this.dirty = true;
+    }
+    removeAttachment(entry, name) {
+        if (!entry.binaries.has(name)) return;
+        this._pushHistory(entry);
+        entry.binaries.delete(name);
+        entry.times.update();
+        this.dirty = true;
+    }
+
+    // ---------------------------------------------------------------- Anzeige-Hilfen
+    /** data:-URL eines eigenen Icons (oder null). */
+    customIconUrl(entryOrGroup) {
+        const id = entryOrGroup.customIcon?.id;
+        const ic = id && this.db.meta.customIcons.get(id);
+        if (!ic) return null;
+        this._iconCache ||= new Map();
+        if (this._iconCache.has(id)) return this._iconCache.get(id);
+        const bytes = new Uint8Array(ic.data.buffer ? ic.data.buffer.slice(ic.data.byteOffset, ic.data.byteOffset + ic.data.byteLength) : ic.data);
+        const mime = bytes[0] === 0x89 ? 'image/png' : bytes[0] === 0xff ? 'image/jpeg' : bytes[0] === 0x47 ? 'image/gif' : bytes[0] === 0x3c ? null : 'image/png'; // SVG nie rendern
+        let url = null;
+        if (mime) { let bin = ''; for (const b of bytes) bin += String.fromCharCode(b); url = `data:${mime};base64,${btoa(bin)}`; }
+        this._iconCache.set(id, url);
+        return url;
+    }
+
+    /** Eckdaten der Datei fuer die Info-Ansicht. */
+    info() {
+        const h = this.db.header;
+        const kdf = h.kdfParameters;
+        const cipherNames = { [Consts.CipherId.Aes]: 'AES-256', [Consts.CipherId.ChaCha20]: 'ChaCha20' };
+        const out = { version: this.versionLabel, cipher: cipherNames[h.dataCipherUuid?.toString?.()] || h.dataCipherUuid?.toString?.() || '?', kdf: 'AES-KDF', memoryMiB: null, iterations: null, parallelism: null, name: this.db.meta.name || '' };
+        if (kdf) {
+            const id = kdf.get('$UUID');
+            const b64 = id ? btoa(String.fromCharCode(...new Uint8Array(id))) : '';
+            out.kdf = b64 === Consts.KdfId.Argon2d ? 'Argon2d' : b64 === Consts.KdfId.Argon2id ? 'Argon2id' : 'AES-KDF';
+            if (out.kdf !== 'AES-KDF') { out.memoryMiB = Math.round(Number(kdf.get('M')) / 1048576); out.iterations = Number(kdf.get('I')); out.parallelism = Number(kdf.get('P')); }
+            else out.iterations = Number(kdf.get('R'));
+        } else out.iterations = Number(h.transformRounds ?? 0);
+        return out;
     }
 
     /**
@@ -226,10 +403,16 @@ export class Vault {
         }
     }
 
+    /** Alte Sicherungskopien aufraeumen; Fehler hier duerfen nie das Speichern stoeren. */
+    async _prune() {
+        try { await this.dav.pruneBackups(this.backupKeep); } catch { /* best effort */ }
+    }
+
     async _push() {
         if (!this._backedUp) {
             await this.dav.putCopy(this._remoteBytes, stamp());
             this._backedUp = true;
+            await this._prune();
         }
         let merged = false;
         for (let attempt = 1; ; attempt++) {
@@ -243,12 +426,13 @@ export class Vault {
                 return { merged };
             } catch (e) {
                 if (!(e instanceof ConflictError)) throw e;
-                if (attempt >= 3) throw new VaultError('Die Datei wird gerade von einem anderen Geraet laufend geaendert - bitte spaeter erneut speichern. Ihre Aenderungen sind lokal gesichert.');
+                if (attempt >= 3) throw new VaultError('Die Datei wird gerade von einem anderen Geraet laufend geaendert - bitte spaeter erneut speichern. Ihre Aenderungen sind lokal gesichert.', 'e.busy');
                 const remote = await this.dav.get();
                 await this.dav.putCopy(remote.buf, `conflict-${stamp()}`);
+                await this._prune();
                 const remoteDb = await Kdbx.load(remote.buf, this._credentials()).catch((err) => {
                     if (err instanceof KdbxError && err.code === Consts.ErrorCodes.InvalidKey) {
-                        throw new VaultError('Das Master-Passwort wurde auf einem anderen Geraet geaendert - zusammenfuehren nicht moeglich. Ihre Aenderungen sind lokal gesichert; bitte mit dem neuen Passwort neu anmelden.');
+                        throw new VaultError('Das Master-Passwort wurde auf einem anderen Geraet geaendert - zusammenfuehren nicht moeglich. Ihre Aenderungen sind lokal gesichert; bitte mit dem neuen Passwort neu anmelden.', 'e.merge.pw');
                     }
                     throw err;
                 });
@@ -273,7 +457,7 @@ export class Vault {
             remoteDb = await Kdbx.load(remote.buf, this._credentials());
         } catch (e) {
             if (e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) {
-                throw new VaultError('Das Master-Passwort wurde auf einem anderen Geraet geaendert - bitte neu anmelden.');
+                throw new VaultError('Das Master-Passwort wurde auf einem anderen Geraet geaendert - bitte neu anmelden.', 'e.pull.pw');
             }
             throw e;
         }

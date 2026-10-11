@@ -47,3 +47,6 @@ export async function wipeLocalData() {
         for (const k of Object.keys(localStorage)) if (k.startsWith('kpnc.')) localStorage.removeItem(k);
     } catch { /* ignorieren */ }
 }
+
+/** Schluesseldatei-Merker (verschluesselt, siehe keyfile-store.js) liegt im selben Speicher und wird von wipeLocalData mitgeloescht. */
+export const keyfileBackend = { get: cacheGet, put: cachePut, delete: cacheDelete, keys: cacheKeys };

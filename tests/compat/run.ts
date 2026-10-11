@@ -199,6 +199,45 @@ async function main() {
         xc(['ls', '-R', path.join(TMP, 'py-out.kdbx')], path.join(TMP, 'py-out.kdbx'));
     }, true);
 
+    // 5) Schluesseldatei-Formate, wie sie KeePassXC/KeePass in der Praxis erzeugen: DB von KeePassXC angelegt, von kdbxweb gelesen
+    const kfVariants: Record<string, Buffer> = {
+        'XML v1 (Base64)': Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>\n<KeyFile><Meta><Version>1.00</Version></Meta><Key><Data>${crypto.randomBytes(32).toString('base64')}</Data></Key></KeyFile>\n`),
+        '32 Rohbytes': crypto.randomBytes(32),
+        '64 Hex-Zeichen': Buffer.from(crypto.randomBytes(32).toString('hex') + '\n'),
+        'beliebige Datei (z. B. Bild, Hash ueber alles)': Buffer.concat([Buffer.from('\x89PNG\r\n\x1a\n'), crypto.randomBytes(5000)]),
+        'leere Zeilen/Windows-Zeilenenden in XML v2': Buffer.alloc(0)
+    };
+    // XML v2 von KeePassXC selbst erzeugen lassen und mit Windows-Zeilenenden umschreiben (Datei auf Windows bearbeitet)
+    const v2Path = path.join(TMP, 'gen.keyx');
+    execFileSync('keepassxc-cli', ['db-create', '-q', '-p', '--set-key-file', v2Path, '-t', '100', path.join(TMP, 'gen.kdbx')], { input: PW + '\n' + PW + '\n' });
+    kfVariants['leere Zeilen/Windows-Zeilenenden in XML v2'] = Buffer.from(fs.readFileSync(v2Path, 'utf8').replace(/\n/g, '\r\n'));
+    for (const [label, bytes] of Object.entries(kfVariants)) {
+        await t(`Schluesseldatei ${label}: KeePassXC legt DB an, kdbxweb liest sie`, async () => {
+            const kf = path.join(TMP, `kf-${crypto.randomBytes(3).toString('hex')}.bin`); fs.writeFileSync(kf, bytes);
+            const dbf = path.join(TMP, `kfdb-${crypto.randomBytes(3).toString('hex')}.kdbx`);
+            execFileSync('keepassxc-cli', ['db-create', '-q', '-p', '--set-key-file', kf, '-t', '100', dbf], { input: PW + '\n' + PW + '\n' });
+            execFileSync('keepassxc-cli', ['add', '-q', '-k', kf, '-u', 'u', dbf, 'Eintrag'], { input: PW + '\n' });
+            const db = await Kdbx.load(ab(fs.readFileSync(dbf)), new Credentials(ProtectedValue.fromString(PW), ab(bytes)));
+            const titles = [...db.getDefaultGroup().allEntries()].map((e: any) => e.fields.get('Title'));
+            if (titles.join() !== 'Eintrag') throw new Error('Eintraege: ' + titles.join());
+            // und umgekehrt: kdbxweb speichert, KeePassXC liest mit derselben Datei
+            const out = path.join(TMP, 'kfout.kdbx'); fs.writeFileSync(out, Buffer.from(await db.save()));
+            xc(['ls', out], out, kf);
+        });
+    }
+    await t('Master-Passwort mit Sonderzeichen/NFD/Emoji: KeePassXC <-> kdbxweb in beide Richtungen', async () => {
+        const hard = 'Zähl-Ünï§ "Q\'uote" \\ €uro 日本語 🔐🗝️  e\u0301 0O1lI| ;&$`{}';
+        const dbf = path.join(TMP, 'hardpw.kdbx');
+        execFileSync('keepassxc-cli', ['db-create', '-q', '-p', '-t', '100', dbf], { input: hard + '\n' + hard + '\n' });
+        const db = await Kdbx.load(ab(fs.readFileSync(dbf)), new Credentials(ProtectedValue.fromString(hard)));
+        const out = path.join(TMP, 'hardpw2.kdbx'); fs.writeFileSync(out, Buffer.from(await db.save()));
+        execFileSync('keepassxc-cli', ['ls', '-q', out], { input: hard + '\n' });
+        // NFC statt NFD darf NICHT oeffnen (KeePass normalisiert nicht) - sonst waeren Passwoerter zwischen Geraeten nicht eindeutig
+        let opened = true;
+        try { await Kdbx.load(ab(fs.readFileSync(dbf)), new Credentials(ProtectedValue.fromString(hard.normalize('NFC')))); } catch { opened = false; }
+        if (opened) throw new Error('NFC-Variante oeffnet - unerwartet');
+    });
+
     // Bericht
     const w = Math.max(...results.map(r => r.name.length));
     for (const r of results) console.log(`${r.ok ? 'OK  ' : r.known ? 'KNWN' : 'FAIL'}  ${r.name.padEnd(w)}  ${r.info}`);

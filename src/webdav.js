@@ -5,14 +5,18 @@ export class ConflictError extends Error {
     constructor() {
         super('Die Datei wurde zwischenzeitlich auf dem Server geaendert.');
         this.name = 'ConflictError';
+        this.key = 'e.conflict';
     }
 }
 
+/** message: deutscher Ersatztext; key/vars: Schluessel der Uebersetzung (siehe errText in i18n.js). */
 export class DavError extends Error {
-    constructor(status, message) {
+    constructor(status, message, key, vars) {
         super(message);
         this.name = 'DavError';
         this.status = status;
+        this.key = key;
+        this.vars = vars;
     }
 }
 
@@ -21,6 +25,7 @@ export class NetworkError extends Error {
     constructor(cause) {
         super('Server nicht erreichbar.');
         this.name = 'NetworkError';
+        this.key = 'e.network';
         this.cause = cause;
     }
 }
@@ -78,15 +83,15 @@ export class DavFile {
 
     async get() {
         const res = await this._fetch(this.url);
-        if (res.status === 401 || res.status === 403) throw new DavError(res.status, 'Zugriff verweigert - Anmeldung bzw. Zugangsdaten pruefen.');
-        if (res.status === 404) throw new DavError(404, 'Datei nicht gefunden - Pfad pruefen.');
-        if (!res.ok) throw new DavError(res.status, `Server antwortete mit Status ${res.status}.`);
+        if (res.status === 401 || res.status === 403) throw new DavError(res.status, 'Zugriff verweigert - Anmeldung bzw. Zugangsdaten pruefen.', 'e.dav.denied');
+        if (res.status === 404) throw new DavError(404, 'Datei nicht gefunden - Pfad pruefen.', 'e.dav.notfound');
+        if (!res.ok) throw new DavError(res.status, `Server antwortete mit Status ${res.status}.`, 'e.dav.status', { status: res.status });
         return { buf: await res.arrayBuffer(), etag: etagOf(res) };
     }
 
     async head() {
         const res = await this._fetch(this.url, { method: 'HEAD' });
-        if (!res.ok) throw new DavError(res.status, `HEAD fehlgeschlagen (${res.status}).`);
+        if (!res.ok) throw new DavError(res.status, `HEAD fehlgeschlagen (${res.status}).`, 'e.dav.head', { status: res.status });
         return etagOf(res);
     }
 
@@ -96,7 +101,7 @@ export class DavFile {
         if (ifMatch) headers['If-Match'] = ifMatch;
         const res = await this._fetch(this.url, { method: 'PUT', headers, body: buf });
         if (res.status === 412) throw new ConflictError();
-        if (!res.ok) throw new DavError(res.status, `Speichern fehlgeschlagen (Status ${res.status}).`);
+        if (!res.ok) throw new DavError(res.status, `Speichern fehlgeschlagen (Status ${res.status}).`, 'e.dav.save', { status: res.status });
         return etagOf(res) || (await this.head());
     }
 
@@ -104,7 +109,39 @@ export class DavFile {
     async putCopy(buf, suffix) {
         const url = `${this.url}.${suffix}.bak`;
         const res = await this._fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'If-None-Match': '*' }, body: buf });
-        if (!res.ok && res.status !== 412) throw new DavError(res.status, `Sicherungskopie fehlgeschlagen (Status ${res.status}).`);
+        if (!res.ok && res.status !== 412) throw new DavError(res.status, `Sicherungskopie fehlgeschlagen (Status ${res.status}).`, 'e.dav.backup', { status: res.status });
         return url;
+    }
+
+    /**
+     * Raeumt alte Sicherungskopien auf: behaelt je Art (normal / conflict) die neuesten `keep` Stueck.
+     * Beruehrt ausschliesslich Dateien, die exakt dem Muster "<Dateiname>.[conflict-]JJJJMMTT-HHMMSS.bak" entsprechen.
+     * keep <= 0 bedeutet: nichts loeschen. Liefert die Namen der geloeschten Dateien.
+     */
+    async pruneBackups(keep) {
+        if (!(keep > 0)) return [];
+        const u = new URL(this.url, typeof location !== 'undefined' ? location.href : undefined);
+        const slash = u.pathname.lastIndexOf('/');
+        const dirPath = u.pathname.slice(0, slash + 1);
+        const base = decodeURIComponent(u.pathname.slice(slash + 1));
+        const res = await this._fetch(u.origin + dirPath, { method: 'PROPFIND', headers: { Depth: '1', 'Content-Type': 'application/xml' }, body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:getlastmodified/></d:prop></d:propfind>' });
+        if (res.status !== 207) return [];
+        const doc = new DOMParser().parseFromString(await res.text(), 'application/xml');
+        const re = new RegExp('^' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\.(conflict-)?(\\d{8}-\\d{6})\\.bak$');
+        const groups = { normal: [], conflict: [] };
+        for (const el of Array.from(doc.getElementsByTagNameNS('DAV:', 'href'))) {
+            const last = decodeURIComponent((el.textContent || '').replace(/\/+$/, '').split('/').pop() || '');
+            const m = re.exec(last);
+            if (m) groups[m[1] ? 'conflict' : 'normal'].push({ name: last, stamp: m[2] });
+        }
+        const removed = [];
+        for (const list of Object.values(groups)) {
+            list.sort((a, b) => b.stamp.localeCompare(a.stamp) || b.name.localeCompare(a.name));
+            for (const f of list.slice(keep)) {
+                const r = await this._fetch(u.origin + dirPath + encodeURIComponent(f.name), { method: 'DELETE' });
+                if (r.ok || r.status === 404) removed.push(f.name);
+            }
+        }
+        return removed;
     }
 }

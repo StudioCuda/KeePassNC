@@ -3,6 +3,7 @@
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import fs from 'node:fs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -24,12 +25,11 @@ await build({
     format: 'iife',
     target: ['es2022'],
     platform: 'browser',
-    define: { global: 'globalThis' },
+    define: { global: 'globalThis', __VERSION__: JSON.stringify(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version) },
     plugins: [stubNodeModules],
     legalComments: 'none',
     logLevel: 'info'
 });
 
 // Service Worker unveraendert nach web/ (Nextcloud-App: siehe build-nextcloud.mjs)
-import fs from 'node:fs';
 fs.copyFileSync(path.join(root, 'src/sw.js'), path.join(root, 'web/sw.js'));

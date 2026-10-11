@@ -16,7 +16,13 @@ jobs:
         with: { php-version: '8.3', extensions: 'sqlite3, pdo_sqlite, gd, zip, curl, mbstring, xml, intl, bcmath, gmp' }
       - run: sudo apt-get update && sudo apt-get install -y keepassxc python3-pip && pip install --break-system-packages pykeepass
       - run: npm ci || npm install
-      - run: npm run build && npm run test:unit
+      - name: Chromium fuer die Browser-Tests
+        run: |
+          npx playwright-core install --with-deps chromium
+          echo "CHROMIUM=$(node -e "console.log(require('playwright-core').chromium.executablePath())")" >> $GITHUB_ENV
+      - run: npm run build && npm run test:unit && npm run test:compat
+      - run: npm run test:e2e && npm run test:ui && npm run test:keyfile && npm run test:offline && npm run test:fidelity
+        if: matrix.ref == 'stable34'
       - name: Nextcloud holen und bauen
         run: |
           git clone --depth 1 --branch ${{ matrix.ref }} https://github.com/nextcloud/server.git nc

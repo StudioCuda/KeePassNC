@@ -1,0 +1,4 @@
+64c64
+<     xml = xml.replace(/[\x00-\x09\x0B-\x0C\x0E-\x1F]/g, '');
+---
+>     xml = xml.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F]/g, ""); // Tab (0x09) ist in XML 1.0 erlaubt und muss erhalten bleiben (Upstream entfernte es faelschlich)

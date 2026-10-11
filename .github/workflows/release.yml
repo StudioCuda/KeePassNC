@@ -1,0 +1,21 @@
+# Builds the unsigned Nextcloud app archive when a version tag is pushed and attaches it to a GitHub release.
+# Signing and uploading to the App Store stay manual on purpose (see docs/APPSTORE.md), so the private key never touches CI.
+name: release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm ci
+      - run: npm run package:nc
+      - run: mv keepassnc-nextcloud-app.tar.gz keepassnc-${GITHUB_REF_NAME#v}-unsigned.tar.gz
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: keepassnc-*-unsigned.tar.gz

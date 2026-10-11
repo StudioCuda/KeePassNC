@@ -38,6 +38,9 @@ function resetNextcloud() {
     const link = path.join(NC_DIR, 'apps/keepassnc');
     fs.rmSync(link, { force: true, recursive: true });
     fs.symlinkSync(path.join(root, 'nextcloud-app/keepassnc'), link);
+    // Release-Pakete bringen den Willkommensdialog (firstrunwizard) mit, der Klicks in der Dateiansicht verdeckt; Git-Staende haben ihn nicht
+    try { occ('app:disable', 'firstrunwizard'); } catch { /* nicht vorhanden */ }
+    occ('user:setting', ADMIN, 'core', 'lang', 'de'); // Oberflaeche folgt der Nextcloud-Sprache des Benutzers
     return occ('app:enable', 'keepassnc').trim();
 }
 let php;
@@ -82,7 +85,7 @@ async function main() {
     const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
     const problems = { external: [], pageErrors: [], consoleErrors: [], csp: [] };
     async function newSession(settingsFor = { autosync: 'off' }) {
-        const ctx = await browser.newContext({ acceptDownloads: true, viewport: { width: 1280, height: 800 } });
+        const ctx = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport: { width: 1280, height: 800 } });
         await ctx.addInitScript((st) => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify(st)); } catch {} }, settingsFor);
         const page = await ctx.newPage();
         page.on('request', (r) => { if (!r.url().startsWith(BASE) && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) problems.external.push(r.url()); });
@@ -95,7 +98,7 @@ async function main() {
         await page.goto(`${BASE}/login`);
         await page.fill('input[name=user]', ADMIN); await page.fill('input[name=password]', ADMIN_PW);
         await page.click('button[type=submit]');
-        await page.waitForURL(/\/apps\//, { timeout: 60000 });
+        await page.waitForURL(/\/apps\//, { timeout: 60000, waitUntil: 'domcontentloaded' }); // 'load' kann in Release-Paketen haengen (Dashboard-Widgets/Ankuendigungen laden extern nach)
         return page;
     }
     const status = (p) => p.locator('#status').innerText();
@@ -126,6 +129,7 @@ async function main() {
         expect(r.status() === 200, 'Status ' + r.status());
         const csp = r.headers()['content-security-policy'] || '';
         expect(/script-src 'self' 'wasm-unsafe-eval'/.test(csp) && !/unsafe-inline/.test(csp), 'CSP: ' + csp);
+        expect(/frame-ancestors 'none'/.test(csp), 'Seite darf nicht einbettbar sein (frame-ancestors): ' + csp);
         expect(r.headers()['cache-control']?.includes('no-store'), 'no-store fehlt');
         expect(await page.inputValue('#nc-path') === '/Passwörter privat/vault4.kdbx', 'Pfad nicht vorbelegt');
         expect(await page.locator('#nc-path').getAttribute('readonly') !== null, 'Pfad sollte readonly sein');
@@ -133,7 +137,7 @@ async function main() {
 
     await step('Entsperren ueber Sitzung (kein App-Passwort): falsches Master-Passwort -> Fehlermeldung', async () => {
         await page.fill('#master', 'falsch'); await page.click('#open-btn');
-        await page.waitForFunction(() => /Falsches Master-Passwort/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 30000 });
+        await page.waitForFunction(() => /Falsches Master-Passwort/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 30000 }).catch(async (e) => { throw new Error(`${e.message.split('\n')[0]} | lang=${await page.getAttribute('html', 'lang')} data-lang=${await page.locator('#app').getAttribute('data-lang')} err=${await page.textContent('#login-error')}`); });
     });
 
     await step('Entsperren: Eintraege, KDBX4, Gruppen', async () => {
@@ -147,7 +151,7 @@ async function main() {
     let newPassword;
     await step('Bearbeiten + Speichern ueber Nextcloud-Sitzung -> KeePassXC liest Ergebnis, Sicherung vorhanden', async () => {
         await page.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
-        await page.click('#edit-btn'); await page.click('#gen-btn'); await page.check('#e-show');
+        await page.click('#edit-btn'); await page.click('#gen-btn'); await page.click('#gen-use'); await page.click('#e-show');
         newPassword = await page.inputValue('#e-pass');
         await page.fill('#e-user', 'alice-nc'); await page.click('#apply-btn'); await page.click('#save-btn');
         await waitStatus(page, /^Gespeichert\./);
@@ -246,6 +250,32 @@ async function main() {
         await page2.waitForFunction(() => document.querySelector('#sync-state')?.dataset.state === 'synced', null, { timeout: 60000 });
         expect(xc(['show', srvFile, 'Web/Mail']).includes('alice-ausfall'), 'Offline-Aenderung fehlt');
         expect(xc(['show', srvFile, 'Bank/Konto']).includes('https://wartung.example'), 'Fremdaenderung verloren');
+    });
+
+    await step('Server-Geheimwert fuer gemerkte Schluesseldateien: nur mit Sitzung + CSRF-Token, stabil, "Erneuern" wechselt ihn', async () => {
+        await page.goto(`${BASE}/index.php/apps/keepassnc/`); await page.locator('#app').waitFor();
+        const r = await page.evaluate(async () => {
+            const url = document.querySelector('#app').dataset.pepperUrl;
+            const tok = (await (await fetch('/index.php/csrftoken', { headers: { 'OCS-APIREQUEST': 'true' } })).json()).token;
+            const h = { requesttoken: tok, 'OCS-APIREQUEST': 'true', Accept: 'application/json' };
+            const noTok = (await fetch(url, { headers: { Accept: 'application/json' } })).status;
+            const g1 = await fetch(url, { headers: h }); const a = await g1.json();
+            const b = await (await fetch(url, { headers: h })).json();
+            const rotGet = (await fetch(url + '/rotate', { headers: h })).status;
+            const c = await (await fetch(url + '/rotate', { method: 'POST', headers: h })).json();
+            const d = await (await fetch(url, { headers: h })).json();
+            return { url, noTok, status: g1.status, cc: g1.headers.get('cache-control'), a, b, rotGet, c, d };
+        });
+        expect(/\/apps\/keepassnc\/api\/kf-pepper$/.test(r.url), 'URL: ' + r.url);
+        expect(r.noTok >= 400, 'ohne CSRF-Token muss abgelehnt werden: ' + r.noTok);
+        expect(r.status === 200 && /no-store/.test(r.cc || ''), `Status ${r.status}, Cache-Control ${r.cc}`);
+        expect(/^[0-9a-f]{32}$/.test(r.a.id) && Buffer.from(r.a.pepper, 'base64').length === 32, 'Format: ' + JSON.stringify(r.a));
+        expect(r.a.id === r.b.id && r.a.pepper === r.b.pepper, 'zweiter Abruf muss gleich sein');
+        expect(r.rotGet >= 400, 'Erneuern per GET muss scheitern: ' + r.rotGet);
+        expect(r.c.id !== r.a.id && r.c.pepper !== r.a.pepper && r.d.id === r.c.id, 'Erneuern wirkt nicht');
+        const anon = await fetch(`${BASE}/index.php/apps/keepassnc/api/kf-pepper`, { redirect: 'manual', headers: { 'OCS-APIREQUEST': 'true' } });
+        expect(anon.status >= 300 && anon.status !== 200, 'ohne Sitzung: ' + anon.status);
+        return `ohne Token ${r.noTok}, anonym ${anon.status}`;
     });
 
     await step('Abmelden/Fremder Benutzer: ohne Sitzung kein Zugriff auf die App-Seite', async () => {
