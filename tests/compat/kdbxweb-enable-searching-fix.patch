@@ -1,0 +1,35 @@
+diff --git a/lib/format/kdbx-group.ts b/lib/format/kdbx-group.ts
+index d0b968c..9ec6788 100644
+--- a/lib/format/kdbx-group.ts
++++ b/lib/format/kdbx-group.ts
+@@ -93,7 +93,7 @@ export class KdbxGroup {
+         XmlUtils.setUuid(XmlUtils.addChildNode(node, XmlNames.Elem.Uuid), this.uuid);
+         XmlUtils.setText(XmlUtils.addChildNode(node, XmlNames.Elem.Name), this.name);
+         XmlUtils.setText(XmlUtils.addChildNode(node, XmlNames.Elem.Notes), this.notes);
+-        XmlUtils.setNumber(XmlUtils.addChildNode(node, XmlNames.Elem.Icon), this.icon);
++        XmlUtils.setNumber(XmlUtils.addChildNode(node, XmlNames.Elem.Icon), this.icon ?? Icons.Folder);
+         if (this.tags.length && ctx.kdbx.versionIsAtLeast(4, 1)) {
+             XmlUtils.setTags(XmlUtils.addChildNode(node, XmlNames.Elem.Tags), this.tags);
+         }
+@@ -113,18 +113,18 @@ export class KdbxGroup {
+             KdbxCustomData.write(node, ctx, this.customData);
+         }
+         this.times.write(node, ctx);
+-        XmlUtils.setBoolean(XmlUtils.addChildNode(node, XmlNames.Elem.IsExpanded), this.expanded);
++        XmlUtils.setBoolean(XmlUtils.addChildNode(node, XmlNames.Elem.IsExpanded), this.expanded ?? true);
+         XmlUtils.setText(
+             XmlUtils.addChildNode(node, XmlNames.Elem.GroupDefaultAutoTypeSeq),
+             this.defaultAutoTypeSeq
+         );
+         XmlUtils.setBoolean(
+             XmlUtils.addChildNode(node, XmlNames.Elem.EnableAutoType),
+-            this.enableAutoType
++            this.enableAutoType ?? null
+         );
+         XmlUtils.setBoolean(
+             XmlUtils.addChildNode(node, XmlNames.Elem.EnableSearching),
+-            this.enableSearching
++            this.enableSearching ?? null
+         );
+         XmlUtils.setUuid(
+             XmlUtils.addChildNode(node, XmlNames.Elem.LastTopVisibleEntry),

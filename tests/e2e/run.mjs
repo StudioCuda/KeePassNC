@@ -1,0 +1,271 @@
+// End-to-End-Test: echter Chromium-Browser gegen die gebaute App + WebDAV-Testserver; KeePassXC (keepassxc-cli) prueft,
+// was tatsaechlich auf dem "Server" gelandet ist. Aufruf: npm run test:e2e
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { chromium } from 'playwright-core';
+import { startServer } from './davserver.mjs';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const PW = 'Test-Passwort-123';
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kpnc-e2e-'));
+const davRoot = path.join(tmp, 'dav'); fs.mkdirSync(davRoot);
+
+// ---------- KeePassXC als Referenz ----------
+function xc(args, file, input = PW + '\n') {
+    return execFileSync('keepassxc-cli', [args[0], ...args.slice(1)], { input, stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 1 << 26 }).toString('utf8');
+}
+const kdbxVersion = (f) => { const d = fs.readFileSync(f); return `${d.readUInt16LE(10)}.${d.readUInt16LE(8)}`; };
+const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
+
+// ---------- Fixtures ----------
+function makeFixtures() {
+    // KDBX4 (Argon2, Anhang, TOTP, Tags, geschuetztes Feld) via pykeepass, danach von KeePassXC selbst gespeichert
+    execFileSync('python3', ['-I', path.join(root, 'tests/compat/make-pykeepass-ref.py')], { cwd: tmp });
+    fs.renameSync(path.join(tmp, 'ref4.kdbx'), path.join(davRoot, 'vault4.kdbx'));
+    xc(['edit', '-q', path.join(davRoot, 'vault4.kdbx'), 'Web/Mail', '--notes', 'Notiz äöü € (KeePassXC)'], null);
+    // KDBX3.1 (so legt keepassxc-cli 2.7.6 neue Datenbanken an)
+    const v3 = path.join(davRoot, 'vault3.kdbx');
+    execFileSync('keepassxc-cli', ['db-create', '-p', v3], { input: `${PW}\n${PW}\n`, stdio: ['pipe', 'pipe', 'pipe'] });
+    execFileSync('keepassxc-cli', ['add', '-p', '-u', 'alice', '--url', 'https://example.org', v3, 'Mail'], { input: `${PW}\npw-v3-eins\n`, stdio: ['pipe', 'pipe', 'pipe'] });
+    execFileSync('keepassxc-cli', ['add', '-p', '-u', 'bob', v3, 'Konto'], { input: `${PW}\npw-v3-zwei\n`, stdio: ['pipe', 'pipe', 'pipe'] });
+}
+
+// ---------- Mini-Testrahmen ----------
+const results = [];
+async function step(name, fn) {
+    const t0 = Date.now();
+    try { const info = (await fn()) || ''; results.push({ name, ok: true, info: `${info} (${Date.now() - t0} ms)`.trim() }); }
+    catch (e) { results.push({ name, ok: false, info: String(e.message || e).split('\n').slice(0, 3).join(' | ') }); }
+}
+const expect = (cond, msg) => { if (!cond) throw new Error(msg); };
+
+async function main() {
+    makeFixtures();
+    const { server, port, log } = await startServer({ webRoot: path.join(root, 'web'), davRoot });
+    const base = `http://127.0.0.1:${port}`;
+    const exe = process.env.CHROMIUM || fs.readdirSync('/opt/pw-browsers').filter((d) => /^chromium-\d+$/.test(d)).map((d) => `/opt/pw-browsers/${d}/chrome-linux/chrome`)[0];
+    const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
+    const problems = { external: [], pageErrors: [], consoleErrors: [] };
+
+    async function newPage(query = '') {
+        const ctx = await browser.newContext({ acceptDownloads: true, viewport: { width: 1280, height: 800 } });
+        const page = await ctx.newPage();
+        page.on('request', (r) => { if (!r.url().startsWith(base) && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) problems.external.push(r.url()); });
+        page.on('pageerror', (e) => problems.pageErrors.push(String(e)));
+        page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.consoleErrors.push(m.text()); });
+        await page.goto(`${base}/${query}`);
+        return page;
+    }
+    async function login(page, file, { master = PW, pass = 'app-secret' } = {}) {
+        await page.locator('input[value=dav]').check();
+        await page.fill('#dav-url', `${base}/dav/${file}`);
+        await page.fill('#dav-user', 'tester');
+        await page.fill('#dav-pass', pass);
+        await page.fill('#master', master);
+        await page.click('#open-btn');
+    }
+    const status = (page) => page.locator('#status').innerText();
+    const waitStatus = (page, re, timeout = 15000) => page.waitForFunction((src) => new RegExp(src).test(document.querySelector('#status')?.textContent || ''), re.source, { timeout });
+    const rows = (page) => page.locator('[data-testid=entry-row]');
+    const f4 = path.join(davRoot, 'vault4.kdbx');
+
+    await step('Falsches Master-Passwort -> verstaendliche Fehlermeldung, kein Absturz', async () => {
+        const p = await newPage();
+        await login(p, 'vault4.kdbx', { master: 'falsch' });
+        await p.waitForFunction(() => /Falsches Master-Passwort/.test(document.querySelector('#login-error')?.textContent || ''));
+        expect(await p.locator('#login-form').count() === 1, 'Login-Formular sollte sichtbar bleiben');
+        await p.context().close();
+    });
+
+    await step('Falsches App-Passwort / fehlende Datei -> Fehlermeldung', async () => {
+        const p = await newPage();
+        await login(p, 'vault4.kdbx', { pass: 'nope' });
+        await p.waitForFunction(() => /Zugriff verweigert/.test(document.querySelector('#login-error')?.textContent || ''));
+        await p.fill('#dav-pass', 'app-secret'); await p.fill('#dav-url', `${base}/dav/gibtsnicht.kdbx`); await p.fill('#master', PW); await p.click('#open-btn');
+        await p.waitForFunction(() => /nicht gefunden/.test(document.querySelector('#login-error')?.textContent || ''));
+        await p.context().close();
+    });
+
+    // ---- Hauptlauf mit der KDBX4-Datei ----
+    const page = await newPage();
+    await step('KDBX4 (von KeePassXC gespeichert) oeffnen: Eintraege, Version, Gruppen', async () => {
+        await login(page, 'vault4.kdbx');
+        await rows(page).first().waitFor();
+        expect(await rows(page).count() === 2, `2 Eintraege erwartet, ${await rows(page).count()} gefunden`);
+        expect(/KDBX 4/.test(await status(page)), 'Status zeigt KDBX 4: ' + await status(page));
+        const groups = await page.locator('#groups').innerText();
+        expect(/Web/.test(groups) && /Bank/.test(groups), 'Gruppen fehlen: ' + groups);
+        return await status(page);
+    });
+
+    await step('Suche filtert (Treffer / kein Treffer / Tags / Gross-Kleinschreibung)', async () => {
+        await page.fill('#search', 'MAIL'); expect(await rows(page).count() === 1, 'Suche "MAIL"');
+        await page.fill('#search', 'privat'); expect(await rows(page).count() === 1, 'Suche nach Tag "privat"');
+        await page.fill('#search', 'zzzz'); expect(await rows(page).count() === 0, 'Suche ohne Treffer');
+        await page.fill('#search', ''); expect(await rows(page).count() === 2, 'Suche geleert');
+    });
+
+    await step('Detailansicht: Passwort verborgen/anzeigbar, Notiz mit Umlauten, Tags, geschuetztes Zusatzfeld, TOTP', async () => {
+        await page.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
+        expect(/alice/.test(await page.locator('[data-testid=f-user]').innerText()), 'Benutzer');
+        expect(!/pw-eins/.test(await page.locator('[data-testid=pw-value]').innerText()), 'Passwort darf nicht offen stehen');
+        await page.click('[data-testid=pw-toggle]');
+        expect(await page.locator('[data-testid=pw-value]').innerText() === 'pw-eins', 'Passwort nach Anzeigen');
+        expect(/äöü € \(KeePassXC\)/.test(await page.locator('#detail').innerText()), 'Notiz mit Umlauten');
+        expect(/mail, privat|privat, mail/.test(await page.locator('[data-testid=f-tags]').innerText()), 'Tags');
+        expect(!/1234/.test(await page.locator('[data-testid=custom-PIN]').innerText()), 'geschuetztes Feld darf nicht offen stehen');
+        // TOTP gegen KeePassXC vergleichen (bis zu 3 Versuche wegen Fenstergrenze)
+        let ok = false, a, b;
+        for (let i = 0; i < 3 && !ok; i++) {
+            a = (await page.locator('[data-testid=totp-code]').innerText()).trim();
+            b = xc(['show', '-t', f4, 'Web/Mail']).trim().split('\n').pop();
+            ok = a === b;
+            if (!ok) await page.waitForTimeout(1200);
+        }
+        expect(ok, `TOTP weicht von KeePassXC ab: App ${a} vs. KeePassXC ${b}`);
+        return `TOTP ${a}`;
+    });
+
+    await step('Anhang herunterladen: Inhalt byte-identisch', async () => {
+        await page.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-testid=attachment]')]);
+        const got = fs.readFileSync(await dl.path());
+        expect(got.toString() === 'anhang-inhalt\n', 'Anhang-Inhalt: ' + JSON.stringify(got.toString()));
+    });
+
+    let newPassword;
+    await step('Bearbeiten + Passwort erzeugen + Speichern -> KeePassXC liest Ergebnis; Sicherungskopie liegt auf dem Server', async () => {
+        await page.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
+        await page.click('#edit-btn');
+        await page.click('#gen-btn');
+        await page.check('#e-show');
+        newPassword = await page.inputValue('#e-pass');
+        expect(newPassword.length === 24, 'erzeugtes Passwort hat 24 Zeichen, ist: ' + newPassword.length);
+        await page.fill('#e-user', 'alice-neu');
+        await page.click('#apply-btn');
+        expect(/Speichern \*/.test(await page.locator('#save-btn').innerText()), 'Ungespeichert-Markierung');
+        await page.click('#save-btn');
+        await waitStatus(page, /^Gespeichert\./);
+        const show = xc(['show', '-s', f4, 'Web/Mail']);
+        expect(show.includes(`Password: ${newPassword}`) && show.includes('UserName: alice-neu'), 'KeePassXC sieht neues Passwort/Benutzer nicht:\n' + show);
+        expect(show.includes('Notiz äöü € (KeePassXC)') && /Tags: (mail,privat|privat,mail)/.test(show), 'Notiz/Tags verloren');
+        expect(xc(['show', '-s', '-a', 'PIN', f4, 'Web/Mail']).trim().split('\n').pop() === '1234', 'geschuetztes Feld verloren');
+        expect(/^\d{6}$/.test(xc(['show', '-t', f4, 'Web/Mail']).trim().split('\n').pop()), 'TOTP verloren');
+        const att = path.join(tmp, 'att.bin'); xc(['attachment-export', f4, 'Bank/Konto', 'anhang.txt', att]);
+        expect(fs.readFileSync(att, 'utf8') === 'anhang-inhalt\n', 'Anhang verloren');
+        const baks = fs.readdirSync(davRoot).filter((n) => /^vault4\.kdbx\..*\.bak$/.test(n));
+        expect(baks.length === 1, `genau 1 Sicherungskopie erwartet, gefunden: ${baks}`);
+        xc(['ls', '-R', path.join(davRoot, baks[0])]); // Sicherung ist selbst eine gueltige, oeffnbare Datenbank
+        return `Version ${kdbxVersion(f4)}, Sicherung ${baks[0]}`;
+    });
+
+    await step('Neuer Eintrag mit geschuetztem Zusatzfeld -> KeePassXC sieht ihn; zweiter Speichervorgang legt keine weitere Kopie an', async () => {
+        await page.click('#new-btn');
+        await page.fill('#e-title', 'Neu E2E'); await page.fill('#e-user', 'dave'); await page.fill('#e-pass', 'pw-neu');
+        await page.click('#add-custom');
+        await page.fill('.c-name', 'API-Key'); await page.fill('.c-value', 'geheim-123'); await page.check('.c-protect');
+        await page.click('#apply-btn'); await page.click('#save-btn'); await waitStatus(page, /^Gespeichert\./);
+        const show = xc(['show', '-s', f4, 'Web/Neu E2E']);
+        expect(show.includes('UserName: dave') && show.includes('Password: pw-neu'), 'neuer Eintrag:\n' + show);
+        expect(xc(['show', '-s', '-a', 'API-Key', f4, 'Web/Neu E2E']).trim().split('\n').pop() === 'geheim-123', 'Zusatzfeld');
+        expect(fs.readdirSync(davRoot).filter((n) => /^vault4\.kdbx\..*\.bak$/.test(n)).length === 1, 'es darf nur eine Kopie pro Sitzung entstehen');
+    });
+
+    await step('Loeschen verschiebt in den Papierkorb (KeePassXC zeigt "Recycle Bin")', async () => {
+        await page.fill('#search', ''); await page.locator('[data-testid=entry-row]', { hasText: 'Neu E2E' }).click();
+        await page.click('#del-btn'); await page.click('#save-btn'); await waitStatus(page, /^Gespeichert\./);
+        const ls = xc(['ls', '-R', f4]);
+        expect(/Recycle Bin\/[\s\S]*Neu E2E/.test(ls) && !/^Web\/[\s\S]*Neu E2E[\s\S]*Bank/m.test(ls.split('Recycle Bin')[0]), 'Papierkorb:\n' + ls);
+    });
+    await page.context().close();
+
+    await step('Konflikt: anderes Geraet aendert die Datei zwischenzeitlich -> Zusammenfuehrung, beide Aenderungen bleiben, Server-Stand wird gesichert', async () => {
+        const p = await newPage();
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'bob-aus-App'); await p.click('#apply-btn');
+        await p.waitForTimeout(1100);
+        xc(['edit', '-q', f4, 'Web/Mail', '--url', 'https://extern.example'], null); // "anderes Geraet"
+        await p.click('#save-btn');
+        await waitStatus(p, /zusammengef/);
+        const k = xc(['show', f4, 'Bank/Konto']), m = xc(['show', f4, 'Web/Mail']);
+        expect(k.includes('bob-aus-App'), 'App-Aenderung fehlt:\n' + k);
+        expect(m.includes('https://extern.example'), 'externe Aenderung ging verloren:\n' + m);
+        expect(fs.readdirSync(davRoot).some((n) => /\.conflict-.*\.bak$/.test(n)), 'conflict-Sicherung fehlt');
+        await p.context().close();
+    });
+
+    await step('Auto-Sperre: nach Inaktivitaet verschwinden alle Daten aus dem DOM', async () => {
+        const p = await newPage('?autolock=5');
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
+        await p.click('[data-testid=pw-toggle]');
+        await p.waitForFunction(() => /Automatisch gesperrt/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 15000 });
+        const html = await p.content();
+        expect(!/alice|extern\.example|Notiz/.test(html), 'Nach dem Sperren stehen noch Daten im DOM');
+        expect(await p.inputValue('#master') === '', 'Master-Passwort-Feld muss leer sein');
+        await p.context().close();
+    });
+
+    await step('Auto-Sperre mit ungespeicherten Aenderungen (WebDAV): speichert zuerst, dann sperrt sie', async () => {
+        const p = await newPage('?autolock=5');
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'bob-auto-gespeichert'); await p.click('#apply-btn');
+        await p.waitForFunction(() => /Automatisch gesperrt/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 20000 });
+        expect(xc(['show', f4, 'Bank/Konto']).includes('bob-auto-gespeichert'), 'Aenderung ging beim Auto-Sperren verloren');
+        await p.context().close();
+    });
+
+    await step('KDBX 3.1: oeffnen, aendern, speichern -> bleibt 3.1 und KeePassXC liest es', async () => {
+        const f3 = path.join(davRoot, 'vault3.kdbx');
+        const p = await newPage();
+        await login(p, 'vault3.kdbx'); await rows(p).first().waitFor();
+        expect(/KDBX 3\.1/.test(await status(p)), 'Status: ' + await status(p));
+        await p.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-pass', 'pw-v3-neu'); await p.click('#apply-btn'); await p.click('#save-btn');
+        await waitStatus(p, /^Gespeichert\./);
+        expect(kdbxVersion(f3) === '3.1', 'Version geaendert: ' + kdbxVersion(f3));
+        expect(xc(['show', '-s', f3, 'Mail']).includes('Password: pw-v3-neu'), 'Passwort v3');
+        expect(xc(['show', '-s', f3, 'Konto']).includes('Password: pw-v3-zwei'), 'anderer Eintrag v3 unveraendert');
+        await p.context().close();
+    });
+
+    await step('Lokale Datei: oeffnen, aendern, "Speichern" liefert Download, der in KeePassXC oeffnet', async () => {
+        const p = await newPage();
+        await p.locator('input[value=file]').check();
+        await p.setInputFiles('#local-file', path.join(davRoot, 'vault3.kdbx'));
+        await p.fill('#master', PW); await p.click('#open-btn'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'bob-lokal'); await p.click('#apply-btn');
+        const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#save-btn')]);
+        const out = path.join(tmp, 'download.kdbx'); fs.copyFileSync(await dl.path(), out);
+        expect(xc(['show', out, 'Konto']).includes('bob-lokal'), 'Download enthaelt die Aenderung nicht');
+        await p.context().close();
+    });
+
+    await step('Datenschutz/Sicherheit: keine externen Anfragen, keine JS-Fehler, CSP gesetzt, Server sah nie Klartext', async () => {
+        expect(problems.external.length === 0, 'Externe Anfragen: ' + problems.external.join(', '));
+        expect(problems.pageErrors.length === 0, 'Seitenfehler: ' + problems.pageErrors.join(' | '));
+        expect(problems.consoleErrors.length === 0, 'Konsolenfehler: ' + problems.consoleErrors.join(' | '));
+        const html = fs.readFileSync(path.join(root, 'web/index.html'), 'utf8');
+        expect(/Content-Security-Policy/.test(html) && /default-src 'none'/.test(html), 'CSP fehlt');
+        expect(!/unsafe-inline|unsafe-eval(?!')/.test(html.replace("'wasm-unsafe-eval'", '')), 'unsafe-inline/eval in CSP');
+        // Der Testserver hat nur verschluesselte Dateien gesehen; als Stichprobe darf der Master-Passwort-Text nirgends in den Server-Dateien stehen
+        for (const n of fs.readdirSync(davRoot)) expect(!fs.readFileSync(path.join(davRoot, n)).includes(Buffer.from(PW)), `Master-Passwort im Klartext in ${n}`);
+        expect(!fs.readFileSync(path.join(davRoot, 'vault4.kdbx')).includes(Buffer.from('alice-neu')), 'Eintragsdaten im Klartext auf dem Server');
+        expect(!log.some((l) => /innerHTML/.test(l)), 'n/a');
+    });
+
+    await browser.close(); server.close();
+    const w = Math.max(...results.map((r) => r.name.length));
+    for (const r of results) console.log(`${r.ok ? 'OK  ' : 'FAIL'}  ${r.name.padEnd(w)}  ${r.info}`);
+    const failed = results.filter((r) => !r.ok).length;
+    console.log(`\n${results.length - failed}/${results.length} E2E-Tests bestanden (Arbeitsverzeichnis: ${tmp})`);
+    process.exit(failed ? 1 : 0);
+}
+main().catch((e) => { console.error(e); process.exit(2); });
