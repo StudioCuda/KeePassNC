@@ -246,6 +246,7 @@ async function main() {
         await page.locator('#list .entry.active').focus(); // Fokus in die Liste, nicht ins Suchfeld
         await page.keyboard.press('Control+b');
         const user = (await page.locator('[data-testid=f-user]').innerText()).trim();
+        if (browserName === 'webkit') return 'Kuerzel ausgeloest; Inhalt der Zwischenablage NICHT geprueft (WebKit verweigert dem Test das Lesen)';
         await page.waitForFunction((u) => navigator.clipboard.readText().then((x) => x === u), user);
         await page.keyboard.press('Control+c');
         await page.click('[data-testid=pw-toggle]'); const pw = (await page.locator('[data-testid=pw-value]').innerText()).trim();
