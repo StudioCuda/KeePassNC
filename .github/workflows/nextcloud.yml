@@ -1,29 +1,46 @@
-# Prueft die App gegen mehrere Nextcloud-Versionen (frische SQLite-Installation + Browser-Test). Nicht lokal ausgefuehrt.
+# Runs the unit/compat tests plus the Nextcloud integration test (fresh SQLite install + browser test)
+# against the official release packages, and against Nextcloud master as a heads-up canary.
 name: nextcloud-compat
 on: [push, pull_request]
 jobs:
   e2e:
+    name: e2e (${{ matrix.name }})
     runs-on: ubuntu-latest
+    # The master canary may fail without turning the whole run red.
+    continue-on-error: ${{ matrix.canary == true }}
     strategy:
       fail-fast: false
       matrix:
-        ref: [stable34, stable35, master]
+        include:
+          - { name: nc34, package: latest-34, browser: true }
+          - { name: nc35, package: latest-35 }
+          - { name: nc-master, ref: master, canary: true }
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
       - uses: shivammathur/setup-php@v2
         with: { php-version: '8.3', extensions: 'sqlite3, pdo_sqlite, gd, zip, curl, mbstring, xml, intl, bcmath, gmp' }
-      - run: sudo apt-get update && sudo apt-get install -y keepassxc python3-pip && pip install --break-system-packages pykeepass
+      # System-wide on purpose: the tests start python3 with -I, which ignores the per-user site-packages.
+      - run: sudo apt-get update && sudo apt-get install -y keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
       - run: npm ci || npm install
-      - name: Chromium fuer die Browser-Tests
+      - name: Chromium for the browser tests
         run: |
           npx playwright-core install --with-deps chromium
           echo "CHROMIUM=$(node -e "console.log(require('playwright-core').chromium.executablePath())")" >> $GITHUB_ENV
       - run: npm run build && npm run test:unit && npm run test:compat
       - run: npm run test:e2e && npm run test:ui && npm run test:keyfile && npm run test:offline && npm run test:fidelity
-        if: matrix.ref == 'stable34'
-      - name: Nextcloud holen und bauen
+        if: matrix.browser
+      - name: Get the release package
+        if: matrix.package
+        run: |
+          base=https://download.nextcloud.com/server/releases
+          curl -fsSLO "$base/${{ matrix.package }}.tar.bz2"
+          curl -fsSLO "$base/${{ matrix.package }}.tar.bz2.sha256"
+          sha256sum -c --ignore-missing "${{ matrix.package }}.tar.bz2.sha256"
+          tar xjf "${{ matrix.package }}.tar.bz2" && mv nextcloud nc
+      - name: Get and build Nextcloud from source
+        if: matrix.ref
         run: |
           git clone --depth 1 --branch ${{ matrix.ref }} https://github.com/nextcloud/server.git nc
           cd nc && git submodule update --init --depth 1 && npm ci && npm run build

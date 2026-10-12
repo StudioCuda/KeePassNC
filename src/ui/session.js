@@ -182,7 +182,14 @@ export async function ensureOfflineApp() {
         const shell = location.origin + location.pathname;
         const assets = [...document.querySelectorAll('script[src], link[rel=stylesheet][href]')].map((n) => n.src || n.href);
         const wanted = new Set([shell, ...assets]);
-        await Promise.all([...wanted].map((u) => cache.add(new Request(u, { cache: 'reload', credentials: 'same-origin' })).catch(() => {})));
+        // Wie cache.add(), nur ohne dessen Konsolenfehler, wenn der Server gerade 503 liefert (Wartungsmodus).
+        const refresh = async (u) => {
+            try {
+                const res = await fetch(new Request(u, { cache: 'reload', credentials: 'same-origin' }));
+                if (res.ok) await cache.put(u, res);
+            } catch { /* Server nicht erreichbar: alter Stand bleibt */ }
+        };
+        await Promise.all([...wanted].map(refresh));
         for (const k of await cache.keys()) if (!wanted.has(k.url)) await cache.delete(k); // alte Versionen entfernen
         document.documentElement.dataset.offlineReady = '1';
     } catch (e) {
