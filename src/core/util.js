@@ -23,4 +23,8 @@ export function groupPath(group) {
 export const isPasskey = (entry) => entry.fields.has('KPEX_PASSKEY_CREDENTIAL_ID') || entry.fields.has('KPEX_PASSKEY_PRIVATE_KEY_PEM');
 export const hasTotp = (entry) => entry.fields.has('otp') || entry.fields.has('TOTP Seed') || [...entry.fields.keys()].some((k) => k.startsWith('TimeOtp-'));
 /** Felder, die der Editor nicht als freie Zusatzfelder zeigt (eigene Darstellung bzw. Programmdaten); sie bleiben beim Bearbeiten unveraendert erhalten. */
-export const isSystemField = (name) => /^(KPEX_PASSKEY_|KPXC_PASSKEY_|KPH: |TimeOtp-)/.test(name) || ['otp', 'TOTP Seed', 'TOTP Settings'].includes(name);
+/** Erkennt "Arbeitsspeicher reicht nicht" aus WebAssembly/Argon2; die Browser melden das uneinheitlich (RangeError, RuntimeError, Textmeldungen). */
+export const isOutOfMemory = (e) => !!e && (e instanceof RangeError
+    || (typeof WebAssembly !== 'undefined' && e instanceof WebAssembly.RuntimeError)
+    || /out of memory|could not allocate|allocation failed|maximum memory|memory.*(grow|alloc)/i.test(String(e.message || e)));
+export const isSystemField =(name) => /^(KPEX_PASSKEY_|KPXC_PASSKEY_|KPH: |TimeOtp-)/.test(name) || ['otp', 'TOTP Seed', 'TOTP Settings'].includes(name);
