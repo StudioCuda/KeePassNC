@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { launchBrowser } from '../browser.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const NC_DIR = process.env.NC_DIR;
@@ -81,8 +81,7 @@ async function main() {
     const up = await dav('/Passw%C3%B6rter%20privat/vault4.kdbx', { method: 'PUT', body: fixBuf });
     const srvFile = path.join(dataDir, ADMIN, 'files', 'Passwörter privat', 'vault4.kdbx');
 
-    const exe = process.env.CHROMIUM || fs.readdirSync('/opt/pw-browsers').filter((d) => /^chromium-\d+$/.test(d)).map((d) => `/opt/pw-browsers/${d}/chrome-linux/chrome`)[0];
-    const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
+    const browser = await launchBrowser();
     const problems = { external: [], pageErrors: [], consoleErrors: [], csp: [] };
     async function newSession(settingsFor = { autosync: 'off' }) {
         const ctx = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport: { width: 1280, height: 800 } });

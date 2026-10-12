@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { launchBrowser } from '../browser.mjs';
 import { startServer } from './davserver.mjs';
 import { createKeyfileStore, limits as kfLimits } from '../../src/keyfile-store.js';
 
@@ -28,8 +28,7 @@ const expect = (c, m) => { if (!c) throw new Error(m); };
 async function main() {
     const { stop, port } = await startServer({ webRoot: path.join(root, 'web'), davRoot });
     const base = `http://127.0.0.1:${port}`;
-    const exe = process.env.CHROMIUM || fs.readdirSync('/opt/pw-browsers').filter((d) => /^chromium-\d+$/.test(d)).map((d) => `/opt/pw-browsers/${d}/chrome-linux/chrome`)[0];
-    const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
+    const browser = await launchBrowser();
     const errors = [];
     const mkCtx = async () => { const c = await browser.newContext({ locale: 'de-DE' }); await c.addInitScript(() => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'off' })); } catch {} }); return c; };
     const fillLogin = async (p, { master = meta.password, withKey = false, remember = false } = {}) => {

@@ -8,7 +8,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { launchBrowser } from '../browser.mjs';
 import { createKeyfileStore, limits as kfLimits } from '../../src/keyfile-store.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -88,8 +88,7 @@ async function main() {
     const { server, port } = await startNc();
     const base = `http://127.0.0.1:${port}`;
     const appUrl = `${base}/index.php/apps/keepassnc/`;
-    const exe = process.env.CHROMIUM || fs.readdirSync('/opt/pw-browsers').filter((d) => /^chromium-\d+$/.test(d)).map((d) => `/opt/pw-browsers/${d}/chrome-linux/chrome`)[0];
-    const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
+    const browser = await launchBrowser();
     const errors = [];
     const mkCtx = async (user) => {
         const c = await browser.newContext({ locale: 'de-DE' });
