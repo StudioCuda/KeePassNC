@@ -17,7 +17,7 @@ Zusammenfuehrung bei Konflikten, Offline-Kopie + Service Worker, automatisches S
 
 Neu in v0.5: **Schluesseldatei merken** (optional, Standard aus). In Nextcloud zusaetzlich an einen Geheimwert auf dem Server gebunden:
 wer nur das Browserprofil kopiert, kann das Master-Passwort nicht offline raten; "Auf allen Geraeten ungueltig machen" fuer verlorene Geraete.
-Backup/Export der KDBX unveraendert. Details: `docs/KEYFILE-MEMORY.md`, Sicherheits-Review: `docs/REVIEW-KEYFILE-2026-10.md`.
+Backup/Export der KDBX unveraendert. Details: `docs/KEYFILE-MEMORY.md`.
 
 Neu in v0.4 (komplett neue Oberflaeche, an KeePassXC angelehnt, grosser Bildschirm hat Vorrang):
 - **Drei-Spalten-Ansicht** (Gruppen/Filter - Liste - Details); unter 1180 px wird die Gruppenleiste zur Schublade, unter 760 px gibt es Liste und

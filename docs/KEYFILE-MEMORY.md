@@ -1,6 +1,6 @@
 # Schlüsseldatei merken - Sicherheitsentwurf
 
-Status: umgesetzt in v0.4, nach Review ueberarbeitet in v0.4.1 (`docs/REVIEW-KEYFILE-2026-10.md`), Server-Geheimwert (Format v2) in v0.5.0 (`src/keyfile-store.js`, Anbindung in `src/ui/login.js` und `src/ui/settings-dialog.js`).
+Status: umgesetzt in v0.4, nach Review ueberarbeitet in v0.4.1, Server-Geheimwert (Format v2) in v0.5.0 (`src/keyfile-store.js`, Anbindung in `src/ui/login.js` und `src/ui/settings-dialog.js`).
 Tests: `tests/unit/keyfile-store.test.mjs` (18), `tests/e2e/keyfile.mjs` (11, mit Argon2 256 MiB und KeePassXC-Alltagsdatei), `tests/e2e/keyfile-nc.mjs` (9, Nextcloud-Modus gegen eine Nachbildung der Schnittstellen), `tests/nextcloud/run.mjs` (Endpunkt gegen echte Nextcloud).
 
 ## Ziel
@@ -78,4 +78,4 @@ Offline-Raten bei Profildiebstahl verhindern, braucht aber PRF-Unterstützung in
 
 ## Prüfaufträge für ein unabhängiges Review
 
-Auftrag: `docs/OPUS-REVIEW-BRIEF.md`. Ergebnis und Umsetzung: `docs/REVIEW-KEYFILE-2026-10.md`.
+Ein erstes Review ist in v0.4.1 eingearbeitet (siehe `STATUS.md`). Eine unabhaengige Pruefung von aussen steht noch aus.

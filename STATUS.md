@@ -26,7 +26,7 @@ Backup/Export der KDBX unveraendert. Neuer Endpunkt `api/kf-pepper` (PepperContr
 **Noch zu pruefen:** `tests/nextcloud/run.mjs` gegen echte NC 34/35 (neuer Schritt fuer den Endpunkt) - hier nicht ausfuehrbar (Download gesperrt).
 
 ## v0.4.1: Review "Schluesseldatei merken" eingearbeitet
-Bericht: `docs/REVIEW-KEYFILE-2026-10.md`. Kurz: Kosten je Passwort-Tipp nie mehr unter der Datenbank-KDF (vorher bis Faktor 4 darunter), alte
+Kurz: Kosten je Passwort-Tipp nie mehr unter der Datenbank-KDF (vorher bis Faktor 4 darunter), alte
 Datensaetze werden automatisch aufgewertet; Kennung/Datei werden beim Absenden festgehalten; Nextcloud-Benutzer sehen nur eigene Datensaetze;
 lokale Datei in Nextcloud je Benutzer getrennt; KeePassNC-Seite in Nextcloud nicht mehr einbettbar (`frame-ancestors 'none'`); klarere Hinweise.
 Server-Pepper: in v0.5.0 umgesetzt. WebAuthn-PRF: weiterhin offen.
@@ -46,7 +46,7 @@ Server-Pepper: in v0.5.0 umgesetzt. WebAuthn-PRF: weiterhin offen.
 3. Service Worker/IndexedDB nur in Chromium getestet; Safari loescht Website-Daten nach laengerer Nichtbenutzung (ITP) - die Offline-Kopie ist dort kein Dauerspeicher. Nur Chromium getestet; Firefox/Safari/mobil ungetestet. Argon2 mit sehr hohem Speicherbedarf (>1 GB) kann auf Mobilgeraeten scheitern.
 4. Master-Passwort liegt waehrend der Sitzung als ProtectedValue im Speicher; JavaScript-Strings lassen sich nicht aktiv loeschen.
 5. Sicherungskopien (`<datei>.<zeitstempel>.bak`, `.conflict-...bak`) werden nach Einstellung (Standard: neueste 10 je Art) per PROPFIND/DELETE aufgeraeumt; nur exakt passende Namen. Auf Servern ohne PROPFIND-Unterstuetzung bleibt es still beim Anlegen.
-8. Schluesseldatei-Merkhilfe: Restrisiko siehe `docs/KEYFILE-MEMORY.md` (eigenstaendige Seite: Offline-Raten aus Profilkopie; Nextcloud: nur noch mit gueltiger Sitzung). Review: `docs/REVIEW-KEYFILE-2026-10.md`.
+8. Schluesseldatei-Merkhilfe: Restrisiko siehe `docs/KEYFILE-MEMORY.md` (eigenstaendige Seite: Offline-Raten aus Profilkopie; Nextcloud: nur noch mit gueltiger Sitzung).
 9. UI nur in Chromium (Desktop 1440 px, Tablet, Mobil 390 px emuliert) getestet.
 6. Vor dem produktiven Einsatz als einziger Passwortmanager: unabhaengige Sicherheitspruefung und weiterhin KeePassXC-Offline-Kopien behalten.
 7. kdbxweb 2.2.0 ist nur als Git-Stand verfuegbar (npm endet bei 2.1.1); Patch `tests/compat/kdbxweb-enable-searching-fix.patch` ist in `vendor/` bereits eingespielt.

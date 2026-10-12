@@ -1,7 +1,7 @@
 // "Schluesseldatei merken" (optional, standardmaessig AUS): legt die Schluesseldatei verschluesselt auf diesem Geraet ab, damit sie nicht bei
 // jeder Anmeldung neu gewaehlt werden muss.
 //
-// Sicherheitsentwurf (ausfuehrlich: docs/KEYFILE-MEMORY.md, Review: docs/REVIEW-KEYFILE-2026-10.md):
+// Sicherheitsentwurf (ausfuehrlich: docs/KEYFILE-MEMORY.md):
 //  * Der Schluessel zum Entschluesseln wird aus dem MASTER-PASSWORT abgeleitet (Argon2id). Die Kosten je Passwort-Tipp sind MINDESTENS so hoch
 //    wie bei der Datenbank-KDF (Arbeit = Speicher x Durchlaeufe; ist der Speicher nach oben begrenzt, werden die Durchlaeufe erhoeht),
 //    mindestens 64 MiB / 3 Durchlaeufe. Bei AES-KDF (nicht vergleichbar) fest 64 MiB / 16.
