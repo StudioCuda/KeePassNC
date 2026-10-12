@@ -2,7 +2,7 @@
   "name": "keepassnc",
   "version": "0.5.2",
   "private": true,
-  "description": "KeePassNC - schlanker KDBX-Client im Browser (Nextcloud/WebDAV), Entschluesselung ausschliesslich im Browser",
+  "description": "KeePass (KDBX) files in the browser, for Nextcloud and WebDAV. Decrypted only in the browser.",
   "scripts": {
     "build": "node tools/build.mjs && node tools/build-nextcloud.mjs",
     "test:compat": "node -r ts-node/register/transpile-only tests/compat/run.ts",

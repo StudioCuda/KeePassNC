@@ -1,5 +1,5 @@
-// KDBX-Kompatibilitaetstests: kdbxweb (Git-Stand 2.2.0) gegen KeePassXC (keepassxc-cli) als Referenz.
-// Aufruf: KDBXWEB=/pfad/zu/kdbxweb node -r ts-node/register/transpile-only run.ts
+// KDBX-Kompatibilitaetstests: kdbxweb (vendor/, Git-Stand 2.2.0) gegen KeePassXC (keepassxc-cli) als Referenz.
+// Aufruf: npm run test:compat (KDBXWEB=/pfad/zu/kdbxweb testet einen anderen kdbxweb-Stand)
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';

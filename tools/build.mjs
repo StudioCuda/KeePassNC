@@ -31,5 +31,6 @@ await build({
     logLevel: 'info'
 });
 
-// Service Worker unveraendert nach web/ (Nextcloud-App: siehe build-nextcloud.mjs)
+// Service Worker und Stylesheet unveraendert nach web/ (Nextcloud-App: siehe build-nextcloud.mjs)
 fs.copyFileSync(path.join(root, 'src/sw.js'), path.join(root, 'web/sw.js'));
+fs.copyFileSync(path.join(root, 'src/keepassnc.css'), path.join(root, 'web/keepassnc.css'));

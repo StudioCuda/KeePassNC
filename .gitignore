@@ -1,3 +1,11 @@
 node_modules/
 *.log
 *.tar.gz
+
+# Build output (npm run build). Sources live in src/, the release archive is built in CI or by tools/sign-release.sh.
+web/keepassnc.js
+web/keepassnc.css
+web/sw.js
+nextcloud-app/keepassnc/js/
+nextcloud-app/keepassnc/css/
+nextcloud-app/keepassnc/COPYING

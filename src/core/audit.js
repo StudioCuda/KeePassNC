@@ -44,4 +44,3 @@ export function auditEntries(entries, now = Date.now()) {
     return { items, stats };
 }
 
-export const isWeakPassword = (pw) => !!pw && estimateBits(pw) < 75;
