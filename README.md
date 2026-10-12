@@ -5,6 +5,14 @@ Your KeePass file, opened in a browser tab, on your own Nextcloud. That's it. Th
 KeeWeb stopped getting updates, so this is its replacement: it reads and writes plain **KDBX 3.1 / 4.x** files, so
 KeePassXC, KeePassDX and Strongbox keep working on the very same file. No lock-in, no special format, no drama.
 
+![KeePassNC on a desktop: groups and tags on the left, the entry list, and an entry with a live TOTP code](docs/screenshots/desktop-detail.png)
+
+<p>
+  <img src="docs/screenshots/dark-detail.png" width="62%" alt="Dark mode">
+  <img src="docs/screenshots/mobile-list.png" width="18%" alt="Entry list on a phone">
+  <img src="docs/screenshots/mobile-detail.png" width="18%" alt="Entry with a passkey on a phone">
+</p>
+
 ## How it behaves
 
 - **Everything is decrypted in your browser.** The master password and the plaintext never leave it. The server only ever sees the
@@ -23,6 +31,11 @@ drop, recycle bin, tags, expiry, attachments, entry history, TOTP (Steam Guard t
 password and passphrase generator, a health report (weak, reused, expired), files shared with you (read-only shares say so), and an
 opt-in "remember my key file" helper. That one is tied to a server-side secret, so a copied browser profile alone can't be used to
 guess your master password. Design notes: [`docs/KEYFILE-MEMORY.md`](docs/KEYFILE-MEMORY.md).
+
+<p>
+  <img src="docs/screenshots/desktop-reports.png" width="49%" alt="Health report: weak, reused and expiring passwords">
+  <img src="docs/screenshots/desktop-generator.png" width="49%" alt="Password generator">
+</p>
 
 Shortcuts: `Ctrl+K` palette, `Ctrl+F` search, `Ctrl+N` new, `Ctrl+S` save, `Ctrl+L` lock, `Ctrl+B` copy user, `Ctrl+C` copy password,
 `Ctrl+Shift+U` open URL, `Del` delete.
@@ -60,7 +73,8 @@ NC_DIR=/path/to/nextcloud NC_PORT=18035 npm run test:nc   # fresh Nextcloud inst
 Needs Node 22, `keepassxc-cli` 2.7, Python 3 with `pykeepass`, and Chromium (set `CHROMIUM`) or Playwright's browsers.
 `.github/workflows/nextcloud.yml` shows the whole setup. Layout: `src/` app code (`src/ui/` interface, `src/vault.js` the interesting
 part), `vendor/kdbxweb/` the KDBX library, `nextcloud-app/keepassnc/` the Nextcloud wrapper, `tests/` the safety net.
-Contributions: [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Contributions: [`CONTRIBUTING.md`](CONTRIBUTING.md). The screenshots come from `tools/make-showcase.py` (made-up data) and
+`tools/shots.mjs`.
 
 ## Not tested yet
 
