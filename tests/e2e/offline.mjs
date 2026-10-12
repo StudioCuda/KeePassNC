@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { launchBrowser } from '../browser.mjs';
 import { startServer } from './davserver.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -32,8 +32,7 @@ async function main() {
     const port = srv.port, base = `http://127.0.0.1:${port}`;
     const outage = async () => { await srv.stop(); };
     const recover = async () => { srv = await startServer({ webRoot: path.join(root, 'web'), davRoot, port }); };
-    const exe = process.env.CHROMIUM || fs.readdirSync('/opt/pw-browsers').filter((d) => /^chromium-\d+$/.test(d)).map((d) => `/opt/pw-browsers/${d}/chrome-linux/chrome`)[0];
-    const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
+    const browser = await launchBrowser();
     const pageErrors = [];
 
     const ctx = await browser.newContext({ locale: 'de-DE', viewport: { width: 1280, height: 800 } });

@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { launchBrowser, browserName } from '../browser.mjs';
 import { DOMParser } from '@xmldom/xmldom';
 import { startServer } from './davserver.mjs';
 
@@ -47,11 +47,10 @@ const allGroups = (doc) => { const out = []; const rec = (g, p) => { out.push(p)
 async function main() {
     const { stop, port } = await startServer({ webRoot: path.join(root, 'web'), davRoot });
     const base = `http://127.0.0.1:${port}`;
-    const exe = process.env.CHROMIUM || fs.readdirSync('/opt/pw-browsers').filter((d) => /^chromium-\d+$/.test(d)).map((d) => `/opt/pw-browsers/${d}/chrome-linux/chrome`)[0];
-    const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
+    const browser = await launchBrowser();
     const pageErrors = [], external = [];
     async function newPage(viewport = { width: 1500, height: 950 }, settings = { autosync: 'off', clipboard: 10 }) {
-        const ctx = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport, permissions: ['clipboard-read', 'clipboard-write'] });
+        const ctx = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport, permissions: browserName === 'chromium' ? ['clipboard-read', 'clipboard-write'] : [] }); // Firefox/WebKit kennen diese Rechtenamen nicht
         await ctx.addInitScript((s) => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify(s)); } catch {} }, settings);
         const page = await ctx.newPage();
         page.on('pageerror', (e) => pageErrors.push(String(e)));

@@ -45,3 +45,33 @@ jobs:
           git clone --depth 1 --branch ${{ matrix.ref }} https://github.com/nextcloud/server.git nc
           cd nc && git submodule update --init --depth 1 && npm ci && npm run build
       - run: NC_DIR=$PWD/nc NC_PORT=18080 node tests/nextcloud/run.mjs
+
+  # The same browser suites (no Nextcloud needed) in the other two engines. Informational for now:
+  # a red job here means "differs from Chromium", it does not block merging.
+  browsers:
+    name: browsers (${{ matrix.browser }})
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [firefox, webkit]
+    env:
+      BROWSER: ${{ matrix.browser }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: sudo apt-get update && sudo apt-get install -y keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
+      - run: npm ci || npm install
+      - run: npx playwright-core install --with-deps ${{ matrix.browser }}
+      - run: npm run build
+      - run: npm run test:e2e
+      - run: npm run test:ui
+        if: success() || failure()
+      - run: npm run test:keyfile
+        if: success() || failure()
+      - run: npm run test:offline
+        if: success() || failure()
+      - run: npm run test:fidelity
+        if: success() || failure()
