@@ -5,6 +5,7 @@ import { generatePassword, generatePassphrase, CLASSES, LOOKALIKE } from '../../
 import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
 import { auditEntries } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
+import { isOutOfMemory } from '../../src/core/util.js';
 
 const NOW = Date.UTC(2026, 9, 11);
 function entry(fields, extra = {}) {
@@ -77,4 +78,14 @@ test('Bericht: schwache, doppelte, abgelaufene Passwoerter; Ausnahmen', () => {
     assert.equal(r.items.find((i) => i.entry === d).score, 0);
     assert.ok(r.items.find((i) => i.entry === a).reasons.some((x) => x.code === 'reused' && x.uses === 2));
     assert.equal(r.stats.excluded, 1); assert.equal(r.stats.noPassword, 1); assert.equal(r.stats.expired, 1);
+});
+
+test('Argon2-Speicherfehler werden erkannt (RangeError, WebAssembly-Trap, Textmeldungen), andere Fehler nicht', () => {
+    assert.ok(isOutOfMemory(new RangeError('Invalid typed array length: 4294968320')));
+    assert.ok(isOutOfMemory(new WebAssembly.RuntimeError('memory access out of bounds')));
+    assert.ok(isOutOfMemory(new Error('WebAssembly.Memory(): could not allocate memory')));
+    assert.ok(isOutOfMemory(new Error('Out of memory')));
+    assert.ok(!isOutOfMemory(new Error('Wrong password')));
+    assert.ok(!isOutOfMemory(new TypeError('x is not a function')));
+    assert.ok(!isOutOfMemory(null) && !isOutOfMemory(undefined));
 });

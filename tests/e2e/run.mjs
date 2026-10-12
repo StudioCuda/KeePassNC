@@ -81,6 +81,23 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Argon2 verlangt 4 GiB Arbeitsspeicher (mehr als WebAssembly je gibt) -> verstaendliche Meldung statt "RangeError"', async () => {
+        // Kopie von vault4 mit M = 4 GiB (Bytes) im Dateikopf, samt neuem Kopf-Hash. Der Schluessel wird nie fertig berechnet:
+        // die Speicheranforderung scheitert in jedem Browser, unabhaengig vom Geraet.
+        const d = Buffer.from(fs.readFileSync(f4));
+        const pat = Buffer.from([0x05, 1, 0, 0, 0, 0x4d, 8, 0, 0, 0]); // VariantDictionary: UInt64, Name "M", 8 Byte Wert
+        const at = d.indexOf(pat); expect(at > 0, 'Argon2-Parameter M nicht im Kopf gefunden');
+        d.writeBigUInt64LE(4n * 1024n * 1024n * 1024n, at + pat.length);
+        let o = 12; for (;;) { const id = d[o]; o += 5 + d.readUInt32LE(o + 1); if (id === 0) break; } // Kopffelder bis EndOfHeader
+        crypto.createHash('sha256').update(d.subarray(0, o)).digest().copy(d, o);
+        fs.writeFileSync(path.join(davRoot, 'hungrig.kdbx'), d);
+        const p = await newPage();
+        await login(p, 'hungrig.kdbx');
+        await p.waitForFunction(() => /4096 MB Arbeitsspeicher/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 60000 });
+        expect(!/RangeError|Fehler:/.test(await p.locator('#login-error').innerText()), 'Rohe Fehlermeldung statt verstaendlichem Text');
+        await p.context().close();
+    });
+
     await step('Falsches App-Passwort / fehlende Datei -> Fehlermeldung', async () => {
         const p = await newPage();
         await login(p, 'vault4.kdbx', { pass: 'nope' });

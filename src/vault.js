@@ -4,21 +4,28 @@ import * as kdbxweb from '../vendor/kdbxweb/lib/index';
 import { argon2d, argon2id } from 'hash-wasm';
 import { ConflictError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
-import { isSystemField, valueText } from './core/util.js';
+import { isOutOfMemory, isSystemField, valueText } from './core/util.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid } = kdbxweb;
 
 kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type) => {
     const fn = type === 2 ? argon2id : argon2d;
-    const out = await fn({
-        password: new Uint8Array(password),
-        salt: new Uint8Array(salt),
-        parallelism,
-        iterations,
-        memorySize: memory, // KiB
-        hashLength: length,
-        outputType: 'binary'
-    });
+    let out;
+    try {
+        out = await fn({
+            password: new Uint8Array(password),
+            salt: new Uint8Array(salt),
+            parallelism,
+            iterations,
+            memorySize: memory, // KiB
+            hashLength: length,
+            outputType: 'binary'
+        });
+    } catch (e) {
+        // Reicht der Arbeitsspeicher (Handy, Browser-Grenze) nicht, verstaendlich melden statt "RangeError ..."
+        if (isOutOfMemory(e)) throw new VaultError('Nicht genug Arbeitsspeicher fuer die Schluesselableitung (Argon2).', 'e.argonmem', { mb: Math.ceil(memory / 1024) });
+        throw e;
+    }
     return out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength);
 });
 
