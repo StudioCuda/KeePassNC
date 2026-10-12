@@ -148,6 +148,30 @@ async function main() {
         return `TOTP ${a}`;
     });
 
+    await step('Steam-TOTP (encoder=steam): 5 Zeichen, identisch mit KeePassXC', async () => {
+        const fs3 = path.join(davRoot, 'steam.kdbx');
+        execFileSync('python3', ['-I', '-c', [
+            'from pykeepass import create_database',
+            `kp = create_database(${JSON.stringify(fs3)}, password=${JSON.stringify(PW)})`,
+            "e = kp.add_entry(kp.root_group, 'Steam', 'anna', 'x')",
+            "e.otp = 'otpauth://totp/Steam:anna?secret=JBSWY3DPEHPK3PXP&issuer=Steam&encoder=steam'",
+            'kp.save()'].join('\n')]);
+        const p = await newPage();
+        await login(p, 'steam.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Steam' }).click();
+        let ok = false, a, b;
+        for (let i = 0; i < 3 && !ok; i++) { // bis zu 3 Versuche wegen Fenstergrenze
+            a = (await p.locator('[data-testid=totp-code]').innerText()).trim();
+            b = xc(['show', '-t', fs3, 'Steam']).trim().split('\n').pop();
+            ok = a === b;
+            if (!ok) await p.waitForTimeout(1200);
+        }
+        expect(/^[2-9BCDFGHJKMNPQRTVWXY]{5}$/.test(a), 'kein Steam-Code: ' + a);
+        expect(ok, `Steam-TOTP weicht von KeePassXC ab: App ${a} vs. KeePassXC ${b}`);
+        await p.context().close();
+        return `Steam ${a}`;
+    });
+
     await step('Anhang herunterladen: Inhalt byte-identisch', async () => {
         await page.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
         const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-testid=attachment]')]);
