@@ -52,7 +52,11 @@ Server-Pepper: in v0.5.0 umgesetzt. WebAuthn-PRF: weiterhin offen.
 7. kdbxweb 2.2.0 ist nur als Git-Stand verfuegbar (npm endet bei 2.1.1); Patch `tests/compat/kdbxweb-enable-searching-fix.patch` ist in `vendor/` bereits eingespielt.
 
 ## Naechste Schritte (Vorschlag)
-1. Zweitmeinung zum v0.4.1/v0.5.0-Diff (Pruefer und Umsetzer waren dieselben); `npm run test:nc` gegen NC 34/35 laufen lassen.
-2. Firefox/Safari/echte Mobilgeraete testen; Argon2-Speicherlimit auf Mobil pruefen.
-3. App-Store-Veroeffentlichung vorbereiten (Repository, Bugtracker, Signierung, Screenshots).
-4. Steam-TOTP, Passkey-Anlage, Freigaben/Gruppenordner.
+1. Unabhaengige Sicherheitspruefung der Schluesseldatei-Merkhilfe (Pruefanleitung liegt vor; Pruefer und Umsetzer waren bisher dieselben).
+2. App Store: Zertifikat ist beantragt; danach App registrieren, erstes Release signieren (`docs/APPSTORE.md`).
+3. Echte Mobilgeraete testen (Firefox und WebKit laufen in der CI; Argon2-Speichermangel wird verstaendlich gemeldet).
+4. Gruppenordner (App "Team folders") eigens testen; Freigaben sind abgedeckt.
+
+Erledigt seit v0.5.2: CI gegen NC 34/35/master und Chromium/Firefox/WebKit, Steam-TOTP, Freigaben (nur lesen; bearbeiten ohne erstellen), Passkey entfernen.
+
+Spaeter denkbar (eigenes Projekt): KeePassNC als Passkey-Anbieter beim Anmelden auf Websites. Geht im Browser nur ueber eine Erweiterung, nicht ueber eine Webseite.

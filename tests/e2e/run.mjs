@@ -172,6 +172,39 @@ async function main() {
         return `Steam ${a}`;
     });
 
+    await step('Passkey: Duplizieren kopiert ihn nicht mit; "Passkey entfernen" entfernt ihn, alter Stand bleibt im Verlauf (Pruefung mit pykeepass)', async () => {
+        const fpk = path.join(davRoot, 'passkey.kdbx');
+        const py = (lines) => execFileSync('python3', ['-I', '-c', lines.join('\n')]).toString();
+        py(['import base64, os', 'from pykeepass import create_database',
+            `kp = create_database(${JSON.stringify(fpk)}, password=${JSON.stringify(PW)})`,
+            "e = kp.add_entry(kp.root_group, 'Passkey example.org', 'anna@example.org', 'pw', url='https://example.org')",
+            "for k, v, p in [('KPEX_PASSKEY_USERNAME', 'anna@example.org', False), ('KPEX_PASSKEY_CREDENTIAL_ID', base64.urlsafe_b64encode(os.urandom(32)).decode(), True),",
+            "                ('KPEX_PASSKEY_PRIVATE_KEY_PEM', '-----BEGIN PRIVATE KEY-----\\nMIGHAgEA\\n-----END PRIVATE KEY-----', True), ('KPEX_PASSKEY_RELYING_PARTY', 'example.org', False),",
+            "                ('KPEX_PASSKEY_USER_HANDLE', base64.urlsafe_b64encode(os.urandom(16)).decode(), True)]:",
+            '    e.set_custom_property(k, v, protect=p)',
+            'kp.save()']);
+        const p = await newPage();
+        await login(p, 'passkey.kdbx'); await rows(p).first().waitFor();
+        const original = () => p.locator('[data-testid=entry-row]', { hasText: /Passkey example\.org(?! - Kopie)/ });
+        await original().click();
+        await p.click('#entry-more'); await p.getByText('Duplizieren', { exact: true }).click();
+        await p.waitForFunction(() => /- Kopie/.test(document.querySelector('#detail h2')?.textContent || ''));
+        expect(await p.locator('[data-testid=passkey-card]').count() === 0, 'Kopie zeigt noch einen Passkey');
+        await original().click();
+        await p.locator('[data-testid=passkey-card]').waitFor();
+        await p.click('[data-testid=passkey-remove]'); await p.click('#confirm-ok');
+        await p.waitForFunction(() => !document.querySelector('[data-testid=passkey-card]'));
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert/, 30000);
+        const out = JSON.parse(py(['import json', 'from pykeepass import PyKeePass', `kp = PyKeePass(${JSON.stringify(fpk)}, password=${JSON.stringify(PW)})`,
+            "pk = lambda x: sorted(k for k in x.custom_properties if k.startswith('KPEX_PASSKEY_'))",
+            'print(json.dumps({e.title: {"now": pk(e), "history": [len(pk(h)) for h in e.history]} for e in kp.entries}))']));
+        const o = out['Passkey example.org'], c = out['Passkey example.org - Kopie'];
+        expect(o && o.now.length === 0, 'Original hat noch Passkey-Felder: ' + JSON.stringify(o));
+        expect(o.history.includes(5), 'alter Stand mit Passkey fehlt im Verlauf: ' + JSON.stringify(o));
+        expect(c && c.now.length === 0 && c.history.length === 0, 'Kopie: ' + JSON.stringify(c));
+        await p.context().close();
+    });
+
     await step('Anhang herunterladen: Inhalt byte-identisch', async () => {
         await page.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
         const [dl] = await Promise.all([page.waitForEvent('download'), page.click('[data-testid=attachment]')]);

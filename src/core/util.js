@@ -20,6 +20,8 @@ export function groupPath(group) {
     for (let g = group; g && g.parentGroup; g = g.parentGroup) parts.unshift(g.name || '');
     return parts.join('/');
 }
+/** Felder, aus denen ein Passkey besteht (KeePassXC: KPEX_PASSKEY_*; KPXC_PASSKEY_* wie in isSystemField mitgefuehrt). */
+export const isPasskeyField = (name) => /^(KPEX|KPXC)_PASSKEY_/.test(name);
 export const isPasskey = (entry) => entry.fields.has('KPEX_PASSKEY_CREDENTIAL_ID') || entry.fields.has('KPEX_PASSKEY_PRIVATE_KEY_PEM');
 export const hasTotp = (entry) => entry.fields.has('otp') || entry.fields.has('TOTP Seed') || [...entry.fields.keys()].some((k) => k.startsWith('TimeOtp-'));
 /** Felder, die der Editor nicht als freie Zusatzfelder zeigt (eigene Darstellung bzw. Programmdaten); sie bleiben beim Bearbeiten unveraendert erhalten. */
