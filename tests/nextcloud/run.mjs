@@ -210,6 +210,54 @@ async function main() {
         expect(/apps\/keepassnc/.test(html), 'Link auf die App fehlt im Menue');
     });
 
+    // ---- Freigaben: die Datei gehoert "bob" und ist mit admin geteilt (Rechte: 1 = lesen, 2 = aendern, 4 = erstellen) ----
+    const OWNER = 'bob', OWNER_PW = 'Bob-Pass-12345';
+    const ownerAuth = { Authorization: 'Basic ' + Buffer.from(`${OWNER}:${OWNER_PW}`).toString('base64') };
+    const ownerDav = (p, init = {}) => fetch(`${BASE}/remote.php/dav/files/${OWNER}${p}`, { ...init, headers: { ...ownerAuth, ...(init.headers || {}) } });
+    async function shareFolder(folder, permissions) {
+        await ownerDav(`/${encodeURIComponent(folder)}`, { method: 'MKCOL' });
+        const put = await ownerDav(`/${encodeURIComponent(folder)}/team.kdbx`, { method: 'PUT', body: fixBuf });
+        expect(put.ok, `PUT ${folder}: ${put.status}`);
+        const r = await fetch(`${BASE}/ocs/v2.php/apps/files_sharing/api/v1/shares?format=json`, {
+            method: 'POST', headers: { ...ownerAuth, 'OCS-APIRequest': 'true', 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ path: `/${folder}`, shareType: '0', shareWith: ADMIN, permissions: String(permissions) })
+        });
+        expect(r.ok, `Freigabe ${folder}: ${r.status} ${(await r.text()).slice(0, 200)}`);
+        return path.join(dataDir, OWNER, 'files', folder, 'team.kdbx');
+    }
+    const openShared = async (p) => {
+        await page.goto(`${BASE}/index.php/apps/keepassnc/?open=${encodeURIComponent(p)}`);
+        await page.fill('#master', PW); await page.click('#open-btn');
+        await rows(page).first().waitFor({ timeout: 30000 });
+    };
+    const editMail = async (user) => {
+        await page.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
+        await page.click('#edit-btn'); await page.fill('#e-user', user); await page.click('#apply-btn'); await page.click('#save-btn');
+    };
+    execFileSync('php', ['occ', 'user:add', '--password-from-env', OWNER], { cwd: NC_DIR, env: { ...process.env, OC_PASS: OWNER_PW }, stdio: ['ignore', 'pipe', 'pipe'] });
+
+    await step('Freigegebener Ordner "Bearbeiten ohne Erstellen": oeffnen, aendern, speichern -> beim Besitzer angekommen, Hinweis "ohne Sicherungskopie"', async () => {
+        const ownerFile = await shareFolder('Team RW', 1 | 2);
+        await openShared('/Team RW/team.kdbx');
+        await editMail('alice-team');
+        await waitStatus(page, /^Gespeichert, aber ohne Sicherungskopie/, 30000);
+        expect(xc(['show', ownerFile, 'Web/Mail']).includes('alice-team'), 'Aenderung nicht beim Besitzer angekommen');
+        expect(!fs.readdirSync(path.dirname(ownerFile)).some((n) => n.endsWith('.bak')), 'Sicherungskopie trotz fehlendem Recht?');
+        return await status(page);
+    });
+
+    await step('Freigabe nur zum Lesen: beim Oeffnen als "nur lesbar" markiert, Speichern scheitert verstaendlich, Datei unveraendert', async () => {
+        const ownerFile = await shareFolder('Team RO', 1);
+        const before = fs.readFileSync(ownerFile);
+        await openShared('/Team RO/team.kdbx');
+        expect(/nur lesbar/.test(await status(page)), 'kein Hinweis beim Oeffnen: ' + await status(page));
+        await editMail('alice-darf-nicht');
+        await waitStatus(page, /nur lesen/, 30000);
+        expect(!/Status 403/.test(await status(page)), 'rohe Fehlermeldung: ' + await status(page));
+        expect(Buffer.compare(before, fs.readFileSync(ownerFile)) === 0, 'Datei des Besitzers wurde veraendert');
+        return await status(page);
+    });
+
     // ---- Ausfall-Szenarien: erst Wartungsmodus (503), dann harter Serverausfall ----
     const page2 = await newSession({ autosync: 'change', offline: true });
     const appUrl = `${BASE}/index.php/apps/keepassnc/`;

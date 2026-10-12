@@ -2,7 +2,7 @@
 // Alles Kryptografische passiert hier im Browser; der Server sieht nur die verschluesselte Datei.
 import * as kdbxweb from '../vendor/kdbxweb/lib/index';
 import { argon2d, argon2id } from 'hash-wasm';
-import { ConflictError, isOffline } from './webdav.js';
+import { ConflictError, DavError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
 import { isOutOfMemory, isPasskeyField, isSystemField, valueText } from './core/util.js';
 
@@ -424,6 +424,19 @@ export class Vault {
         }
     }
 
+    /**
+     * Sicherungskopie neben der Datei. Darf man im Ordner keine neuen Dateien anlegen (Nextcloud-Freigabe "Bearbeiten" ohne
+     * "Erstellen", 403), wird ohne Kopie weitergespeichert und das gemeldet (noBackup), statt das Speichern ganz zu blockieren.
+     */
+    async _backup(buf, suffix) {
+        try {
+            await this.dav.putCopy(buf, suffix);
+        } catch (e) {
+            if (!(e instanceof DavError && e.status === 403)) throw e;
+            this.noBackup = true;
+        }
+    }
+
     /** Alte Sicherungskopien aufraeumen; Fehler hier duerfen nie das Speichern stoeren. */
     async _prune() {
         try { await this.dav.pruneBackups(this.backupKeep); } catch { /* best effort */ }
@@ -431,7 +444,7 @@ export class Vault {
 
     async _push() {
         if (!this._backedUp) {
-            await this.dav.putCopy(this._remoteBytes, stamp());
+            await this._backup(this._remoteBytes, stamp());
             this._backedUp = true;
             await this._prune();
         }
@@ -444,12 +457,12 @@ export class Vault {
                 this.unsynced = false;
                 this._pending = null;
                 await this._cacheWrite(out, false);
-                return { merged };
+                return { merged, noBackup: this.noBackup };
             } catch (e) {
                 if (!(e instanceof ConflictError)) throw e;
                 if (attempt >= 3) throw new VaultError('Die Datei wird gerade von einem anderen Geraet laufend geaendert - bitte spaeter erneut speichern. Ihre Aenderungen sind lokal gesichert.', 'e.busy');
                 const remote = await this.dav.get();
-                await this.dav.putCopy(remote.buf, `conflict-${stamp()}`);
+                await this._backup(remote.buf, `conflict-${stamp()}`);
                 await this._prune();
                 const remoteDb = await Kdbx.load(remote.buf, this._credentials()).catch((err) => {
                     if (err instanceof KdbxError && err.code === Consts.ErrorCodes.InvalidKey) {

@@ -5,9 +5,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ### Added
 - Steam Guard codes. Entries with `encoder=steam` (KeePassXC) or the old `30;S` setting now show the 5-character Steam code instead of six digits that Steam won't take.
+- Shared files: a database someone shared with you read-only is marked as such when you open it, and saving says why it can't, instead of "status 403".
 - "Remove passkey" on the passkey card. The previous state stays in the entry's history, so it can come back.
 
 ### Fixed
+- Saving a file in a shared folder where you may edit but not create files no longer fails on the backup copy. It saves and tells you there's no backup this time.
 - Duplicating an entry no longer copies its passkey. Two entries with the same key confused the browser extension.
 - A duplicated entry was called "… - Kopie" in English too.
 

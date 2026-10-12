@@ -31,7 +31,14 @@ function exportAttachment(file: string, entry: string, name: string, keyfile?: s
 }
 function xc(args: string[], file: string, keyfile?: string, binary = false): string | Buffer {
     const a = [args[0], ...(keyfile ? ['-k', keyfile] : []), ...args.slice(1)];
-    const out = execFileSync('keepassxc-cli', a, { input: PW + '\n', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+    const run = () => execFileSync('keepassxc-cli', a, { input: PW + '\n', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
+    let out: Buffer;
+    try { out = run(); } catch (e: any) {
+        // keepassxc-cli 2.7 scheitert gelegentlich beim Schreiben ("Writing the database failed ... Cannot process 0 length data").
+        // Nur genau dann einmal wiederholen; jeder andere Fehler bleibt ein Fehler.
+        if (!/Writing the database failed|Cannot process 0 length data/.test(String(e.stderr || e.message))) throw e;
+        out = run();
+    }
     return binary ? out : out.toString('utf8');
 }
 const kdbxVersion = (f: string) => { const d = fs.readFileSync(f); return `${d.readUInt16LE(10)}.${d.readUInt16LE(8)}`; };
