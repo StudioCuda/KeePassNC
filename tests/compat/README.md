@@ -1,25 +1,12 @@
-# kdbx-compat-tests
+# Compatibility tests
 
-Testet **kdbxweb** (Git-Stand 2.2.0, auf npm nur bis 2.1.1 veroeffentlicht) gegen **KeePassXC** (`keepassxc-cli`) als Referenz.
-Jede Datei, die kdbxweb schreibt, muss in KeePassXC sauber oeffnen und inhaltlich stimmen; Dateien von KeePassXC muessen kdbxweb ueberstehen.
+The vendored kdbxweb against KeePassXC (`keepassxc-cli`) as the reference: every file kdbxweb writes has to open cleanly in
+KeePassXC with the right content, and files KeePassXC writes have to survive kdbxweb.
 
-## Voraussetzungen
-- Node 20+, `keepassxc-cli` (getestet mit 2.7.6), Python 3 mit `pykeepass` (nur fuer den Randfall-Test)
-- `git clone https://github.com/keeweb/kdbxweb` und darin `npm ci --ignore-scripts`
-- hier: `npm install` (hash-wasm fuer Argon2, ts-node)
+    npm run test:compat
 
-## Lauf
-    KDBXWEB=/pfad/zu/kdbxweb NODE_PATH=/pfad/zu/kdbxweb/node_modules:./node_modules \
-      node -r ts-node/register/transpile-only run.ts
+Covers KDBX 3.1 / 4.0 / 4.1, AES and ChaCha20 x Argon2d / Argon2id / AES-KDF, key files in the formats KeePassXC and KeePass
+create, attachments up to 8 MB, repeated saves with history, editing back and forth, merging two diverged copies, and master
+passwords with special characters, NFD and emoji. `make-pykeepass-ref.py` builds the reference database with pykeepass.
 
-## Abgedeckt (19 Faelle)
-- KDBX4: Cipher AES/ChaCha20 x KDF Argon2d/Argon2id/AES-KDF x mit/ohne Schluesseldatei, danach 5 Re-Saves (inkl. Verlauf)
-- KDBX3.1 mit/ohne Schluesseldatei; KDBX4.1 (Gruppen-Tags)
-- Inhalte: Umlaute/Euro, mehrzeilige Notizen, geschuetzte Zusatzfelder, Tags, TOTP, Anhang (2 KB und 8 MB), verschachtelte Gruppen
-- Wechselseitiges Bearbeiten (kdbxweb -> KeePassXC -> kdbxweb) und Merge zweier divergierender Kopien
-- Randfall: Datei ohne optionale Gruppenfelder (pykeepass)
-
-## Befund
-Ohne Patch scheitert nur der letzte Fall: kdbxweb schreibt fehlende optionale Gruppenfelder (EnableSearching, EnableAutoType, IconID, IsExpanded)
-als leere Elemente, KeePassXC lehnt das ab. `kdbxweb-enable-searching-fix.patch` (4 Zeilen in `lib/format/kdbx-group.ts`) behebt das; mit Patch 19/19.
-Hinweis: `keepassxc-cli attachment-export --stdout` verfaelscht Binaerdaten (UTF-8-Konvertierung), deshalb exportieren die Tests in Dateien.
+Note: `keepassxc-cli attachment-export --stdout` mangles binary data, so the tests export to files.

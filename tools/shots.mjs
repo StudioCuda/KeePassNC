@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { chromium } from 'playwright-core';
+import { launchBrowser } from '../tests/browser.mjs';
 import { startServer } from '../tests/e2e/davserver.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -13,8 +13,7 @@ const meta = JSON.parse(fs.readFileSync(path.join(dailyDir, 'daily.json'), 'utf8
 const davRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kpnc-shots-'));
 fs.copyFileSync(path.join(dailyDir, 'daily.kdbx'), path.join(davRoot, 'daily.kdbx'));
 const { server, port } = await startServer({ webRoot: path.join(root, 'web'), davRoot });
-const exe = process.env.CHROMIUM || fs.readdirSync('/opt/pw-browsers').filter((d) => /^chromium-\d+$/.test(d)).map((d) => `/opt/pw-browsers/${d}/chrome-linux/chrome`)[0];
-const browser = await chromium.launch({ executablePath: exe, args: ['--no-sandbox'] });
+const browser = await launchBrowser();
 const base = `http://127.0.0.1:${port}`;
 
 async function session(name, viewport, { scheme = 'light', lang = 'de' } = {}) {

@@ -13,6 +13,7 @@ fs.mkdirSync(path.join(app, 'css'), { recursive: true });
 fs.copyFileSync(path.join(root, 'web/keepassnc.js'), path.join(app, 'js/keepassnc.js'));
 fs.copyFileSync(path.join(root, 'web/sw.js'), path.join(app, 'js/sw.js'));
 fs.copyFileSync(path.join(root, 'web/keepassnc.css'), path.join(app, 'css/keepassnc.css'));
+fs.copyFileSync(path.join(root, 'LICENSE'), path.join(app, 'COPYING')); // der App Store erwartet die Lizenz im App-Ordner
 
 await build({
     entryPoints: [path.join(root, 'src/files-action.js')],

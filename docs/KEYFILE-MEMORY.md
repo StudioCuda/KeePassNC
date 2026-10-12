@@ -1,81 +1,77 @@
-# Schlüsseldatei merken - Sicherheitsentwurf
+# Remember the key file: security design
 
-Status: umgesetzt in v0.4, nach Review ueberarbeitet in v0.4.1, Server-Geheimwert (Format v2) in v0.5.0 (`src/keyfile-store.js`, Anbindung in `src/ui/login.js` und `src/ui/settings-dialog.js`).
-Tests: `tests/unit/keyfile-store.test.mjs` (18), `tests/e2e/keyfile.mjs` (11, mit Argon2 256 MiB und KeePassXC-Alltagsdatei), `tests/e2e/keyfile-nc.mjs` (9, Nextcloud-Modus gegen eine Nachbildung der Schnittstellen), `tests/nextcloud/run.mjs` (Endpunkt gegen echte Nextcloud).
+Implemented in `src/keyfile-store.js`, wired up in `src/ui/login.js` and `src/ui/settings-dialog.js`. Server side (Nextcloud):
+`nextcloud-app/keepassnc/lib/Controller/PepperController.php`. Tests: `tests/unit/keyfile-store.test.mjs`, `tests/e2e/keyfile.mjs`,
+`tests/e2e/keyfile-nc.mjs` (Nextcloud mode against a simulation), `tests/nextcloud/run.mjs` (endpoint against a real Nextcloud).
 
-## Ziel
+## Goal
 
-Wer seine KDBX mit Master-Passwort **und** Schlüsseldatei ("Passkey-File") schützt, muss die Schlüsseldatei bei jeder Anmeldung neu wählen.
-Das ist auf einem eigenen Gerät lästig. Die Funktion erlaubt es, die Schlüsseldatei **optional** auf diesem Gerät zu merken - ohne dass
-dadurch ein Angreifer ohne Master-Passwort etwas gewinnt, das er nicht auch bei einer KDBX-Datei mit bekannter Schlüsseldatei hätte.
+If your KDBX needs a master password **and** a key file, you'd have to pick the key file at every login. On your own device that's
+tedious. This feature lets you remember the key file on this device, **optionally**, without handing an attacker who lacks the
+master password anything they wouldn't have with a known key file anyway.
 
-## Verhalten
+## Behaviour
 
-* Standard: **aus**. Die Checkbox "Schlüsseldatei auf diesem Gerät merken" erscheint erst, wenn eine Schlüsseldatei gewählt wurde, und ist nie vorangekreuzt.
-* Gemerkt wird erst **nach erfolgreichem Öffnen** (Master-Passwort + Datei sind damit bestätigt).
-* Pro Datenbank ein Datensatz (Kennung: `nc:<Benutzer>:<Pfad>`, `dav:<URL>`, `file:<Dateiname>`; lokale Datei innerhalb von Nextcloud: `nc-file:<Benutzer>:<Dateiname>`).
-  Kennung, Schluesseldatei und Merk-Wunsch werden beim Absenden festgehalten (spaetere Eingaben waehrend Download/KDF wirken nicht mehr).
-* Lokale Dateien haben keinen Pfad: zwei verschiedene Datenbanken gleichen Namens teilen sich den Datensatz. Die Fehlermeldung weist darauf hin.
-* Ein Datensatz, der weniger kostet als heute für die Datenbank gewählt würde (ältere Version, Datenbank-KDF inzwischen erhöht), wird nach erfolgreichem Öffnen im Hintergrund neu verschlüsselt.
-* Beim nächsten Anmelden: "Gemerkte Schlüsseldatei verwenden" ist vorausgewählt; Master-Passwort eintippen genügt. Wählt man eine Datei von Hand, hat diese Vorrang.
-* "Vergessen" (Anmeldung), "Alle vergessen" (Einstellungen) und "Lokale Daten dieses Browsers löschen" entfernen die Datensätze.
-  In Nextcloud zeigen/löschen die Einstellungen nur die Datensätze des angemeldeten Benutzers; "Lokale Daten löschen" entfernt weiterhin alles in diesem Browser.
+- **Off by default.** "Remember key file on this device" only shows up once a key file is chosen, and is never pre-ticked.
+- Remembered only **after a successful open**, so password and key file are confirmed.
+- One record per database. Ids: `nc:<user>:<path>`, `dav:<url>`, `file:<file name>`; a local file inside Nextcloud: `nc-file:<user>:<file name>`.
+  Id, key file and the wish to remember are captured on submit; changes during download or KDF don't count anymore.
+- Local files have no path, so two different databases with the same name share a record. The error message points that out.
+- A record that is cheaper than what would be chosen for the database today (older version, DB KDF raised since) is re-encrypted in
+  the background after a successful open.
+- Next login: "Use remembered key file" is preselected, typing the master password is enough. A key file picked by hand wins.
+- "Forget" (login), "Forget all" (settings) and "Delete local data of this browser" remove records. In Nextcloud the settings only
+  show and delete records of the signed-in user; "Delete local data" still removes everything in this browser.
 
-## Nextcloud: zusätzlich an einen Geheimwert auf dem Server gebunden (ab v0.5.0, Format v2)
+## Nextcloud: also bound to a server secret (format v2)
 
-* Die Nextcloud-App hält pro Benutzer einen zufälligen 32-Byte-Wert ("Pepper", `IUserConfig`, als *sensitiv* markiert = verschlüsselt in der Datenbank).
-  Abruf: `GET /apps/keepassnc/api/kf-pepper`, Erneuern: `POST …/rotate` - beides nur mit angemeldeter Sitzung und CSRF-Schutz.
-* Schlüssel des Datensatzes = HKDF-SHA256(Argon2id(Master-Passwort), salt = Pepper, info = `kpnc-keyfile-v2`). AAD = `kpnc-keyfile-v2\0<Pepper-Kennung>\0<Datei-Kennung>\0<Anzeigename>`.
-* Folge: Wer nur das Browser-Profil kopiert, kann **ohne Zugang zur Nextcloud nicht offline raten**. Der Server allein hat nichts (kein Datensatz, kein Passwort).
-* **"Auf allen Geräten ungültig machen"** (Einstellungen) erneuert den Pepper: Alle gemerkten Schlüsseldateien des Kontos sind sofort überall unbrauchbar (Gerät verloren).
-  Das nächste Anmelden meldet das und entfernt den Datensatz; Schlüsseldatei einmal von Hand wählen.
-* **Server nicht erreichbar:** die gemerkte Datei greift nicht ("bitte von Hand wählen"); die Offline-Kopie der Datenbank funktioniert weiter.
-* **Handling unverändert:** KDBX, Schlüsseldatei, Backup und Export sind nicht betroffen. Geht der Pepper verloren (Benutzer gelöscht, Server-Wiederherstellung
-  ohne Benutzereinstellungen), gehen nur die *gemerkten* Datensätze verloren - nie die Datenbank.
-* Ältere v1-Datensätze werden in Nextcloud nach dem nächsten erfolgreichen Öffnen automatisch auf v2 umgestellt. Die eigenständige Seite (ohne Nextcloud) bleibt bei v1.
-* **Grenzen, ehrlich:** (1) Das Profil enthält oft auch das Sitzungs-Cookie der Nextcloud ("angemeldet bleiben"). Solange es gültig ist, kann ein Dieb damit den Pepper abrufen -
-  deshalb bei Verlust: "Auf allen Geräten ungültig machen" **und** in Nextcloud unter *Sicherheit* die Sitzungen/Geräte abmelden. (2) Skripte derselben Herkunft
-  (andere Apps der Instanz, XSS) können den Pepper als angemeldeter Benutzer ebenfalls abrufen; hier hilft v2 nicht, wohl aber gegen das stille Mitnehmen *ohne* Sitzung.
+- The Nextcloud app keeps a random 32-byte value per user ("pepper", `IUserConfig`, marked sensitive, so encrypted in the database).
+  Fetch: `GET /apps/keepassnc/api/kf-pepper`, renew: `POST …/rotate`. Both need a signed-in session and pass the CSRF check.
+- Record key = HKDF-SHA256(Argon2id(master password), salt = pepper, info = `kpnc-keyfile-v2`).
+  AAD = `kpnc-keyfile-v2\0<pepper id>\0<record id>\0<display name>`.
+- So whoever only copies the browser profile **can't guess offline without access to the Nextcloud**. The server alone has nothing
+  (no record, no password).
+- **"Invalidate on all devices"** (settings) renews the pepper: every remembered key file of the account becomes useless everywhere at
+  once (lost device). The next login says so and removes the record; pick the key file by hand once.
+- **Server unreachable:** the remembered key file doesn't work ("please pick it by hand"); the offline copy of the database still does.
+- **Handling unchanged:** KDBX, key file, backup and export aren't affected. If the pepper is lost (user deleted, server restored
+  without user settings), only the *remembered* records are lost, never the database.
+- Older v1 records are switched to v2 after the next successful open in Nextcloud. The standalone page stays on v1.
+- **Limits, honestly:** (1) The profile often holds the Nextcloud session cookie too ("stay signed in"). While it's valid, a thief can
+  fetch the pepper with it. So after a loss: "Invalidate on all devices" **and** sign out the sessions and devices in Nextcloud
+  under *Security*. (2) Scripts of the same origin (other apps on the instance, XSS) can fetch the pepper as the signed-in user too.
+  v2 doesn't help there, but it does against quietly taking the record *without* a session.
 
-## Kryptografie
+## Cryptography
 
-| Baustein | Wahl |
+| Part | Choice |
 |---|---|
-| Schlüsselableitung | Argon2id (hash-wasm), Parallelität 1, 128-Bit-Zufallssalz. Arbeit (Speicher × Durchläufe) **mindestens** wie die Datenbank-KDF: Speicher = Datenbank-Speicher (64 MiB … 1 GiB), Durchläufe so erhöht, dass die Arbeit nicht sinkt (3 … 64). Datenbank mit AES-KDF: fest 64 MiB / 16. Beim Lesen akzeptiert: 8 MiB … 1 GiB, 1 … 64 Durchläufe (ganzzahlig), Salz ≥ 16 Byte, IV = 12 Byte |
-| Passwort-Eingabe | Master-Passwort als UTF-8 (wie KeePass), unverändert (keine Normalisierung) |
-| Verschlüsselung | AES-256-GCM über WebCrypto, zufälliger 96-Bit-IV, AAD = `kpnc-keyfile-v1\0<Datei-Kennung>` (v1) bzw. siehe oben (v2) |
-| Abgeleiteter Schlüssel | als nicht exportierbarer `CryptoKey` importiert, Rohbytes sofort mit Nullen überschrieben, nie gespeichert |
-| Gespeichert (IndexedDB, Store `files`, Schlüssel `kf:<Kennung>`) | Format, Kennung, Anzeigename (Dateiname der Schlüsseldatei), Zeitstempel, KDF-Parameter + Salz, IV, Chiffrat; v2 zusätzlich die Pepper-*Kennung* (nicht der Wert) |
-| Nie gespeichert | Master-Passwort, abgeleiteter Schlüssel, Klartext der Schlüsseldatei, Pepper-Wert (wird je Anmeldung abgerufen) |
+| Key derivation | Argon2id (hash-wasm), parallelism 1, 128-bit random salt. Work (memory × iterations) **at least** that of the database KDF: memory = DB memory (64 MiB … 1 GiB), iterations raised so the work doesn't drop (3 … 64). AES-KDF databases: fixed 64 MiB / 16. Accepted when reading: 8 MiB … 1 GiB, 1 … 64 iterations (integers), salt ≥ 16 bytes, IV = 12 bytes |
+| Password input | master password as UTF-8 (like KeePass), unchanged (no normalisation) |
+| Encryption | AES-256-GCM via WebCrypto, random 96-bit IV, AAD = `kpnc-keyfile-v1\0<record id>` (v1) or see above (v2) |
+| Derived key | imported as a non-extractable `CryptoKey`, raw bytes overwritten with zeros right away, never stored |
+| Stored (IndexedDB, store `files`, key `kf:<id>`) | format, id, display name (file name of the key file), timestamp, KDF parameters + salt, IV, ciphertext; v2 also the pepper *id* (not its value) |
+| Never stored | master password, derived key, plaintext key file, pepper value (fetched at each login) |
 
-Warum **kein** gerätegebundener Schlüssel (z. B. nicht exportierbarer `CryptoKey` im Browser)? Er würde das Merken ohne Master-Passwort erlauben,
-schützt aber weder gegen Skripte derselben Herkunft (die können `decrypt` einfach aufrufen) noch gegen eine kopierte Browser-Profil-Datei
-(die Schlüsselbytes liegen dort). Er wäre Komfort mit Scheinsicherheit. Die Ableitung aus dem Master-Passwort macht den Datensatz ohne
-das Passwort wertlos.
+Why **no** device-bound key (say a non-extractable `CryptoKey` in the browser)? It would allow remembering without the master
+password, but it protects neither against same-origin scripts (they just call `decrypt`) nor against a copied browser profile (the
+key bytes live there). Comfort with fake security. Deriving from the master password makes the record worthless without it.
 
-## Bedrohungsmodell
+## Threat model
 
-| Angreifer | Ergebnis |
+| Attacker | Outcome |
 |---|---|
-| Neugieriger Mitnutzer am selben Browser, kennt das Master-Passwort nicht | Sieht nur Dateiname und Kennung; Chiffrat nutzlos. Die Offline-Kopie der KDBX ist ebenfalls verschlüsselt. |
-| XSS / fremdes Skript in der App-Herkunft (**in Nextcloud: jede App und jede XSS-Lücke derselben Nextcloud-Instanz**, IndexedDB ist pro Herkunft, nicht pro App) | Kann den Datensatz (und die Offline-Kopie) **auslesen und mitnehmen** und dann wie der Profildieb offline raten. Ohne die Funktion bräuchte so ein Skript zusätzlich die Schlüsseldatei. Die Seite selbst lässt sich nicht mehr einrahmen (`frame-ancestors 'none'`), per `window.open` bleibt sie für Skripte derselben Herkunft aber erreichbar - die Herkunft ist die Vertrauensgrenze. Könnte das Passwort beim Tippen abgreifen - das gilt unabhängig von dieser Funktion; Gegenmaßnahme ist die strikte CSP (kein Inline-Skript, kein `eval`, keine Fremdhosts). |
-| Dieb mit Kopie des Browser-Profils, **Nextcloud ab v0.5.0** | Ohne Zugang zur Nextcloud (Sitzung abgelaufen/abgemeldet, Server nur im LAN/VPN, Pepper erneuert) **kein Offline-Raten möglich**. Mit noch gültigem Sitzungs-Cookie aus dem Profil: Pepper abrufbar, dann wie nächste Zeile. Gegenmittel: "Auf allen Geräten ungültig machen" + Sitzungen abmelden. |
-| Dieb mit Kopie des Browser-Profils / Festplatte (eigenständige Seite, oder Nextcloud mit gültiger Sitzung) | Kann das Master-Passwort **offline raten**, Prüfstein ist das GCM-Tag, Kosten je Tipp ≥ Datenbank-KDF (Argon2id, mind. 64 MiB / 3; Obergrenze 1 GiB × 64). Das Profil enthält meist auch die Nextcloud-Sitzung (Cookie) und ggf. die Offline-Kopie - die KDBX hat er dann ohnehin. **Restrisiko:** Die Schlüsseldatei schützt hier nicht mehr als zweiter Faktor, denn der Angreifer bekommt sie nach erfolgreichem Raten. Das Master-Passwort muss das allein tragen. |
-| Angreifer mit Schreibzugriff auf das Profil | Kann Datensatz löschen/ersetzen: Ergebnis ist ein Anmeldefehler, kein Zugriff. Manipulierte KDF-Parameter (Speicher-/Zeitbombe) werden vor dem Rechnen abgelehnt. Datensatz einer Datei lässt sich nicht für eine andere verwenden (AAD). |
-| Server / Netzwerk | Sieht nichts davon; der Datensatz verlässt das Gerät nie. |
-| Zeitangriff / Seitenkanal | Nicht Teil des Modells (WebCrypto/hash-wasm im Browser). |
+| Curious co-user of the same browser, doesn't know the master password | Sees only file name and id; ciphertext useless. The offline copy of the KDBX is encrypted too. |
+| XSS or foreign script in the app's origin (**in Nextcloud: every app and every XSS on the same instance**, IndexedDB is per origin, not per app) | Can **read and take** the record (and the offline copy), then guess offline like the profile thief. Without this feature such a script would also need the key file. The page itself can't be framed anymore (`frame-ancestors 'none'`), but same-origin scripts can still reach it via `window.open`. The origin is the trust boundary. Such a script could also grab the password while you type, independent of this feature. |
+| Thief with a copy of the browser profile, **Nextcloud** | Without access to the Nextcloud (session expired or signed out, server only on LAN/VPN, pepper renewed) **no offline guessing**. With a still valid session cookie from the profile: pepper fetchable, then as in the next row. Remedy: "Invalidate on all devices" + sign out sessions. |
+| Thief with a copy of the browser profile or disk (standalone page, or Nextcloud with a valid session) | Can **guess the master password offline**, checking each guess against the GCM tag, cost per guess ≥ database KDF (Argon2id, at least 64 MiB / 3; upper bound 1 GiB × 64). The profile usually also holds the Nextcloud session and maybe the offline copy, so they have the KDBX anyway. **Residual risk:** the key file no longer works as a second factor here, because the attacker gets it after a successful guess. The master password has to carry this alone. |
+| Attacker with write access to the profile | Can delete or replace the record: the result is a login error, not access. Tampered KDF parameters (memory or time bomb) are rejected before computing. A record of one file can't be used for another (AAD). |
+| Server / network | Sees none of it; the record never leaves the device. |
+| Timing / side channels | Not part of the model (WebCrypto and hash-wasm in the browser). |
 
-## Bewusst nicht gebaut
+## Deliberately not built
 
-* Kein "Passwort merken", keine automatische Anmeldung, keine Biometrie/WebAuthn-PRF-Variante (später denkbar, siehe unten).
-* Keine Synchronisierung gemerkter Schlüsseldateien zwischen Geräten.
-* Kein Merken auf Geräten, auf denen "Offline-Kopie" ausgeschaltet bleiben soll - die Funktion ist aber unabhängig davon schaltbar; die Oberfläche warnt, dass sie nur für eigene, geschützte Geräte gedacht ist.
-
-## Mögliche Erweiterung (nicht umgesetzt)
-
-WebAuthn-PRF-Extension als zusätzlicher Faktor für das Entschlüsseln des Datensatzes (Gerät/Sicherheitsschlüssel statt nur Passwort). Würde das
-Offline-Raten bei Profildiebstahl verhindern, braucht aber PRF-Unterstützung in allen Zielbrowsern.
-
-## Prüfaufträge für ein unabhängiges Review
-
-Ein erstes Review ist in v0.4.1 eingearbeitet (siehe `STATUS.md`). Eine unabhaengige Pruefung von aussen steht noch aus.
+- No "remember password", no automatic login, no biometrics.
+- No sync of remembered key files between devices.
+- Possible later: the WebAuthn PRF extension as an extra factor for decrypting the record (device or security key instead of only
+  the password). That would stop offline guessing after profile theft, but needs PRF support in all target browsers.

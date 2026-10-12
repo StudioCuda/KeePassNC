@@ -16,8 +16,8 @@ jobs:
           - { name: nc35, package: latest-35 }
           - { name: nc-master, ref: master, canary: true }
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - uses: shivammathur/setup-php@v2
         with: { php-version: '8.3', extensions: 'sqlite3, pdo_sqlite, gd, zip, curl, mbstring, xml, intl, bcmath, gmp' }
@@ -59,8 +59,8 @@ jobs:
     env:
       BROWSER: ${{ matrix.browser }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with: { node-version: 22 }
       - run: sudo apt-get update && sudo apt-get install -y keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
       - run: npm ci || npm install
