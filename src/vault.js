@@ -4,7 +4,7 @@ import * as kdbxweb from '../vendor/kdbxweb/lib/index';
 import { argon2d, argon2id } from 'hash-wasm';
 import { ConflictError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
-import { isOutOfMemory, isSystemField, valueText } from './core/util.js';
+import { isOutOfMemory, isPasskeyField, isSystemField, valueText } from './core/util.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid } = kdbxweb;
 
@@ -241,10 +241,14 @@ export class Vault {
         this.dirty = true;
     }
 
-    /** Kopie mit neuer UUID, neuen Zeitstempeln und ohne Verlauf, in derselben Gruppe. */
+    /**
+     * Kopie mit neuer UUID, neuen Zeitstempeln und ohne Verlauf, in derselben Gruppe. Ein Passkey wird NICHT mitkopiert:
+     * zwei Eintraege mit demselben privaten Schluessel und derselben Credential-ID verwirren die Browser-Erweiterung.
+     */
     duplicateEntry(entry, suffix = ' - Kopie') {
         const copy = this.db.createEntry(entry.parentGroup);
         copy.copyFrom(entry);
+        for (const k of [...copy.fields.keys()]) if (isPasskeyField(k)) copy.fields.delete(k);
         copy.uuid = KdbxUuid.random();
         copy.history = [];
         copy.previousParentGroup = undefined;
@@ -330,6 +334,16 @@ export class Vault {
         entry.binaries.set(name, bin);
         entry.times.update();
         this.dirty = true;
+    }
+    /** Passkey aus dem Eintrag entfernen; der Stand davor bleibt im Verlauf (zurueckholbar, bis der Verlauf geleert wird). */
+    removePasskey(entry) {
+        const keys = [...entry.fields.keys()].filter(isPasskeyField);
+        if (!keys.length) return false;
+        this._pushHistory(entry);
+        for (const k of keys) entry.fields.delete(k);
+        entry.times.update();
+        this.dirty = true;
+        return true;
     }
     removeAttachment(entry, name) {
         if (!entry.binaries.has(name)) return;

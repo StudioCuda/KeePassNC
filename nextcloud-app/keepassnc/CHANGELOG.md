@@ -5,6 +5,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ### Added
 - Steam Guard codes. Entries with `encoder=steam` (KeePassXC) or the old `30;S` setting now show the 5-character Steam code instead of six digits that Steam won't take.
+- "Remove passkey" on the passkey card. The previous state stays in the entry's history, so it can come back.
+
+### Fixed
+- Duplicating an entry no longer copies its passkey. Two entries with the same key confused the browser extension.
+- A duplicated entry was called "… - Kopie" in English too.
 
 ### Changed
 - If a database asks for more memory than the device or browser can give (Argon2, mostly a phone problem), the login form now says so in plain words and what to do about it, instead of showing a raw `RangeError`.

@@ -131,7 +131,12 @@ export function renderDetail(host) {
         cards.push(h('section', { class: 'card passkey-card', 'data-testid': 'passkey-card' }, h('div', { class: 'card-title' }, icon('passkey'), h('span', { text: t('passkey') })),
             rp ? field(t('passkey.rp'), h('span', { text: rp })) : null, pu ? field(t('passkey.user'), h('span', { text: pu })) : null,
             cid ? field(t('passkey.id'), h('span', { class: 'mono', text: cid.length > 24 ? cid.slice(0, 12) + '…' + cid.slice(-8) : cid })) : null,
-            h('p', { class: 'hint', text: t('passkey.note') })));
+            h('p', { class: 'hint', text: t('passkey.note') }),
+            h('div', { class: 'row-end' }, h('button', { type: 'button', class: 'small danger-ghost', 'data-testid': 'passkey-remove', text: t('passkey.remove'), onclick: async () => {
+                if (await confirmDialog({ title: t('passkey.remove'), message: t('passkey.remove.msg', { rp: rp || fieldOf(e, 'Title') }), confirmLabel: t('passkey.remove'), cancelLabel: t('cancel'), danger: true })) {
+                    v.removePasskey(e); changed(); toast(t('passkey.removed'));
+                }
+            } }))));
     }
 
     cards.push(attachmentsCard(e));
@@ -232,7 +237,7 @@ export function restoreEntry(e) {
 function entryMenu(anchor, e) {
     const v = state.vault;
     popupMenu(anchor, [
-        { label: t('duplicate'), icon: 'duplicate', onclick: () => { const c = v.duplicateEntry(e); state.selEntry = c; changed(); toast(t('duplicated')); } },
+        { label: t('duplicate'), icon: 'duplicate', onclick: () => { const pk = isPasskey(e); const c = v.duplicateEntry(e, t('duplicate.suffix')); state.selEntry = c; changed(); toast(t(pk ? 'duplicated.nopasskey' : 'duplicated')); } },
         { label: t('move'), icon: 'moveTo', onclick: () => moveEntryDialog(e) },
         { label: t('entry.copy.user'), icon: 'user', hint: 'Ctrl+B', onclick: () => copy(fieldOf(e, 'UserName'), t('f.user')) },
         { label: t('entry.copy.url'), icon: 'link', onclick: () => copy(fieldOf(e, 'URL'), t('f.url')) }
