@@ -101,8 +101,24 @@ export class DavFile {
         if (ifMatch) headers['If-Match'] = ifMatch;
         const res = await this._fetch(this.url, { method: 'PUT', headers, body: buf });
         if (res.status === 412) throw new ConflictError();
+        if (res.status === 403) throw new DavError(403, 'Keine Schreibberechtigung fuer diese Datei (z. B. Freigabe nur zum Lesen).', 'e.dav.readonly');
         if (!res.ok) throw new DavError(res.status, `Speichern fehlgeschlagen (Status ${res.status}).`, 'e.dav.save', { status: res.status });
         return etagOf(res) || (await this.head());
+    }
+
+    /**
+     * Nextcloud-Rechte der Datei (oc:permissions, z. B. "SRGDNVW"; "W" = Inhalt aendern). null, wenn der Server sie nicht nennt
+     * (andere WebDAV-Server) oder die Abfrage scheitert - dann gilt die Datei als beschreibbar und erst das Speichern entscheidet.
+     */
+    async permissions() {
+        try {
+            const res = await this._fetch(this.url, { method: 'PROPFIND', headers: { Depth: '0', 'Content-Type': 'application/xml' }, body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:prop><oc:permissions/></d:prop></d:propfind>' });
+            if (res.status !== 207) return null;
+            const el = new DOMParser().parseFromString(await res.text(), 'application/xml').getElementsByTagNameNS('http://owncloud.org/ns', 'permissions')[0];
+            return (el?.textContent || '').trim() || null; // leer = unbekannt (z. B. propstat 404), nicht "keine Rechte"
+        } catch {
+            return null;
+        }
     }
 
     /** Legt eine Sicherungskopie unter neuem Namen an (schlaegt nicht fehl, falls der Name schon existiert). */
