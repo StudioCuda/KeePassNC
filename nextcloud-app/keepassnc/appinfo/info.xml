@@ -9,15 +9,15 @@
 
 Everything is decrypted in your browser. The master password and the plaintext never leave it, and the server only sees the encrypted file. Saves are checked against the file's ETag, a backup is made first, and if two devices edit at once the versions are merged instead of one quietly winning. An optional encrypted offline copy keeps the database usable when the server or network is down.
 
-You get KeePassXC-style search, tags, TOTP, attachments, entry history, a password generator, a health report, light and dark themes, and a layout that behaves on phones as well as big screens. English and German.
+You get KeePassXC-style search, tags, TOTP (Steam Guard too), attachments, entry history, a password generator, a health report, light and dark themes, and a layout that behaves on phones as well as big screens. English and German.
 
 It's still a plain KeePass file, so KeePassXC, KeePassDX and Strongbox keep working on it.]]></description>
     <description lang="de"><![CDATA[Öffnet und bearbeitet KeePass-Dateien (KDBX 3.1 / 4.x) direkt aus „Dateien“ per Klick auf die .kdbx-Datei.
 
-Die Datenbank wird ausschließlich im Browser entschlüsselt; Master-Passwort und Klartext verlassen ihn nie, der Server sieht nur die verschlüsselte Datei. Änderungen werden mit ETag-Prüfung zurückgeschrieben, vorher wird eine Sicherungskopie angelegt (alte Kopien werden automatisch aufgeräumt); bei gleichzeitigen Änderungen auf mehreren Geräten werden die Stände zusammengeführt. Eine optionale verschlüsselte Offline-Kopie hält die Datenbank bei Server- oder Netzausfall nutzbar. Suchsyntax, Tags, TOTP, Anhänge, Verlauf, Passwortgenerator, Gesundheitsbericht; Oberfläche auf Deutsch und Englisch; helles und dunkles Design; für Smartphone und großen Bildschirm.
+Die Datenbank wird ausschließlich im Browser entschlüsselt; Master-Passwort und Klartext verlassen ihn nie, der Server sieht nur die verschlüsselte Datei. Änderungen werden mit ETag-Prüfung zurückgeschrieben, vorher wird eine Sicherungskopie angelegt (alte Kopien werden automatisch aufgeräumt); bei gleichzeitigen Änderungen auf mehreren Geräten werden die Stände zusammengeführt. Eine optionale verschlüsselte Offline-Kopie hält die Datenbank bei Server- oder Netzausfall nutzbar. Suchsyntax, Tags, TOTP (auch Steam Guard), Anhänge, Verlauf, Passwortgenerator, Gesundheitsbericht; Oberfläche auf Deutsch und Englisch; helles und dunkles Design; für Smartphone und großen Bildschirm.
 
 Die Datei bleibt ein normales KeePass-Format und kann jederzeit mit KeePassXC, KeePassDX, Strongbox & Co. weiterverwendet werden.]]></description>
-    <version>0.5.2</version>
+    <version>0.6.0</version>
     <licence>AGPL-3.0-or-later</licence>
     <author>KeePassNC</author>
     <namespace>Keepassnc</namespace>
