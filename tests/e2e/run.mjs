@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser } from '../browser.mjs';
+import { launchBrowser, browserName, knownEngineNoise, webkitCspWatch } from '../browser.mjs';
 import { startServer } from './davserver.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -55,7 +55,8 @@ async function main() {
         const page = await ctx.newPage();
         page.on('request', (r) => { if (!r.url().startsWith(base) && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) problems.external.push(r.url()); });
         page.on('pageerror', (e) => problems.pageErrors.push(String(e)));
-        page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.consoleErrors.push(`${m.text()} [${m.location().url}:${m.location().lineNumber}, Seite ${page.url().replace(/\?.*/, '')}]`); });
+        page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text()) && !knownEngineNoise(m.text())) problems.consoleErrors.push(`${m.text()} [${m.location().url}:${m.location().lineNumber}, Seite ${page.url().replace(/\?.*/, '')}]`); });
+        if (browserName === 'webkit') await ctx.addInitScript(webkitCspWatch);
         await ctx.addInitScript(() => { try { if (!localStorage.getItem("kpnc.settings")) localStorage.setItem("kpnc.settings", JSON.stringify({ autosync: "off" })); } catch {} });
         await page.goto(`${base}/${query}`);
         return page;
