@@ -1,7 +1,9 @@
 // TOTP (RFC 6238) per WebCrypto. Unterstuetzt otpauth://-URLs (KeePassXC-Standard) und die aelteren
 // KeePass-Felder "TOTP Seed" / "TOTP Settings" ("30;6").
+// Steam Guard: gleiche Rechnung, aber 5 Zeichen aus einem eigenen Alphabet. Erkannt an "encoder=steam" (otpauth) bzw. "30;S" (alt).
 
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+const STEAM = '23456789BCDFGHJKMNPQRTVWXY';
 
 export function base32Decode(str) {
     const s = str.replace(/[\s=-]/g, '').toUpperCase();
@@ -28,23 +30,34 @@ export function parseOtpConfig(otpField, seedField, settingsField) {
         if (u.hostname.toLowerCase() !== 'totp') throw new Error('Nur TOTP wird unterstuetzt');
         const secret = p.get('secret');
         if (!secret) throw new Error('otpauth-URL ohne secret');
+        const steam = (p.get('encoder') || '').toLowerCase() === 'steam';
         return {
             secret: base32Decode(secret),
             period: parseInt(p.get('period') || '30', 10),
-            digits: parseInt(p.get('digits') || '6', 10),
-            algorithm: (p.get('algorithm') || 'SHA1').toUpperCase()
+            digits: steam ? 5 : parseInt(p.get('digits') || '6', 10),
+            algorithm: (p.get('algorithm') || 'SHA1').toUpperCase(),
+            steam
         };
     }
     if (seedField) {
         const [period, digits] = (settingsField || '30;6').split(';');
+        const steam = (digits || '').trim().toUpperCase() === 'S';
         return {
             secret: base32Decode(seedField),
             period: parseInt(period || '30', 10),
-            digits: parseInt(digits || '6', 10),
-            algorithm: 'SHA1'
+            digits: steam ? 5 : parseInt(digits || '6', 10),
+            algorithm: 'SHA1',
+            steam
         };
     }
     return null;
+}
+
+/** 31-Bit-Wert aus der RFC-4226-Kuerzung -> 5 Zeichen, niedrigste "Stelle" zuerst. */
+export function steamCode(bin) {
+    let s = '';
+    for (let i = 0; i < 5; i++) { s += STEAM[bin % STEAM.length]; bin = Math.floor(bin / STEAM.length); }
+    return s;
 }
 
 export async function totp(config, nowMs = Date.now()) {
@@ -59,7 +72,7 @@ export async function totp(config, nowMs = Date.now()) {
     const mac = new Uint8Array(await crypto.subtle.sign('HMAC', key, msg));
     const off = mac[mac.length - 1] & 0x0f;
     const bin = ((mac[off] & 0x7f) << 24) | (mac[off + 1] << 16) | (mac[off + 2] << 8) | mac[off + 3];
-    const code = String(bin % 10 ** config.digits).padStart(config.digits, '0');
+    const code = config.steam ? steamCode(bin) : String(bin % 10 ** config.digits).padStart(config.digits, '0');
     const remaining = config.period - (Math.floor(nowMs / 1000) % config.period);
     return { code, remaining };
 }
