@@ -162,6 +162,9 @@ export function showLogin(message) {
                 throw e;
             }
             vault.backupKeep = ctx.settings.backupKeep;
+            // Nextcloud nennt die Rechte (Freigabe nur zum Lesen?); andere WebDAV-Server nicht, dann entscheidet erst das Speichern
+            const perms = NC && dav && !offlineOpen ? await dav.permissions() : null;
+            const readOnly = perms !== null && !perms.includes('W');
             let kfNote = '';
             const dbKdf = () => { const i = vault.info(); return { kdf: i.kdf, memoryKiB: (i.memoryMiB || 0) * 1024, iterations: i.iterations }; };
             if (usedRemembered && (isWeakerThan(kfRec.kdf, dbKdf()) || (usePepper && !kfRec.server))) {
@@ -190,6 +193,7 @@ export function showLogin(message) {
             state.filter = { type: 'all' }; state.lastActivity = Date.now(); state.offlineMode = offlineOpen; state.lastSyncFailed = false;
             ctx.ui.showMain();
             if (offlineOpen) setStatus(t('open.offline', { name, version: vault.versionLabel, date: fmtDate(cachedAt, true), extra: unsynced ? t('open.offline.unsynced') : '' }), 'warn');
+            else if (readOnly) setStatus(t('open.ok', { name, version: vault.versionLabel }) + ' ' + t('open.readonly') + kfNote, 'warn');
             else setStatus(t('open.ok', { name, version: vault.versionLabel }) + (unsynced ? ' ' + t('open.merging') : '') + kfNote);
             refreshDirtyIndicator(); startTimers(); ensureOfflineApp();
             if (unsynced && !offlineOpen) syncNow({ announce: true });

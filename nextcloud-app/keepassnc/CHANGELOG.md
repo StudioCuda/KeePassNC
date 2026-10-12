@@ -5,6 +5,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ### Added
 - Steam Guard codes. Entries with `encoder=steam` (KeePassXC) or the old `30;S` setting now show the 5-character Steam code instead of six digits that Steam won't take.
+- Shared files: a database someone shared with you read-only is marked as such when you open it, and saving says why it can't, instead of "status 403".
+
+### Fixed
+- Saving a file in a shared folder where you may edit but not create files no longer fails on the backup copy. It saves and tells you there's no backup this time.
 
 ### Changed
 - If a database asks for more memory than the device or browser can give (Argon2, mostly a phone problem), the login form now says so in plain words and what to do about it, instead of showing a raw `RangeError`.

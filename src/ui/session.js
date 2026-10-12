@@ -75,14 +75,14 @@ export async function doSave({ auto = false } = {}) {
             setStatus(t('saved.offline'), 'warn');
         } else if (res.merged) {
             rebind(); ctx.ui.refresh?.();
-            setStatus(t('saved.merged'), 'warn');
+            setStatus(t(res.noBackup ? 'saved.merged.nobackup' : 'saved.merged'), 'warn');
             state.offlineMode = false;
         } else {
             state.offlineMode = false;
-            setStatus(t('saved'));
+            if (res.noBackup) setStatus(t('saved.nobackup'), 'warn'); else setStatus(t('saved'));
         }
     } catch (e) {
-        console.error(e);
+        if (!e?.key) console.error(e); // erklaerte Fehler (mit Uebersetzung) stehen im Status, nur Unerwartetes in die Konsole
         state.lastSyncFailed = isOffline(e);
         setStatus(t('save.failed', { msg: errText(e) }), 'error');
     } finally {
@@ -105,11 +105,12 @@ export async function syncNow({ announce = false } = {}) {
             const wasOffline = state.offlineMode;
             state.offlineMode = false;
             if (res.pulled) { rebind(); ctx.ui.refresh?.(); setStatus(t('sync.pulled')); }
-            else if (res.merged) { rebind(); ctx.ui.refresh?.(); setStatus(t('sync.merged'), 'warn'); }
+            else if (res.merged) { rebind(); ctx.ui.refresh?.(); setStatus(t(res.noBackup ? 'saved.merged.nobackup' : 'sync.merged'), 'warn'); }
+            else if (res.noBackup) setStatus(t('saved.nobackup'), 'warn');
             else if (wasOffline || announce) setStatus(t('sync.done'));
         }
     } catch (e) {
-        console.error(e);
+        if (!e?.key) console.error(e); // erklaerte Fehler (mit Uebersetzung) stehen im Status, nur Unerwartetes in die Konsole
         state.lastSyncFailed = isOffline(e);
         if (announce || !isOffline(e)) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
     } finally {
