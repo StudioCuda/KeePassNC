@@ -20,3 +20,20 @@ You'll get an answer, though this is a small project, so "within a few days" is 
 Decryption happens in the browser only. The server sees the encrypted KDBX and, for the key file memory feature, a random per-user
 secret that is useless without the master password. Details and the known residual risk are in `docs/KEYFILE-MEMORY.md`.
 There has been no independent audit yet. Treat it accordingly.
+
+## Known limitations
+
+Things we know about and can't fix from inside the app. Reports that find a way around them are very welcome.
+
+- **Your Nextcloud is the trust boundary.** The browser keeps data per origin, not per app. Every other app on the same Nextcloud
+  instance, and any XSS bug anywhere in it, runs with the same rights as KeePassNC in your browser. Such a script can read what
+  KeePassNC stores locally (encrypted offline copy, key file memory record) and can replace the app's offline cache, so that a fake
+  page starts the next time the server is down. Only a separate origin would really wall that off. In practice: install apps you trust.
+- **Key file memory turns two factors into one, on that device.** If you let KeePassNC remember the key file, the master password
+  carries the whole load there. On Nextcloud the record is also bound to a per-user server secret, so a copied browser profile alone
+  isn't enough. A still valid session cookie in that profile is, though. Lost a device? Use "Invalidate on all devices" and sign out
+  its Nextcloud sessions.
+- **The standalone page (`web/`) sets its CSP via `<meta>`.** `frame-ancestors` doesn't work there. If you host it yourself, send the
+  CSP as an HTTP header from your web server.
+- **The server delivers the code.** Like every web app, KeePassNC trusts the server that ships its JavaScript. A malicious server admin
+  is out of scope.
