@@ -55,7 +55,7 @@ async function main() {
         const page = await ctx.newPage();
         page.on('request', (r) => { if (!r.url().startsWith(base) && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) problems.external.push(r.url()); });
         page.on('pageerror', (e) => problems.pageErrors.push(String(e)));
-        page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.consoleErrors.push(m.text()); });
+        page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) problems.consoleErrors.push(`${m.text()} [${m.location().url}:${m.location().lineNumber}, Seite ${page.url().replace(/\?.*/, '')}]`); });
         await ctx.addInitScript(() => { try { if (!localStorage.getItem("kpnc.settings")) localStorage.setItem("kpnc.settings", JSON.stringify({ autosync: "off" })); } catch {} });
         await page.goto(`${base}/${query}`);
         return page;
@@ -253,7 +253,7 @@ async function main() {
     await step('Datenschutz/Sicherheit: keine externen Anfragen, keine JS-Fehler, CSP gesetzt, Server sah nie Klartext', async () => {
         expect(problems.external.length === 0, 'Externe Anfragen: ' + problems.external.join(', '));
         expect(problems.pageErrors.length === 0, 'Seitenfehler: ' + problems.pageErrors.join(' | '));
-        expect(problems.consoleErrors.length === 0, 'Konsolenfehler: ' + problems.consoleErrors.join(' | '));
+        expect(problems.consoleErrors.length === 0, 'Konsolenfehler: ' + [...new Set(problems.consoleErrors)].join(' | '));
         const html = fs.readFileSync(path.join(root, 'web/index.html'), 'utf8');
         expect(/Content-Security-Policy/.test(html) && /default-src 'none'/.test(html), 'CSP fehlt');
         expect(!/unsafe-inline|unsafe-eval(?!')/.test(html.replace("'wasm-unsafe-eval'", '')), 'unsafe-inline/eval in CSP');
