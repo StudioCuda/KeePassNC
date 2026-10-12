@@ -94,11 +94,21 @@ async function main() {
             if (/Content Security Policy|Refused to/.test(t) && /keepassnc/i.test(m.location()?.url + t)) problems.csp.push(t);
             if (m.type() === 'error' && m.location()?.url?.includes('keepassnc') && !/Failed to load resource/.test(t)) problems.consoleErrors.push(t); // Netzfehler gehoeren zu den absichtlichen Ausfaellen
         });
-        await page.goto(`${BASE}/login`);
-        await page.fill('input[name=user]', ADMIN); await page.fill('input[name=password]', ADMIN_PW);
-        await page.click('button[type=submit]');
-        await page.waitForURL(/\/apps\//, { timeout: 60000, waitUntil: 'domcontentloaded' }); // 'load' kann in Release-Paketen haengen (Dashboard-Widgets/Ankuendigungen laden extern nach)
-        return page;
+        // Gelegentlich bleibt die Anmeldung auf der Login-Seite stehen (in der CI selten, auf NC 35 und master beobachtet; Ursache offen).
+        // Deshalb bis zu 3 Versuche; jede Wiederholung wird mit Seite und sichtbarem Text protokolliert, damit sie nicht unbemerkt bleibt.
+        for (let attempt = 1; ; attempt++) {
+            await page.goto(`${BASE}/login`);
+            await page.fill('input[name=user]', ADMIN); await page.fill('input[name=password]', ADMIN_PW);
+            await page.click('button[type=submit]');
+            try {
+                await page.waitForURL(/\/apps\//, { timeout: 25000, waitUntil: 'domcontentloaded' }); // 'load' kann in Release-Paketen haengen (Dashboard-Widgets/Ankuendigungen laden extern nach)
+                return page;
+            } catch (e) {
+                const seen = (await page.locator('body').innerText({ timeout: 3000 }).catch(() => '(Seite nicht lesbar)')).replace(/\s+/g, ' ').slice(0, 200);
+                console.log(`Login-Versuch ${attempt}/3 ohne Weiterleitung. Seite: ${page.url()} | Text: ${seen}`);
+                if (attempt === 3) throw new Error(`Anmeldung bleibt haengen (3 Versuche). Seite: ${page.url()} | Text: ${seen}`);
+            }
+        }
     }
     const status = (p) => p.locator('#status').innerText();
     const waitStatus = (p, re, timeout = 20000) => p.waitForFunction((s) => new RegExp(s).test(document.querySelector('#status')?.textContent || ''), re.source, { timeout });
