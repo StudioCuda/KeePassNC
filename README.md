@@ -1,6 +1,7 @@
 # KeePassNC
+## Your KeePass passwords, right in Nextcloud.
 
-Your KeePass passwords, right in Nextcloud. Click your `.kdbx` file in Files, type your master password, done.
+Click your `.kdbx` file in Files, type your master password, done.
 
 It's still a plain KeePass file, so **KeePassXC, KeePassDX and Strongbox keep working on the very same file**. No lock-in, no
 special format, no drama.
