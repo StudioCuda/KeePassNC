@@ -1,5 +1,5 @@
 # KeePassNC
-## Your KeePass passwords, right in Nextcloud.
+### Your KeePass passwords, right in Nextcloud.
 
 Click your `.kdbx` file in Files, type your master password, done.
 
