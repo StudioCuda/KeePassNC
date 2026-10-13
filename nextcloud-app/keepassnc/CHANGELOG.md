@@ -2,7 +2,7 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.7.0] - 2026-10-13
 ### Changed
 - New colors. Night blue and gold instead of the indigo-purple gradients: warm linen greys and night-blue buttons in light mode, a night-blue dark mode with gold buttons, a sage logo tile. Contrast checked for text and buttons in both.
 
