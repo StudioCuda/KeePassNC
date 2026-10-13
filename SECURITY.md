@@ -19,7 +19,11 @@ You'll get an answer, though this is a small project, so "within a few days" is 
 
 Decryption happens in the browser only. The server sees the encrypted KDBX and, for the key file memory feature, a random per-user
 secret that is useless without the master password. Details and the known residual risk are in `docs/KEYFILE-MEMORY.md`.
-There has been no independent audit yet. Treat it accordingly.
+There has been no independent audit yet. Treat it accordingly: until then, keep your regular KeePassXC copy around. The file
+format being boring is the point.
+
+Saving is defensive too: writes use ETag checks, a backup copy goes next to the file first, and if two devices edited at once the
+two versions are merged instead of one quietly winning. The app loads no external scripts or fonts and runs under a strict CSP.
 
 ## Known limitations
 
@@ -37,3 +41,12 @@ Things we know about and can't fix from inside the app. Reports that find a way 
   CSP as an HTTP header from your web server.
 - **The server delivers the code.** Like every web app, KeePassNC trusts the server that ships its JavaScript. A malicious server admin
   is out of scope.
+
+## Not tested yet
+
+Areas without real-world testing so far. Reports from any of them are welcome.
+
+- Real phones. Mobile layouts are emulated; Firefox and WebKit run in CI.
+- Nextcloud with MySQL or Postgres (the app doesn't touch the database), behind a reverse proxy, or with SSO or 2FA logins.
+- The Team folders app.
+- Safari may clear site data after a while without use, so there the offline copy isn't permanent storage.
