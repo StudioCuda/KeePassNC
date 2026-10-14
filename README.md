@@ -80,10 +80,6 @@ Made with AI help: KeePassNC is built with [Claude Code](https://claude.com/clau
 goes through the same test suite against KeePassXC, three browsers and real Nextcloud installs. That's a safety net, not an
 audit, which is why [`SECURITY.md`](SECURITY.md) still asks you to keep a KeePassXC copy around.
 
-## AI
-- [x] The content of this PR was partly or fully generated using AI (Claude Code).
-  - [x] I have read Nextcloud's AI Contribution Policy.
-
 ## License and credits
 
 AGPL-3.0-or-later. [kdbxweb](https://github.com/keeweb/kdbxweb) (MIT) does the KDBX heavy lifting. Behaviour is inspired by
