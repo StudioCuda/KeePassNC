@@ -11,6 +11,7 @@ Bug reports, odd KDBX files, and patches are welcome.
 - Don't copy code from KeePassXC (GPL). Ideas are fine, code isn't.
 - New UI text goes into both `src/i18n-de.js` and `src/i18n-en.js`; the unit tests check that they match.
 - Small, focused changes get reviewed faster than big ones.
+- Used AI to help? Fine, just say so in the pull request. You should still be able to explain every line you send.
 
 ## Build and test
 
