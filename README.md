@@ -76,6 +76,10 @@ is a different project.
 Bug reports, odd KDBX files and patches are welcome. Building from source, running the tests and the standalone page (without
 Nextcloud) are described in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+Made with AI help: KeePassNC is built with [Claude Code](https://claude.com/claude-code), and the commits say so. Every change
+goes through the same test suite against KeePassXC, three browsers and real Nextcloud installs. That's a safety net, not an
+audit, which is why [`SECURITY.md`](SECURITY.md) still asks you to keep a KeePassXC copy around.
+
 ## License and credits
 
 AGPL-3.0-or-later. [kdbxweb](https://github.com/keeweb/kdbxweb) (MIT) does the KDBX heavy lifting. Behaviour is inspired by
