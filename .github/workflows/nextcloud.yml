@@ -1,7 +1,13 @@
 # Runs the unit/compat tests plus the Nextcloud integration test (fresh SQLite install + browser test)
 # against the official release packages, and against Nextcloud master as a heads-up canary.
+# Pull requests that only touch docs (see tools/ci-docs-only.sh) skip the test steps but still report every check,
+# so the required checks turn green. That's why this uses step-level ifs and not paths-ignore.
 name: nextcloud-compat
-on: [push, pull_request]
+on:
+  # Branches get tested through their pull request; push only covers main, so nothing runs twice.
+  push:
+    branches: [main]
+  pull_request:
 jobs:
   e2e:
     name: e2e (${{ matrix.name }})
@@ -17,22 +23,32 @@ jobs:
           - { name: nc-master, ref: master, canary: true }
     steps:
       - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - name: Docs only?
+        id: changes
+        run: tools/ci-docs-only.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
       - uses: actions/setup-node@v7
+        if: steps.changes.outputs.docs_only != 'true'
         with: { node-version: 22 }
       - uses: shivammathur/setup-php@v2
+        if: steps.changes.outputs.docs_only != 'true'
         with: { php-version: '8.3', extensions: 'sqlite3, pdo_sqlite, gd, zip, curl, mbstring, xml, intl, bcmath, gmp' }
       # System-wide on purpose: the tests start python3 with -I, which ignores the per-user site-packages.
       - run: sudo apt-get update && sudo apt-get install -y keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
+        if: steps.changes.outputs.docs_only != 'true'
       - run: npm ci || npm install
+        if: steps.changes.outputs.docs_only != 'true'
       - name: Chromium for the browser tests
+        if: steps.changes.outputs.docs_only != 'true'
         run: |
           npx playwright-core install --with-deps chromium
           echo "CHROMIUM=$(node -e "console.log(require('playwright-core').chromium.executablePath())")" >> $GITHUB_ENV
       - run: npm run build && npm run test:unit && npm run test:compat
+        if: steps.changes.outputs.docs_only != 'true'
       - run: npm run test:e2e && npm run test:ui && npm run test:keyfile && npm run test:offline && npm run test:fidelity
-        if: matrix.browser
+        if: matrix.browser && steps.changes.outputs.docs_only != 'true'
       - name: Get the release package
-        if: matrix.package
+        if: matrix.package && steps.changes.outputs.docs_only != 'true'
         run: |
           base=https://download.nextcloud.com/server/releases
           curl -fsSLO "$base/${{ matrix.package }}.tar.bz2"
@@ -40,11 +56,12 @@ jobs:
           sha256sum -c --ignore-missing "${{ matrix.package }}.tar.bz2.sha256"
           tar xjf "${{ matrix.package }}.tar.bz2" && mv nextcloud nc
       - name: Get and build Nextcloud from source
-        if: matrix.ref
+        if: matrix.ref && steps.changes.outputs.docs_only != 'true'
         run: |
           git clone --depth 1 --branch ${{ matrix.ref }} https://github.com/nextcloud/server.git nc
           cd nc && git submodule update --init --depth 1 && npm ci && npm run build
       - run: NC_DIR=$PWD/nc NC_PORT=18080 node tests/nextcloud/run.mjs
+        if: steps.changes.outputs.docs_only != 'true'
 
   # The same browser suites (no Nextcloud needed) in the other two engines. Informational for now:
   # a red job here means "differs from Chromium", it does not block merging.
@@ -60,18 +77,28 @@ jobs:
       BROWSER: ${{ matrix.browser }}
     steps:
       - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - name: Docs only?
+        id: changes
+        run: tools/ci-docs-only.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
       - uses: actions/setup-node@v7
+        if: steps.changes.outputs.docs_only != 'true'
         with: { node-version: 22 }
       - run: sudo apt-get update && sudo apt-get install -y keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
+        if: steps.changes.outputs.docs_only != 'true'
       - run: npm ci || npm install
+        if: steps.changes.outputs.docs_only != 'true'
       - run: npx playwright-core install --with-deps ${{ matrix.browser }}
+        if: steps.changes.outputs.docs_only != 'true'
       - run: npm run build
+        if: steps.changes.outputs.docs_only != 'true'
       - run: npm run test:e2e
+        if: steps.changes.outputs.docs_only != 'true'
       - run: npm run test:ui
-        if: success() || failure()
+        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
       - run: npm run test:keyfile
-        if: success() || failure()
+        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
       - run: npm run test:offline
-        if: success() || failure()
+        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
       - run: npm run test:fidelity
-        if: success() || failure()
+        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'

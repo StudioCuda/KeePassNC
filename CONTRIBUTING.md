@@ -5,7 +5,8 @@ Bug reports, odd KDBX files, and patches are welcome.
 ## Ground rules
 
 - Run `npm test` before sending anything. If you touch the Nextcloud side, run `npm run test:nc` against a real Nextcloud too.
-  CI runs everything on each pull request.
+  CI runs everything on each pull request. Pull requests that only touch docs (`*.md`, `docs/`, `LICENSE`, issue templates)
+  skip the tests and go green right away.
 - Build output (`web/*.js`, `nextcloud-app/keepassnc/js|css`) isn't committed. `npm run build` makes it.
 - Keep the master password and plaintext in the browser. A change that sends either anywhere is a no.
 - Don't copy code from KeePassXC (GPL). Ideas are fine, code isn't.
