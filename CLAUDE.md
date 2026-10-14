@@ -1,0 +1,38 @@
+# Notes for AI assistants
+
+KeePassNC opens KeePass (KDBX) files in the browser, as a Nextcloud app and as a standalone page. Decryption happens in the
+browser only. Start with `README.md`, `CONTRIBUTING.md` (build, tests, layout) and `SECURITY.md`.
+
+## Hard rules
+
+- The master password, key file and plaintext never leave the browser. Don't weaken `src/keyfile-store.js`, the CSRF, session
+  or CSP checks, or any test, just to get something green.
+- Strict CSP: no inline styles, inline handlers or external resources. Colors and spacing go through classes and the CSS
+  variables at the top of `src/keepassnc.css`.
+- No KeePassXC code (GPL). Ideas are fine.
+- The App Store signing key never goes into the repo, CI or a chat. Signing and App Store uploads happen on the maintainer's machine.
+- On a network block (403/407), report it instead of working around it.
+
+## Conventions
+
+- One topic per branch and pull request; `main` is protected and the maintainer merges (squash). Required checks: `e2e (nc34)`,
+  `e2e (nc35)`, `browsers (firefox)`, `browsers (webkit)`. `e2e (nc-master)` is an early warning only.
+- Before pushing: `npm run build` and `npm run test:unit`, plus the browser tests that cover the change
+  (`CHROMIUM=/path/to/chrome npm run test:ui`, `test:e2e`, …). Build output isn't committed.
+- New UI text goes into both `src/i18n-de.js` and `src/i18n-en.js`.
+- User-visible changes get a line under `## [Unreleased]` in `nextcloud-app/keepassnc/CHANGELOG.md`.
+- Releases: bump `package.json`, `package-lock.json` and `appinfo/info.xml`, date the changelog section, then follow
+  `docs/APPSTORE.md`. The maintainer pushes the `vX.Y.Z` tag.
+- Public texts (README, PRs, commits, changelog, `info.xml`) are in English: relaxed, a little playful, never salesy.
+- Commits are authored as `StudioCuda <341092375+StudioCuda@users.noreply.github.com>` and carry a `Co-Authored-By` trailer
+  for the AI.
+- README screenshots: `python3 -I tools/make-showcase.py <dir> && npm run build && SHOTS_DB=showcase SHOTS_LANG=en node tools/shots.mjs <dir> <out>`,
+  then copy the six images used by the README into `docs/screenshots/`.
+
+## Known flaky tests
+
+- `tests/e2e/ui.mjs`, TOTP step: compares the app's code with `keepassxc-cli` and can fail when the 45 s window flips between the
+  two reads.
+- `tests/compat/run.ts`, "Wechselseitig": `keepassxc-cli edit` sometimes fails with "Cannot process 0 length data".
+
+Both pass on a re-run. Making them robust is welcome.
