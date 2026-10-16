@@ -3,8 +3,8 @@
 
 Click your `.kdbx` file in Files, type your master password, done.
 
-It's still a plain KeePass file, so **KeePassXC, KeePassDX and Strongbox keep working on the very same file**. No lock-in, no
-special format, no drama.
+It's still a plain KeePass file, so **KeePassXC, KeePassDX and Strongbox keep working on the very same file**.
+No lock-in, no special format, no drama.
 
 ![KeePassNC on a desktop: groups and tags on the left, the entry list, and an entry with a live TOTP code](docs/screenshots/desktop-detail.png)
 
@@ -65,22 +65,22 @@ That page also lists what's known and what hasn't been tested yet.
 
 ## Why this exists
 
-KeeWeb, the KeePass app many people used inside Nextcloud, stopped getting updates. KeePassNC picks up where it left off, with
-the same idea: your passwords stay in a normal KeePass file on your own server, and you open them in the browser.
+KeeWeb, the KeePass app many people used inside Nextcloud, stopped getting updates. KeePassNC picks up where it left off,
+with the same idea: your passwords stay in a normal KeePass file on your own server, and you open them in the browser.
 
-What it doesn't do: fill in passwords on websites, or create new passkeys for websites. Both need a browser extension, which
-is a different project.
+What it doesn't do: fill in passwords on websites, or create new passkeys for websites. Both need a browser extension,
+which is a different project.
 
 ## Contributing
 
-Bug reports, odd KDBX files and patches are welcome. Building from source, running the tests and the standalone page (without
-Nextcloud) are described in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Bug reports, odd KDBX files and patches are welcome.
+Building from source, running the tests and the standalone page (without Nextcloud) are described in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 Made with AI help: KeePassNC is built with [Claude Code](https://claude.com/claude-code), and the commits say so. Every change
-goes through the same test suite against KeePassXC, three browsers and real Nextcloud installs. That's a safety net, not an
-audit, which is why [`SECURITY.md`](SECURITY.md) still asks you to keep a KeePassXC copy around.
+goes through the same test suite against KeePassXC, three browsers and real Nextcloud installs.
+That's a safety net, not an audit, which is why [`SECURITY.md`](SECURITY.md) still asks you to keep a KeePassXC copy around.
 
 ## License and credits
 
-AGPL-3.0-or-later. [kdbxweb](https://github.com/keeweb/kdbxweb) (MIT) does the KDBX heavy lifting. Behaviour is inspired by
-KeePassXC (GPL), but no KeePassXC code was copied. The Nextcloud side owes a nod to jhass/nextcloud-keeweb.
+AGPL-3.0-or-later. [kdbxweb](https://github.com/keeweb/kdbxweb) (MIT) does the KDBX heavy lifting.
+Behaviour is inspired by KeePassXC (GPL), but no KeePassXC code was copied. The Nextcloud side owes a nod to jhass/nextcloud-keeweb.
