@@ -4,11 +4,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Added
+- KeePassNC now dresses like your Nextcloud. It takes the instance color (or your own, if you picked one), follows your light, dark or high-contrast choice from the accessibility settings, and keeps the familiar header with the 9-dot app menu and your account menu. Garish colors get toned down until text on them is readable again, and the plain Nextcloud blue leaves our night blue and gold alone. New setting "Same as Nextcloud" is the default for the color scheme; "Use the Nextcloud accent color" can be switched off. The header has no search, notifications or contacts menu, on purpose: those need Nextcloud's JavaScript, and that stays off this page.
 - A "Pronounceable" mode in the password generator: syllables like `Gosher9faggud3pizguz&dadkor` that you can read out over the phone or type on a TV remote without losing your mind. Letters that get mixed up when spelled out (c/k, v/f/w, j/y, q, x) stay out, and so do braces, slashes and `|` between the groups. Out of the box it starts with a capital and mixes in a digit and a symbol, so the usual "one of each" password rules are happy. Every syllable is drawn uniformly, so the bit count is exact, not wishful.
 
 ### Changed
 - The App Store description is sorted into short sections with bullet points instead of one long paragraph, in English and German.
 - The App Store listing links to the docs, and the app declares itself compatible up to Nextcloud 37 (newest tested version plus two) instead of "forever".
+- The search field just says "Search" now, without the cheat sheet of filter examples. The filters (`url:`, `is:weak`, `-tag:` …) still work, the README has the full list.
 
 ### Fixed
 - The generator's strength meter now shows the exact entropy of what it generated. It used to guess from the characters and rated a six-word passphrase at well over 150 bits instead of the honest 77. The editor keeps the exact value as long as you don't touch the generated password.

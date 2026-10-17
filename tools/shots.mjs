@@ -2,6 +2,8 @@
 // optional <name>.keyx als Schluesseldatei. README-Bilder:
 //   python3 -I tools/make-showcase.py <dir> && npm run build && SHOTS_DB=showcase SHOTS_LANG=en node tools/shots.mjs <dir> <out-dir>
 // Mit der Test-Alltagsdatei: python3 -I tests/fixtures/make-daily.py <dir> && node tools/shots.mjs <dir> <out-dir>
+// Nextcloud-Modus (Kopfleiste und Theming der Instanz): SHOTS_NC=http://127.0.0.1:18080 SHOTS_NC_USER=… SHOTS_NC_PASS=… vor den Aufruf
+// setzen. Die Datei wird per WebDAV nach /KeePassNC/<name>.kdbx geladen; die App muss in dieser Nextcloud aktiviert sein.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -16,11 +18,20 @@ const NAME = process.env.SHOTS_DB || 'daily';
 fs.mkdirSync(outDir, { recursive: true });
 const meta = JSON.parse(fs.readFileSync(path.join(dbDir, `${NAME}.json`), 'utf8'));
 const keyfile = path.join(dbDir, `${NAME}.keyx`);
-const davRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kpnc-shots-'));
-fs.copyFileSync(path.join(dbDir, `${NAME}.kdbx`), path.join(davRoot, `${NAME}.kdbx`));
-const { server, port } = await startServer({ webRoot: path.join(root, 'web'), davRoot });
+const NC = process.env.SHOTS_NC ? { base: process.env.SHOTS_NC.replace(/\/+$/, ''), user: process.env.SHOTS_NC_USER, pass: process.env.SHOTS_NC_PASS } : null;
+let server, base;
+if (NC) {
+    const dav = (p, init = {}) => fetch(`${NC.base}/remote.php/dav/files/${encodeURIComponent(NC.user)}${p}`, { ...init, headers: { Authorization: 'Basic ' + Buffer.from(`${NC.user}:${NC.pass}`).toString('base64') } });
+    await dav('/KeePassNC', { method: 'MKCOL' });
+    const up = await dav(`/KeePassNC/${NAME}.kdbx`, { method: 'PUT', body: fs.readFileSync(path.join(dbDir, `${NAME}.kdbx`)) });
+    if (!up.ok) throw new Error('Hochladen per WebDAV: ' + up.status);
+} else {
+    const davRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'kpnc-shots-'));
+    fs.copyFileSync(path.join(dbDir, `${NAME}.kdbx`), path.join(davRoot, `${NAME}.kdbx`));
+    ({ server } = await startServer({ webRoot: path.join(root, 'web'), davRoot }));
+    base = `http://127.0.0.1:${server.address().port}`;
+}
 const browser = await launchBrowser();
-const base = `http://127.0.0.1:${port}`;
 const shot = (page, file) => page.screenshot({ path: path.join(outDir, file) });
 
 async function session(name, viewport, { scheme = 'light', lang = LANG } = {}) {
@@ -29,9 +40,19 @@ async function session(name, viewport, { scheme = 'light', lang = LANG } = {}) {
     const page = await ctx.newPage();
     page.on('pageerror', (e) => console.log('PAGEERROR', name, e.message));
     page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) console.log('CONSOLE', name, m.text()); });
-    await page.goto(`${base}/index.html?url=${encodeURIComponent(`${base}/dav/${NAME}.kdbx`)}&user=tester&autosave=off`);
-    await shot(page, `${name}-login.png`);
-    await page.fill('#dav-pass', 'app-secret');
+    if (NC) {
+        await page.goto(`${NC.base}/login`);
+        await page.fill('input[name=user]', NC.user); await page.fill('input[name=password]', NC.pass);
+        await page.click('button[type=submit]');
+        await page.waitForURL(/\/apps\//, { timeout: 60000, waitUntil: 'domcontentloaded' });
+        await page.goto(`${NC.base}/index.php/apps/keepassnc/?open=${encodeURIComponent(`/KeePassNC/${NAME}.kdbx`)}&lang=${lang}&autosave=off`);
+        await page.locator('#login-form').waitFor();
+        await shot(page, `${name}-login.png`);
+    } else {
+        await page.goto(`${base}/index.html?url=${encodeURIComponent(`${base}/dav/${NAME}.kdbx`)}&user=tester&autosave=off`);
+        await shot(page, `${name}-login.png`);
+        await page.fill('#dav-pass', 'app-secret');
+    }
     await page.fill('#master', meta.password);
     if (fs.existsSync(keyfile)) await page.setInputFiles('#keyfile', keyfile);
     await page.click('#open-btn');
@@ -78,5 +99,5 @@ await shot(m, 'mobile-drawer.png');
 const other = LANG === 'de' ? 'en' : 'de'; // Tablet in der jeweils anderen Sprache
 const t = await session('tablet', { width: 1024, height: 768 }, { lang: other });
 await shot(t, `tablet-${other}.png`);
-await browser.close(); server.close();
+await browser.close(); server?.close();
 console.log('ok');
