@@ -184,12 +184,22 @@ async function main() {
 
     await step('TOTP-Ring/-Code fuer otpauth (SHA256, 8 Stellen, 45 s) und alte Felder (TOTP Seed)', async () => {
         await pick(page, 'Mit TOTP (otp)');
-        const a = await page.locator('[data-testid=totp-code]').innerText();
-        expect(/^\d{8}$/.test(a.trim()), 'Code 8 Stellen: ' + a);
-        const exp = xc(['show', '-t', dbFile, 'Privat/E-Mail/Mit TOTP (otp)']).trim().split('\n').pop();
-        let ok = a.trim() === exp; if (!ok) { const b = (await page.locator('[data-testid=totp-code]').innerText()).trim(); ok = b === exp; }
+        // Erst den ersten berechneten Code abwarten (vorher steht "------" da)
+        await page.waitForFunction(() => /^\d+$/.test(document.querySelector('[data-testid=totp-code]')?.textContent || ''));
+        // Gegen KeePassXC vergleichen wie in tests/e2e/run.mjs: bis zu 3 Versuche im Abstand von 1,2 s. Die App erneuert den Code
+        // nur jede Sekunde, und keepassxc-cli braucht fuer die 256-MiB-Datei selbst bis zu einige Sekunden; an der 45-s-Grenze koennen
+        // beide Lesungen deshalb in verschiedenen Fenstern liegen.
+        let ok = false, a, exp;
+        for (let i = 0; i < 3 && !ok; i++) {
+            a = (await page.locator('[data-testid=totp-code]').innerText()).trim();
+            exp = xc(['show', '-t', dbFile, 'Privat/E-Mail/Mit TOTP (otp)']).trim().split('\n').pop();
+            ok = a === exp;
+            if (!ok) await page.waitForTimeout(1200);
+        }
+        expect(/^\d{8}$/.test(a), 'Code 8 Stellen: ' + a);
         expect(ok, `TOTP App ${a} vs KeePassXC ${exp}`);
         await pick(page, 'Mit TOTP (alt)');
+        await page.waitForFunction(() => /^\d+$/.test(document.querySelector('[data-testid=totp-code]')?.textContent || ''));
         expect(/^\d{6}$/.test((await page.locator('[data-testid=totp-code]').innerText()).trim()), 'altes Seed-Feld');
         expect(await page.locator('.ring-fg').count() === 1, 'Ring');
     });
