@@ -2,6 +2,10 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+### Changed
+- The App Store description and the README now mention icons and the database settings.
+
 ## [0.9.0] - 2026-10-17
 ### Added
 - Icons for entries and groups: pick one of KeePass's 69 standard icons (redrawn in the app's own line style) or add your own picture. PNG, JPEG, GIF, WebP, BMP, ICO and SVG all work; they get shrunk (or, for SVG, drawn) to 128 px and saved as PNG, so KeePass, KeePassXC and the mobile apps show them too. The same picture twice is recognized, unused ones can be removed, and a group can hand its icon down to its subgroups and entries, just like in KeePassXC. Nothing is fetched from the web, not even favicons.
