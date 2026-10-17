@@ -9,3 +9,6 @@ web/sw.js
 nextcloud-app/keepassnc/js/
 nextcloud-app/keepassnc/css/
 nextcloud-app/keepassnc/COPYING
+
+# App Store signing key (docs/APPSTORE.md). It stays on the maintainer's machine, never in the repository.
+*.key
