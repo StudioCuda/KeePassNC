@@ -49,11 +49,18 @@ No lock-in, no special format, no drama.
 
 ## Install
 
-You need Nextcloud 34 or newer. KeePassNC isn't in the Nextcloud App Store yet, so for now it's a manual install:
+You need Nextcloud 34 or newer. KeePassNC is in the [Nextcloud App Store](https://apps.nextcloud.com/apps/keepassnc), so the
+easy way is: **Apps** → search for *KeePassNC* → **Download and enable**. Or on the command line:
+`sudo -u www-data php occ app:install keepassnc`
 
-1. Download `keepassnc-<version>-unsigned.tar.gz` from the [latest release](https://github.com/StudioCuda/KeePassNC/releases/latest).
+<details>
+<summary>Manual install</summary>
+
+1. Download `keepassnc-<version>.tar.gz` from the [latest release](https://github.com/StudioCuda/KeePassNC/releases/latest).
 2. Unpack it into your Nextcloud's `custom_apps/` folder (or `apps/`) and make sure the web server user owns the files.
 3. Enable it: `sudo -u www-data php occ app:enable keepassnc`
+
+</details>
 
 Then click a `.kdbx` file in Files.
 
