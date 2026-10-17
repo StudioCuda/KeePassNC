@@ -2,6 +2,10 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+### Changed
+- The Nextcloud header looks even more like the real thing: the 9-dot button and the app name light up on their own when you hover them, and the app menu has Nextcloud's four columns of round, colored app icons with a little arrow pointing at the button.
+
 ## [0.8.0] - 2026-10-17
 ### Added
 - KeePassNC now dresses like your Nextcloud. It takes the instance color (or your own, if you picked one), follows your light, dark or high-contrast choice from the accessibility settings, and keeps the familiar header with the 9-dot app menu and your account menu. Garish colors get toned down until text on them is readable again, and the plain Nextcloud blue leaves our night blue and gold alone. New setting "Same as Nextcloud" is the default for the color scheme; "Use the Nextcloud accent color" can be switched off. The header has no search, notifications or contacts menu, on purpose: those need Nextcloud's JavaScript, and that stays off this page.
