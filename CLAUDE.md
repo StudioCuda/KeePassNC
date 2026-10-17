@@ -25,9 +25,11 @@ browser only. Start with `README.md`, `CONTRIBUTING.md` (build, tests, layout) a
   After the merge, `.github/workflows/release.yml` tags `vX.Y.Z` and creates the GitHub release once `main` is green. The
   maintainer then runs `tools/publish-release.sh` (or `tools\publish-release.cmd`) on their machine, which signs and pushes to the
   App Store, see `docs/APPSTORE.md`.
-- Before a release PR, compare the header and app menu (`src/ui/ncheader.js`, the `.nch` block in `src/keepassnc.css`) with the
-  newest stable Nextcloud (`core/src/components/AppMenu*.vue`, `AppItem.vue`/`AppIcon.vue`, `core/css/header.scss` on its
-  `stableNN` branch). If the look changed, adopt it in its own PR first.
+- Before a release PR, compare the whole header with the newest stable Nextcloud, left and right: logo, app menu and account menu
+  (`src/ui/ncheader.js`, the `.nch` block in `src/keepassnc.css`). On its `stableNN` branch look at `core/css/header.scss`,
+  `core/src/components/AppMenu*.vue`, `AppItem.vue`/`AppIcon.vue`, `core/src/views/AccountMenu.vue` and
+  `core/src/components/AccountMenu/`, plus `NcHeaderMenu`, `NcListItem` and `NcAvatar` in the `@nextcloud/vue` version from its
+  `package.json`. If the look changed, adopt it in its own PR first.
 - Public texts (README, PRs, commits, changelog, `info.xml`) are in English: relaxed, a little playful, never salesy.
 - Commits are authored as `StudioCuda <341092375+StudioCuda@users.noreply.github.com>` and carry a `Co-Authored-By` trailer
   for the AI.
