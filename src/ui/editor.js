@@ -27,7 +27,7 @@ export function renderEditor(host) {
     const val = (k) => (entry ? fieldText(entry.fields.get(k)) : '');
     const i = {
         Title: h('input', { id: 'e-title', value: val('Title'), 'data-testid': 'e-title', autocomplete: 'off' }),
-        UserName: h('input', { id: 'e-user', value: val('UserName'), autocomplete: 'off', spellcheck: 'false' }),
+        UserName: h('input', { id: 'e-user', value: entry ? val('UserName') : v.db.meta.defaultUser || '', autocomplete: 'off', spellcheck: 'false' }),
         Password: h('input', { id: 'e-pass', type: 'password', value: val('Password'), autocomplete: 'new-password', spellcheck: 'false', class: 'mono' }),
         URL: h('input', { id: 'e-url', value: val('URL'), inputmode: 'url', autocomplete: 'off', spellcheck: 'false' }),
         Notes: h('textarea', { id: 'e-notes', rows: 6 }),

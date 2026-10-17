@@ -1,7 +1,7 @@
 // Detailansicht eines Eintrags: Felder, Passwort (Staerke, Grossansicht), TOTP-Ring, Passkey-Info, Anhaenge, Verlauf.
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
 import { parseOtpConfig, totp } from '../totp.js';
-import { entryExpiry, daysUntil, domainOf, isSystemField, isPasskey, groupPath, fieldOf } from '../core/util.js';
+import { entryExpiry, daysUntil, domainOf, openableUrl, isSystemField, isPasskey, groupPath, fieldOf } from '../core/util.js';
 import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, copy, download, setStatus } from './ctx.js';
 import { h, icon, iconBtn, modal, toast, confirmDialog, popupMenu } from './dom.js';
@@ -36,6 +36,7 @@ export function strengthBar(pw, bits) {
 function field(label, valueNode, actions = [], cls = '') {
     return h('div', { class: 'field ' + cls }, h('div', { class: 'flabel', text: label }), h('div', { class: 'fvalue' }, h('div', { class: 'fv-main' }, valueNode), h('div', { class: 'fv-actions' }, ...actions)));
 }
+const linkOrText = (text, href, attrs = {}) => href ? h('a', { ...attrs, href, target: '_blank', rel: 'noopener noreferrer', text, title: domainOf(href) }) : h('span', { ...attrs, text });
 const copyBtn = (text, label, extra = {}) => iconBtn('copy', t('copy') + ': ' + label, () => copy(typeof text === 'function' ? text() : text, label), extra);
 
 export function renderDetail(host) {
@@ -48,7 +49,7 @@ export function renderDetail(host) {
         return;
     }
     const v = state.vault;
-    const inBin = v.isInRecycleBin(e);
+    const inBin = v.isInRecycleBin(e), forever = v.deletesForever(e);
     const pwText = fieldText(e.fields.get('Password'));
     const title = fieldText(e.fields.get('Title')) || t('entry.untitled');
 
@@ -61,7 +62,7 @@ export function renderDetail(host) {
             h('button', { id: 'edit-btn', type: 'button', class: 'primary', onclick: () => startEdit(e) }, icon('edit'), h('span', { text: t('edit') })),
             inBin ? h('button', { id: 'restore-btn', type: 'button', onclick: () => restoreEntry(e) }, icon('restore'), h('span', { text: t('restore') })) : null,
             iconBtn('more', t('more'), (ev) => entryMenu(ev.currentTarget, e), { id: 'entry-more' }),
-            h('button', { id: 'del-btn', type: 'button', class: 'danger-ghost', onclick: () => deleteEntry(e), title: inBin ? t('delete.forever') : t('delete') }, icon('trash'), h('span', { class: 'sr-or-wide', text: inBin ? t('delete.forever') : t('delete') }))));
+            h('button', { id: 'del-btn', type: 'button', class: 'danger-ghost', onclick: () => deleteEntry(e), title: forever ? t('delete.forever') : t('delete') }, icon('trash'), h('span', { class: 'sr-or-wide', text: forever ? t('delete.forever') : t('delete') }))));
 
     // --- Felder
     const cards = [];
@@ -81,8 +82,7 @@ export function renderDetail(host) {
         iconBtn('search', t('pw.large'), () => largeType(pwText, title)), copyBtn(pwText, t('f.password'), { 'data-testid': 'pw-copy' })], 'pw'));
 
     if (url) {
-        const safe = /^https?:\/\//i.test(url);
-        main.push(field(t('f.url'), safe ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer', text: url, title: domainOf(url) }) : h('span', { text: url }), [copyBtn(url, t('f.url'))]));
+        main.push(field(t('f.url'), linkOrText(url, openableUrl(url), { 'data-testid': 'f-url' }), [copyBtn(url, t('f.url'))]));
     }
 
     // TOTP
@@ -118,7 +118,9 @@ export function renderDetail(host) {
     for (const [k, val] of e.fields) {
         if (STANDARD_FIELDS.includes(k) || isSystemField(k)) continue;
         const text = fieldText(val);
-        const span = h('span', { 'data-testid': 'custom-' + k, class: 'multiline', text: isProtected(val) ? DOTS : text });
+        // ungeschuetzte Zusatzfelder mit http(s)-Adresse (oder URL im Namen, etwa KP2A_URL_1) sind Links wie das URL-Feld
+        const href = isProtected(val) ? null : openableUrl(text, { bare: /url/i.test(k) });
+        const span = href ? linkOrText(text, href, { 'data-testid': 'custom-' + k }) : h('span', { 'data-testid': 'custom-' + k, class: 'multiline', text: isProtected(val) ? DOTS : text });
         const actions = isProtected(val) ? [iconBtn('eye', t('show'), (ev) => { const on = span.dataset.on !== '1'; span.dataset.on = on ? '1' : '0'; span.textContent = on ? text : DOTS; ev.currentTarget.replaceChildren(icon(on ? 'eyeOff' : 'eye')); })] : [];
         custom.push(field(k, span, [...actions, copyBtn(text, k)]));
     }
@@ -214,7 +216,7 @@ function largeType(pw, title) {
 
 export function deleteEntry(e) {
     const v = state.vault;
-    if (v.isInRecycleBin(e)) {
+    if (v.deletesForever(e)) {
         return confirmDialog({ title: t('delete.forever'), message: t('entry.delete.forever.msg', { name: fieldOf(e, 'Title') }), confirmLabel: t('delete.forever'), cancelLabel: t('cancel'), danger: true }).then((ok) => {
             if (!ok) return;
             v.removeEntry(e); state.selEntry = null; changed(); setStatus(t('deleted.forever'));

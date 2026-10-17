@@ -182,6 +182,27 @@ async function main() {
         await page.click('#nav-all');
     });
 
+    await step('URLs: nackter Hostname wird https-Link, cmd:// bleibt Text, Zusatzfeld mit Adresse ist ein Link', async () => {
+        const link = async (sel) => page.locator(sel).evaluate((n) => n.tagName === 'A' ? n.getAttribute('href') : null);
+        await page.click('#new-btn');
+        await page.fill('#e-title', 'UI Link'); await page.fill('#e-url', 'example.com/login');
+        await page.click('#add-custom');
+        for (const [name, value] of [['KP2A_URL_1', 'alt.example.org'], ['Server', 'https://srv.example.org'], ['Notiz', 'example.org']]) {
+            if (name !== 'KP2A_URL_1') await page.click('#add-custom');
+            const row = page.locator('#e-custom .custom-row').last(); await row.locator('.c-name').fill(name); await row.locator('.c-value').fill(value);
+        }
+        await page.click('#apply-btn');
+        await page.waitForFunction(() => (document.querySelector('#detail h2')?.textContent || '').trim() === 'UI Link');
+        expect(await link('[data-testid=f-url]') === 'https://example.com/login', 'nackter Hostname');
+        expect((await page.locator('[data-testid=f-url]').innerText()).trim() === 'example.com/login', 'Text bleibt wie eingegeben');
+        expect(await link('[data-testid=custom-KP2A_URL_1]') === 'https://alt.example.org', 'URL-Zusatzfeld');
+        expect(await link('[data-testid=custom-Server]') === 'https://srv.example.org', 'Zusatzfeld mit https');
+        expect(await link('[data-testid=custom-Notiz]') === null, 'nackter Hostname in einem Nicht-URL-Feld bleibt Text');
+        await page.click('#edit-btn'); await page.fill('#e-url', 'cmd://putty.exe'); await page.click('#apply-btn');
+        await page.waitForFunction(() => /cmd:/.test(document.querySelector('[data-testid=f-url]')?.textContent || ''));
+        expect(await link('[data-testid=f-url]') === null, 'cmd:// darf kein Link sein');
+    });
+
     await step('TOTP-Ring/-Code fuer otpauth (SHA256, 8 Stellen, 45 s) und alte Felder (TOTP Seed)', async () => {
         await pick(page, 'Mit TOTP (otp)');
         // Erst den ersten berechneten Code abwarten (vorher steht "------" da)
@@ -373,6 +394,37 @@ async function main() {
         await page.waitForFunction(() => document.querySelector('#nav-bin .count')?.textContent === '0');
         expect(/Keine Einträge/.test(await page.locator('#list').innerText()), 'Leerzustand');
         await page.click('#nav-all');
+    });
+
+    await step('Datenbank-Einstellungen: Name, Beschreibung, Standard-Benutzer, Papierkorb aus (Loeschen endgueltig), Verlauf kuerzen nach Rueckfrage -> KeePassXC liest alles', async () => {
+        await page.click('#reports-btn'); await page.click('#rep-tab-info'); await page.click('#db-settings-btn');
+        await page.fill('#db-name', 'UI-Tresor'); await page.fill('#db-desc', 'Beschreibung äöü\nzweite Zeile'); await page.fill('#db-user', 'standard-user');
+        await page.uncheck('#db-bin');
+        await page.check('#db-hist-items-on'); await page.fill('#db-hist-items', '2');
+        await page.click('#db-apply');
+        await page.locator('#confirm-ok').waitFor(); // "Mit Verlauf" hat 6 Staende -> Rueckfrage
+        expect(/\d+ ältere Stände/.test(await page.locator('.modal', { has: page.locator('#confirm-ok') }).innerText()), 'Rueckfrage nennt die Zahl');
+        await page.click('#confirm-ok');
+        await page.waitForFunction(() => !document.querySelector('#db-settings'));
+        const info = await page.locator('.report-body').innerText();
+        expect(/UI-Tresor/.test(info) && /Beschreibung äöü/.test(info), 'Info zeigt Name/Beschreibung: ' + info);
+        await page.keyboard.press('Escape');
+        expect(await page.locator('#nav-bin').count() === 0, 'Papierkorb-Eintrag in der Seitenleiste sollte fehlen');
+        await page.click('#new-btn');
+        expect(await page.inputValue('#e-user') === 'standard-user', 'Standard-Benutzer nicht vorausgefuellt');
+        await page.click('#cancel-btn');
+        await pick(page, 'Otto');
+        expect(/Endgültig löschen/.test(await page.locator('#del-btn').innerText()), 'Loeschen-Knopf sollte "Endgueltig" sagen');
+        await page.click('#del-btn'); await page.click('#confirm-ok');
+        await page.keyboard.press('Control+s');
+        await waitStatus(page, /^Gespeichert\./, 60000);
+        const doc = loadXml(), m = doc.getElementsByTagName('Meta')[0];
+        const metaText = (n) => text(kids(m, n)[0]);
+        expect(metaText('DatabaseName') === 'UI-Tresor' && metaText('DatabaseDescription') === 'Beschreibung äöü\nzweite Zeile' && metaText('DefaultUserName') === 'standard-user', 'Meta: ' + ['DatabaseName', 'DatabaseDescription', 'DefaultUserName'].map(metaText).join(' | '));
+        expect(metaText('RecycleBinEnabled') === 'False' && metaText('HistoryMaxItems') === '2', 'Papierkorb/Verlauf: ' + metaText('RecycleBinEnabled') + ' ' + metaText('HistoryMaxItems'));
+        const es = walk(doc), hist = kids(kids(es.find((e) => e.title === 'Mit Verlauf').entry, 'History')[0], 'Entry').length;
+        expect(hist === 2, 'Verlauf gekuerzt auf 2: ' + hist);
+        expect(!es.some((e) => e.title === 'Otto'), 'Otto sollte endgueltig weg sein: ' + es.filter((e) => e.title === 'Otto').map((e) => e.path));
     });
 
     await step('Sprache und Theme: Englisch/Dunkel in den Einstellungen, bleibt nach dem Sperren (Anmeldeseite) erhalten', async () => {

@@ -1,6 +1,6 @@
 // Hauptansicht: Kopfzeile, drei Spalten (Seitenleiste | Liste | Details), Mobil-Navigation, Tastenkuerzel, Befehlspalette.
 import { t } from '../i18n.js';
-import { fieldOf, domainOf, hasTotp, isPasskey } from '../core/util.js';
+import { fieldOf, domainOf, openableUrl, hasTotp, isPasskey } from '../core/util.js';
 import { SORTS } from './common.js';
 import { ctx, copy, setStatus, applyTheme } from './ctx.js';
 import { $, h, icon, iconBtn, modal, popupMenu, toast } from './dom.js';
@@ -176,7 +176,7 @@ export function installShortcuts() {
         else if (mod && key === 's') { e.preventDefault(); doSave(); }
         else if (mod && key === 'l') { e.preventDefault(); lock(t('locked')); }
         else if (mod && key === 'b' && state.selEntry && !typing) { e.preventDefault(); copy(fieldOf(state.selEntry, 'UserName'), t('f.user')); }
-        else if (mod && e.shiftKey && key === 'u' && state.selEntry) { e.preventDefault(); const u = fieldOf(state.selEntry, 'URL'); if (/^https?:\/\//i.test(u)) window.open(u, '_blank', 'noopener,noreferrer'); }
+        else if (mod && e.shiftKey && key === 'u' && state.selEntry) { e.preventDefault(); const u = openableUrl(fieldOf(state.selEntry, 'URL')); if (u) window.open(u, '_blank', 'noopener,noreferrer'); }
         else if (mod && key === 'c' && state.selEntry && !typing && !getSelection().toString()) { e.preventDefault(); copy(fieldOf(state.selEntry, 'Password'), t('f.password')); }
         else if (e.key === 'Delete' && state.selEntry && !typing && !state.editing) { e.preventDefault(); deleteEntry(state.selEntry); }
         else if (e.key === 'Escape' && state.editing && !typing) cancelEdit();

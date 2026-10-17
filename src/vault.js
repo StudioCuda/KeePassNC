@@ -6,7 +6,7 @@ import { ConflictError, DavError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
 import { isOutOfMemory, isPasskeyField, isSystemField, valueText } from './core/util.js';
 
-const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid } = kdbxweb;
+const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream } = kdbxweb;
 
 kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type) => {
     let out;
@@ -27,6 +27,19 @@ kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, le
     }
     return out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength);
 });
+
+/**
+ * Verschluesselungs-Einstellungen aus dem Dateikopf als vergleichbarer Text: Format, Chiffre, Kompression, KDF samt Parametern.
+ * Salze, IVs und Startwerte bleiben aussen vor, die sind bei jedem Speichern neu. header: KdbxHeader oder die Bytes einer Datei
+ * (der Kopf ist unverschluesselt, dafuer braucht es kein Passwort).
+ */
+export function cryptoSettings(header) {
+    const bytes = ArrayBuffer.isView(header) ? header.buffer.slice(header.byteOffset, header.byteOffset + header.byteLength) : header;
+    const h = bytes instanceof ArrayBuffer ? KdbxHeader.read(new BinaryStream(bytes), null) : header;
+    const val = (v) => (v instanceof ArrayBuffer ? btoa(String.fromCharCode(...new Uint8Array(v))) : typeof v?.hi === 'number' ? `${v.hi}:${v.lo}` : v);
+    const kdf = h.kdfParameters ? h.kdfParameters.keys().filter((k) => k !== 'S').sort().map((k) => [k, val(h.kdfParameters.get(k))]) : null;
+    return JSON.stringify([h.versionMajor, h.versionMinor, h.dataCipherUuid?.toString() ?? null, h.compression ?? null, h.keyEncryptionRounds ?? null, kdf]);
+}
 
 export const STANDARD_FIELDS = ['Title', 'UserName', 'Password', 'URL', 'Notes'];
 
@@ -235,14 +248,69 @@ export class Vault {
     /** Verlaufseintrag anlegen und gemaess Datenbank-Einstellungen kuerzen (Standard 10 Staende / 6 MiB, aelteste zuerst). */
     _pushHistory(entry) {
         entry.pushHistory();
-        const maxItems = this.db.meta.historyMaxItems ?? 10;
-        const maxSize = this.db.meta.historyMaxSize ?? 6 * 1024 * 1024;
-        if (maxItems === 0) { entry.removeHistory(0, entry.history.length); return; }
-        if (maxItems > 0 && entry.history.length > maxItems) entry.removeHistory(0, entry.history.length - maxItems);
-        if (maxSize > 0) {
-            const size = (h) => [...h.fields].reduce((n, [k, v]) => n + k.length + valueText(v).length * 2, 0) + [...h.binaries.values()].reduce((n, b) => n + (b.value?.byteLength ?? b.byteLength ?? 0), 0);
-            while (entry.history.length > 1 && entry.history.reduce((n, h) => n + size(h), 0) > maxSize) entry.removeHistory(0, 1);
+        this._trimHistory(entry);
+    }
+
+    /**
+     * Kuerzt den Verlauf eines Eintrags auf die Grenzen der Datenbank (oder die uebergebenen), aelteste Staende zuerst.
+     * Grenzen wie in KDBX: -1 = unbegrenzt, 0 Staende = kein Verlauf; die Groessengrenze laesst den neuesten Stand immer stehen.
+     * dryRun: nur zaehlen. Liefert die Zahl der (zu) entfernenden Staende.
+     */
+    _trimHistory(entry, limits = {}, dryRun = false) {
+        const maxItems = limits.historyMaxItems ?? this.db.meta.historyMaxItems ?? 10;
+        const maxSize = limits.historyMaxSize ?? this.db.meta.historyMaxSize ?? 6 * 1024 * 1024;
+        const hist = entry.history;
+        let k = 0;
+        if (maxItems === 0) k = hist.length;
+        else {
+            if (maxItems > 0) k = Math.max(0, hist.length - maxItems);
+            if (maxSize > 0) {
+                const size = (h) => [...h.fields].reduce((m, [key, v]) => m + key.length + valueText(v).length * 2, 0) + [...h.binaries.values()].reduce((m, b) => m + (b.value?.byteLength ?? b.byteLength ?? 0), 0);
+                let total = hist.slice(k).reduce((m, h) => m + size(h), 0);
+                while (hist.length - k > 1 && total > maxSize) total -= size(hist[k++]);
+            }
         }
+        if (k && !dryRun) entry.removeHistory(0, k);
+        return k;
+    }
+
+    // ---------------------------------------------------------------- Datenbank-Einstellungen (Metadaten, nicht der Dateikopf)
+    get binEnabled() { return this.db.meta.recycleBinEnabled !== false; }
+
+    /** Loeschen ist hier endgueltig: Element liegt schon im Papierkorb, oder die Datenbank hat keinen. */
+    deletesForever(item) { return !this.binEnabled || this.isInRecycleBin(item); }
+
+    generalSettings() {
+        const m = this.db.meta;
+        return { name: m.name || '', desc: m.desc || '', defaultUser: m.defaultUser || '', recycleBin: this.binEnabled,
+            historyMaxItems: m.historyMaxItems ?? 10, historyMaxSize: m.historyMaxSize ?? 6 * 1024 * 1024 };
+    }
+
+    /** So viele Verlaufsstaende fielen mit diesen Grenzen weg (fuer die Rueckfrage vor dem Uebernehmen). */
+    historyTrimCount(limits) {
+        let n = 0;
+        for (const e of this.root.allEntries()) n += this._trimHistory(e, limits, true);
+        return n;
+    }
+
+    /**
+     * Uebernimmt die allgemeinen Einstellungen. Ueber die Setter von kdbxweb, damit die Aenderungszeiten stimmen und das Zusammenfuehren
+     * mit einem anderen Geraet sie richtig zuordnet. Neue Verlaufsgrenzen gelten sofort fuer alle Eintraege (wie in KeePassXC).
+     */
+    updateGeneralSettings({ name, desc, defaultUser, recycleBin, historyMaxItems, historyMaxSize }) {
+        const m = this.db.meta;
+        if (name !== undefined) m.name = name;
+        if (desc !== undefined) m.desc = desc;
+        if (defaultUser !== undefined) m.defaultUser = defaultUser;
+        if (recycleBin !== undefined && recycleBin !== this.binEnabled) m.recycleBinEnabled = recycleBin;
+        let trimmed = 0;
+        if ((historyMaxItems !== undefined && historyMaxItems !== m.historyMaxItems) || (historyMaxSize !== undefined && historyMaxSize !== m.historyMaxSize)) {
+            if (historyMaxItems !== undefined) m.historyMaxItems = historyMaxItems;
+            if (historyMaxSize !== undefined) m.historyMaxSize = historyMaxSize;
+            for (const e of this.root.allEntries()) trimmed += this._trimHistory(e);
+        }
+        this.dirty = true;
+        return trimmed;
     }
 
     removeEntry(entry) {
@@ -550,7 +618,9 @@ export class Vault {
                     }
                     throw err;
                 });
+                const header = this._mergedHeader(remoteDb);
                 this.db.merge(remoteDb);
+                if (header !== this.db.header) { this.db.header = header; this.db.meta.headerHash = undefined; }
                 this._pending = await this.db.save();
                 this.etag = remote.etag;
                 this._remoteBytes = remote.buf;
@@ -558,6 +628,23 @@ export class Vault {
                 merged = true;
             }
         }
+    }
+
+    /**
+     * Welcher Dateikopf (Format, Verschluesselung, Schluesselableitung) nach dem Zusammenfuehren gilt. merge() von kdbxweb uebernimmt
+     * nur Inhalt und Metadaten; ohne diese Wahl wuerde ein Speichern hier eine auf einem anderen Geraet geaenderte, z. B. verstaerkte
+     * Schluesselableitung still auf den alten Stand zuruecksetzen. Verglichen wird mit dem letzten gemeinsamen Server-Stand:
+     * Hat nur der Server ihn geaendert, gilt seiner; nur lokal: der lokale; beide: der mit dem neueren "Einstellungen geaendert".
+     */
+    _mergedHeader(remoteDb) {
+        const local = this.db.header, remote = remoteDb.header;
+        const remoteSet = cryptoSettings(remote);
+        if (remoteSet === cryptoSettings(local)) return local;
+        let base = null;
+        try { base = cryptoSettings(this._remoteBytes); } catch { /* unlesbarer Basisstand: wie "beide geaendert" behandeln */ }
+        if (remoteSet === base) return local;
+        if (cryptoSettings(local) === base) return remote;
+        return (this.db.meta.settingsChanged?.getTime() ?? 0) > (remoteDb.meta.settingsChanged?.getTime() ?? 0) ? local : remote;
     }
 
     async _pull() {

@@ -5,7 +5,7 @@ import { generatePassword, generatePassphrase, generatePronounceable, CLASSES, L
 import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
 import { auditEntries } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
-import { isOutOfMemory } from '../../src/core/util.js';
+import { isOutOfMemory, openableUrl } from '../../src/core/util.js';
 
 const NOW = Date.UTC(2026, 9, 11);
 function entry(fields, extra = {}) {
@@ -111,4 +111,15 @@ test('Argon2-Speicherfehler werden erkannt (RangeError, WebAssembly-Trap, Textme
     assert.ok(!isOutOfMemory(new Error('Wrong password')));
     assert.ok(!isOutOfMemory(new TypeError('x is not a function')));
     assert.ok(!isOutOfMemory(null) && !isOutOfMemory(undefined));
+});
+
+test('openableUrl: http(s) und nackte Hostnamen werden Links, alles andere bleibt Text', () => {
+    assert.equal(openableUrl('https://example.org/a?b=1'), 'https://example.org/a?b=1');
+    assert.equal(openableUrl(' HTTP://example.org '), 'HTTP://example.org');
+    assert.equal(openableUrl('example.com'), 'https://example.com');
+    assert.equal(openableUrl('www.bank.at:8443/login#x'), 'https://www.bank.at:8443/login#x');
+    for (const bad of ['', 'javascript:alert(1)', 'cmd://putty.exe', '{REF:U@I:1234}', 'nur text', '1.5', 'alice@example.org', 'https://', 'data:text/html,x', 'example.com/a b'])
+        assert.equal(openableUrl(bad), null, bad);
+    assert.equal(openableUrl('example.com', { bare: false }), null);
+    assert.equal(openableUrl('https://example.com', { bare: false }), 'https://example.com');
 });
