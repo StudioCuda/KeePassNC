@@ -171,7 +171,7 @@ async function main() {
         return `TOTP ${a}`;
     });
 
-    await step('Steam-TOTP (encoder=steam): 5 Zeichen, identisch mit KeePassXC', async () => {
+    await step('Steam-TOTP (encoder=steam): 5 Zeichen, identisch mit KeePassXC; Seitenleiste ohne Tags zeigt kein "null"', async () => {
         const fs3 = path.join(davRoot, 'steam.kdbx');
         execFileSync('python3', ['-I', '-c', [
             'from pykeepass import create_database',
@@ -181,6 +181,10 @@ async function main() {
             'kp.save()'].join('\n')]);
         const p = await newPage();
         await login(p, 'steam.kdbx'); await rows(p).first().waitFor();
+        // Datei ohne Tags: die Tag-Leiste fehlt, und es darf kein "null" an ihrer Stelle stehen
+        const groups = await p.locator('#groups').innerText();
+        expect(!/null/.test(groups), 'Seitenleiste zeigt "null": ' + groups);
+        expect(await p.locator('#groups [data-testid=tag-chip]').count() === 0, 'Tag-Chips ohne Tags');
         await p.locator('[data-testid=entry-row]', { hasText: 'Steam' }).click();
         let ok = false, a, b;
         for (let i = 0; i < 3 && !ok; i++) { // bis zu 3 Versuche wegen Fenstergrenze

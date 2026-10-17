@@ -10,6 +10,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Saving after someone else changed the file no longer undoes their encryption settings. If KeePassXC (or another device) beefed up the key derivation or switched the cipher in the meantime, KeePassNC used to merge the entries but quietly write its own older settings back. Now the side that actually changed them wins.
+- A database without any tags no longer greets you with a lonely "null" in the sidebar above the recycle bin.
 
 ## [0.8.1] - 2026-10-17
 ### Changed

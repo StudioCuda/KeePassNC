@@ -2,7 +2,7 @@
 import { VaultError } from '../vault.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
-import { h, icon, iconBtn, popupMenu, modal, promptDialog, confirmDialog, toast } from './dom.js';
+import { h, append, icon, iconBtn, popupMenu, modal, promptDialog, confirmDialog, toast } from './dom.js';
 import { allRealEntries, isWeak, groupIcon } from './common.js';
 import { hasTotp, isPasskey, entryExpiry, daysUntil, fieldOf } from '../core/util.js';
 import { changed } from './session.js';
@@ -179,7 +179,9 @@ export function renderSidebar(host) {
         h('button', { type: 'button', class: 'nav-item', id: 'nav-gen', onclick: () => { document.querySelector('.shell').dataset.drawer = '0'; openGenerator(); } }, icon('dice'), h('span', { class: 'grow', text: t('generator') })),
         h('button', { type: 'button', class: 'nav-item', id: 'nav-settings', onclick: () => { document.querySelector('.shell').dataset.drawer = '0'; openSettings(); } }, icon('settings'), h('span', { class: 'grow', text: t('settings') })),
         ctx.NC?.filesUrl ? h('a', { class: 'nav-item', href: ctx.NC.filesUrl }, icon('folderOpen'), h('span', { class: 'grow', text: t('files') })) : null);
-    host.replaceChildren(lib,
+    // append() statt replaceChildren(..., tagBox, ...): ohne Tags ist tagBox null, und replaceChildren macht daraus den Text "null"
+    host.replaceChildren();
+    append(host, [lib,
         h('div', { class: 'nav-section grow-section' }, h('div', { class: 'nav-head' }, h('span', { text: t('nav.groups') }), iconBtn('plus', t('group.new'), () => newGroup(null), { id: 'new-group-btn', class: 'small' })), tree),
-        tagBox, bin, tools);
+        tagBox, bin, tools]);
 }
