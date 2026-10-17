@@ -210,6 +210,7 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .secret, .pw-colored { font-family: var(--mono); font-size: 16px; letter-spacing: .02em; }
 .c-digit { color: var(--accent); } .c-sym { color: var(--bad); }
 .notes { margin: 0; white-space: pre-wrap; font: inherit; overflow-wrap: anywhere; }
+.multiline { white-space: pre-wrap; }
 .strength { display: flex; align-items: center; gap: 10px; margin-top: 6px; font-size: 12px; color: var(--muted); }
 .strength .bars { display: inline-flex; gap: 3px; } .strength .bars i { width: 26px; height: 5px; border-radius: 3px; background: var(--surface-3); }
 .strength.s1 .bars i:nth-child(-n+1) { background: var(--bad); } .strength.s2 .bars i:nth-child(-n+2) { background: var(--warn); } .strength.s3 .bars i:nth-child(-n+3) { background: var(--ok); } .strength.s4 .bars i { background: var(--ok); }
@@ -223,7 +224,10 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .passkey-card { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
 .tags-card { padding-bottom: 12px; }
 .editor { display: flex; flex-direction: column; } .editor .detail-head h2 { flex: 1; font-size: 20px; }
-.custom-row { display: grid; grid-template-columns: 1fr 1.6fr auto auto; gap: 8px; align-items: center; }
+.custom-row { display: grid; grid-template-columns: 1fr 1.6fr auto auto; gap: 8px; align-items: start; }
+.c-value-wrap { display: flex; gap: 4px; align-items: flex-start; min-width: 0; } .c-value-wrap > textarea, .c-value-wrap > input { flex: 1; min-width: 0; }
+textarea.c-value { min-height: 0; resize: vertical; }
+.custom-row > .check { align-self: center; }
 .meter { margin-top: -6px; }
 .statusbar { display: flex; justify-content: space-between; gap: 16px; padding: 4px 14px; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--border); background: var(--surface); flex: none; min-height: 28px; }
 #status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } #status[data-kind=error] { color: var(--bad); } #status[data-kind=warn] { color: var(--warn); }
