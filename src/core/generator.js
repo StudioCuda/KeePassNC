@@ -57,3 +57,41 @@ export function generatePassphrase(opts = {}) {
     else if (o.casing === 'mixed') { const i = randomInt(n); list[i] = list[i].toUpperCase(); }
     return { password: list.join(o.separator), bits: n * Math.log2(WORDS.length) };
 }
+
+// Aussprechbar: Silben Konsonant-Vokal-Konsonant, jede Silbe gleichverteilt (anders als FIPS 181/pwgen, deren Silben ungleich
+// haeufig sind und deren Staerke deshalb ueberschaetzt wird). Ohne Buchstaben, die man beim Buchstabieren leicht verwechselt
+// (c/k, v/f/w, j/y, q, x). Zwischen den Silbengruppen ein zufaelliges Zeichen, ohne Klammern, Schraegstriche und | (diktiert
+// verwechselbar) und ohne 0/1 (sehen aus wie o/l).
+export const SYLLABLE = { consonants: 'bdfghklmnprstz', vowels: 'aeiou' };
+export const PRON_SEPARATORS = { digits: '23456789', symbols: '-+=.!?#%&*@' };
+export const DEFAULT_PRONOUNCEABLE_OPTIONS = { syllables: 8, group: 2, separators: 'mixed', casing: 'lower' };
+export const SYLLABLE_BITS = Math.log2(SYLLABLE.consonants.length ** 2 * SYLLABLE.vowels.length);
+
+/** Liefert {password, bits}. separators: 'mixed' (Ziffern und Zeichen, ab zwei Trennern mindestens je eines), 'digits', 'symbols' oder 'dash'. */
+export function generatePronounceable(opts = {}) {
+    const o = { ...DEFAULT_PRONOUNCEABLE_OPTIONS, ...opts };
+    const n = Math.max(1, Math.min(32, o.syllables));
+    const group = Math.max(1, Math.min(n, o.group));
+    const { consonants: C, vowels: V } = SYLLABLE;
+    const pick = (s) => s[randomInt(s.length)];
+    const groups = [];
+    for (let i = 0; i < n; i += group) {
+        let g = '';
+        for (let j = i; j < Math.min(n, i + group); j++) g += pick(C) + pick(V) + pick(C);
+        groups.push(o.casing === 'title' ? g[0].toUpperCase() + g.slice(1) : g);
+    }
+    const k = groups.length - 1;
+    const { digits: D, symbols: S } = PRON_SEPARATORS;
+    let seps;
+    let sepBits = 0;
+    if (o.separators === 'dash') seps = Array(k).fill('-');
+    else {
+        const pool = o.separators === 'digits' ? D : o.separators === 'symbols' ? S : D + S;
+        const both = o.separators === 'mixed' && k >= 2;
+        // Rejection Sampling: gleichverteilt ueber alle Folgen mit mindestens einer Ziffer und einem Zeichen
+        do seps = Array.from({ length: k }, () => pick(pool));
+        while (both && !(seps.some((c) => D.includes(c)) && seps.some((c) => S.includes(c))));
+        sepBits = both ? Math.log2(pool.length ** k - D.length ** k - S.length ** k) : k * Math.log2(pool.length);
+    }
+    return { password: groups.map((g, i) => g + (seps[i] ?? '')).join(''), bits: n * SYLLABLE_BITS + sepBits };
+}
