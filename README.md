@@ -29,7 +29,7 @@ No lock-in, no special format, no drama.
 - **Stay organised:** groups with drag and drop, tags, expiry dates, attachments, recycle bin and full entry history.
 - **Two-factor codes:** TOTP codes right next to the password, Steam Guard included.
 - **Passkeys:** passkeys saved by KeePassXC are shown and kept intact.
-- **Better passwords:** a generator for passwords and passphrases, and a health report that finds weak, reused and expired ones.
+- **Better passwords:** a generator for passwords, passphrases and pronounceable ones, and a health report that finds weak, reused and expired ones.
 - **Shared files:** databases someone shared with you open fine; read-only shares say so.
 - **Feels at home:** picks up your instance's color and your light or dark choice, and keeps the Nextcloud header with the app menu
   on top. Search, notifications and the contacts menu sit this one out, [here's why](SECURITY.md#model-in-short).
@@ -40,6 +40,22 @@ No lock-in, no special format, no drama.
   <img src="docs/screenshots/desktop-reports.png" width="49%" alt="Health report: weak, reused and expiring passwords">
   <img src="docs/screenshots/desktop-generator.png" width="49%" alt="Password generator">
 </p>
+
+<details>
+<summary>Search syntax</summary>
+
+Words separated by spaces must all match. Plain words look in title, user name, URL, notes and tags.
+
+- **Fields:** `title:`, `user:`, `url:`, `notes:`, `pass:`, `tag:`, `group:` (with a `/` it matches the path), `attr:` (field
+  names), `att:` (attachment names), `uuid:`, and `_Name:` for the custom field *Name*. The start of a field name is enough.
+- **Filters:** `is:weak`, `is:expired`, `is:expired-30` (expired or expiring within 30 days), `has:totp`, `has:passkey`, `has:attachment`,
+  `has:tags`, `has:url`, `has:notes`, `has:history`.
+- **Modifiers:** `-` or `!` excludes, `+` matches exactly (case included), `*` turns the rest into a regular expression.
+- **Wildcards:** `*`, `?` and `|` (or), and `"quotes"` for values with spaces.
+
+Example: `url:bank is:weak -tag:old`
+
+</details>
 
 <details>
 <summary>Keyboard shortcuts</summary>
