@@ -161,33 +161,42 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 body.has-nch .login { min-height: calc(100vh - var(--nch-h)); }
 body.has-nch .shell { height: calc(100vh - var(--nch-h)); height: calc(100dvh - var(--nch-h)); }
 body.has-nch .topbar .brand { display: none; } /* der Name steht schon in der Kopfleiste */
-.nch { position: relative; z-index: 30; display: flex; align-items: center; gap: 4px; height: var(--nch-h); padding: 0 8px; background: var(--nch-bg, #0b1f3b); color: var(--nch-fg, #fff); --nch-hover: rgb(255 255 255 / .18); }
-.nch[data-fg="dark"] { --nch-hover: rgb(0 0 0 / .1); }
+.nch { position: relative; z-index: 30; display: flex; align-items: center; height: var(--nch-h); padding: 0 12px 0 0; background: var(--nch-bg, #0b1f3b); color: var(--nch-fg, #fff); --nch-hover: rgb(0 0 0 / .1); --nch-press: rgb(0 0 0 / .15); }
 .nch a { color: inherit; text-decoration: none; }
 .nch :focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 .nch[data-offline="1"] > .nch-logo, .nch[data-offline="1"] > .nch-apps, .nch[data-offline="1"] .nch-user { opacity: .55; }
-.nch-logo { display: flex; align-items: center; height: 44px; padding: 0 10px; border-radius: 22px; } .nch-logo:hover { background: var(--nch-hover); }
-.nch-logo img { display: block; height: 26px; max-width: 140px; object-fit: contain; }
+/* Masse wie Nextcloud 34/35: Logo 62 px breit, Knoepfe 34 px hoch mit eigenem Hover, App-Raster 4 x 69 px */
+.nch-logo { display: flex; align-items: center; height: 44px; margin: 0 2px; padding: 0 12px; border-radius: 8px; }
+.nch-logo img { display: block; width: 62px; height: 44px; object-fit: contain; }
 .nch[data-fg="dark"] .nch-logo img.stock { filter: invert(1); }
-.nch-apps { position: relative; display: flex; align-items: center; gap: 2px; padding: 3px; border-radius: 23px; }
-.nch-apps:hover, .nch-apps.open { background: var(--nch-hover); }
-.nch-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 40px; min-width: 40px; padding: 0 10px; border: 0; border-radius: 20px; background: transparent; color: inherit; font-weight: 650; font-size: 14px; }
+.nch-apps { position: relative; display: flex; align-items: center; }
+.nch-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 34px; min-width: 34px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: inherit; font-size: 15px; font-weight: 500; }
+.nch-btn:hover { background: var(--nch-hover); } .nch-btn:active { background: var(--nch-press); }
+.nch .nch-btn:focus-visible { outline: none; background: var(--nch-hover); box-shadow: inset 0 0 0 2px currentColor; }
 .nch-btn .icon { width: 20px; height: 20px; }
-.nch-current { padding: 0 14px 0 10px; } .nch-current-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 24ch; }
+.nch-current { padding: 0 12px 0 7px; } .nch-current-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: clamp(80px, 22vw, 320px); letter-spacing: -.5px; }
 .nch-glyph { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none; font-weight: 700; font-size: 13px; }
-.nch-glyph.has-icon { background: currentColor; -webkit-mask: var(--nch-icon) center / contain no-repeat; mask: var(--nch-icon) center / contain no-repeat; }
+/* App-Symbole nach unten leicht ausgeblendet wie --header-menu-icon-mask in Nextcloud */
+.nch-glyph.has-icon { background: linear-gradient(currentColor 25%, color-mix(in srgb, currentColor 45%, transparent) 90%); -webkit-mask: var(--nch-icon) center / contain no-repeat; mask: var(--nch-icon) center / contain no-repeat; }
 .nch-pop { position: absolute; top: calc(100% + 6px); z-index: 40; padding: 10px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-2); }
-.nch-apps-pop { left: 0; width: 372px; max-width: calc(100vw - 16px); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-.nch .nch-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; min-height: 88px; padding: 8px 4px; border: 1px solid transparent; border-radius: 12px; color: var(--text); font-size: 13px; font-weight: 550; text-align: center; }
-.nch .nch-tile:hover, .nch .nch-tile:focus-visible { background: var(--surface-3); outline: none; }
-.nch-tile-icon { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 12px; background: var(--surface-3); color: var(--text); }
-.nch-tile-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nch .nch-tile[aria-current="page"] { background: var(--accent-soft); color: var(--accent); }
-.nch-tile[aria-current="page"] .nch-tile-icon { background: var(--accent); color: var(--on-accent); }
-.nch .nch-tile.more { border: 1px dashed var(--border-strong); } .nch-tile.more .nch-tile-icon { background: transparent; color: var(--muted); }
+/* Wie in Nextcloud 82 px nach links versetzt, der Pfeil zeigt auf den 9-Punkte-Knopf */
+.nch-apps-pop { top: calc(100% + 16px); left: -82px; max-width: calc(100vw - 16px); max-height: calc(100vh - var(--nch-h) - 16px); overflow-y: auto; display: grid; grid-template-columns: repeat(4, 69px); grid-auto-rows: minmax(64px, max-content); padding: 8px; }
+/* Pfeil am Knopf statt am Popover, das scrollt und wuerde ihn abschneiden */
+.nch-waffle { position: relative; }
+.nch-waffle[aria-expanded="true"]::after { content: ""; position: absolute; z-index: 41; top: 43px; left: 11px; width: 12px; height: 12px; background: var(--surface); border: solid var(--border); border-width: 1px 0 0 1px; border-top-left-radius: 2px; transform: rotate(45deg); }
+.nch .nch-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 4px 0; border-radius: 8px; color: var(--text); font-size: 12px; line-height: 1.3; letter-spacing: -.3px; text-align: center; }
+.nch .nch-tile:nth-child(-n+4) { padding-top: 8px; }
+.nch .nch-tile:hover { background: var(--surface-3); }
+.nch .nch-tile:focus-visible { background: var(--surface-3); outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
+.nch-tile-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%; color: var(--nch-fg, #fff); background: var(--nch-bg, #0b1f3b) linear-gradient(rgb(255 255 255 / .18), rgb(255 255 255 / 0) 45%, rgb(0 0 0 / .15)); box-shadow: inset 0 1px 0 rgb(255 255 255 / .25), inset 0 -1px 0 rgb(0 0 0 / .2), 0 2px 4px rgb(0 0 0 / .15); }
+.nch-tile-icon .nch-glyph { width: 22px; height: 22px; font-size: 15px; }
+.nch-tile-name { max-width: 100%; overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto; }
+.nch .nch-tile[aria-current="page"] .nch-tile-name { font-weight: 700; }
+.nch-tile.more .nch-tile-icon { background: transparent; box-shadow: inset 0 0 0 2px var(--border-strong); color: var(--text); }
+.nch-tile.more .nch-glyph { font-size: 26px; font-weight: 400; }
 .nch-offline { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--bad-soft); color: var(--bad); white-space: nowrap; }
 .nch-user-wrap { position: relative; }
-.nch-user { width: 44px; height: 44px; padding: 0; border-radius: 50%; } .nch-user:hover { background: var(--nch-hover); }
+.nch-user { width: 44px; height: 44px; border-radius: 50%; }
 .nch-avatar, .nch-initial { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; flex: none; object-fit: cover; }
 .nch-initial { background: #6b625a; color: #fff; font-weight: 700; font-size: 14px; }
 .nch-user-pop { right: 0; width: 300px; max-width: calc(100vw - 16px); display: flex; flex-direction: column; padding: 6px; }
@@ -333,8 +342,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
 }
 @media (max-width: 760px) {
     :root { --topbar-h: 52px; }
-    .nch-current { display: none; } .nch-logo { padding: 0 6px; }
-    .nch-apps { position: static; } .nch-apps-pop { left: 8px; right: 8px; width: auto; max-width: none; } .nch-logo img { max-width: 90px; } .nch-offline { display: none; }
+    .nch-current { display: none; } .nch-offline { display: none; }
     .panes { grid-template-columns: minmax(0, 1fr); }
     .listpane, .detailpane { grid-column: 1; grid-row: 1; }
     .shell[data-view="list"] .detailpane, .shell[data-view="groups"] .detailpane { display: none; }

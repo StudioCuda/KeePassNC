@@ -1,4 +1,4 @@
-// Kopfleiste im Stil von Nextcloud 34/35: Logo, 9-Punkte-Knopf + aktuelle App (beide oeffnen das App-Menue), Benutzermenue.
+// Kopfleiste im Stil von Nextcloud 34/35: Logo, 9-Punkte-Knopf + aktuelle App (getrennte Knoepfe, beide oeffnen das App-Menue), Benutzermenue.
 // Bewusst ohne Nextcloud-JavaScript: Die Eintraege kommen geprueft vom Server (INavigationManager), es laeuft nur unser Code auf
 // der Seite. Unified Search, Benachrichtigungen und Kontaktmenue fehlen deshalb (brauchen Nextcloud-JavaScript, siehe SECURITY.md).
 import { t } from '../i18n.js';
@@ -81,7 +81,7 @@ export function renderNcHeader(NC) {
     const cur = h('button', { type: 'button', class: 'nch-btn nch-current', id: 'nch-current', 'aria-label': t('nch.apps.current', { app: current.name }), 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': 'nch-apps-pop' },
         glyph(current), h('span', { class: 'nch-current-name', text: current.name }));
     const appsNav = h('nav', { class: 'nch-apps', 'aria-label': t('nch.apps') }, waffle, cur, appsPop);
-    for (const b of [waffle, cur]) b.addEventListener('click', () => { openPop(appsPop, [waffle, cur], b, 3); appsNav.classList.toggle('open', !appsPop.hidden); });
+    for (const b of [waffle, cur]) b.addEventListener('click', () => openPop(appsPop, [waffle, cur], b, 4));
 
     const initial = h('span', { class: 'nch-initial', 'aria-hidden': 'true', text: (nav.name || NC.user || '?').slice(0, 1).toUpperCase() });
     const avatar = () => (nav.avatar ? h('img', { class: 'nch-avatar', src: nav.avatar, alt: '', onerror: (e) => e.target.replaceWith(initial.cloneNode(true)) }) : initial.cloneNode(true));
