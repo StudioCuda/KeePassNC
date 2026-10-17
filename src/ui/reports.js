@@ -1,10 +1,11 @@
-// Berichte: Passwort-Gesundheit (angelehnt an KeePassXC), Statistik, Datenbank-Info.
+// Berichte: Passwort-Gesundheit (angelehnt an KeePassXC), Statistik, Datenbank-Info (mit Zugang zu den Datenbank-Einstellungen).
 import { auditEntries } from '../core/audit.js';
 import { fieldOf } from '../core/util.js';
 import { t, fmtDate } from '../i18n.js';
 import { ctx } from './ctx.js';
 import { h, icon, modal } from './dom.js';
 import { allRealEntries, avatar } from './common.js';
+import { openDbSettings } from './db-settings.js';
 
 const { state } = ctx;
 
@@ -40,11 +41,12 @@ export function openReports(initialTab = 'health') {
         } else {
             const i = state.vault.info();
             const row = (k, v) => h('div', { class: 'kv' }, h('span', { class: 'muted', text: k }), h('span', { class: 'mono', text: String(v) }));
-            content.replaceChildren(h('div', { class: 'card flat' },
-                row(t('info.name'), i.name || state.source.name), row(t('info.format'), i.version), row(t('info.cipher'), i.cipher), row(t('info.kdf'), i.kdf),
+            content.replaceChildren(h('div', { class: 'stack tight' }, h('div', { class: 'card flat' },
+                row(t('info.name'), i.name || state.source.name), state.vault.db.meta.desc ? row(t('info.desc'), state.vault.db.meta.desc) : null, row(t('info.format'), i.version), row(t('info.cipher'), i.cipher), row(t('info.kdf'), i.kdf),
                 i.memoryMiB !== null ? row(t('info.memory'), i.memoryMiB + ' MiB') : null, row(t('info.iterations'), i.iterations), i.parallelism !== null ? row(t('info.parallelism'), i.parallelism) : null,
                 row(t('info.modified'), fmtDate(state.vault.db.meta.settingsChanged || state.vault.db.meta.dbNameChanged, true))),
-                h('p', { class: 'hint', text: t('info.note') }));
+                h('div', {}, h('button', { type: 'button', class: 'small', id: 'db-settings-btn', text: t('dbset.edit'), onclick: () => openDbSettings({ onApplied: render }) })),
+                h('p', { class: 'hint', text: t('info.note') })));
         }
     }
     const m = modal({ title: t('reports'), body: h('div', { class: 'stack' }, tabs, content), size: 'lg', cls: 'reports-modal' });

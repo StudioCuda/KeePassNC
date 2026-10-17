@@ -75,7 +75,7 @@ export function moveGroupDialog(g) {
 
 export async function deleteGroup(g) {
     const v = state.vault;
-    const inBin = v.isInRecycleBin(g);
+    const inBin = v.deletesForever(g);
     const n = [...g.allEntries()].length;
     const ok = await confirmDialog({ title: inBin ? t('delete.forever') : t('group.delete'), message: inBin ? t('group.delete.forever.msg', { name: g.name, n }) : t('group.delete.msg', { name: g.name, n }), confirmLabel: inBin ? t('delete.forever') : t('delete'), cancelLabel: t('cancel'), danger: true });
     if (!ok) return;
@@ -163,11 +163,12 @@ export function renderSidebar(host) {
 
     const rb = v.recycleBin;
     const binCount = rb ? [...rb.allEntries()].length : 0;
-    const bin = h('div', { class: 'nav-section' }, h('div', { class: 'tree-row bin' + (f.type === 'bin' ? ' active' : '') },
+    // Ohne Papierkorb (Datenbank-Einstellung) kein Eintrag dafuer; eine alte Papierkorb-Gruppe erscheint dann als normale Gruppe.
+    const bin = !v.binEnabled ? null : h('div', { class: 'nav-section' }, h('div', { class: 'tree-row bin' + (f.type === 'bin' ? ' active' : '') },
         h('span', { class: 'twisty' }),
         h('button', { type: 'button', class: 'tree-label', id: 'nav-bin', onclick: () => setFilter({ type: 'bin' }) }, icon('trash'), h('span', { class: 'grow', text: t('nav.bin') }), h('span', { class: 'count', text: String(binCount) })),
         rb ? iconBtn('more', t('more'), (e) => { e.stopPropagation(); groupMenu(e.currentTarget, rb); }, { class: 'row-more' }) : null));
-    if (rb) {
+    if (rb && bin) {
         bin.firstChild.addEventListener('dragover', (e) => { if (dragging) { e.preventDefault(); bin.firstChild.classList.add('drop'); } });
         bin.firstChild.addEventListener('dragleave', () => bin.firstChild.classList.remove('drop'));
         bin.firstChild.addEventListener('drop', (e) => { e.preventDefault(); bin.firstChild.classList.remove('drop'); if (!dragging) return; if (dragging.kind === 'entry') v.removeEntry(dragging.item); else v.removeGroup(dragging.item); dragging = null; changed(); });
