@@ -1,5 +1,6 @@
 // Sitzung: Speichern, Abgleichen (Intervall/Wiederverbinden), Sperren, Zeitgeber, Offline-App (Service Worker).
 import { isOffline } from '../webdav.js';
+import { ARGON2_WORKER_URL } from '../argon2.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus, download, SW_CACHE, SYNC_RETRY_MS, params } from './ctx.js';
 import { $, confirmDialog } from './dom.js';
@@ -184,7 +185,7 @@ export async function ensureOfflineApp() {
         const cache = await caches.open(SW_CACHE);
         const shell = location.origin + location.pathname;
         const assets = [...document.querySelectorAll('script[src], link[rel=stylesheet][href]')].map((n) => n.src || n.href);
-        const wanted = new Set([shell, ...assets]);
+        const wanted = new Set([shell, ...assets, ...(ARGON2_WORKER_URL ? [ARGON2_WORKER_URL] : [])]); // der Worker steht nicht im DOM
         // Wie cache.add(), nur ohne dessen Konsolenfehler, wenn der Server gerade 503 liefert (Wartungsmodus).
         const refresh = async (u) => {
             try {

@@ -26,7 +26,9 @@ export function workerUrl(scriptSrc) {
 
 // document.currentScript gibt es nur, solange das App-Skript laeuft, also hier beim Laden lesen.
 const scriptSrc = typeof document !== 'undefined' ? document.currentScript?.src : '';
-let url = scriptSrc && typeof Worker !== 'undefined' ? workerUrl(scriptSrc) : null;
+/** Adresse des Workers (null ohne Worker-Unterstuetzung); gehoert in den App-Cache fuer den Offline-Start (session.js). */
+export const ARGON2_WORKER_URL = scriptSrc && typeof Worker !== 'undefined' ? workerUrl(scriptSrc) : null;
+let url = ARGON2_WORKER_URL;
 
 class NoWorker extends Error {}
 
