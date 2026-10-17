@@ -54,6 +54,10 @@ The private key (`keepassnc.key`) stays on the owner's machine. It never goes in
    `keepassnc-X.Y.Z.tar.gz` to the GitHub release, checks that GitHub serves exactly that file, removes the unsigned archive and
    registers the release with the App Store API. Nextcloud servers pick the update up after a while.
 
+   Skipping a version in the App Store (say, because the next one is right around the corner)? `tools/sign-github-release.sh`
+   (or `tools\sign-github-release.cmd`) does everything above except the App Store part, and needs no token. The GitHub release
+   still ends up with the signed archive.
+
 Doing it by hand still works: `tools/sign-release.sh` signs and prints the signature, then attach the archive to the release and
 enter its download URL and the signature on `apps.nextcloud.com/developer/apps/releases/new`. Not the automatic "Source code"
 download, its folder name is wrong. Then delete the unsigned archive from the release. Signing again makes a new archive with a
