@@ -167,6 +167,36 @@ async function main() {
         return 'v4.1';
     });
 
+    // 4b) KDBX 4.1: LastModificationTime von Custom Icons und CustomData-Items muss wie alle KDBX-4-Zeiten binaer (Base64) in
+    // der Datei stehen; upstream schrieb ISO-Text, an dem KeePass scheitert (keeweb/kdbxweb#49, #62). Im XML-Export bleibt es Text.
+    await t('KDBX 4.1: LastModificationTime von Custom Icon + CustomData binaer, im XML-Export als Text', async () => {
+        const file = path.join(TMP, 'k41-lastmod.kdbx');
+        const { db } = await makeDb({ version: 4, minor: 1, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2d });
+        await populate(db);
+        const when = new Date('2026-05-08T12:34:56Z');
+        const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
+        db.meta.customIcons.set(kdbxweb.KdbxUuid.random().id, { data: ab(png), name: 'Punkt', lastModified: when });
+        db.meta.customData.set('KPNC.Test', { value: 'eins', lastModified: when });
+        await save(db, file);
+        verify(file, undefined, '4.1', 'pw-eins-v2');
+        // Kdbx.load verwirft das entschluesselte XML am Ende (cleanXml); fuer diesen Test behalten wir es
+        const cleanXml = kdbxweb.KdbxFormat.prototype.cleanXml; kdbxweb.KdbxFormat.prototype.cleanXml = () => {};
+        let back: any;
+        try { back = await Kdbx.load(ab(fs.readFileSync(file)), new Credentials(ProtectedValue.fromString(PW))); }
+        finally { kdbxweb.KdbxFormat.prototype.cleanXml = cleanXml; }
+        const times = (doc: Document, parent: string) => Array.from(doc.getElementsByTagName(parent)).flatMap((p) =>
+            Array.from(p.getElementsByTagName('LastModificationTime')).map((n) => n.textContent || ''));
+        const stored = [...times(back.xml, 'CustomIcons'), ...times(back.xml, 'CustomData')];
+        if (stored.length !== 2 || !stored.every((s) => /^[A-Za-z0-9+/]{11}=$/.test(s))) throw new Error('Nicht binaer: ' + stored);
+        const icon = [...back.meta.customIcons.values()][0], item = back.meta.customData.get('KPNC.Test');
+        if (icon?.lastModified?.getTime() !== when.getTime() || item?.lastModified?.getTime() !== when.getTime())
+            throw new Error('Zeitstempel nach dem Zuruecklesen: ' + icon?.lastModified + ' / ' + item?.lastModified);
+        const xmlDoc = new (require('@xmldom/xmldom').DOMParser)().parseFromString(await back.saveXml(), 'text/xml');
+        const exported = [...times(xmlDoc, 'CustomIcons'), ...times(xmlDoc, 'CustomData')];
+        if (exported.join() !== '2026-05-08T12:34:56Z,2026-05-08T12:34:56Z') throw new Error('XML-Export: ' + exported);
+        return 'v4.1';
+    });
+
     // 5) Wechselseitiges Bearbeiten: kdbxweb -> KeePassXC (edit) -> kdbxweb
     await t('Wechselseitig: kdbxweb schreibt, KeePassXC bearbeitet+speichert, kdbxweb liest und speichert erneut', async () => {
         const file = path.join(TMP, 'cross.kdbx');
