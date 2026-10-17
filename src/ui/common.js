@@ -4,7 +4,8 @@ import { parseQuery, matches } from '../core/search.js';
 import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath } from '../core/util.js';
 import { t } from '../i18n.js';
 import { ctx } from './ctx.js';
-import { h, icon } from './dom.js';
+import { h, icon, pathIcon } from './dom.js';
+import { KP_ICONS, GROUP_DEFAULT_ICON } from './kpicons.js';
 
 const bitsCache = new Map();
 export function bitsOf(pw) {
@@ -16,21 +17,27 @@ export const isWeak = (e) => { const pw = fieldOf(e, 'Password'); return !!pw &&
 export { strengthLabel };
 
 const hueOf = (s) => { let x = 0; for (const c of s) x = (x * 31 + c.codePointAt(0)) >>> 0; return x % 12; };
-/** Rundes Symbol: eigenes Icon (Raster), sonst Anfangsbuchstabe auf farbigem Grund. */
-export function avatar(item, { size = '' } = {}) {
-    const url = ctx.state.vault.customIconUrl(item);
+/**
+ * Rundes Symbol eines Eintrags: eigenes Icon (Raster), sonst das gewaehlte Standard-Symbol auf farbigem Grund. Das Standard-Symbol 0
+ * (Schluessel, die Vorgabe von KeePass) zeigt den Anfangsbuchstaben. sel ({icon, url}) ersetzt das Symbol des Eintrags (Vorschau im Editor).
+ */
+export function avatar(item, { size = '', sel, title } = {}) {
+    const url = sel ? sel.url : ctx.state.vault.customIconUrl(item);
     if (url) { const img = h('img', { class: 'avatar img ' + size, src: url, alt: '' }); return img; }
-    const title = item.name !== undefined ? item.name : fieldOf(item, 'Title');
+    title ??= item.name !== undefined ? item.name : fieldOf(item, 'Title');
+    const std = KP_ICONS[sel ? sel.icon : item.icon];
+    if (std && (sel ? sel.icon : item.icon)) return h('span', { class: `avatar glyph hue-${hueOf(title || '')} ${size}`, 'aria-hidden': 'true' }, pathIcon(std));
     const ch = ([...(title || '?').trim()][0] || '?').toUpperCase();
     return h('span', { class: `avatar hue-${hueOf(title || '')} ${size}`, 'aria-hidden': 'true', text: ch });
 }
 
-export function groupIcon(g) {
+/** Symbol einer Gruppe: Papierkorb, eigenes Icon, gewaehltes Standard-Symbol oder Ordner. sel wie bei avatar. */
+export function groupIcon(g, { sel } = {}) {
     const v = ctx.state.vault;
-    if (g === v.recycleBin) return icon('trash');
-    const url = v.customIconUrl(g);
+    if (g === v.recycleBin && !sel) return icon('trash');
+    const url = sel ? sel.url : v.customIconUrl(g);
     if (url) return h('img', { class: 'icon img', src: url, alt: '' });
-    return icon('folder');
+    return pathIcon(KP_ICONS[sel ? sel.icon : g.icon ?? GROUP_DEFAULT_ICON] || KP_ICONS[GROUP_DEFAULT_ICON]);
 }
 
 export function allRealEntries() {

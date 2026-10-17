@@ -3,6 +3,10 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Added
+- Icons for entries and groups: pick one of KeePass's 69 standard icons (redrawn in the app's own line style) or add your own picture. PNG, JPEG, GIF, WebP, BMP, ICO and SVG all work; they get shrunk (or, for SVG, drawn) to 128 px and saved as PNG, so KeePass, KeePassXC and the mobile apps show them too. The same picture twice is recognized, unused ones can be removed, and a group can hand its icon down to its subgroups and entries, just like in KeePassXC. Nothing is fetched from the web, not even favicons.
+- Entries with a standard icon now show it in the list instead of the first letter. Entries with the default key icon keep their colorful letter.
+
 ### Changed
 - More URLs are clickable: a URL field holding just `example.com` opens `https://example.com`, and extra fields with a web address are links too (bare hostnames only in fields with "URL" in the name, say `KP2A_URL_1`). `Ctrl+Shift+U` follows the same rules. Things like `cmd://` or `{REF:…}` stay plain text, and protected fields stay hidden.
 - Unlocking no longer freezes the page: Argon2 does its heavy lifting in a background worker, so the page keeps reacting while your database unlocks. The worker is shut down right after, taking its (possibly gigabyte-sized) scratch memory with it. If the worker can't start, the page does the math itself like before.

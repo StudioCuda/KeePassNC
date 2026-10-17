@@ -1,0 +1,81 @@
+// Die 69 Standard-Symbole von KeePass (IconID 0-68), als eigene Linien-Symbole im Stil von dom.js. Reihenfolge und Bedeutung folgen
+// KeePass (PwIcon), damit KeePass, KeePassXC und Co. dasselbe Motiv zeigen; die Zeichnungen sind eigene.
+import { P } from './dom.js';
+
+const doc = P.file;
+const folder = P.folder;
+
+export const KP_ICONS = [
+    P.key, // 0 Key
+    P.globe, // 1 World
+    P.alert, // 2 Warning
+    'M4 4h16v6H4ZM4 14h16v6H4ZM7.500 7h.01M7.500 17h.01M11 7h5.500M11 17h5.500', // 3 NetworkServer
+    folder + 'M9.500 13.500l2 2 3.500-3.500', // 4 MarkedDirectory
+    'M4 4h10a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1H8.500L5 15v-3H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM18 8h2a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-1v3l-3.500-3H11a1 1 0 0 1-1-1v-.500', // 5 UserCommunication
+    'M4 8h4a2 2 0 1 1 4 0h4v4a2 2 0 1 1 0 4v4H4Z', // 6 Parts
+    'M6 5h12v16H6ZM9 3v4M12 3v4M15 3v4M9 11h6M9 14.500h6M9 18h3', // 7 Notepad
+    'M12 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM5 10h14M12 3c2.300 2.300 2.300 11.700 0 14M12 3c-2.300 2.300-2.300 11.700 0 14M12 17v4M8 21h8', // 8 WorldSocket
+    'M3 6h18v12H3ZM9 9a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM6 16a3 3 0 0 1 6 0M14.500 10h3.500M14.500 13.500h3.500', // 9 Identity
+    doc + 'M9 14.500l2 2 4-4', // 10 PaperReady
+    'M4 8h3l2-3h6l2 3h3v11H4ZM12 10a3.500 3.500 0 1 0 0 7 3.500 3.500 0 0 0 0-7Z', // 11 Digicam
+    'M9 12h6v9H9ZM12 15h.01M12 18h.01M9.500 8.500a3.500 3.500 0 0 1 5 0M7 6a7 7 0 0 1 10 0', // 12 IRCommunication
+    'M7 4.500a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM10 7.500h10M17 7.500V10M20 7.500v2M7 13.500a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM10 16.500h10M17 16.500V19M20 16.500v2', // 13 MultiKeys
+    'M13 3L5 13.500h6L10 21l8-10.500h-6Z', // 14 Energy
+    'M3 14h18v5H3ZM4 14l15-7M6.500 16.500h.01M11 16.500h6.500', // 15 Scanner
+    'M11 4a8 8 0 1 0 8.500 10M3 12h8M11 4c-2.500 2.500-2.500 13.500 0 16M11 4c1.300 1.300 2 3.300 2.300 5.500M18 2.500l1.100 2.300 2.400.300-1.800 1.700.500 2.400-2.200-1.200-2.200 1.200.500-2.400-1.800-1.700 2.400-.300Z', // 16 WorldStar
+    'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM12 10a2 2 0 1 0 0 4 2 2 0 0 0 0-4ZM12 6.500a5.500 5.500 0 0 1 5.500 5.500', // 17 CDRom
+    'M3 4h18v12H3ZM8 20h8M12 16v4', // 18 Monitor
+    'M3 6h18v12H3ZM3 7l9 6 9-6', // 19 EMail
+    'M4 6h9M17 6h3M4 12h3M11 12h9M4 18h11M19 18h1M15 4v4M9 10v4M17 16v4', // 20 Configuration
+    'M9 3.500h6v3H9ZM9 5H5v16h14V5h-4M8.500 13.500l2.500 2.500 4.500-4.500', // 21 ClipboardReady
+    doc + 'M12 11.500v6M9 14.500h6', // 22 PaperNew
+    'M3 5h18v14H3ZM3 9h18M6 7h.01M9 7h.01', // 23 Screen
+    'M12 3l10 18H2ZM13 9.500l-2.500 4h3.500l-2 3.500', // 24 EnergyCareful
+    'M4 13l2.500-8h11l2.500 8v6H4ZM4 13h4.500l1 2.500h5l1-2.500H20', // 25 EMailBox
+    P.save, // 26 Disk
+    'M3 14h18v5H3ZM5 14l2-8h10l2 8M6.500 16.500h.01M14 16.500h3.500', // 27 Drive
+    doc + 'M10 12.500a2 2 0 1 1 2.800 1.800c-.500.300-.800.700-.800 1.200M12 18h.01', // 28 PaperQ
+    'M3 4h13v10H3ZM6 7.500l2 1.500-2 1.500M10 11h3M15 15.500h6V21h-6ZM16.500 15.500V14a1.500 1.500 0 0 1 3 0v1.500', // 29 TerminalEncrypted
+    'M3 5h18v14H3ZM7 10l3 2-3 2M12 15h5', // 30 Console
+    'M7 9V4h10v5M7 17H4V9h16v8h-3M7 14h10v6H7Z', // 31 Printer
+    'M4 4h6v6H4ZM14 4h6v6h-6ZM4 14h6v6H4ZM14 14h6v6h-6Z', // 32 ProgramIcons
+    'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM10 8.500v7l5.500-3.500Z', // 33 Run
+    P.settings, // 34 Settings
+    'M3 4h18v12H3ZM8 20h8M12 16v4M12 6.500a3.500 3.500 0 1 0 0 7 3.500 3.500 0 0 0 0-7ZM8.500 10h7', // 35 WorldComputer
+    'M3 5h18v4H3ZM5 9v11h14V9M10 13h4', // 36 Archive
+    'M3 9l9-5 9 5ZM5.500 9v8M10 9v8M14 9v8M18.500 9v8M3 20h18', // 37 Homebanking
+    'M3 15h18v5H3ZM6.500 17.500h.01M14 17.500h3.500M8 3h8v8H8ZM8 7h8M12 3v8', // 38 DriveWindows
+    P.clock, // 39 Clock
+    'M2 5h14v10H2ZM2 6l7 5 7-5M17.500 13.500a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM19.700 18.700L22 21', // 40 EMailSearch
+    doc + 'M10 19v-7.500h5l-1 1.500 1 1.500h-5', // 41 PaperFlag
+    'M6 6h12v12H6ZM9.500 9.500h5v5h-5ZM9 3v3M12 3v3M15 3v3M9 18v3M12 18v3M15 18v3M3 9h3M3 12h3M3 15h3M18 9h3M18 12h3M18 15h3', // 42 Memory
+    P.trash, // 43 TrashBin
+    'M4 4h16v10l-6 6H4ZM14 20v-6h6M8 9h8M8 12.500h4', // 44 Note
+    'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM9 9l6 6M15 9l-6 6', // 45 Expired
+    P.info, // 46 Info
+    'M12 3l8 4.500v9L12 21l-8-4.500v-9ZM4 7.500l8 4.500 8-4.500M12 12v9M8 5.300l8 4.500', // 47 Package
+    folder, // 48 Folder
+    P.folderOpen, // 49 FolderOpen
+    folder + 'M9.500 10.500h5v5.500h-5ZM9.500 13h5', // 50 FolderPackage
+    P.unlock, // 51 LockOpen
+    doc + 'M9.500 14.500h5v4h-5ZM10.500 14.500v-1a1.500 1.500 0 0 1 3 0v1', // 52 PaperLocked
+    'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM8 12.500l2.500 2.500L16 9.500', // 53 Checked
+    'M12 21v-6.500M7 11l5-8 5 8-2 4H9ZM12 13a1.500 1.500 0 1 0 0-3 1.500 1.500 0 0 0 0 3Z', // 54 Pen
+    'M3 5h18v14H3ZM3 16l5-5 4 4 3-3 6 6M15.500 8.500h.01', // 55 Thumbnail
+    'M5 4.500A1.500 1.500 0 0 1 6.500 3H19v15H6.500A1.500 1.500 0 0 0 5 19.500ZM5 19.500A1.500 1.500 0 0 0 6.500 21H19v-3M9 7h6', // 56 Book
+    P.list, // 57 List
+    'M9 4a3.500 3.500 0 1 0 0 7 3.500 3.500 0 0 0 0-7ZM3 20a6 6 0 0 1 9-5.200M17 11.500a2.500 2.500 0 1 0 0 5 2.500 2.500 0 0 0 0-5ZM17 16.500V21.500M17 19.500h2', // 58 UserKey
+    'M4 20l9-9M13 11a4.500 4.500 0 0 1 6.500-6.500L17 7l.500 1.500L19 9l2.500-2.500A4.500 4.500 0 0 1 15 13', // 59 Tool
+    'M3 11l9-7 9 7M5 9.500V20h5v-6h4v6h5V9.500', // 60 Home
+    P.star, // 61 Star
+    'M12 3c-2.300 0-3.300 2.200-3.300 4.500 0 1.800-3.200 4.500-3.200 8.500 0 2.800 2.500 5 6.500 5s6.500-2.200 6.500-5c0-4-3.200-6.700-3.200-8.500C15.300 5.200 14.300 3 12 3ZM10.500 7h.01M13.500 7h.01M10.800 9.300h2.400L12 10.500ZM9.500 13.500c-.500 3 .800 5.500 2.500 5.500s3-2.500 2.500-5.500M7 21h3.500M13.500 21H17', // 62 Tux
+    'M5 20L15 10M19 4c-6 0-11 4-11 11v5h4c7 0 9-6 9-10 0-3-1-6-2-6ZM8 16h6M10.500 12h7', // 63 Feather
+    'M12 7.500c-1.500-1-5-1.500-6.500 1.500S5 16 7 19s3.500 2.500 5 1.500c1.500 1 3 1.500 5-1.500s2.500-7 1-10-5.500-2.500-6-1.500ZM12 7.500c0-2 1-3.500 3-4.500', // 64 Apple
+    'M4 4h16v16H4ZM6.500 8.500l2 7 3.500-5.500 3.500 5.500 2-7', // 65 Wiki
+    'M3 6h18v12H3ZM12 9.500a2.500 2.500 0 1 0 0 5 2.500 2.500 0 0 0 0-5ZM6 9h.01M18 15h.01', // 66 Money
+    'M4 4h16v11H4ZM8 8h8M8 11h4M16 13a2.500 2.500 0 1 0 0 5 2.500 2.500 0 0 0 0-5ZM14.500 17.500L14 21l2-1 2 1-.500-3.500', // 67 Certificate
+    'M7 2.500h10v19H7ZM9 5h6v5H9ZM9.500 13h.01M12 13h.01M14.500 13h.01M9.500 15.500h.01M12 15.500h.01M14.500 15.500h.01M9.500 18h.01M12 18h.01M14.500 18h.01' // 68 BlackBerry
+];
+
+export const ENTRY_DEFAULT_ICON = 0; // Schluessel; KeePassNC zeigt stattdessen den Anfangsbuchstaben
+export const GROUP_DEFAULT_ICON = 48; // Ordner

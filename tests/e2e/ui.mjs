@@ -290,6 +290,57 @@ async function main() {
         await page.waitForFunction(() => navigator.clipboard.readText().then((y) => y === ''), null, { timeout: 15000 });
     });
 
+    await step('Symbole: Standard-Symbol, eigenes Bild (verkleinert, doppelt erkannt, entfernt), Gruppe samt Untergruppen', async () => {
+        const row = (t) => rows(page).filter({ hasText: t }).first();
+        const shot = (width, height) => page.screenshot({ clip: { x: 0, y: 0, width, height } });
+        const picker = async (title) => { await pick(page, title); await page.click('#edit-btn'); await page.click('#e-icon'); await page.locator('#icon-std').waitFor(); };
+        const customCells = () => page.locator('[data-testid=icon-custom-cell]');
+        const logo = await shot(300, 200), small = await shot(90, 60);
+        // Standard-Symbol 37 (Bank): Vorschau im Editor, danach in der Liste
+        await picker('Amazon');
+        await page.click('#icon-std [data-icon="37"]'); await page.click('#icon-ok');
+        expect(await page.locator('#e-icon .avatar.glyph').count() === 1, 'Vorschau im Editor');
+        await page.click('#apply-btn');
+        expect(await row('Amazon').locator('.avatar.glyph').count() === 1, 'Liste zeigt das Standard-Symbol');
+        // Eigenes Bild 300x200 -> 128x85
+        await picker('Gmail');
+        const n0 = await customCells().count();
+        await page.setInputFiles('#icon-file', { name: 'logo.png', mimeType: 'image/png', buffer: logo });
+        await page.locator('[data-testid=icon-custom-cell][aria-checked=true]').waitFor();
+        expect(await customCells().count() === n0 + 1, 'neues Bild in der Liste');
+        await page.click('#icon-ok'); await page.click('#apply-btn');
+        expect(await row('Gmail').locator('img.avatar').count() === 1, 'Liste zeigt das eigene Bild');
+        // Dasselbe Bild noch einmal: wird erkannt und ausgewaehlt; ein SVG und ein kleines Bild kommen dazu, nur das gewaehlte landet in der Datei und wird wieder entfernt
+        await picker('Etsy');
+        const before = await customCells().count();
+        await page.setInputFiles('#icon-file', { name: 'logo-again.png', mimeType: 'image/png', buffer: logo });
+        await page.locator('.toast', { hasText: 'gibt es schon' }).waitFor();
+        expect(await customCells().count() === before && await page.locator('[data-testid=icon-custom-cell][aria-checked=true]').count() === 1, 'Duplikat ausgewaehlt statt neu angelegt');
+        // SVG mit Skript und externem Bild: wird als Bild gezeichnet (128x64), das Skript laeuft nicht, nichts wird nachgeladen (letzter Schritt)
+        const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><script>window.__svgRan = 1</script><image href="https://example.org/x.png" width="5" height="5"/><rect width="20" height="10" fill="#c33"/></svg>';
+        await page.setInputFiles('#icon-file', { name: 'vektor.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) });
+        await page.waitForFunction((n) => document.querySelectorAll('[data-testid=icon-custom-cell]').length === n, before + 1);
+        const size = await page.locator('[data-testid=icon-custom-cell][aria-checked=true] img').evaluate((img) => img.decode().then(() => [img.naturalWidth, img.naturalHeight, !!window.__svgRan]));
+        expect(size[0] === 128 && size[1] === 64 && !size[2], 'SVG als PNG 128x64 ohne Skript: ' + size);
+        await page.setInputFiles('#icon-file', { name: 'klein.png', mimeType: 'image/png', buffer: small });
+        await page.waitForFunction((n) => document.querySelectorAll('[data-testid=icon-custom-cell]').length === n, before + 2);
+        await page.click('#icon-ok'); await page.click('#apply-btn');
+        await page.click('#edit-btn'); await page.click('#e-icon');
+        await page.click('#icon-remove');
+        expect(/^1 Einträge/.test(await page.locator('.modal p').last().innerText()), 'Bestaetigung nennt die Zahl der Nutzer: ' + await page.locator('.modal p').last().innerText());
+        await page.click('#confirm-ok');
+        await page.waitForFunction((n) => document.querySelectorAll('[data-testid=icon-custom-cell]').length === n, before);
+        expect(await page.locator('#icon-std [aria-checked=true]').count() === 1, 'nach dem Entfernen wieder Standard-Symbol');
+        await page.click('#icon-ok'); await page.click('#cancel-btn');
+        expect(await row('Etsy').locator('img.avatar').count() === 0, 'Etsy zeigt kein eigenes Bild mehr');
+        // Gruppe: Symbol 60 (Zuhause) fuer die Gruppe und alle Untergruppen, Eintraege bleiben
+        const g = page.locator('.tree-row', { hasText: 'Lizenzen' }).first();
+        await g.hover(); await g.locator('.row-more').click(); await menuItem(page, 'Gruppe bearbeiten').click();
+        await page.click('#g-icon'); await page.click('#icon-std [data-icon="60"]'); await page.click('#icon-ok');
+        await page.selectOption('#g-icon-scope', 'groups'); await page.click('#g-ok');
+        await page.waitForFunction(() => !document.querySelector('.modal'));
+    });
+
     await step('Speichern (Strg+S) -> KeePassXC liest die Datei; alle UI-Aenderungen sind angekommen, nichts anderes ging verloren', async () => {
         await page.keyboard.press('Control+s');
         await waitStatus(page, /^Gespeichert\./, 60000);
@@ -316,6 +367,20 @@ async function main() {
         expect(/^otpauth:\/\/totp\//.test(text(strOf(ui, 'otp'))) && /secret=JBSWY3DPEHPK3PXP/.test(text(strOf(ui, 'otp'))), 'otp-Feld: ' + text(strOf(ui, 'otp')));
         expect(text(kids(kids(ui, 'Times')[0], 'Expires')[0]) === 'True', 'Expires');
         expect(es.length >= meta.entries, 'Eintragszahl ' + es.length);
+        // Symbole
+        const iconOf = (el) => text(kids(el, 'IconID')[0]), customOf = (el) => text(kids(el, 'CustomIconUUID')[0]);
+        expect(iconOf(find('Amazon')[0].entry) === '37', 'Amazon IconID ' + iconOf(find('Amazon')[0].entry));
+        const iconBox = kids(doc.getElementsByTagName('Meta')[0], 'CustomIcons')[0];
+        const icons = iconBox ? kids(iconBox, 'Icon') : [];
+        expect(icons.length === 2, 'das Symbol der Datei und das neue, das entfernte ist weg: ' + icons.length);
+        const mine = icons.find((ic) => text(kids(ic, 'UUID')[0]) === customOf(find('Gmail')[0].entry));
+        expect(mine, 'Gmail benutzt das neue Symbol');
+        expect(!customOf(find('Etsy')[0].entry), 'Etsy ohne eigenes Symbol');
+        const png = Buffer.from(text(kids(mine, 'Data')[0]), 'base64');
+        expect(png.subarray(1, 4).toString() === 'PNG' && png.readUInt32BE(16) === 128 && png.readUInt32BE(20) === 85, `PNG 128x85: ${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`);
+        const groupEl = (name) => Array.from(doc.getElementsByTagName('Group')).find((x) => text(kids(x, 'Name')[0]) === name);
+        expect(iconOf(groupEl('Lizenzen')) === '60' && iconOf(groupEl('Unter-1')) === '60', 'Gruppe und Untergruppe mit Symbol 60');
+        expect(iconOf(find('Gmail - Kopie')[0].entry) !== '60', 'Eintraege der Gruppe bleiben unveraendert');
         const shared = xc(['attachment-export', dbFile, 'Arbeit/Server/Prod/Teilt Anhang', 'zufall-kopie.bin', path.join(tmp, 'shared.bin')]);
         expect(fs.statSync(path.join(tmp, 'shared.bin')).size === 150000, 'gemeinsam genutzter Anhang blieb erhalten');
         return `${es.length} Eintraege, ${groups.length} Gruppen`;

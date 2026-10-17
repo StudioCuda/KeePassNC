@@ -77,10 +77,10 @@ input.num { width: 76px; text-align: center; }
 
 button { cursor: pointer; }
 button:disabled { cursor: default; opacity: .5; }
-.btn, :where(button:not(.icon-btn):not(.nch-btn):not(.chip):not(.nav-item):not(.tree-label):not(.twisty):not(.entry):not(.menu-item):not(.seg-btn):not(.link):not(.palette-item):not(.issue):not(.stat):not(.fab):not(.toast-action)) {
+.btn, :where(button:not(.icon-btn):not(.nch-btn):not(.chip):not(.nav-item):not(.tree-label):not(.twisty):not(.entry):not(.menu-item):not(.seg-btn):not(.link):not(.palette-item):not(.issue):not(.stat):not(.fab):not(.toast-action):not(.icon-cell):not(.icon-pick)) {
     display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 38px; padding: 6px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--surface); font-weight: 560; font-size: 14px; text-decoration: none; color: var(--text); white-space: nowrap; transition: background .12s, border-color .12s, transform .05s;
 }
-.btn:hover:not(:disabled), :where(button:not(.icon-btn):not(.nch-btn):not(.primary):not(.seg-btn):not(.chip):not(.nav-item):not(.tree-label):not(.entry):not(.menu-item):not(.palette-item):not(.issue):not(.stat):not(.fab):not(.twisty):not(.link):not(.danger-ghost)):hover:not(:disabled) { background: var(--surface-3); }
+.btn:hover:not(:disabled), :where(button:not(.icon-btn):not(.nch-btn):not(.primary):not(.seg-btn):not(.chip):not(.nav-item):not(.tree-label):not(.entry):not(.menu-item):not(.palette-item):not(.issue):not(.stat):not(.fab):not(.twisty):not(.link):not(.danger-ghost):not(.icon-cell):not(.icon-pick)):hover:not(:disabled) { background: var(--surface-3); }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 button.primary, .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 button.primary:hover:not(:disabled), .btn.primary:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 88%, #000); }
@@ -131,6 +131,21 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); fon
 .avatar.hue-0 { background: #4f7774; } .avatar.hue-1 { background: #2f5a85; } .avatar.hue-2 { background: #4a6a8a; } .avatar.hue-3 { background: #8b3a2f; }
 .avatar.hue-4 { background: #a4553a; } .avatar.hue-5 { background: #8a6a2e; } .avatar.hue-6 { background: #6f7a3a; } .avatar.hue-7 { background: #3f7a52; }
 .avatar.hue-8 { background: #2f6f6c; } .avatar.hue-9 { background: #3a5470; } .avatar.hue-10 { background: #7a4a5e; } .avatar.hue-11 { background: #6b625a; }
+.avatar.glyph .icon { width: 21px; height: 21px; } .avatar.lg.glyph .icon { width: 28px; height: 28px; }
+/* Symbol-Auswahl (ui/icon-picker.js) */
+.title-row { display: flex; align-items: flex-end; gap: 12px; }
+.icon-pick { display: inline-grid; place-items: center; flex: none; padding: 0; border: 0; border-radius: 16px; background: transparent; outline-offset: 2px; }
+.icon-pick:hover .avatar, .icon-pick:focus-visible .avatar { box-shadow: 0 0 0 3px var(--accent-soft); }
+.icon-pick.group { width: 42px; height: 42px; border-radius: var(--radius-sm); border: 1px solid var(--border-strong); background: var(--surface); color: var(--muted); }
+.icon-pick.group:hover { background: var(--surface-3); } .icon-pick.group .icon { width: 24px; height: 24px; }
+.icon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; }
+.icon-cell { display: grid; place-items: center; height: 42px; padding: 0; border: 1px solid transparent; border-radius: var(--radius-sm); background: transparent; color: var(--text); }
+.icon-cell:hover { background: var(--surface-3); }
+.icon-cell[aria-checked="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.icon-cell .icon { width: 22px; height: 22px; } .icon-cell img { width: 26px; height: 26px; object-fit: contain; }
+.icon-letter { font-weight: 700; font-size: 17px; }
+.icon-grid > .hint { grid-column: 1 / -1; }
+.icon-custom-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; box-shadow: var(--shadow-1); }
 .card.flat { box-shadow: none; background: var(--surface-2); }

@@ -76,6 +76,7 @@ export function refresh() {
     if (sr) sr.textContent = `${state.vault.versionLabel} · ${t('n.entries', { n })}`;
 }
 ctx.ui.renderSidebar = () => renderSidebar($('#groups'));
+ctx.ui.renderList = () => renderList();
 
 export function selectEntry(e) {
     const v = state.vault;
