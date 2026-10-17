@@ -81,6 +81,12 @@ url="https://github.com/$REPO/releases/download/$tag/$asset"
 # Der Store laedt genau diese Datei: einmal selbst herunterladen und vergleichen
 curl -fsSL "$url" -o "$dir/check.tar.gz" || fail "Download von $url klappt nicht."
 cmp -s "$out" "$dir/check.tar.gz" || fail "Die Datei auf GitHub ist nicht die eben signierte."
+# Das unsignierte Archiv aus release.yml war nur der Platzhalter bis hierher; ab jetzt gibt es nur noch das signierte.
+unsigned="keepassnc-$ver-unsigned.tar.gz"
+if gh release view "$tag" --repo "$REPO" --json assets -q '.assets[].name' | grep -x "$unsigned" >/dev/null; then
+    gh release delete-asset "$tag" "$unsigned" --repo "$REPO" --yes
+    echo "Unsigniertes Archiv entfernt: $unsigned"
+fi
 
 say "Beim App Store anmelden"
 body="$(printf '{"download":"%s","signature":"%s","nightly":false}' "$url" "$sig")"
