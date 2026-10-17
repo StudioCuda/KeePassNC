@@ -2,10 +2,13 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.8.1] - 2026-10-17
 ### Changed
 - The Nextcloud header looks even more like the real thing: the 9-dot button and the app name light up on their own when you hover them, and the app menu has Nextcloud's four columns of round, colored app icons with a little arrow pointing at the button.
 - The account menu on the right followed suit: your picture gets Nextcloud's thin ring and bold outline on hover, and the menu shows your name with "View profile" on top, then the entries with their usual icons.
+
+### Fixed
+- An app without an icon in the app menu shows its first letter instead of an empty circle.
 
 ## [0.8.0] - 2026-10-17
 ### Added
