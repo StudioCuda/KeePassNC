@@ -17,7 +17,7 @@ It's still a plain KeePass file, so KeePassXC, KeePassDX and Strongbox keep work
 Die Datenbank wird ausschließlich im Browser entschlüsselt; Master-Passwort und Klartext verlassen ihn nie, der Server sieht nur die verschlüsselte Datei. Änderungen werden mit ETag-Prüfung zurückgeschrieben, vorher wird eine Sicherungskopie angelegt (alte Kopien werden automatisch aufgeräumt); bei gleichzeitigen Änderungen auf mehreren Geräten werden die Stände zusammengeführt. Eine optionale verschlüsselte Offline-Kopie hält die Datenbank bei Server- oder Netzausfall nutzbar. Suchsyntax, Tags, TOTP (auch Steam Guard), Anhänge, Verlauf, Passwortgenerator, Gesundheitsbericht; Oberfläche auf Deutsch und Englisch; helles und dunkles Design; für Smartphone und großen Bildschirm.
 
 Die Datei bleibt ein normales KeePass-Format und kann jederzeit mit KeePassXC, KeePassDX, Strongbox & Co. weiterverwendet werden.]]></description>
-    <version>0.7.0</version>
+    <version>0.7.1</version>
     <licence>AGPL-3.0-or-later</licence>
     <author>KeePassNC</author>
     <namespace>Keepassnc</namespace>
