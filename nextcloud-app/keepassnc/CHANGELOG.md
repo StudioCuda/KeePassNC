@@ -6,6 +6,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Unlocking no longer freezes the page: Argon2 does its heavy lifting in a background worker, so the page keeps reacting while your database unlocks. The worker is shut down right after, taking its (possibly gigabyte-sized) scratch memory with it. If the worker can't start, the page does the math itself like before.
 
+### Fixed
+- Saving after someone else changed the file no longer undoes their encryption settings. If KeePassXC (or another device) beefed up the key derivation or switched the cipher in the meantime, KeePassNC used to merge the entries but quietly write its own older settings back. Now the side that actually changed them wins.
+
 ## [0.8.1] - 2026-10-17
 ### Changed
 - The Nextcloud header looks even more like the real thing: the 9-dot button and the app name light up on their own when you hover them, and the app menu has Nextcloud's four columns of round, colored app icons with a little arrow pointing at the button.
