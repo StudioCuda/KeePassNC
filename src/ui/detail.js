@@ -24,8 +24,9 @@ export function colorizedPassword(pw) {
     return out;
 }
 
-export function strengthBar(pw) {
-    const bits = pw ? bitsOf(pw) : 0;
+/** bits: exakter Wert, wenn bekannt (Generator); sonst Schaetzung aus dem Text. */
+export function strengthBar(pw, bits) {
+    if (bits === undefined) bits = pw ? bitsOf(pw) : 0;
     const label = strengthLabel(bits);
     const lvl = { bad: 1, poor: 1, weak: 2, good: 3, excellent: 4 }[label] || 0;
     return h('div', { class: `strength s${lvl}`, 'data-level': label, title: `${Math.round(bits)} bit` },
