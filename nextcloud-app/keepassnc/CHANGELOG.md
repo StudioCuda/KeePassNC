@@ -4,6 +4,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Changed
+- More URLs are clickable: a URL field holding just `example.com` opens `https://example.com`, and extra fields with a web address are links too (bare hostnames only in fields with "URL" in the name, say `KP2A_URL_1`). `Ctrl+Shift+U` follows the same rules. Things like `cmd://` or `{REF:…}` stay plain text, and protected fields stay hidden.
 - Unlocking no longer freezes the page: Argon2 does its heavy lifting in a background worker, so the page keeps reacting while your database unlocks. The worker is shut down right after, taking its (possibly gigabyte-sized) scratch memory with it. If the worker can't start, the page does the math itself like before.
 
 ## [0.8.1] - 2026-10-17

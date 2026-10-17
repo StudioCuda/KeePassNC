@@ -182,6 +182,27 @@ async function main() {
         await page.click('#nav-all');
     });
 
+    await step('URLs: nackter Hostname wird https-Link, cmd:// bleibt Text, Zusatzfeld mit Adresse ist ein Link', async () => {
+        const link = async (sel) => page.locator(sel).evaluate((n) => n.tagName === 'A' ? n.getAttribute('href') : null);
+        await page.click('#new-btn');
+        await page.fill('#e-title', 'UI Link'); await page.fill('#e-url', 'example.com/login');
+        await page.click('#add-custom');
+        for (const [name, value] of [['KP2A_URL_1', 'alt.example.org'], ['Server', 'https://srv.example.org'], ['Notiz', 'example.org']]) {
+            if (name !== 'KP2A_URL_1') await page.click('#add-custom');
+            const row = page.locator('#e-custom .custom-row').last(); await row.locator('.c-name').fill(name); await row.locator('.c-value').fill(value);
+        }
+        await page.click('#apply-btn');
+        await page.waitForFunction(() => (document.querySelector('#detail h2')?.textContent || '').trim() === 'UI Link');
+        expect(await link('[data-testid=f-url]') === 'https://example.com/login', 'nackter Hostname');
+        expect((await page.locator('[data-testid=f-url]').innerText()).trim() === 'example.com/login', 'Text bleibt wie eingegeben');
+        expect(await link('[data-testid=custom-KP2A_URL_1]') === 'https://alt.example.org', 'URL-Zusatzfeld');
+        expect(await link('[data-testid=custom-Server]') === 'https://srv.example.org', 'Zusatzfeld mit https');
+        expect(await link('[data-testid=custom-Notiz]') === null, 'nackter Hostname in einem Nicht-URL-Feld bleibt Text');
+        await page.click('#edit-btn'); await page.fill('#e-url', 'cmd://putty.exe'); await page.click('#apply-btn');
+        await page.waitForFunction(() => /cmd:/.test(document.querySelector('[data-testid=f-url]')?.textContent || ''));
+        expect(await link('[data-testid=f-url]') === null, 'cmd:// darf kein Link sein');
+    });
+
     await step('TOTP-Ring/-Code fuer otpauth (SHA256, 8 Stellen, 45 s) und alte Felder (TOTP Seed)', async () => {
         await pick(page, 'Mit TOTP (otp)');
         // Erst den ersten berechneten Code abwarten (vorher steht "------" da)
