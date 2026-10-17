@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Veroeffentlicht ein GitHub-Release im Nextcloud App Store: frischer Klon des Tags, signieren (tools/sign-release.sh),
 # signiertes Archiv ans GitHub-Release haengen, Version beim App Store anmelden. Laeuft auf dem Rechner des Maintainers
-# (WSL), der private Schluessel verlaesst ihn nie. Unter Windows per Doppelklick: tools/publish-release.cmd.
+# (WSL), der private Schluessel verlaesst ihn nie. Unter Windows per Doppelklick: tools/publish-nextcloud-release.cmd.
 #
-#   tools/publish-release.sh            # neuestes GitHub-Release
-#   tools/publish-release.sh 0.7.1      # bestimmte Version
+#   tools/publish-nextcloud-release.sh            # neuestes GitHub-Release
+#   tools/publish-nextcloud-release.sh 0.7.1      # bestimmte Version
 #
 # Einmalig einrichten (siehe docs/APPSTORE.md): gh auth login, App-Store-Token in "keepassnc.appstore-token" neben dem
 # Schluessel, Nextcloud zum Signieren in /opt/nc-sign/nextcloud.

@@ -1,8 +1,8 @@
 # Release without hand-made tags: when a release pull request (new version in info.xml, dated changelog section) lands on
 # main and the tests there are green, this tags vX.Y.Z and creates the GitHub release with an unsigned archive.
-# tools/publish-release.sh swaps it for the signed one later.
+# tools/publish-nextcloud-release.sh swaps it for the signed one later.
 # A tag pushed by hand still works the same way.
-# Signing and the App Store upload stay on the maintainer's machine (tools/publish-release.sh, see docs/APPSTORE.md),
+# Signing and the App Store upload stay on the maintainer's machine (tools/publish-nextcloud-release.sh, see docs/APPSTORE.md),
 # so the private key never touches CI.
 name: release
 on:
