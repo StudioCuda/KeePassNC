@@ -1,5 +1,5 @@
 // Anmeldung: Quelle waehlen (Nextcloud/WebDAV oder lokale Datei), Master-Passwort + optionale Schluesseldatei, Entschluesseln im Browser.
-import { Vault, VaultError } from '../vault.js';
+import { Vault, VaultError, KDF_LABEL } from '../vault.js';
 import { DavFile, DavError, NetworkError, isOffline } from '../webdav.js';
 import { cacheGet, wipeLocalData } from '../cache.js';
 import { loadSettings, saveSettings } from '../settings.js';
@@ -166,7 +166,7 @@ export function showLogin(message) {
             const perms = NC && dav && !offlineOpen ? await dav.permissions() : null;
             const readOnly = perms !== null && !perms.includes('W');
             let kfNote = '';
-            const dbKdf = () => { const i = vault.info(); return { kdf: i.kdf, memoryKiB: (i.memoryMiB || 0) * 1024, iterations: i.iterations }; };
+            const dbKdf = () => { const k = vault.securitySettings(); return { kdf: KDF_LABEL[k.kdf], memoryKiB: k.memoryKiB ?? 0, iterations: k.iterations ?? k.rounds }; };
             if (usedRemembered && (isWeakerThan(kfRec.kdf, dbKdf()) || (usePepper && !kfRec.server))) {
                 // Aelterer/schwaecherer Datensatz (v0.4.0, Datenbank-KDF inzwischen erhoeht, in Nextcloud noch ohne Server-Geheimwert):
                 // im Hintergrund mit aktuellen Parametern neu verschluesseln. Klappt das nicht (Server weg), bleibt der alte Datensatz.

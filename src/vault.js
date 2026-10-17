@@ -41,6 +41,10 @@ export function cryptoSettings(header) {
     return JSON.stringify([h.versionMajor, h.versionMinor, h.dataCipherUuid?.toString() ?? null, h.compression ?? null, h.keyEncryptionRounds ?? null, kdf]);
 }
 
+/** Anzeigenamen zu Vault.securitySettings(); KDF_LABEL ist auch das Format, das keyfile-store.js erwartet. */
+export const KDF_LABEL = { argon2d: 'Argon2d', argon2id: 'Argon2id', aes: 'AES-KDF' };
+const CIPHER_LABEL = { aes: 'AES-256', chacha20: 'ChaCha20' };
+
 export const STANDARD_FIELDS = ['Title', 'UserName', 'Password', 'URL', 'Notes'];
 
 /** message: deutscher Ersatztext; key/vars: Schluessel der Uebersetzung (siehe errText in i18n.js). */
@@ -561,20 +565,14 @@ export class Vault {
         return this._iconCache.get(id);
     }
 
-    /** Eckdaten der Datei fuer die Info-Ansicht. */
+    /** Eckdaten der Datei fuer die Info-Ansicht (Kopfdaten aus securitySettings, als Anzeigetext). */
     info() {
-        const h = this.db.header;
-        const kdf = h.kdfParameters;
-        const cipherNames = { [Consts.CipherId.Aes]: 'AES-256', [Consts.CipherId.ChaCha20]: 'ChaCha20' };
-        const out = { version: this.versionLabel, cipher: cipherNames[h.dataCipherUuid?.toString?.()] || h.dataCipherUuid?.toString?.() || '?', kdf: 'AES-KDF', memoryMiB: null, iterations: null, parallelism: null, name: this.db.meta.name || '' };
-        if (kdf) {
-            const id = kdf.get('$UUID');
-            const b64 = id ? btoa(String.fromCharCode(...new Uint8Array(id))) : '';
-            out.kdf = b64 === Consts.KdfId.Argon2d ? 'Argon2d' : b64 === Consts.KdfId.Argon2id ? 'Argon2id' : 'AES-KDF';
-            if (out.kdf !== 'AES-KDF') { out.memoryMiB = Math.round(Number(kdf.get('M')) / 1048576); out.iterations = Number(kdf.get('I')); out.parallelism = Number(kdf.get('P')); }
-            else out.iterations = Number(kdf.get('R'));
-        } else out.iterations = Number(h.keyEncryptionRounds ?? 0); // KDBX 3.1: AES-KDF-Runden direkt im Kopf
-        return out;
+        const s = this.securitySettings(), argon = s.kdf !== 'aes';
+        return {
+            version: this.versionLabel, name: this.db.meta.name || '',
+            cipher: CIPHER_LABEL[s.cipher] || this.db.header.dataCipherUuid?.toString?.() || '?', kdf: KDF_LABEL[s.kdf],
+            memoryMiB: argon ? Math.round(s.memoryKiB / 1024) : null, iterations: argon ? s.iterations : s.rounds, parallelism: argon ? s.parallelism : null
+        };
     }
 
     /**
