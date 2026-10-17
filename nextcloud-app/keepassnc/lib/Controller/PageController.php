@@ -13,6 +13,10 @@ use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\EmptyContentSecurityPolicy;
 use OCP\AppFramework\Http\Response;
+use OCP\Defaults;
+use OCP\IConfig;
+use OCP\IGroupManager;
+use OCP\INavigationManager;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\L10N\IFactory;
@@ -31,6 +35,10 @@ class PageController extends Controller {
 		private IUserSession $userSession,
 		private IAppManager $appManager,
 		private IFactory $l10nFactory,
+		private Defaults $defaults,
+		private IConfig $config,
+		private INavigationManager $navigationManager,
+		private IGroupManager $groupManager,
 	) {
 		parent::__construct(Application::APP_ID, $request);
 	}
@@ -76,6 +84,8 @@ class PageController extends Controller {
 		}
 		$lang = preg_match('/^[a-z]{2,3}/i', $lang, $m) ? strtolower($m[0]) : 'en';
 
+		[$ncColor, $ncThemes] = $this->theming($uid);
+
 		$vars = [
 			'__SW_URL__' => $swUrl,
 			'__PEPPER_URL__' => $pepperUrl,
@@ -87,6 +97,9 @@ class PageController extends Controller {
 			'__CSS__' => $this->urlGenerator->linkTo(Application::APP_ID, 'css/keepassnc.css') . '?v=' . $version,
 			'__JS__' => $this->urlGenerator->linkTo(Application::APP_ID, 'js/keepassnc.js') . '?v=' . $version,
 			'__LANG__' => $lang,
+			'__NC_COLOR__' => $ncColor,
+			'__NC_THEMES__' => $ncThemes,
+			'__NC_NAV__' => $this->navigation($uid, $indexPhp),
 		];
 		$template = file_get_contents(__DIR__ . '/../../templates/page.html');
 		$html = strtr($template, array_map(static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8'), $vars));
@@ -111,6 +124,93 @@ class PageController extends Controller {
 		$response->addHeader('Cache-Control', 'no-cache');
 		$response->setContentSecurityPolicy($this->contentSecurityPolicy());
 		return $response;
+	}
+
+	/**
+	 * Primaerfarbe und Hell/Dunkel-Wahl fuer das Theming der Seite. Farbe ueber OCP\Defaults (beruecksichtigt die eigene Farbe der
+	 * Person); die Theme-Wahl hat keine oeffentliche PHP-Schnittstelle und steht als Benutzerwert theming/enabled-themes (JSON-Liste,
+	 * ein erzwungenes Theme aus enforce_theme kommt davor). Bei Fehlern oder ohne Theming-App: leer, die Seite behaelt ihren Look.
+	 *
+	 * @return array{0: string, 1: string} [Farbe '#rrggbb' oder '', Theme-IDs durch Komma getrennt]
+	 */
+	private function theming(string $uid): array {
+		try {
+			if (!$this->appManager->isEnabledForUser('theming')) {
+				return ['', ''];
+			}
+			$color = strtolower(trim($this->defaults->getColorPrimary()));
+			if (!preg_match('/^#([0-9a-f]{3}|[0-9a-f]{6})$/', $color)) {
+				$color = '';
+			}
+			$themes = [];
+			$enforced = $this->config->getSystemValueString('enforce_theme', '');
+			if ($enforced !== '') {
+				$themes[] = $enforced;
+			}
+			if ($uid !== '') {
+				$list = json_decode($this->config->getUserValue($uid, 'theming', 'enabled-themes', '["default"]'), true);
+				if (is_array($list)) {
+					$themes = array_merge($themes, $list);
+				}
+			}
+			$themes = array_filter($themes, static fn ($t): bool => is_string($t) && preg_match('/^[a-z0-9-]{1,40}$/', $t) === 1);
+			return [$color, implode(',', array_slice(array_values(array_unique($themes)), 0, 10))];
+		} catch (\Throwable) {
+			return ['', ''];
+		}
+	}
+
+	/**
+	 * Inhalt der Kopfleiste (App-Menue und Benutzermenue) aus der oeffentlichen Navigation von Nextcloud, als JSON fuer data-nc-nav.
+	 * Der Browser prueft die Werte noch einmal (src/nextcloud.js). Der Abmelde-Link kommt ohne requesttoken: Die Seite liegt im
+	 * Offline-Cache, das Token holt der Browser beim Klick frisch.
+	 */
+	private function navigation(string $uid, string $indexPhp): string {
+		if ($uid === '') {
+			return '';
+		}
+		try {
+			$this->navigationManager->setActiveEntry(Application::APP_ID);
+			$apps = [];
+			foreach ($this->navigationManager->getAll(INavigationManager::TYPE_APPS) as $e) {
+				$apps[] = [
+					'id' => (string)($e['id'] ?? ''),
+					'name' => (string)($e['name'] ?? ''),
+					'href' => (string)($e['href'] ?? ''),
+					'icon' => (string)($e['icon'] ?? ''),
+					'active' => ($e['active'] ?? false) === true,
+				];
+			}
+			$settings = [];
+			foreach ($this->navigationManager->getAll(INavigationManager::TYPE_SETTINGS) as $e) {
+				$href = (string)($e['href'] ?? '');
+				$csrf = false;
+				if (($e['id'] ?? '') === 'logout' && preg_match('/[?&]requesttoken=/', $href)) {
+					$href = (string)preg_replace('/([?&])requesttoken=[^&]*&?/', '$1', $href);
+					$href = rtrim($href, '?&');
+					$csrf = true;
+				}
+				$settings[] = ['id' => (string)($e['id'] ?? ''), 'name' => (string)($e['name'] ?? ''), 'href' => $href, 'csrf' => $csrf];
+			}
+			try {
+				$avatar = $this->urlGenerator->linkToRoute('core.avatar.getAvatar', ['userId' => $uid, 'size' => 64]);
+			} catch (\Throwable) {
+				$avatar = '';
+			}
+			$json = json_encode([
+				'home' => $this->urlGenerator->linkToDefaultPageUrl(),
+				'logo' => $this->defaults->getLogo(),
+				'avatar' => $avatar,
+				'name' => $this->userSession->getUser()?->getDisplayName() ?? $uid,
+				'apps' => $apps,
+				// Wie das App-Menue von Nextcloud: Admins bekommen am Ende die Kachel "Weitere Apps" (generateUrl('/settings/apps')).
+				'moreApps' => $this->groupManager->isAdmin($uid) ? $indexPhp . '/settings/apps' : '',
+				'settings' => $settings,
+			], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
+			return $json === false ? '' : $json;
+		} catch (\Throwable) {
+			return '';
+		}
 	}
 
 	private function contentSecurityPolicy(): EmptyContentSecurityPolicy {

@@ -6,7 +6,7 @@ Click your `.kdbx` file in Files, type your master password, done.
 It's still a plain KeePass file, so **KeePassXC, KeePassDX and Strongbox keep working on the very same file**.
 No lock-in, no special format, no drama.
 
-![KeePassNC on a desktop: groups and tags on the left, the entry list, and an entry with a live TOTP code](docs/screenshots/desktop-detail.png)
+![KeePassNC in Nextcloud on a desktop: the Nextcloud header on top, groups and tags on the left, the entry list, and an entry with a live TOTP code](docs/screenshots/desktop-detail.png)
 
 <p>
   <img src="docs/screenshots/dark-detail.png" width="62%" alt="Dark mode">
@@ -31,6 +31,8 @@ No lock-in, no special format, no drama.
 - **Passkeys:** passkeys saved by KeePassXC are shown and kept intact.
 - **Better passwords:** a generator for passwords and passphrases, and a health report that finds weak, reused and expired ones.
 - **Shared files:** databases someone shared with you open fine; read-only shares say so.
+- **Feels at home:** picks up your instance's color and your light or dark choice, and keeps the Nextcloud header with the app menu
+  on top. Search, notifications and the contacts menu sit this one out, [here's why](SECURITY.md#model-in-short).
 - **Key file, remembered:** if you use a key file, KeePassNC can remember it on your device, protected by a secret on your
   server. Optional, and off by default. [How it works](docs/KEYFILE-MEMORY.md).
 

@@ -37,7 +37,7 @@ export function showMain() {
         iconBtn('dice', t('generator'), () => openGenerator(), { id: 'tool-gen', class: 'hide-narrow' }),
         iconBtn('chart', t('reports'), () => openReports(), { id: 'reports-btn', class: 'hide-narrow' }),
         iconBtn('settings', t('settings'), () => openSettings(), { id: 'settings-btn' }),
-        NC?.filesUrl ? h('a', { href: NC.filesUrl, id: 'files-link', class: 'icon-btn hide-narrow', title: t('files'), 'aria-label': t('files') }, icon('folderOpen')) : null,
+        NC?.filesUrl && !NC.nav ? h('a', { href: NC.filesUrl, id: 'files-link', class: 'icon-btn hide-narrow', title: t('files'), 'aria-label': t('files') }, icon('folderOpen')) : null,
         iconBtn('lock', t('lock'), () => lock(t('locked')), { id: 'lock-btn' }));
     const shell = h('div', { class: 'shell', 'data-view': state.view, 'data-drawer': '0' }, bar,
         h('div', { class: 'panes' },

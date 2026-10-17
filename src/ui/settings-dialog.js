@@ -24,6 +24,9 @@ export function openSettings({ loginMode = false } = {}) {
     };
     const sec = (title, ...rows) => h('section', { class: 'card stack' }, h('h3', { text: title }), ...rows);
     const check = (id, label, key, hint) => h('label', { class: 'check' }, h('input', { type: 'checkbox', id, checked: !!ctx.settings[key], onchange: (e) => update({ [key]: e.target.checked }) }), h('span', {}, label, hint ? h('small', { class: 'muted', text: ' ' + hint }) : null));
+    // "Wie Nextcloud" gibt es nur in Nextcloud; eigenstaendig wirkt der Wert wie "Automatisch".
+    const themeOptions = ctx.NC ? THEME_OPTIONS : THEME_OPTIONS.filter((v) => v !== 'nextcloud');
+    const themeValue = !ctx.NC && ctx.settings.theme === 'nextcloud' ? 'auto' : ctx.settings.theme;
     const kfBox = h('div', { class: 'stack tight', id: 'kf-list' });
     const fillKf = async () => {
         const list = await kfStore.list(kfScope).catch(() => []);
@@ -35,9 +38,10 @@ export function openSettings({ loginMode = false } = {}) {
     const body = h('div', { class: 'stack settings', id: 'settings' },
         sec(t('set.appearance'),
             h('div', { class: 'grid2' },
-                h('label', {}, h('span', { text: t('set.theme') }), select('s-theme', THEME_OPTIONS, ctx.settings.theme, (v) => t('theme.' + v), (v) => update({ theme: v }))),
+                h('label', {}, h('span', { text: t('set.theme') }), select('s-theme', themeOptions, themeValue, (v) => t('theme.' + v), (v) => update({ theme: v }))),
                 h('label', {}, h('span', { text: t('set.lang') }), select('s-lang', LANG_OPTIONS, ctx.settings.lang, (v) => (v === 'auto' ? t('lang.auto') : v === 'de' ? 'Deutsch' : 'English'), (v) => update({ lang: v }, { relang: true })))),
-            check('s-compact', t('set.compact'), 'compact')),
+            check('s-compact', t('set.compact'), 'compact'),
+            ctx.NC ? check('s-ncaccent', t('set.ncAccent'), 'ncAccent') : null),
         loginMode ? null : sec(t('set.sync'),
             isDav ? h('label', {}, h('span', { text: t('set.autosync') }), select('s-autosync', AUTOSYNC_OPTIONS, ctx.settings.autosync, (v) => t('autosync.' + v), (v) => update({ autosync: v }))) : h('p', { class: 'hint', text: t('set.file.note') }),
             isDav ? h('label', {}, h('span', { text: t('set.backupkeep') }), select('s-backupkeep', BACKUPKEEP_OPTIONS, ctx.settings.backupKeep, (v) => t('backupkeep.' + v), (v) => update({ backupKeep: Number(v) })), h('small', { class: 'hint', text: t('set.backupkeep.hint') })) : null,

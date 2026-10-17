@@ -3,6 +3,7 @@ import { isOffline } from '../webdav.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus, download, SW_CACHE, SYNC_RETRY_MS, params } from './ctx.js';
 import { $, confirmDialog } from './dom.js';
+import { setNcHeaderOffline } from './ncheader.js';
 import { fmtDate } from '../i18n.js';
 
 const { state } = ctx;
@@ -47,6 +48,7 @@ export function refreshSyncState() {
     } else if (v.dirty) { text = t('sync.dirty'); kind = 'dirty'; }
     el.textContent = text;
     el.dataset.state = kind;
+    if (state.source?.type === 'dav') setNcHeaderOffline(state.offlineMode || state.lastSyncFailed);
 }
 
 function rebind() {
