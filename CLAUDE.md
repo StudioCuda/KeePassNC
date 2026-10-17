@@ -34,12 +34,13 @@ browser only. Start with `README.md`, `CONTRIBUTING.md` (build, tests, layout) a
 - README screenshots: `python3 -I tools/make-showcase.py <dir> && npm run build && SHOTS_DB=showcase SHOTS_LANG=en node tools/shots.mjs <dir> <out>`,
   then copy the six images used by the README into `docs/screenshots/`.
 
-## Known flaky tests
+## Known test quirks
 
-- `tests/e2e/ui.mjs`, TOTP step: compares the app's code with `keepassxc-cli` and can fail when the 45 s window flips between the
-  two reads.
+- `keepassxc-cli edit` fails with "Cannot process 0 length data" when it changes an entry in the same second as that entry's last
+  change. Tests that let KeePassXC edit a file kdbxweb just wrote wait 1.1 s first (see `tests/compat/run.ts`).
+- TOTP codes: compare the app with `keepassxc-cli` in up to three tries 1.2 s apart (see `tests/e2e/run.mjs`, `tests/e2e/ui.mjs`).
+  The app refreshes the code once a second and `keepassxc-cli` needs up to a few seconds to unlock a file with big KDF
+  settings, so a single comparison can straddle the window boundary.
+- WebKit reports some aborted requests as page errors; `knownFetchNoise` + `uncaughtWatch` in `tests/browser.mjs` tell them apart.
 
-It passes on a re-run. Making it robust is welcome.
-
-`keepassxc-cli edit` fails with "Cannot process 0 length data" when it changes an entry in the same second as that entry's last
-change. Tests that let KeePassXC edit a file kdbxweb just wrote wait 1.1 s first (see `tests/compat/run.ts`).
+No test is known to be flaky right now. If one turns up, find the cause before adding a retry.
