@@ -196,15 +196,21 @@ body.has-nch .topbar .brand { display: none; } /* der Name steht schon in der Ko
 .nch-tile.more .nch-glyph { font-size: 26px; font-weight: 400; }
 .nch-offline { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--bad-soft); color: var(--bad); white-space: nowrap; }
 .nch-user-wrap { position: relative; }
-.nch-user { width: 44px; height: 44px; border-radius: 50%; }
-.nch-avatar, .nch-initial { display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; flex: none; object-fit: cover; }
+/* Kontomenue wie Nextcloud 35: Bild mit duennem Ring, beim Hover ein 2-px-Rand statt einer Flaeche */
+.nch-user { width: 44px; height: 44px; border-radius: 50%; } .nch .nch-user:hover, .nch .nch-user:active { background: transparent; }
+.nch-avatar, .nch-initial { box-sizing: border-box; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; flex: none; object-fit: cover; outline: 1px solid color-mix(in srgb, currentColor 25%, transparent); }
+.nch-user:hover .nch-avatar, .nch-user:hover .nch-initial, .nch-user:focus-visible .nch-avatar, .nch-user:focus-visible .nch-initial { outline: none; border: 2px solid currentColor; }
+.nch .nch-user:focus-visible { outline: none; }
 .nch-initial { background: #6b625a; color: #fff; font-weight: 700; font-size: 14px; }
-.nch-user-pop { right: 0; width: 300px; max-width: calc(100vw - 16px); display: flex; flex-direction: column; padding: 6px; }
-.nch-user-head { display: flex; align-items: center; gap: 12px; padding: 10px 12px 12px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
-.nch-user-text { display: flex; flex-direction: column; min-width: 0; } .nch-user-text strong { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.nch .nch-profile { font-size: 12.5px; color: var(--muted); } .nch .nch-profile:hover { text-decoration: underline; }
-.nch .nch-item { display: flex; align-items: center; min-height: 40px; padding: 0 12px; border-radius: 8px; font-size: 14px; color: var(--text); }
+.nch-user-pop { top: calc(100% + 3px); right: -4px; width: max-content; min-width: 180px; max-width: calc(100vw - 16px); display: flex; flex-direction: column; padding: 2px 4px 2px 0; border: 0; border-radius: 8px; box-shadow: 0 1px 5px rgb(77 77 77 / .5); }
+.nch .nch-item { display: flex; align-items: center; min-height: 34px; margin: 2px 4px; padding: 2px 4px; border-radius: 8px; color: var(--text); font-size: 15px; }
+.nch .nch-item:first-child { margin-top: 4px; } .nch .nch-item:last-child { margin-bottom: 4px; }
 .nch .nch-item:hover, .nch .nch-item:focus-visible { background: var(--surface-3); outline: none; }
+.nch .nch-item:focus-visible { box-shadow: inset 0 0 0 2px var(--text); }
+.nch-item .nch-glyph { width: 16px; height: 16px; margin: 9px; } .nch-item .nch-glyph.has-icon { background: currentColor; }
+.nch-item-name { padding-left: 8px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nch .nch-profile { flex-direction: column; align-items: flex-start; justify-content: center; min-height: 45px; }
+.nch-item-sub { padding-left: 8px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ---------- Shell ---------- */
 .shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }

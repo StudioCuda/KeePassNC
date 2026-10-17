@@ -26,6 +26,13 @@ function glyph(app) {
     return g;
 }
 
+/** Symbol eines Kontomenue-Eintrags; ohne Symbol bleibt der Platz frei, damit die Namen buendig stehen. */
+function entryIcon(s) {
+    const g = h('span', { class: 'nch-glyph', 'aria-hidden': 'true' });
+    if (s.icon) { g.classList.add('has-icon'); g.style.setProperty('--nch-icon', `url("${s.icon}")`); }
+    return g;
+}
+
 let open = null;
 function closePop() {
     if (!open) return;
@@ -87,10 +94,12 @@ export function renderNcHeader(NC) {
     const avatar = () => (nav.avatar ? h('img', { class: 'nch-avatar', src: nav.avatar, alt: '', onerror: (e) => e.target.replaceWith(initial.cloneNode(true)) }) : initial.cloneNode(true));
     const profile = nav.settings.find((s) => s.id === 'profile');
     const entries = nav.settings.filter((s) => s.id !== 'profile');
+    // Wie das Kontomenue von Nextcloud: oben Name + "Profil anzeigen" als eine Zeile, darunter die Eintraege mit Symbol.
+    const me = [h('span', { class: 'nch-item-name', text: nav.name || NC.user }), profile ? h('span', { class: 'nch-item-sub', text: profile.name }) : null];
     const userPop = h('div', { class: 'nch-pop nch-user-pop', role: 'menu', 'aria-label': t('nch.user'), id: 'nch-user-pop', hidden: true },
-        h('div', { class: 'nch-user-head' }, h('span', { class: 'nch-user-pic' }, avatar()),
-            h('span', { class: 'nch-user-text' }, h('strong', { text: nav.name || NC.user }), profile ? h('a', { href: profile.href, role: 'menuitem', class: 'nch-profile', text: profile.name }) : null)),
-        ...entries.map((s) => h('a', { href: s.href, role: 'menuitem', class: 'nch-item', 'data-id': s.id, text: s.name, onclick: s.csrf ? (e) => logout(e, s.href) : null })));
+        profile ? h('a', { href: profile.href, role: 'menuitem', class: 'nch-item nch-profile' }, ...me) : h('div', { class: 'nch-item nch-profile' }, ...me),
+        ...entries.map((s) => h('a', { href: s.href, role: 'menuitem', class: 'nch-item', 'data-id': s.id, onclick: s.csrf ? (e) => logout(e, s.href) : null },
+            entryIcon(s), h('span', { class: 'nch-item-name', text: s.name }))));
     const userBtn = h('button', { type: 'button', class: 'nch-btn nch-user', id: 'nch-user', 'aria-label': t('nch.user'), 'aria-haspopup': 'menu', 'aria-expanded': 'false', 'aria-controls': 'nch-user-pop' }, avatar());
     userBtn.addEventListener('click', () => openPop(userPop, [userBtn], userBtn));
 

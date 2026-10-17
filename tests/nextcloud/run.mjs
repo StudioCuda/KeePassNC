@@ -238,6 +238,7 @@ async function main() {
         const out = items.find(([, href]) => /\/logout/.test(href));
         expect(out && !/requesttoken/.test(out[1]), 'Abmelden: ' + JSON.stringify(items));
         expect(items.some(([n]) => /Persönliche Einstellungen/.test(n)), 'Einstellungen fehlen: ' + JSON.stringify(items));
+        expect(await page.locator('#nch-user-pop a.nch-item .nch-glyph.has-icon').count() >= 2, 'Symbole im Benutzermenue fehlen');
         await page.keyboard.press('Escape');
         return `${tiles.length} Apps, ${items.length} Eintraege im Benutzermenue`;
     });
