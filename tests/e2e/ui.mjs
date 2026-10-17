@@ -331,6 +331,37 @@ async function main() {
         await page.click('#nav-all');
     });
 
+    await step('Datenbank-Einstellungen: Name, Beschreibung, Standard-Benutzer, Papierkorb aus (Loeschen endgueltig), Verlauf kuerzen nach Rueckfrage -> KeePassXC liest alles', async () => {
+        await page.click('#reports-btn'); await page.click('#rep-tab-info'); await page.click('#db-settings-btn');
+        await page.fill('#db-name', 'UI-Tresor'); await page.fill('#db-desc', 'Beschreibung äöü\nzweite Zeile'); await page.fill('#db-user', 'standard-user');
+        await page.uncheck('#db-bin');
+        await page.check('#db-hist-items-on'); await page.fill('#db-hist-items', '2');
+        await page.click('#db-apply');
+        await page.locator('#confirm-ok').waitFor(); // "Mit Verlauf" hat 6 Staende -> Rueckfrage
+        expect(/\d+ ältere Stände/.test(await page.locator('.modal', { has: page.locator('#confirm-ok') }).innerText()), 'Rueckfrage nennt die Zahl');
+        await page.click('#confirm-ok');
+        await page.waitForFunction(() => !document.querySelector('#db-settings'));
+        const info = await page.locator('.report-body').innerText();
+        expect(/UI-Tresor/.test(info) && /Beschreibung äöü/.test(info), 'Info zeigt Name/Beschreibung: ' + info);
+        await page.keyboard.press('Escape');
+        expect(await page.locator('#nav-bin').count() === 0, 'Papierkorb-Eintrag in der Seitenleiste sollte fehlen');
+        await page.click('#new-btn');
+        expect(await page.inputValue('#e-user') === 'standard-user', 'Standard-Benutzer nicht vorausgefuellt');
+        await page.click('#cancel-btn');
+        await pick(page, 'Otto');
+        expect(/Endgültig löschen/.test(await page.locator('#del-btn').innerText()), 'Loeschen-Knopf sollte "Endgueltig" sagen');
+        await page.click('#del-btn'); await page.click('#confirm-ok');
+        await page.keyboard.press('Control+s');
+        await waitStatus(page, /^Gespeichert\./, 60000);
+        const doc = loadXml(), m = doc.getElementsByTagName('Meta')[0];
+        const metaText = (n) => text(kids(m, n)[0]);
+        expect(metaText('DatabaseName') === 'UI-Tresor' && metaText('DatabaseDescription') === 'Beschreibung äöü\nzweite Zeile' && metaText('DefaultUserName') === 'standard-user', 'Meta: ' + ['DatabaseName', 'DatabaseDescription', 'DefaultUserName'].map(metaText).join(' | '));
+        expect(metaText('RecycleBinEnabled') === 'False' && metaText('HistoryMaxItems') === '2', 'Papierkorb/Verlauf: ' + metaText('RecycleBinEnabled') + ' ' + metaText('HistoryMaxItems'));
+        const es = walk(doc), hist = kids(kids(es.find((e) => e.title === 'Mit Verlauf').entry, 'History')[0], 'Entry').length;
+        expect(hist === 2, 'Verlauf gekuerzt auf 2: ' + hist);
+        expect(!es.some((e) => e.title === 'Otto'), 'Otto sollte endgueltig weg sein: ' + es.filter((e) => e.title === 'Otto').map((e) => e.path));
+    });
+
     await step('Sprache und Theme: Englisch/Dunkel in den Einstellungen, bleibt nach dem Sperren (Anmeldeseite) erhalten', async () => {
         await page.click('#settings-btn');
         await page.selectOption('#s-lang', 'en');

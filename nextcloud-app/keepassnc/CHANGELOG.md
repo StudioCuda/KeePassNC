@@ -6,6 +6,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - More URLs are clickable: a URL field holding just `example.com` opens `https://example.com`, and extra fields with a web address are links too (bare hostnames only in fields with "URL" in the name, say `KP2A_URL_1`). `Ctrl+Shift+U` follows the same rules. Things like `cmd://` or `{REF:…}` stay plain text, and protected fields stay hidden.
 - Unlocking no longer freezes the page: Argon2 does its heavy lifting in a background worker, so the page keeps reacting while your database unlocks. The worker is shut down right after, taking its (possibly gigabyte-sized) scratch memory with it. If the worker can't start, the page does the math itself like before.
+- Database settings, part one: in Reports → Database, "Edit settings" lets you change the name, description and default username (pre-filled for new entries), switch the recycle bin on or off and set history limits per entry. Tighter history limits trim existing entries right away, after asking how many versions go. With the recycle bin off, deleting says "Delete permanently" and asks first, instead of promising a recycle bin that isn't there.
 
 ### Fixed
 - Saving after someone else changed the file no longer undoes their encryption settings. If KeePassXC (or another device) beefed up the key derivation or switched the cipher in the meantime, KeePassNC used to merge the entries but quietly write its own older settings back. Now the side that actually changed them wins.

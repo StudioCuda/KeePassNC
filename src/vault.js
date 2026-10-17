@@ -237,14 +237,69 @@ export class Vault {
     /** Verlaufseintrag anlegen und gemaess Datenbank-Einstellungen kuerzen (Standard 10 Staende / 6 MiB, aelteste zuerst). */
     _pushHistory(entry) {
         entry.pushHistory();
-        const maxItems = this.db.meta.historyMaxItems ?? 10;
-        const maxSize = this.db.meta.historyMaxSize ?? 6 * 1024 * 1024;
-        if (maxItems === 0) { entry.removeHistory(0, entry.history.length); return; }
-        if (maxItems > 0 && entry.history.length > maxItems) entry.removeHistory(0, entry.history.length - maxItems);
-        if (maxSize > 0) {
-            const size = (h) => [...h.fields].reduce((n, [k, v]) => n + k.length + valueText(v).length * 2, 0) + [...h.binaries.values()].reduce((n, b) => n + (b.value?.byteLength ?? b.byteLength ?? 0), 0);
-            while (entry.history.length > 1 && entry.history.reduce((n, h) => n + size(h), 0) > maxSize) entry.removeHistory(0, 1);
+        this._trimHistory(entry);
+    }
+
+    /**
+     * Kuerzt den Verlauf eines Eintrags auf die Grenzen der Datenbank (oder die uebergebenen), aelteste Staende zuerst.
+     * Grenzen wie in KDBX: -1 = unbegrenzt, 0 Staende = kein Verlauf; die Groessengrenze laesst den neuesten Stand immer stehen.
+     * dryRun: nur zaehlen. Liefert die Zahl der (zu) entfernenden Staende.
+     */
+    _trimHistory(entry, limits = {}, dryRun = false) {
+        const maxItems = limits.historyMaxItems ?? this.db.meta.historyMaxItems ?? 10;
+        const maxSize = limits.historyMaxSize ?? this.db.meta.historyMaxSize ?? 6 * 1024 * 1024;
+        const hist = entry.history;
+        let k = 0;
+        if (maxItems === 0) k = hist.length;
+        else {
+            if (maxItems > 0) k = Math.max(0, hist.length - maxItems);
+            if (maxSize > 0) {
+                const size = (h) => [...h.fields].reduce((m, [key, v]) => m + key.length + valueText(v).length * 2, 0) + [...h.binaries.values()].reduce((m, b) => m + (b.value?.byteLength ?? b.byteLength ?? 0), 0);
+                let total = hist.slice(k).reduce((m, h) => m + size(h), 0);
+                while (hist.length - k > 1 && total > maxSize) total -= size(hist[k++]);
+            }
         }
+        if (k && !dryRun) entry.removeHistory(0, k);
+        return k;
+    }
+
+    // ---------------------------------------------------------------- Datenbank-Einstellungen (Metadaten, nicht der Dateikopf)
+    get binEnabled() { return this.db.meta.recycleBinEnabled !== false; }
+
+    /** Loeschen ist hier endgueltig: Element liegt schon im Papierkorb, oder die Datenbank hat keinen. */
+    deletesForever(item) { return !this.binEnabled || this.isInRecycleBin(item); }
+
+    generalSettings() {
+        const m = this.db.meta;
+        return { name: m.name || '', desc: m.desc || '', defaultUser: m.defaultUser || '', recycleBin: this.binEnabled,
+            historyMaxItems: m.historyMaxItems ?? 10, historyMaxSize: m.historyMaxSize ?? 6 * 1024 * 1024 };
+    }
+
+    /** So viele Verlaufsstaende fielen mit diesen Grenzen weg (fuer die Rueckfrage vor dem Uebernehmen). */
+    historyTrimCount(limits) {
+        let n = 0;
+        for (const e of this.root.allEntries()) n += this._trimHistory(e, limits, true);
+        return n;
+    }
+
+    /**
+     * Uebernimmt die allgemeinen Einstellungen. Ueber die Setter von kdbxweb, damit die Aenderungszeiten stimmen und das Zusammenfuehren
+     * mit einem anderen Geraet sie richtig zuordnet. Neue Verlaufsgrenzen gelten sofort fuer alle Eintraege (wie in KeePassXC).
+     */
+    updateGeneralSettings({ name, desc, defaultUser, recycleBin, historyMaxItems, historyMaxSize }) {
+        const m = this.db.meta;
+        if (name !== undefined) m.name = name;
+        if (desc !== undefined) m.desc = desc;
+        if (defaultUser !== undefined) m.defaultUser = defaultUser;
+        if (recycleBin !== undefined && recycleBin !== this.binEnabled) m.recycleBinEnabled = recycleBin;
+        let trimmed = 0;
+        if ((historyMaxItems !== undefined && historyMaxItems !== m.historyMaxItems) || (historyMaxSize !== undefined && historyMaxSize !== m.historyMaxSize)) {
+            if (historyMaxItems !== undefined) m.historyMaxItems = historyMaxItems;
+            if (historyMaxSize !== undefined) m.historyMaxSize = historyMaxSize;
+            for (const e of this.root.allEntries()) trimmed += this._trimHistory(e);
+        }
+        this.dirty = true;
+        return trimmed;
     }
 
     removeEntry(entry) {

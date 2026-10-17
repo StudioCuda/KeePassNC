@@ -49,7 +49,7 @@ export function renderDetail(host) {
         return;
     }
     const v = state.vault;
-    const inBin = v.isInRecycleBin(e);
+    const inBin = v.isInRecycleBin(e), forever = v.deletesForever(e);
     const pwText = fieldText(e.fields.get('Password'));
     const title = fieldText(e.fields.get('Title')) || t('entry.untitled');
 
@@ -62,7 +62,7 @@ export function renderDetail(host) {
             h('button', { id: 'edit-btn', type: 'button', class: 'primary', onclick: () => startEdit(e) }, icon('edit'), h('span', { text: t('edit') })),
             inBin ? h('button', { id: 'restore-btn', type: 'button', onclick: () => restoreEntry(e) }, icon('restore'), h('span', { text: t('restore') })) : null,
             iconBtn('more', t('more'), (ev) => entryMenu(ev.currentTarget, e), { id: 'entry-more' }),
-            h('button', { id: 'del-btn', type: 'button', class: 'danger-ghost', onclick: () => deleteEntry(e), title: inBin ? t('delete.forever') : t('delete') }, icon('trash'), h('span', { class: 'sr-or-wide', text: inBin ? t('delete.forever') : t('delete') }))));
+            h('button', { id: 'del-btn', type: 'button', class: 'danger-ghost', onclick: () => deleteEntry(e), title: forever ? t('delete.forever') : t('delete') }, icon('trash'), h('span', { class: 'sr-or-wide', text: forever ? t('delete.forever') : t('delete') }))));
 
     // --- Felder
     const cards = [];
@@ -216,7 +216,7 @@ function largeType(pw, title) {
 
 export function deleteEntry(e) {
     const v = state.vault;
-    if (v.isInRecycleBin(e)) {
+    if (v.deletesForever(e)) {
         return confirmDialog({ title: t('delete.forever'), message: t('entry.delete.forever.msg', { name: fieldOf(e, 'Title') }), confirmLabel: t('delete.forever'), cancelLabel: t('cancel'), danger: true }).then((ok) => {
             if (!ok) return;
             v.removeEntry(e); state.selEntry = null; changed(); setStatus(t('deleted.forever'));
