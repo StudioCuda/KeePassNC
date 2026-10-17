@@ -319,6 +319,39 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Konflikt, anderes Geraet hat die Schluesselableitung verstaerkt -> sie bleibt nach dem Zusammenfuehren erhalten, beide Aenderungen auch', async () => {
+        const py = (lines) => JSON.parse(execFileSync('python3', ['-I', '-c', ['import json', 'from pykeepass import PyKeePass', `kp = PyKeePass(${JSON.stringify(f4)}, password=${JSON.stringify(PW)})`,
+            'kdf = kp.kdbx.header.value.dynamic_header.kdf_parameters.data.dict', ...lines].join('\n')]).toString());
+        const before = py(['print(json.dumps([kdf.M.value, kdf.I.value]))']);
+        const p = await newPage();
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'bob-trotz-KDF'); await p.click('#apply-btn');
+        // "anderes Geraet": doppelter Speicher, ein Durchlauf mehr, dazu eine Aenderung am Inhalt
+        const want = py(['kdf.M.value, kdf.I.value = kdf.M.value * 2, kdf.I.value + 1', "e = kp.find_entries(title='Mail', first=True); e.url = 'https://kdf.example'; e.touch(modify=True)", 'kp.save()',
+            'print(json.dumps([kdf.M.value, kdf.I.value]))']);
+        expect(want[0] === before[0] * 2, 'Vorbereitung: KDF nicht geaendert ' + JSON.stringify([before, want]));
+        await p.click('#save-btn');
+        await waitStatus(p, /zusammengef/);
+        const after = py(['k = kp.find_entries(title="Konto", first=True); m = kp.find_entries(title="Mail", first=True)',
+            'print(json.dumps([kdf.M.value, kdf.I.value, k.username, m.url]))']);
+        expect(after[0] === want[0] && after[1] === want[1], `Schluesselableitung zurueckgesetzt: vorher ${before}, anderes Geraet ${want}, jetzt ${after.slice(0, 2)}`);
+        expect(after[2] === 'bob-trotz-KDF' && after[3] === 'https://kdf.example', 'Aenderung verloren: ' + JSON.stringify(after.slice(2)));
+        expect(xc(['show', f4, 'Bank/Konto']).includes('bob-trotz-KDF'), 'KeePassXC liest das Ergebnis nicht');
+        // und ohne Aenderung am Kopf auf dem Server bleibt der eigene (jetzt verstaerkte) Kopf: zweiter Konflikt nur mit Inhalt
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'bob-zweite-Runde'); await p.click('#apply-btn');
+        await p.waitForTimeout(1100);
+        xc(['edit', '-q', f4, 'Web/Mail', '--url', 'https://zweite.example'], null);
+        await p.evaluate(() => { document.querySelector('#status').textContent = ''; }); // Meldung der ersten Runde nicht mitzaehlen
+        await p.click('#save-btn');
+        await waitStatus(p, /zusammengef/);
+        const last = py(['k = kp.find_entries(title="Konto", first=True); m = kp.find_entries(title="Mail", first=True)', 'print(json.dumps([kdf.M.value, kdf.I.value, k.username, m.url]))']);
+        expect(last[0] === want[0] && last[1] === want[1], 'Kopf nach zweitem Konflikt: ' + JSON.stringify(last));
+        expect(last[2] === 'bob-zweite-Runde' && last[3] === 'https://zweite.example', 'zweite Runde: ' + JSON.stringify(last.slice(2)));
+        await p.context().close();
+    });
+
     await step('Auto-Sperre: nach Inaktivitaet verschwinden alle Daten aus dem DOM', async () => {
         const p = await newPage('?autolock=5');
         await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();

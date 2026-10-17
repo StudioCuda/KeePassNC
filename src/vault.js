@@ -6,7 +6,7 @@ import { ConflictError, DavError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
 import { isOutOfMemory, isPasskeyField, isSystemField, valueText } from './core/util.js';
 
-const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid } = kdbxweb;
+const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream } = kdbxweb;
 
 kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type) => {
     let out;
@@ -27,6 +27,19 @@ kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, le
     }
     return out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength);
 });
+
+/**
+ * Verschluesselungs-Einstellungen aus dem Dateikopf als vergleichbarer Text: Format, Chiffre, Kompression, KDF samt Parametern.
+ * Salze, IVs und Startwerte bleiben aussen vor, die sind bei jedem Speichern neu. header: KdbxHeader oder die Bytes einer Datei
+ * (der Kopf ist unverschluesselt, dafuer braucht es kein Passwort).
+ */
+export function cryptoSettings(header) {
+    const bytes = ArrayBuffer.isView(header) ? header.buffer.slice(header.byteOffset, header.byteOffset + header.byteLength) : header;
+    const h = bytes instanceof ArrayBuffer ? KdbxHeader.read(new BinaryStream(bytes), null) : header;
+    const val = (v) => (v instanceof ArrayBuffer ? btoa(String.fromCharCode(...new Uint8Array(v))) : typeof v?.hi === 'number' ? `${v.hi}:${v.lo}` : v);
+    const kdf = h.kdfParameters ? h.kdfParameters.keys().filter((k) => k !== 'S').sort().map((k) => [k, val(h.kdfParameters.get(k))]) : null;
+    return JSON.stringify([h.versionMajor, h.versionMinor, h.dataCipherUuid?.toString() ?? null, h.compression ?? null, h.keyEncryptionRounds ?? null, kdf]);
+}
 
 export const STANDARD_FIELDS = ['Title', 'UserName', 'Password', 'URL', 'Notes'];
 
@@ -469,7 +482,9 @@ export class Vault {
                     }
                     throw err;
                 });
+                const header = this._mergedHeader(remoteDb);
                 this.db.merge(remoteDb);
+                if (header !== this.db.header) { this.db.header = header; this.db.meta.headerHash = undefined; }
                 this._pending = await this.db.save();
                 this.etag = remote.etag;
                 this._remoteBytes = remote.buf;
@@ -477,6 +492,23 @@ export class Vault {
                 merged = true;
             }
         }
+    }
+
+    /**
+     * Welcher Dateikopf (Format, Verschluesselung, Schluesselableitung) nach dem Zusammenfuehren gilt. merge() von kdbxweb uebernimmt
+     * nur Inhalt und Metadaten; ohne diese Wahl wuerde ein Speichern hier eine auf einem anderen Geraet geaenderte, z. B. verstaerkte
+     * Schluesselableitung still auf den alten Stand zuruecksetzen. Verglichen wird mit dem letzten gemeinsamen Server-Stand:
+     * Hat nur der Server ihn geaendert, gilt seiner; nur lokal: der lokale; beide: der mit dem neueren "Einstellungen geaendert".
+     */
+    _mergedHeader(remoteDb) {
+        const local = this.db.header, remote = remoteDb.header;
+        const remoteSet = cryptoSettings(remote);
+        if (remoteSet === cryptoSettings(local)) return local;
+        let base = null;
+        try { base = cryptoSettings(this._remoteBytes); } catch { /* unlesbarer Basisstand: wie "beide geaendert" behandeln */ }
+        if (remoteSet === base) return local;
+        if (cryptoSettings(local) === base) return remote;
+        return (this.db.meta.settingsChanged?.getTime() ?? 0) > (remoteDb.meta.settingsChanged?.getTime() ?? 0) ? local : remote;
     }
 
     async _pull() {
