@@ -20,7 +20,7 @@
 - TOTP, Steam Guard included
 - Attachments and entry history
 - Password generator and a health report
-- Light and dark themes, a layout that works on phones and big screens alike
+- Follows your Nextcloud's accent color and light or dark theme, with a layout that works on phones and big screens alike
 - English and German
 
 **Still just a KeePass file**
@@ -41,7 +41,7 @@ KeePassXC, KeePassDX and Strongbox keep working on it, no lock-in.]]></descripti
 - TOTP, auch Steam Guard
 - Anhänge und Eintragsverlauf
 - Passwortgenerator und Gesundheitsbericht
-- Helles und dunkles Design, für Smartphone und großen Bildschirm
+- Übernimmt Akzentfarbe und helles oder dunkles Design von Nextcloud, für Smartphone und großen Bildschirm
 - Deutsch und Englisch
 
 **Bleibt eine normale KeePass-Datei**
