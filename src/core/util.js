@@ -9,6 +9,16 @@ export function domainOf(url) {
     try { return new URL(/^[a-z][a-z0-9+.-]*:/i.test(url) ? url : 'https://' + url).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
 
+/** Link-Ziel fuer einen URL-Feldwert: http(s) wie eingegeben, ein nackter Hostname wie "example.com/login" mit https://;
+ *  alles andere (cmd://, javascript:, {REF:…}, freier Text) bleibt Text. bare=false nimmt nur Werte mit http(s)-Schema. */
+export function openableUrl(text, { bare = true } = {}) {
+    const s = String(text ?? '').trim();
+    if (!s || /\s/.test(s)) return null;
+    const href = /^https?:\/\//i.test(s) ? s : bare && /^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z][a-z0-9-]*(:\d{1,5})?([/?#]\S*)?$/i.test(s) ? 'https://' + s : null;
+    if (!href) return null;
+    try { return new URL(href).hostname ? href : null; } catch { return null; }
+}
+
 const DAY = 86400000;
 export function daysUntil(date, now = Date.now()) { return date ? Math.ceil((date.getTime() - now) / DAY) : null; }
 
