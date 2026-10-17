@@ -1,0 +1,26 @@
+diff --git a/lib/format/kdbx-custom-data.ts b/lib/format/kdbx-custom-data.ts
+index 8baaaec..aa315f5 100644
+--- a/lib/format/kdbx-custom-data.ts
++++ b/lib/format/kdbx-custom-data.ts
+@@ -33,7 +33,7 @@ export class KdbxCustomData {
+                 XmlUtils.setText(XmlUtils.addChildNode(itemNode, XmlNames.Elem.Key), key);
+                 XmlUtils.setText(XmlUtils.addChildNode(itemNode, XmlNames.Elem.Value), item.value);
+                 if (item.lastModified && ctx.kdbx.versionIsAtLeast(4, 1)) {
+-                    XmlUtils.setDate(
++                    ctx.setXmlDate(
+                         XmlUtils.addChildNode(itemNode, XmlNames.Elem.LastModTime),
+                         item.lastModified
+                     );
+diff --git a/lib/format/kdbx-meta.ts b/lib/format/kdbx-meta.ts
+index 54bdd81..6b4ce08 100644
+--- a/lib/format/kdbx-meta.ts
++++ b/lib/format/kdbx-meta.ts
+@@ -418,7 +418,7 @@ export class KdbxMeta {
+                         );
+                     }
+                     if (lastModified) {
+-                        XmlUtils.setDate(
++                        ctx.setXmlDate(
+                             XmlUtils.addChildNode(itemNode, XmlNames.Elem.LastModTime),
+                             lastModified
+                         );

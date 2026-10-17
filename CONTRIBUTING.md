@@ -30,8 +30,9 @@ Needs Node 22, `keepassxc-cli` 2.7, Python 3 with `pykeepass`, and Chromium (set
 The app is tested against Nextcloud 34 and 35 (PHP 8.3) and kept an eye on against `master`. It only uses public interfaces
 (WebDAV, the CSRF token endpoint, the files action API, `OCP\Defaults` for the instance color and `OCP\INavigationManager` for the
 header). The one exception is the user's light/dark choice: Nextcloud has no public API for it, so the page reads the theming app's
-`enabled-themes` user setting and falls back to "automatic" if that ever moves. `info.xml` `info.xml` doesn't cap the version, so newer releases aren't locked
-out in advance.
+`enabled-themes` user setting and falls back to "automatic" if that ever moves. `max-version` in `info.xml` is the newest tested
+version plus two, so a Nextcloud upgrade doesn't switch the app off the day it lands, but an app nobody maintains anymore drops out
+eventually. When a new Nextcloud version joins the CI matrix, raise `max-version` with it; `tests/unit/appinfo.test.mjs` insists.
 
 ## Where things live
 

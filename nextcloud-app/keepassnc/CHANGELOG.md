@@ -4,11 +4,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Added
-- KeePassNC now dresses like your Nextcloud. It takes the instance color (or your own, if you picked one), follows your light, dark or
-  high-contrast choice from the accessibility settings, and keeps the familiar header with the 9-dot app menu and your account menu.
-  Garish colors get toned down until text on them is readable again, and the plain Nextcloud blue leaves our night blue and gold alone.
-  New setting "Same as Nextcloud" is the default for the color scheme; "Use the Nextcloud accent color" can be switched off. The header
-  has no search, notifications or contacts menu, on purpose: those need Nextcloud's JavaScript, and that stays off this page.
+- KeePassNC now dresses like your Nextcloud. It takes the instance color (or your own, if you picked one), follows your light, dark or high-contrast choice from the accessibility settings, and keeps the familiar header with the 9-dot app menu and your account menu. Garish colors get toned down until text on them is readable again, and the plain Nextcloud blue leaves our night blue and gold alone. New setting "Same as Nextcloud" is the default for the color scheme; "Use the Nextcloud accent color" can be switched off. The header has no search, notifications or contacts menu, on purpose: those need Nextcloud's JavaScript, and that stays off this page.
+
+### Changed
+- The App Store listing links to the docs, and the app declares itself compatible up to Nextcloud 37 (newest tested version plus two) instead of "forever".
+
+### Fixed
+- KDBX 4.1 files with custom icons or plugin data: their "last modified" stamps are now saved in the binary format the spec asks for, not as plain text that KeePass 2 chokes on with "Invalid Base-64 string". KeePassXC never minded, so you may not have noticed.
 
 ## [0.7.1] - 2026-10-17
 ### Fixed
