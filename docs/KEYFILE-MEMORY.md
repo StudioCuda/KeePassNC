@@ -34,7 +34,7 @@ master password anything they wouldn't have with a known key file anyway.
 - **"Invalidate on all devices"** (settings) renews the pepper: every remembered key file of the account becomes useless everywhere at
   once (lost device). The next login says so and removes the record; pick the key file by hand once.
 - **Server unreachable:** the remembered key file doesn't work ("please pick it by hand"); the offline copy of the database still does.
-- **Handling unchanged:** KDBX, key file, backup and export aren't affected. If the pepper is lost (user deleted, server restored
+- **Handling unchanged:** KDBX, key file, backup and export aren't affected. If the pepper is lost (user deleted, app disabled or removed, server restored
   without user settings), only the *remembered* records are lost, never the database.
 - Older v1 records are switched to v2 after the next successful open in Nextcloud. The standalone page stays on v1.
 - **Limits, honestly:** (1) The profile often holds the Nextcloud session cookie too ("stay signed in"). While it's valid, a thief can

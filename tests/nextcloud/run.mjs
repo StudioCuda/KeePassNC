@@ -348,12 +348,32 @@ async function main() {
     });
 
     await browser.close();
+
+    // Zum Schluss, weil die App danach weg ist. Echtes "occ app:remove" loescht den App-Ordner: dafuer den Symlink ins Repo durch
+    // eine Kopie ersetzen, sonst raeumt Nextcloud durch den Link hindurch das Repo leer.
+    await step('Deinstallation (occ app:remove): App-Ordner und alle Benutzereinstellungen der App weg', async () => {
+        const link = path.join(NC_DIR, 'apps/keepassnc');
+        fs.rmSync(link, { force: true, recursive: true });
+        fs.cpSync(path.join(root, 'nextcloud-app/keepassnc'), link, { recursive: true });
+        const sys = (key, fallback) => { try { return occ('config:system:get', key).trim(); } catch { return fallback; } }; // SQLite-Installationen setzen dbname nicht
+        const db = path.join(dataDir, `${sys('dbname', 'owncloud')}.db`);
+        const prefix = sys('dbtableprefix', 'oc_');
+        const count = () => Number(execFileSync('php', ['-r', 'echo (new PDO("sqlite:" . $argv[1]))->query("SELECT COUNT(*) FROM ' + prefix + 'preferences WHERE appid = \'keepassnc\'")->fetchColumn();', db]).toString());
+        const before = count();
+        expect(before > 0, 'vorher keine Einstellungen der App - prueft der Schritt ueberhaupt etwas?');
+        const out = occ('app:remove', 'keepassnc');
+        expect(/removed/i.test(out), out);
+        expect(!fs.existsSync(link), 'App-Ordner noch da');
+        const after = count();
+        expect(after === 0, `noch ${after} Einstellungen der App in ${prefix}preferences`);
+        return `${before} -> ${after} Einstellungen`;
+    });
 }
 
 let crashed = null;
 try { await main(); } catch (e) { crashed = e; }
 php?.kill();
-fs.rmSync(path.join(NC_DIR, 'apps/keepassnc'), { force: true });
+fs.rmSync(path.join(NC_DIR, 'apps/keepassnc'), { force: true, recursive: true }); // Symlink oder (nach dem Deinstallationsschritt) Kopie
 fs.rmSync(path.join(NC_DIR, 'config/config.php'), { force: true });
 for (const r of results) console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.info ? '  -> ' + r.info : ''}`);
 if (crashed) console.log('ABBRUCH:', crashed.message);
