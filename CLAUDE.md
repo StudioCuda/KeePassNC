@@ -38,6 +38,8 @@ browser only. Start with `README.md`, `CONTRIBUTING.md` (build, tests, layout) a
 
 - `tests/e2e/ui.mjs`, TOTP step: compares the app's code with `keepassxc-cli` and can fail when the 45 s window flips between the
   two reads.
-- `tests/compat/run.ts`, "Wechselseitig": `keepassxc-cli edit` sometimes fails with "Cannot process 0 length data".
 
-Both pass on a re-run. Making them robust is welcome.
+It passes on a re-run. Making it robust is welcome.
+
+`keepassxc-cli edit` fails with "Cannot process 0 length data" when it changes an entry in the same second as that entry's last
+change. Tests that let KeePassXC edit a file kdbxweb just wrote wait 1.1 s first (see `tests/compat/run.ts`).
