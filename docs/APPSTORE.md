@@ -42,7 +42,8 @@ The private key (`keepassnc.key`) stays on the owner's machine. It never goes in
 
 1. **Release pull request.** Raise the version in `package.json`, `package-lock.json` and
    `nextcloud-app/keepassnc/appinfo/info.xml`, move the `Unreleased` part of `nextcloud-app/keepassnc/CHANGELOG.md` under
-   `## [X.Y.Z] - YYYY-MM-DD`. Merge it.
+   `## [X.Y.Z] - YYYY-MM-DD`. If a new Nextcloud major version came out, add it to the CI matrix in
+   `.github/workflows/nextcloud.yml` and raise `max-version` in `info.xml` to that version plus two. Merge it.
 2. **Tag and GitHub release happen by themselves.** Once the tests on `main` are green, the release workflow tags `vX.Y.Z` and
    creates the GitHub release with the changelog section as text and the unsigned archive for manual installs. It refuses if
    `package.json` and `info.xml` disagree or the changelog section isn't dated. (A tag pushed by hand works too.)

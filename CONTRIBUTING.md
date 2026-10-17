@@ -28,8 +28,9 @@ Needs Node 22, `keepassxc-cli` 2.7, Python 3 with `pykeepass`, and Chromium (set
 `.github/workflows/nextcloud.yml` shows the whole setup.
 
 The app is tested against Nextcloud 34 and 35 (PHP 8.3) and kept an eye on against `master`. It only uses public interfaces
-(WebDAV, the CSRF token endpoint, the files action API), and `info.xml` doesn't cap the version, so newer releases aren't locked
-out in advance.
+(WebDAV, the CSRF token endpoint, the files action API). `max-version` in `info.xml` is the newest tested version plus two, so a
+Nextcloud upgrade doesn't switch the app off the day it lands, but an app nobody maintains anymore drops out eventually. When a new
+Nextcloud version joins the CI matrix, raise `max-version` with it; `tests/unit/appinfo.test.mjs` insists.
 
 ## Where things live
 

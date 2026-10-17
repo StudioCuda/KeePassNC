@@ -348,6 +348,23 @@ async function main() {
     });
 
     await browser.close();
+
+    // Nextcloud fuehrt Uninstall-Schritte bei jedem Deaktivieren aus und kennt keinen eigenen Haken fuers Entfernen. Darum raeumt die
+    // App dabei nichts weg: kurz aus- und wieder einschalten darf gemerkte Schluesseldateien nicht ungueltig machen.
+    await step('Deaktivieren + wieder aktivieren: App laeuft, Server-Geheimwert der Benutzer unveraendert', async () => {
+        const sys = (key, fallback) => { try { return occ('config:system:get', key).trim(); } catch { return fallback; } }; // SQLite-Installationen setzen dbname nicht
+        const db = path.join(dataDir, `${sys('dbname', 'owncloud')}.db`);
+        const sql = `SELECT userid || ':' || configvalue FROM ${sys('dbtableprefix', 'oc_')}preferences WHERE appid = 'keepassnc' AND configkey = 'kf_pepper' ORDER BY userid`;
+        const peppers = () => execFileSync('php', ['-r', 'echo implode("\\n", (new PDO("sqlite:" . $argv[1]))->query($argv[2])->fetchAll(PDO::FETCH_COLUMN));', db, sql]).toString();
+        const before = peppers();
+        expect(before !== '', 'vorher kein Server-Geheimwert - prueft der Schritt ueberhaupt etwas?');
+        occ('app:disable', 'keepassnc');
+        expect(/enabled/.test(occ('app:enable', 'keepassnc')), 'App laesst sich nicht wieder aktivieren');
+        expect(peppers() === before, 'Server-Geheimwert hat sich geaendert oder ist weg');
+        const page = await fetch(`${BASE}/index.php/apps/keepassnc/`, { headers: davAuth, redirect: 'manual' });
+        expect(page.status === 200, 'App-Seite nach Wiederaktivieren: ' + page.status);
+        return `${before.split('\n').length} Benutzer`;
+    });
 }
 
 let crashed = null;

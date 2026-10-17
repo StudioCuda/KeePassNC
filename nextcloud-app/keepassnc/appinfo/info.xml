@@ -21,6 +21,11 @@ Die Datei bleibt ein normales KeePass-Format und kann jederzeit mit KeePassXC, K
     <licence>AGPL-3.0-or-later</licence>
     <author>KeePassNC</author>
     <namespace>Keepassnc</namespace>
+    <documentation>
+        <user>https://github.com/StudioCuda/KeePassNC#readme</user>
+        <admin>https://github.com/StudioCuda/KeePassNC#install</admin>
+        <developer>https://github.com/StudioCuda/KeePassNC/blob/main/CONTRIBUTING.md</developer>
+    </documentation>
     <category>tools</category>
     <category>security</category>
     <website>https://github.com/StudioCuda/KeePassNC</website>
@@ -32,7 +37,7 @@ Die Datei bleibt ein normales KeePass-Format und kann jederzeit mit KeePassXC, K
     <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/main/docs/screenshots/mobile-list.png</screenshot>
     <dependencies>
         <php min-version="8.2"/>
-        <nextcloud min-version="34" max-version="99"/>
+        <nextcloud min-version="34" max-version="37"/>
     </dependencies>
     <navigations>
         <navigation>
