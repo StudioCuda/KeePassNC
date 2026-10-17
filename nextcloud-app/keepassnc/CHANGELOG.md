@@ -2,7 +2,7 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.9.1] - 2026-10-17
 ### Changed
 - The App Store description and the README now mention icons and the database settings.
 
