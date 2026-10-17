@@ -63,6 +63,8 @@ async function main() {
         await login(); await rows().first().waitFor();
         await page.waitForSelector('html[data-offline-ready="1"]', { timeout: 20000 });
         expect(await syncState() === 'synced', 'Zustand: ' + await syncState());
+        const cached = await page.evaluate(async () => (await (await caches.open('kpnc-app-v1')).keys()).map((r) => r.url));
+        expect(cached.some((u) => /\/keepassnc-argon2\.js$/.test(u)), 'Argon2-Worker fehlt im App-Cache: ' + cached.join(', '));
     });
 
     await step('Serverausfall: Seite startet trotzdem (Service Worker), Anmeldung oeffnet die Offline-Kopie', async () => {
@@ -70,7 +72,10 @@ async function main() {
         await page.goto(url());
         await page.locator('#login-form').waitFor({ timeout: 15000 });
         expect(await page.evaluate(() => !!navigator.serviceWorker.controller), 'Seite wird nicht vom Service Worker kontrolliert');
+        const workers = []; const onWorker = (w) => workers.push(w.url()); page.on('worker', onWorker);
         await login(); await rows().first().waitFor({ timeout: 30000 });
+        page.off('worker', onWorker);
+        expect(workers.length === 1, 'Argon2-Worker sollte auch offline aus dem App-Cache starten: ' + JSON.stringify(workers));
         expect(/Offline-Kopie/.test(await status()), await status());
         expect(await syncState() === 'offline', 'Zustand ' + await syncState());
         expect(await rows().count() === 2, 'Eintraege');

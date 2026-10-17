@@ -1,7 +1,7 @@
 // Tresor-Logik ohne DOM: Laden, Aendern, Speichern (inkl. Sicherungskopie und Merge bei Konflikt).
 // Alles Kryptografische passiert hier im Browser; der Server sieht nur die verschluesselte Datei.
 import * as kdbxweb from '../vendor/kdbxweb/lib/index';
-import { argon2d, argon2id } from 'hash-wasm';
+import { argon2 } from './argon2.js';
 import { ConflictError, DavError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
 import { isOutOfMemory, isPasskeyField, isSystemField, valueText } from './core/util.js';
@@ -9,17 +9,16 @@ import { isOutOfMemory, isPasskeyField, isSystemField, valueText } from './core/
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid } = kdbxweb;
 
 kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type) => {
-    const fn = type === 2 ? argon2id : argon2d;
     let out;
     try {
-        out = await fn({
+        out = await argon2({
+            type: type === 2 ? 'id' : 'd',
             password: new Uint8Array(password),
             salt: new Uint8Array(salt),
             parallelism,
             iterations,
-            memorySize: memory, // KiB
-            hashLength: length,
-            outputType: 'binary'
+            memoryKiB: memory,
+            hashLength: length
         });
     } catch (e) {
         // Reicht der Arbeitsspeicher (Handy, Browser-Grenze) nicht, verstaendlich melden statt "RangeError ..."
