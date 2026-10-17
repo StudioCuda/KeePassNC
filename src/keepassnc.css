@@ -72,6 +72,8 @@ input.num { width: 76px; text-align: center; }
 .input-group > input { flex: 1 1 auto; min-width: 0; }
 .hint { font-size: 12.5px; color: var(--muted); }
 .group-title { font-size: 13px; font-weight: 550; color: var(--muted); }
+.level-note { font-size: 12.5px; padding: 8px 12px; border-radius: var(--radius-sm); }
+.level-note.ok { background: var(--ok-soft); color: var(--ok); } .level-note.warn { background: var(--warn-soft); color: var(--warn); } .level-note.bad { background: var(--bad-soft); color: var(--bad); }
 .error { color: var(--bad); font-size: 13.5px; min-height: 0; }
 .error:empty { display: none; }
 
