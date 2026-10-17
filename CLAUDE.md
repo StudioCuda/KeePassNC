@@ -21,8 +21,10 @@ browser only. Start with `README.md`, `CONTRIBUTING.md` (build, tests, layout) a
   (`CHROMIUM=/path/to/chrome npm run test:ui`, `test:e2e`, …). Build output isn't committed.
 - New UI text goes into both `src/i18n-de.js` and `src/i18n-en.js`.
 - User-visible changes get a line under `## [Unreleased]` in `nextcloud-app/keepassnc/CHANGELOG.md`.
-- Releases: bump `package.json`, `package-lock.json` and `appinfo/info.xml`, date the changelog section, then follow
-  `docs/APPSTORE.md`. The maintainer pushes the `vX.Y.Z` tag.
+- Releases: a release PR bumps `package.json`, `package-lock.json` and `appinfo/info.xml` and dates the changelog section.
+  After the merge, `.github/workflows/release.yml` tags `vX.Y.Z` and creates the GitHub release once `main` is green. The
+  maintainer then runs `tools/publish-release.sh` (or `tools\publish-release.cmd`) on their machine, which signs and pushes to the
+  App Store, see `docs/APPSTORE.md`.
 - Public texts (README, PRs, commits, changelog, `info.xml`) are in English: relaxed, a little playful, never salesy.
 - Commits are authored as `StudioCuda <341092375+StudioCuda@users.noreply.github.com>` and carry a `Co-Authored-By` trailer
   for the AI.
