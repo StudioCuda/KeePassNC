@@ -34,9 +34,11 @@ function xc(args: string[], file: string, keyfile?: string, binary = false): str
     const run = () => execFileSync('keepassxc-cli', a, { input: PW + '\n', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
     let out: Buffer;
     try { out = run(); } catch (e: any) {
-        // keepassxc-cli 2.7 scheitert gelegentlich beim Schreiben ("Writing the database failed ... Cannot process 0 length data").
-        // Nur genau dann einmal wiederholen; jeder andere Fehler bleibt ein Fehler.
+        // keepassxc-cli 2.7 scheitert beim Schreiben ("Writing the database failed ... Cannot process 0 length data"), wenn es einen
+        // Eintrag in derselben Sekunde aendert, in der er zuletzt geaendert wurde (lokal 19 von 150 ohne Pause, 0 von 150 mit).
+        // Nur genau dann einmal wiederholen, und zwar erst in der naechsten Sekunde; jeder andere Fehler bleibt ein Fehler.
         if (!/Writing the database failed|Cannot process 0 length data/.test(String(e.stderr || e.message))) throw e;
+        execFileSync('sleep', ['1.1']);
         out = run();
     }
     return binary ? out : out.toString('utf8');
@@ -170,6 +172,7 @@ async function main() {
         const file = path.join(TMP, 'cross.kdbx');
         const { db } = await makeDb({ version: 4, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2id });
         await populate(db); await save(db, file);
+        await new Promise(r => setTimeout(r, 1100)); // KeePassXC nicht in der Sekunde der letzten Aenderung bearbeiten lassen (siehe xc)
         xc(['edit', file, 'Web äöü/Mail', '--notes', 'von KeePassXC geändert'], file);
         const back = await Kdbx.load(ab(fs.readFileSync(file)), new Credentials(ProtectedValue.fromString(PW)));
         const m = [...back.getDefaultGroup().allEntries()].find((x: any) => x.fields.get('Title') === 'Mail');
