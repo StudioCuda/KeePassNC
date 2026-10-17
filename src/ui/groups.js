@@ -5,7 +5,8 @@ import { ctx, setStatus } from './ctx.js';
 import { h, icon, iconBtn, popupMenu, modal, promptDialog, confirmDialog, toast } from './dom.js';
 import { allRealEntries, isWeak, groupIcon } from './common.js';
 import { hasTotp, isPasskey, entryExpiry, daysUntil, fieldOf } from '../core/util.js';
-import { changed } from './session.js';
+import { changed, refreshDirtyIndicator } from './session.js';
+import { iconSelOf, iconPreview, pickIcon, commitIconSel } from './icon-picker.js';
 import { openReports } from './reports.js';
 import { openGenerator } from './generator-dialog.js';
 import { openSettings } from './settings-dialog.js';
@@ -61,8 +62,17 @@ export async function editGroup(g) {
     const name = h('input', { id: 'g-name', value: g.name || '', autocomplete: 'off' });
     const notes = h('textarea', { id: 'g-notes', rows: 3 }); notes.value = g.notes || '';
     const ok = h('button', { type: 'submit', class: 'primary', id: 'g-ok', text: t('apply') });
-    const m = modal({ title: t('group.edit'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); v.updateGroup(g, { name: name.value, notes: notes.value }); m.close(); changed(); } },
-        h('label', {}, h('span', { text: t('group.name') }), name), h('label', {}, h('span', { text: t('notes') }), notes),
+    let iconSel = iconSelOf(g, 'group');
+    const iconEl = h('button', { type: 'button', class: 'icon-pick group', id: 'g-icon', title: t('icon.change'), 'aria-label': t('icon.change'), onclick: async () => {
+        const sel = await pickIcon({ kind: 'group', sel: iconSel, onRemoved: () => { ctx.ui.renderSidebar(); ctx.ui.renderList(); refreshDirtyIndicator(); } });
+        if (sel) { iconSel = sel; iconEl.replaceChildren(iconPreview(iconSel, 'group')); }
+    } }, iconPreview(iconSel, 'group'));
+    // Wie "Symbol anwenden auf ..." in KeePassXC
+    const scope = h('select', { id: 'g-icon-scope' }, ['self', 'groups', 'entries', 'all'].map((k) => h('option', { value: k, text: t('icon.scope.' + k) })));
+    const m = modal({ title: t('group.edit'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); v.updateGroup(g, { name: name.value, notes: notes.value, ...commitIconSel(iconSel), iconScope: scope.value }); m.close(); changed(); } },
+        h('div', { class: 'title-row' }, iconEl, h('label', { class: 'grow' }, h('span', { text: t('group.name') }), name)),
+        h('label', {}, h('span', { text: t('icon.scope') }), scope),
+        h('label', {}, h('span', { text: t('notes') }), notes),
         h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), ok)) });
 }
 

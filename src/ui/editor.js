@@ -4,11 +4,12 @@ import { isSystemField, entryExpiry } from '../core/util.js';
 import { t } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
 import { h, icon, iconBtn } from './dom.js';
-import { changed } from './session.js';
+import { changed, refreshDirtyIndicator } from './session.js';
 import { strengthBar } from './detail.js';
 import { groupSelect, selectedGroup } from './groups.js';
 import { openGenerator } from './generator-dialog.js';
 import { allRealEntries } from './common.js';
+import { iconSelOf, iconPreview, pickIcon, commitIconSel } from './icon-picker.js';
 
 const { state } = ctx;
 
@@ -47,6 +48,15 @@ export function renderEditor(host) {
     i.Password.addEventListener('input', () => meter.replaceChildren(strengthBar(i.Password.value, generated?.pw === i.Password.value ? generated.bits : undefined)));
     const showBtn = iconBtn('eye', t('show'), () => { const on = i.Password.type === 'password'; i.Password.type = on ? 'text' : 'password'; showBtn.replaceChildren(icon(on ? 'eyeOff' : 'eye')); }, { id: 'e-show', type: 'button' });
     const genBtn = h('button', { type: 'button', id: 'gen-btn', class: 'btn', onclick: () => openGenerator({ onUse: (pw, bits) => { generated = { pw, bits }; i.Password.value = pw; i.Password.dispatchEvent(new Event('input')); } }) }, icon('dice'), h('span', { text: t('generator') }));
+
+    let iconSel = iconSelOf(entry, 'entry');
+    const iconBtnEl = h('button', { type: 'button', class: 'icon-pick', id: 'e-icon', title: t('icon.change'), 'aria-label': t('icon.change'), onclick: async () => {
+        const sel = await pickIcon({ kind: 'entry', sel: iconSel, title: i.Title.value, onRemoved: () => { ctx.ui.renderSidebar(); ctx.ui.renderList(); refreshDirtyIndicator(); } });
+        if (sel) { iconSel = sel; showIcon(); }
+    } });
+    const showIcon = () => iconBtnEl.replaceChildren(iconPreview(iconSel, 'entry', i.Title.value, 'lg'));
+    i.Title.addEventListener('input', () => { if (!iconSel.add && !iconSel.custom && !iconSel.icon) showIcon(); }); // Anfangsbuchstabe
+    showIcon();
 
     const customBox = h('div', { id: 'e-custom', class: 'stack' });
     // Werte sind mehrzeilig (Textfeld). Geschuetzte Werte stehen verdeckt in einem Passwortfeld (nur Anzeige) und werden erst
@@ -89,7 +99,7 @@ export function renderEditor(host) {
                 h('button', { type: 'submit', class: 'primary', id: 'apply-btn' }, icon('check'), h('span', { text: t('apply') })))),
         h('div', { class: 'detail-body' },
             h('section', { class: 'card stack' },
-                h('label', {}, h('span', { text: t('f.title') }), i.Title),
+                h('div', { class: 'title-row' }, iconBtnEl, h('label', { class: 'grow' }, h('span', { text: t('f.title') }), i.Title)),
                 h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('f.user') }), i.UserName), h('label', {}, h('span', { text: t('group') }), groupSel)),
                 h('label', {}, h('span', { text: t('f.password') }), h('div', { class: 'input-group' }, i.Password, showBtn, genBtn)), meter,
                 h('label', {}, h('span', { text: t('f.url') }), i.URL)),
@@ -106,7 +116,8 @@ export function renderEditor(host) {
         const data = {
             Title: i.Title.value, UserName: i.UserName.value, Password: i.Password.value, URL: i.URL.value, Notes: i.Notes.value,
             tags: i.tags.value.split(/[,;]/).map((x) => x.trim()).filter(Boolean), custom,
-            expires: i.expires.checked, expiryTime: i.expires.checked && i.expiry.value ? new Date(i.expiry.value + 'T23:59:59') : null
+            expires: i.expires.checked, expiryTime: i.expires.checked && i.expiry.value ? new Date(i.expiry.value + 'T23:59:59') : null,
+            ...commitIconSel(iconSel)
         };
         if (i.expires.checked && entry?.times.expires && i.expiry.value === dateStr(entry.times.expiryTime)) data.expiryTime = entry.times.expiryTime; // Uhrzeit unveraendert lassen
         if (i.otp.value.trim() !== val('otp')) {

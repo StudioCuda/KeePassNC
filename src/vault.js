@@ -41,6 +41,15 @@ export function isProtected(v) {
     return v instanceof ProtectedValue;
 }
 
+/** data:-URL fuer Bilddaten (PNG, JPEG, GIF, sonst als PNG versucht); SVG nie, das koennte Skripte enthalten. */
+export function imageUrl(data) {
+    const bytes = new Uint8Array(data.buffer ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) : data);
+    const mime = bytes[0] === 0x89 ? 'image/png' : bytes[0] === 0xff ? 'image/jpeg' : bytes[0] === 0x47 ? 'image/gif' : bytes[0] === 0x3c ? null : 'image/png';
+    if (!mime) return null;
+    let bin = ''; for (const b of bytes) bin += String.fromCharCode(b);
+    return `data:${mime};base64,${btoa(bin)}`;
+}
+
 const toArrayBuffer = (u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
 const stamp = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '-');
 
@@ -164,7 +173,8 @@ export class Vault {
 
     /**
      * Wendet Formularwerte auf einen Eintrag an (neuer Eintrag: entry === null -> in group anlegen).
-     * data: {Title, UserName, Password, URL, Notes, tags: string[], custom: [{name, value, protect}], expires?: boolean, expiryTime?: Date|null, otp?: string}
+     * data: {Title, UserName, Password, URL, Notes, tags: string[], custom: [{name, value, protect}], expires?: boolean, expiryTime?: Date|null, otp?: string,
+     *   icon?: number, customIcon?: string|null} (Symbol: siehe _setIcon)
      * Unveraendert bleibt alles, was der Editor nicht anzeigt (Passkey-Felder, Browser-Daten, Farben, Auto-Type ...). Ohne tatsaechliche Aenderung
      * entsteht kein Verlaufseintrag (wie in KeePassXC).
      */
@@ -198,6 +208,7 @@ export class Vault {
             entry.times.expires = !!data.expires;
             if (data.expires) entry.times.expiryTime = data.expiryTime || new Date(Date.now() + 365 * 86400000);
         }
+        this._setIcon(entry, data);
         entry.times.update();
         this.dirty = true;
         return entry;
@@ -218,7 +229,7 @@ export class Vault {
             if (!!data.expires !== !!entry.times.expires) return true;
             if (data.expires && (data.expiryTime?.getTime() ?? 0) !== (entry.times.expiryTime?.getTime() ?? 0)) return true;
         }
-        return false;
+        return this._iconDiffers(entry, data);
     }
 
     /** Verlaufseintrag anlegen und gemaess Datenbank-Einstellungen kuerzen (Standard 10 Staende / 6 MiB, aelteste zuerst). */
@@ -273,11 +284,22 @@ export class Vault {
         return out;
     }
     createGroup(parent, name) { const g = this.db.createGroup(parent, name.trim() || 'Neue Gruppe'); this.dirty = true; return g; }
-    updateGroup(group, { name, notes, icon }) {
+    /**
+     * icon/customIcon: Symbol wie bei applyEntry. iconScope gibt es wie in KeePassXC: 'groups' (alle Untergruppen), 'entries' (Eintraege
+     * direkt in der Gruppe) oder 'all' (alles darunter) bekommen dasselbe Symbol, ohne Verlaufseintrag.
+     */
+    updateGroup(group, { name, notes, icon, customIcon, iconScope }) {
         if (name !== undefined) group.name = name.trim() || group.name;
         if (notes !== undefined) group.notes = notes;
-        if (icon !== undefined) group.icon = icon;
+        this._setIcon(group, { icon, customIcon });
         group.times.update();
+        if (iconScope && iconScope !== 'self') {
+            const sel = { icon: group.icon, customIcon: group.customIcon?.id ?? null };
+            const inBin = (g) => g === this.recycleBin || this.isInRecycleBin(g); // der Papierkorb unter der Wurzel bleibt, wie er ist
+            const groups = iconScope === 'entries' ? [] : [...group.allGroups()].filter((g) => g !== group && (inBin(group) || !inBin(g)));
+            const entries = iconScope === 'groups' ? [] : iconScope === 'entries' ? group.entries : [group, ...groups].flatMap((g) => g.entries);
+            for (const item of [...groups, ...entries]) if (this._iconDiffers(item, sel)) { this._setIcon(item, sel); item.times.update(); }
+        }
         this.dirty = true;
     }
     /** Papierkorb ist aktiv -> Gruppe wandert hinein; sonst endgueltig. */
@@ -352,20 +374,79 @@ export class Vault {
         this.dirty = true;
     }
 
-    // ---------------------------------------------------------------- Anzeige-Hilfen
+    // ---------------------------------------------------------------- Symbole
+    // Wie KeePass/KeePassXC: jedes Element hat ein Standard-Symbol (IconID 0-68) und optional ein eigenes (UUID in meta.customIcons), das in
+    // der Anzeige gewinnt. Wer ein eigenes waehlt, behaelt die IconID als Rueckfall fuer Programme ohne eigene Symbole.
+    /** sel: {icon?: number, customIcon?: string|null}; undefined laesst den jeweiligen Teil unveraendert. */
+    _setIcon(item, { icon, customIcon }) {
+        if (Number.isInteger(icon) && icon >= 0 && icon < 69) item.icon = icon;
+        if (customIcon === null) item.customIcon = undefined;
+        else if (customIcon !== undefined && customIcon !== item.customIcon?.id) item.customIcon = this.db.meta.customIcons.has(customIcon) ? new KdbxUuid(customIcon) : undefined;
+    }
+    _iconDiffers(item, { icon, customIcon }) {
+        if (customIcon !== undefined && (customIcon || null) !== (item.customIcon?.id ?? null)) return true;
+        return icon !== undefined && icon !== (item.icon ?? (item instanceof kdbxweb.KdbxGroup ? 48 : 0));
+    }
+
+    /** Alle eigenen Symbole der Datei: [{id, name, url}] (url null, wenn das Format nicht angezeigt wird). */
+    customIcons() {
+        return [...this.db.meta.customIcons].map(([id, ic]) => ({ id, name: ic.name || '', url: this.iconUrl(id) }));
+    }
+    /**
+     * Neues eigenes Symbol (PNG-Bytes, schon verkleinert). Gibt es dieselben Bytes schon, wird das vorhandene benutzt (wie KeePassXC).
+     * @returns {string} UUID des Symbols
+     */
+    addCustomIcon(bytes, name = '') {
+        const u8 = new Uint8Array(bytes);
+        const known = this.findCustomIcon(u8);
+        if (known) return known;
+        const id = KdbxUuid.random().id;
+        this.db.meta.customIcons.set(id, { data: toArrayBuffer(u8), name: name.slice(0, 64) || undefined, lastModified: new Date() });
+        this.dirty = true;
+        return id;
+    }
+    /** UUID des eigenen Symbols mit genau diesen Bytes (oder null). */
+    findCustomIcon(bytes) {
+        const u8 = new Uint8Array(bytes);
+        for (const [id, ic] of this.db.meta.customIcons) {
+            const o = new Uint8Array(ic.data);
+            if (o.length === u8.length && o.every((b, i) => b === u8[i])) return id;
+        }
+        return null;
+    }
+    /** Wie viele Eintraege und Gruppen (ohne Verlauf) das Symbol benutzen. */
+    customIconUsage(id) {
+        let n = 0;
+        for (const item of this.root.allGroupsAndEntries()) if (item.customIcon?.id === id) n++;
+        return n;
+    }
+    /**
+     * Symbol aus der Datei entfernen; wer es benutzt, zeigt wieder sein Standard-Symbol (auch im Verlauf). Der Loeschvermerk verhindert,
+     * dass es beim Zusammenfuehren mit einem anderen Stand zurueckkommt (wie kdbxweb beim Aufraeumen).
+     */
+    removeCustomIcon(id) {
+        if (!this.db.meta.customIcons.has(id)) return;
+        for (const item of this.root.allGroupsAndEntries()) {
+            if (item.customIcon?.id === id) { item.customIcon = undefined; item.times.update(); }
+            for (const old of item.history || []) if (old.customIcon?.id === id) old.customIcon = undefined;
+        }
+        this.db.meta.customIcons.delete(id);
+        this.db.addDeletedObject(new KdbxUuid(id), new Date());
+        this._iconCache?.delete(id);
+        this.dirty = true;
+    }
+
     /** data:-URL eines eigenen Icons (oder null). */
     customIconUrl(entryOrGroup) {
         const id = entryOrGroup.customIcon?.id;
-        const ic = id && this.db.meta.customIcons.get(id);
+        return id ? this.iconUrl(id) : null;
+    }
+    iconUrl(id) {
+        const ic = this.db.meta.customIcons.get(id);
         if (!ic) return null;
         this._iconCache ||= new Map();
-        if (this._iconCache.has(id)) return this._iconCache.get(id);
-        const bytes = new Uint8Array(ic.data.buffer ? ic.data.buffer.slice(ic.data.byteOffset, ic.data.byteOffset + ic.data.byteLength) : ic.data);
-        const mime = bytes[0] === 0x89 ? 'image/png' : bytes[0] === 0xff ? 'image/jpeg' : bytes[0] === 0x47 ? 'image/gif' : bytes[0] === 0x3c ? null : 'image/png'; // SVG nie rendern
-        let url = null;
-        if (mime) { let bin = ''; for (const b of bytes) bin += String.fromCharCode(b); url = `data:${mime};base64,${btoa(bin)}`; }
-        this._iconCache.set(id, url);
-        return url;
+        if (!this._iconCache.has(id)) this._iconCache.set(id, imageUrl(ic.data));
+        return this._iconCache.get(id);
     }
 
     /** Eckdaten der Datei fuer die Info-Ansicht. */

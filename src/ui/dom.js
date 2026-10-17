@@ -22,7 +22,7 @@ export function append(el, children) {
 }
 
 // ---------------------------------------------------------------- Symbole (eigene, schlichte Linien-Symbole 24x24)
-const P = {
+export const P = {
     search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-4-4',
     plus: 'M12 5v14M5 12h14',
     minus: 'M5 12h14',
@@ -78,13 +78,15 @@ const P = {
     wifi: 'M3 9a14 14 0 0 1 18 0M6 12.500a9 9 0 0 1 12 0M9 16a4.500 4.500 0 0 1 6 0M12 19.500h.01'
 };
 const NS = 'http://www.w3.org/2000/svg';
-export function icon(name, cls = '') {
+export function icon(name, cls = '') { return pathIcon(P[name] || P.file, cls); }
+/** Linien-Symbol aus einem Pfad (fuer die KeePass-Standardsymbole in kpicons.js). */
+export function pathIcon(d, cls = '') {
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor');
     svg.setAttribute('stroke-width', '1.7'); svg.setAttribute('stroke-linecap', 'round'); svg.setAttribute('stroke-linejoin', 'round');
     svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('class', ('icon ' + cls).trim());
     const path = document.createElementNS(NS, 'path');
-    path.setAttribute('d', P[name] || P.file);
+    path.setAttribute('d', d);
     svg.append(path);
     return svg;
 }
