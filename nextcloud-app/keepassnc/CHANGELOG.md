@@ -5,6 +5,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ### Changed
 - The App Store listing links to the docs, and the app declares itself compatible up to Nextcloud 37 (newest tested version plus two) instead of "forever".
+- The search field just says "Search" now, without the cheat sheet of filter examples. The filters (`url:`, `is:weak`, `-tag:` …) still work, the README has the full list.
 
 ### Fixed
 - KDBX 4.1 files with custom icons or plugin data: their "last modified" stamps are now saved in the binary format the spec asks for, not as plain text that KeePass 2 chokes on with "Invalid Base-64 string". KeePassXC never minded, so you may not have noticed.
