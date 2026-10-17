@@ -26,7 +26,8 @@ No lock-in, no special format, no drama.
 ## What it can do
 
 - **Find things fast:** search like in KeePassXC (`user:`, `tag:`, `is:weak`, `has:totp` …) and a command palette (`Ctrl+K`).
-- **Stay organised:** groups with drag and drop, tags, expiry dates, attachments, recycle bin and full entry history.
+- **Stay organised:** groups with drag and drop, icons (KeePass's own or your pictures), tags, expiry dates, attachments, recycle bin and full entry history.
+- **Database settings:** name, recycle bin, history, encryption and key derivation, with browser-safe values and a test run first.
 - **Two-factor codes:** TOTP codes right next to the password, Steam Guard included.
 - **Passkeys:** passkeys saved by KeePassXC are shown and kept intact.
 - **Better passwords:** a generator for passwords, passphrases and pronounceable ones, and a health report that finds weak, reused and expired ones.

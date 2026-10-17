@@ -18,7 +18,8 @@
 
 - KeePassXC-style search and tags
 - TOTP, Steam Guard included
-- Attachments and entry history
+- Attachments, entry history and icons
+- Database settings, encryption and key derivation included, with values a browser can handle
 - Password generator and a health report
 - Follows your Nextcloud's accent color and light or dark theme, with a layout that works on phones and big screens alike
 - English and German
@@ -39,7 +40,8 @@ KeePassXC, KeePassDX and Strongbox keep working on it, no lock-in.]]></descripti
 
 - Suchsyntax wie in KeePassXC und Tags
 - TOTP, auch Steam Guard
-- Anhänge und Eintragsverlauf
+- Anhänge, Eintragsverlauf und Icons
+- Datenbank-Einstellungen inklusive Verschlüsselung und Schlüsselableitung, mit Werten, die ein Browser schafft
 - Passwortgenerator und Gesundheitsbericht
 - Übernimmt Akzentfarbe und helles oder dunkles Design von Nextcloud, für Smartphone und großen Bildschirm
 - Deutsch und Englisch
