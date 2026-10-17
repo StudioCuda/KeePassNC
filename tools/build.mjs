@@ -1,4 +1,4 @@
-// Baut web/keepassnc.js: kdbxweb (vendored, TypeScript) + hash-wasm (Argon2) + App-Code zu einer einzigen Datei.
+// Baut web/keepassnc.js (+ web/keepassnc-argon2.js, der Argon2-Worker): kdbxweb (vendored, TypeScript) + hash-wasm (Argon2) + App-Code zu einer einzigen Datei.
 // Keine externen Skripte zur Laufzeit; alles wird vom eigenen Server ausgeliefert.
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
@@ -27,6 +27,19 @@ await build({
     platform: 'browser',
     define: { global: 'globalThis', __VERSION__: JSON.stringify(JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version) },
     plugins: [stubNodeModules],
+    legalComments: 'none',
+    logLevel: 'info'
+});
+
+// Web Worker fuer Argon2 (src/argon2.js): eigene Datei neben keepassnc.js, damit die strikte CSP keinen blob:-Worker braucht
+await build({
+    entryPoints: [path.join(root, 'src/argon2-worker.js')],
+    outfile: path.join(root, 'web/keepassnc-argon2.js'),
+    bundle: true,
+    minify: true,
+    format: 'iife',
+    target: ['es2022'],
+    platform: 'browser',
     legalComments: 'none',
     logLevel: 'info'
 });

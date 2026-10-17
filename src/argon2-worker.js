@@ -1,0 +1,12 @@
+// Web Worker fuer die Schluesselableitung (siehe argon2.js). Rechnet genau eine Ableitung; die Seite beendet ihn danach.
+import { argon2Here } from './argon2.js';
+import { isOutOfMemory } from './core/util.js';
+
+self.onmessage = async ({ data }) => {
+    try {
+        const hash = await argon2Here(data);
+        self.postMessage({ ok: true, hash }, [hash.buffer]);
+    } catch (e) {
+        self.postMessage({ ok: false, oom: isOutOfMemory(e), message: String(e?.message || e) });
+    }
+};

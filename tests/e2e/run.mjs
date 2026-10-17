@@ -99,6 +99,29 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Argon2 rechnet in einem Web Worker, der danach beendet wird; ohne Worker-Datei rechnet die Seite selbst', async () => {
+        const p = await newPage();
+        const workers = [];
+        p.on('worker', (w) => { const rec = { url: w.url(), closed: false }; workers.push(rec); w.on('close', () => { rec.closed = true; }); });
+        await login(p, 'vault4.kdbx');
+        await rows(p).first().waitFor();
+        expect(workers.length === 1 && /\/keepassnc-argon2\.js$/.test(workers[0].url), 'Worker erwartet: ' + JSON.stringify(workers));
+        for (let i = 0; i < 50 && !workers[0].closed; i++) await p.waitForTimeout(100);
+        expect(workers[0].closed, 'Worker laeuft nach der Ableitung weiter');
+        await p.context().close();
+        // Worker-Datei fehlt (z. B. offline, nie geladen): einmal versuchen, dann auf der Seite rechnen
+        const q = await newPage();
+        let tries = 0;
+        await q.route('**/keepassnc-argon2.js', (r) => { tries++; return r.fulfill({ status: 404, body: '' }); });
+        await login(q, 'vault4.kdbx');
+        await rows(q).first().waitFor();
+        await q.click('#lock-btn'); await q.locator('#login-form').waitFor();
+        await login(q, 'vault4.kdbx');
+        await rows(q).first().waitFor();
+        expect(tries === 1, `Worker-Datei ${tries}-mal angefragt, erwartet einmal`);
+        await q.context().close();
+    });
+
     await step('Falsches App-Passwort / fehlende Datei -> Fehlermeldung', async () => {
         const p = await newPage();
         await login(p, 'vault4.kdbx', { pass: 'nope' });

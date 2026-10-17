@@ -12,7 +12,7 @@
 //  * Restrisiko (bewusst, dokumentiert): Wer eine Kopie des Browser-Profils hat (oder ein Skript derselben Herkunft den Datensatz auslesen laesst),
 //    kann das Master-Passwort OFFLINE raten und prueft jeden Tipp am GCM-Tag - OHNE dass die Schluesseldatei als zweiter Faktor noetig waere.
 //    Fuer dieses Geraet ist die Schluesseldatei dann kein zweiter Faktor mehr; das Master-Passwort muss das allein tragen.
-import { argon2id } from 'hash-wasm';
+import { argon2 } from './argon2.js';
 
 // min*: Untergrenzen beim Anlegen. max*: Obergrenzen beim Anlegen UND Lesen (Schutz vor Speicher-/Zeitbomben aus manipulierten Datensaetzen).
 // acceptMin*: Untergrenzen beim Lesen - bewusst niedriger als min*, damit ein spaeteres Anheben der Untergrenzen alte Datensaetze nicht unbrauchbar macht
@@ -38,7 +38,7 @@ const aad2 = (id, pepperId, name) => enc.encode(`${FORMAT2}\0${pepperId}\0${id}\
 
 /** pepper = {id, key: Uint8Array(32)} oder null. Mit Pepper: AES-Schluessel = HKDF-SHA256(Argon2id(Passwort), salt = Pepper). */
 async function deriveKey(password, salt, { memoryKiB, iterations }, pepper = null) {
-    const raw = await argon2id({ password: enc.encode(password), salt, parallelism: 1, iterations, memorySize: memoryKiB, hashLength: 32, outputType: 'binary' });
+    const raw = await argon2({ type: 'id', password: enc.encode(password), salt, parallelism: 1, iterations, memoryKiB, hashLength: 32 });
     try {
         if (!pepper) return await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
         const ikm = await crypto.subtle.importKey('raw', raw, 'HKDF', false, ['deriveKey']);

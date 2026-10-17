@@ -149,9 +149,11 @@ async function main() {
         await page.waitForFunction(() => /Falsches Master-Passwort/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 30000 }).catch(async (e) => { throw new Error(`${e.message.split('\n')[0]} | lang=${await page.getAttribute('html', 'lang')} data-lang=${await page.locator('#app').getAttribute('data-lang')} err=${await page.textContent('#login-error')}`); });
     });
 
-    await step('Entsperren: Eintraege, KDBX4, Gruppen', async () => {
+    await step('Entsperren: Eintraege, KDBX4, Gruppen; Argon2 im Web Worker (CSP und App-Pfad von Nextcloud erlauben ihn)', async () => {
+        const workers = []; page.on('worker', (w) => workers.push(w.url()));
         await page.fill('#master', PW); await page.click('#open-btn');
         await rows(page).first().waitFor({ timeout: 30000 });
+        expect(workers.some((u) => /\/keepassnc\/js\/keepassnc-argon2\.js\?v=/.test(u)), 'Argon2-Worker nicht gestartet: ' + JSON.stringify(workers));
         expect(await rows(page).count() === 2, 'Eintraege: ' + await rows(page).count());
         expect(/KDBX 4/.test(await status(page)), await status(page));
         return await status(page);

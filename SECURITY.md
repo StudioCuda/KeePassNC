@@ -44,7 +44,9 @@ Things we know about and can't fix from inside the app. Reports that find a way 
   isn't enough. A still valid session cookie in that profile is, though. Lost a device? Use "Invalidate on all devices" and sign out
   its Nextcloud sessions.
 - **The standalone page (`web/`) sets its CSP via `<meta>`.** `frame-ancestors` doesn't work there. If you host it yourself, send the
-  CSP as an HTTP header from your web server.
+  CSP as an HTTP header from your web server. Argon2 runs in a worker loaded from `keepassnc-argon2.js` next to `keepassnc.js`, so
+  a `worker-src` (if you set one) needs `'self'`, and a CSP on that file itself needs `'wasm-unsafe-eval'`. Otherwise the page falls
+  back to doing the math itself, which works but freezes the page while it unlocks.
 - **The server delivers the code.** Like every web app, KeePassNC trusts the server that ships its JavaScript. A malicious server admin
   is out of scope.
 
