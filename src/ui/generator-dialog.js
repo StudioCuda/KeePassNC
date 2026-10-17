@@ -68,8 +68,7 @@ export function openGenerator({ onUse } = {}) {
             optsBox.replaceChildren(syl, groupRow,
                 h('div', { class: 'grid2' },
                     h('label', {}, h('span', { text: t('gen.separator') }), select('gen-pr-sep', prOpts, 'separators', [['mixed', t('gen.sep.mixed')], ['digits', t('gen.sep.digits')], ['symbols', t('gen.sep.symbols')], ['dash', t('gen.sep.dash')]])),
-                    h('label', {}, h('span', { text: t('gen.casing') }), select('gen-pr-casing', prOpts, 'casing', [['lower', t('gen.case.lower')], ['title', t('gen.case.groups')]]))),
-                h('p', { class: 'hint', text: t('gen.syllablehint') }));
+                    h('label', {}, h('span', { text: t('gen.casing') }), select('gen-pr-casing', prOpts, 'casing', [['first', t('gen.case.first')], ['title', t('gen.case.groups')], ['lower', t('gen.case.lower')]]))));
         } else {
             const sep = h('input', { id: 'gen-sep', value: phOpts.separator, maxlength: 4, oninput: (e) => { phOpts.separator = e.target.value; generate(); }, autocomplete: 'off' });
             const casing = h('select', { id: 'gen-casing', onchange: (e) => { phOpts.casing = e.target.value; generate(); } }, ...['lower', 'upper', 'title', 'mixed'].map((c) => h('option', { value: c, selected: phOpts.casing === c, text: t('gen.case.' + c) })));

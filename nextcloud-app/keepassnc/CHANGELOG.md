@@ -4,7 +4,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Added
-- A "Pronounceable" mode in the password generator: syllables like `gosher9faggud3pizguz&dadkor` that you can read out over the phone or type on a TV remote without losing your mind. Letters that get mixed up when spelled out (c/k, v/f/w, j/y, q, x) stay out, and so do braces, slashes and `|` between the groups. Every syllable is drawn uniformly, so the bit count is exact, not wishful.
+- A "Pronounceable" mode in the password generator: syllables like `Gosher9faggud3pizguz&dadkor` that you can read out over the phone or type on a TV remote without losing your mind. Letters that get mixed up when spelled out (c/k, v/f/w, j/y, q, x) stay out, and so do braces, slashes and `|` between the groups. Out of the box it starts with a capital and mixes in a digit and a symbol, so the usual "one of each" password rules are happy. Every syllable is drawn uniformly, so the bit count is exact, not wishful.
 
 ### Changed
 - The App Store listing links to the docs, and the app declares itself compatible up to Nextcloud 37 (newest tested version plus two) instead of "forever".

@@ -64,10 +64,10 @@ export function generatePassphrase(opts = {}) {
 // verwechselbar) und ohne 0/1 (sehen aus wie o/l).
 export const SYLLABLE = { consonants: 'bdfghklmnprstz', vowels: 'aeiou' };
 export const PRON_SEPARATORS = { digits: '23456789', symbols: '-+=.!?#%&*@' };
-export const DEFAULT_PRONOUNCEABLE_OPTIONS = { syllables: 8, group: 2, separators: 'mixed', casing: 'lower' };
+export const DEFAULT_PRONOUNCEABLE_OPTIONS = { syllables: 8, group: 2, separators: 'mixed', casing: 'first' };
 export const SYLLABLE_BITS = Math.log2(SYLLABLE.consonants.length ** 2 * SYLLABLE.vowels.length);
 
-/** Liefert {password, bits}. separators: 'mixed' (Ziffern und Zeichen, ab zwei Trennern mindestens je eines), 'digits', 'symbols' oder 'dash'. */
+/** Liefert {password, bits}. casing: 'first' (erster Buchstabe gross), 'title' (jede Gruppe) oder 'lower'. separators: 'mixed' (Ziffern und Zeichen, ab zwei Trennern mindestens je eines), 'digits', 'symbols' oder 'dash'. */
 export function generatePronounceable(opts = {}) {
     const o = { ...DEFAULT_PRONOUNCEABLE_OPTIONS, ...opts };
     const n = Math.max(1, Math.min(32, o.syllables));
@@ -78,7 +78,8 @@ export function generatePronounceable(opts = {}) {
     for (let i = 0; i < n; i += group) {
         let g = '';
         for (let j = i; j < Math.min(n, i + group); j++) g += pick(C) + pick(V) + pick(C);
-        groups.push(o.casing === 'title' ? g[0].toUpperCase() + g.slice(1) : g);
+        // Feste Grossschreibung bringt keine Bits, erfuellt aber "mindestens ein Grossbuchstabe"
+        groups.push(o.casing === 'title' || (o.casing === 'first' && i === 0) ? g[0].toUpperCase() + g.slice(1) : g);
     }
     const k = groups.length - 1;
     const { digits: D, symbols: S } = PRON_SEPARATORS;

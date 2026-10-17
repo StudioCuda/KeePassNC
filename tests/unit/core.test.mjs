@@ -66,19 +66,21 @@ test('Aussprechbar: Silbenmuster, Gruppen, Trenner ohne Klammern/Schraegstriche/
     assert.ok(![...D + S].some((c) => '()[]{}<>/\\|01'.includes(c)));
     for (let i = 0; i < 300; i++) {
         const { password: p, bits } = generatePronounceable({ syllables: 8, group: 2, separators: 'mixed' });
-        const parts = p.split(/[^a-z]/);
+        assert.match(p, /^[A-Z][a-z]/);
+        const parts = p.toLowerCase().split(/[^a-z]/);
         assert.equal(parts.length, 4, p); assert.ok(parts.every((g) => new RegExp(`^(${syl}){2}$`).test(g)), p);
-        const seps = p.replace(/[a-z]/g, '');
+        assert.equal(p.slice(1), p.slice(1).toLowerCase());
+        const seps = p.replace(/[a-zA-Z]/g, '');
         assert.ok([...seps].some((c) => D.includes(c)) && [...seps].some((c) => S.includes(c)), 'Ziffer und Zeichen in ' + p);
         assert.ok(Math.abs(bits - (8 * SYLLABLE_BITS + Math.log2(19 ** 3 - 8 ** 3 - 11 ** 3))) < 1e-9);
     }
     const dash = generatePronounceable({ syllables: 6, group: 3, separators: 'dash', casing: 'title' });
     assert.match(dash.password, new RegExp(`^[A-Z]${V}${C}(${syl}){2}-[A-Z]${V}${C}(${syl}){2}$`)); assert.ok(Math.abs(dash.bits - 6 * SYLLABLE_BITS) < 1e-9);
-    const dig = generatePronounceable({ syllables: 5, group: 2, separators: 'digits' });
+    const dig = generatePronounceable({ syllables: 5, group: 2, separators: 'digits', casing: 'lower' });
     assert.match(dig.password, /^[a-z]{6}[2-9][a-z]{6}[2-9][a-z]{3}$/); assert.ok(Math.abs(dig.bits - (5 * SYLLABLE_BITS + 2 * Math.log2(8))) < 1e-9);
-    assert.ok(/^[a-z]+$/.test(generatePronounceable({ syllables: 4, group: 9 }).password));
+    assert.ok(/^[A-Z][a-z]+$/.test(generatePronounceable({ syllables: 4, group: 9 }).password));
     const seen = new Set();
-    for (let i = 0; i < 400; i++) for (const c of generatePronounceable({ syllables: 2, group: 1, separators: 'symbols' }).password.replace(/[a-z]/g, '')) seen.add(c);
+    for (let i = 0; i < 400; i++) for (const c of generatePronounceable({ syllables: 2, group: 1, separators: 'symbols' }).password.replace(/[a-zA-Z]/g, '')) seen.add(c);
     assert.equal(seen.size, S.length);
 });
 test('Staerke-Schaetzung: Reihenfolge sinnvoll', () => {
