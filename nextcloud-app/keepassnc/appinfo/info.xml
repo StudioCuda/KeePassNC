@@ -7,16 +7,46 @@
     <summary lang="de">KeePass-Datenbanken (KDBX) sicher im Browser öffnen und bearbeiten</summary>
     <description><![CDATA[Open and edit KeePass databases (KDBX 3.1 / 4.x) straight from Files. Click the .kdbx, type your master password, get on with your day.
 
-Everything is decrypted in your browser. The master password and the plaintext never leave it, and the server only sees the encrypted file. Saves are checked against the file's ETag, a backup is made first, and if two devices edit at once the versions are merged instead of one quietly winning. An optional encrypted offline copy keeps the database usable when the server or network is down.
+**Safe by design**
 
-You get KeePassXC-style search, tags, TOTP (Steam Guard too), attachments, entry history, a password generator, a health report, light and dark themes, and a layout that behaves on phones as well as big screens. English and German.
+- Everything is decrypted in your browser. The master password and the plaintext never leave it; the server only ever sees the encrypted file.
+- Saves are checked against the file's ETag, and a backup is made first.
+- If two devices edit at once, the versions are merged instead of one quietly winning.
+- An optional encrypted offline copy keeps the database usable when the server or network is down.
 
-It's still a plain KeePass file, so KeePassXC, KeePassDX and Strongbox keep working on it.]]></description>
-    <description lang="de"><![CDATA[Öffnet und bearbeitet KeePass-Dateien (KDBX 3.1 / 4.x) direkt aus „Dateien“ per Klick auf die .kdbx-Datei.
+**What's inside**
 
-Die Datenbank wird ausschließlich im Browser entschlüsselt; Master-Passwort und Klartext verlassen ihn nie, der Server sieht nur die verschlüsselte Datei. Änderungen werden mit ETag-Prüfung zurückgeschrieben, vorher wird eine Sicherungskopie angelegt (alte Kopien werden automatisch aufgeräumt); bei gleichzeitigen Änderungen auf mehreren Geräten werden die Stände zusammengeführt. Eine optionale verschlüsselte Offline-Kopie hält die Datenbank bei Server- oder Netzausfall nutzbar. Suchsyntax, Tags, TOTP (auch Steam Guard), Anhänge, Verlauf, Passwortgenerator, Gesundheitsbericht; Oberfläche auf Deutsch und Englisch; helles und dunkles Design; für Smartphone und großen Bildschirm.
+- KeePassXC-style search and tags
+- TOTP, Steam Guard included
+- Attachments and entry history
+- Password generator and a health report
+- Follows your Nextcloud's accent color and light or dark theme, with a layout that works on phones and big screens alike
+- English and German
 
-Die Datei bleibt ein normales KeePass-Format und kann jederzeit mit KeePassXC, KeePassDX, Strongbox & Co. weiterverwendet werden.]]></description>
+**Still just a KeePass file**
+
+KeePassXC, KeePassDX and Strongbox keep working on it, no lock-in.]]></description>
+    <description lang="de"><![CDATA[Öffnet und bearbeitet KeePass-Datenbanken (KDBX 3.1 / 4.x) direkt aus „Dateien“: .kdbx anklicken, Master-Passwort eingeben, fertig.
+
+**Sicher gebaut**
+
+- Entschlüsselt wird ausschließlich im Browser. Master-Passwort und Klartext verlassen ihn nie, der Server sieht nur die verschlüsselte Datei.
+- Gespeichert wird mit ETag-Prüfung, vorher wird eine Sicherungskopie angelegt (alte Kopien werden automatisch aufgeräumt).
+- Ändern mehrere Geräte gleichzeitig, werden die Stände zusammengeführt, statt dass einer still gewinnt.
+- Eine optionale verschlüsselte Offline-Kopie hält die Datenbank bei Server- oder Netzausfall nutzbar.
+
+**Was drin ist**
+
+- Suchsyntax wie in KeePassXC und Tags
+- TOTP, auch Steam Guard
+- Anhänge und Eintragsverlauf
+- Passwortgenerator und Gesundheitsbericht
+- Übernimmt Akzentfarbe und helles oder dunkles Design von Nextcloud, für Smartphone und großen Bildschirm
+- Deutsch und Englisch
+
+**Bleibt eine normale KeePass-Datei**
+
+KeePassXC, KeePassDX, Strongbox & Co. können sie jederzeit weiterverwenden.]]></description>
     <version>0.7.1</version>
     <licence>AGPL-3.0-or-later</licence>
     <author>KeePassNC</author>

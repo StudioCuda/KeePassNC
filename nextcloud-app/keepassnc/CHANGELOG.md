@@ -8,6 +8,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A "Pronounceable" mode in the password generator: syllables like `Gosher9faggud3pizguz&dadkor` that you can read out over the phone or type on a TV remote without losing your mind. Letters that get mixed up when spelled out (c/k, v/f/w, j/y, q, x) stay out, and so do braces, slashes and `|` between the groups. Out of the box it starts with a capital and mixes in a digit and a symbol, so the usual "one of each" password rules are happy. Every syllable is drawn uniformly, so the bit count is exact, not wishful.
 
 ### Changed
+- The App Store description is sorted into short sections with bullet points instead of one long paragraph, in English and German.
 - The App Store listing links to the docs, and the app declares itself compatible up to Nextcloud 37 (newest tested version plus two) instead of "forever".
 - The search field just says "Search" now, without the cheat sheet of filter examples. The filters (`url:`, `is:weak`, `-tag:` …) still work, the README has the full list.
 
