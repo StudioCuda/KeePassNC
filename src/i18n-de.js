@@ -246,7 +246,7 @@ export default {
     'saving': 'Speichere …',
     'saving.auto': 'Speichere automatisch …',
     'search': 'Suchen',
-    'search.placeholder': 'Suchen - z. B. mail  oder  url:bank is:weak -tag:alt',
+    'search.placeholder': 'Suche',
     'set.appearance': 'Darstellung',
     'set.autolock': 'Automatisch sperren nach',
     'set.backupkeep': 'Sicherungskopien auf dem Server behalten', 'set.backupkeep.hint': 'Je Art (normal / Konflikt) bleiben die neuesten erhalten; ältere werden automatisch gelöscht.',

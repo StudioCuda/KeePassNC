@@ -246,7 +246,7 @@ export default {
     'saving': 'Saving …',
     'saving.auto': 'Saving automatically …',
     'search': 'Search',
-    'search.placeholder': 'Search - e.g. mail  or  url:bank is:weak -tag:old',
+    'search.placeholder': 'Search',
     'set.appearance': 'Appearance',
     'set.autolock': 'Lock automatically after',
     'set.backupkeep': 'Backup copies kept on the server', 'set.backupkeep.hint': 'Per kind (normal / conflict) the newest are kept; older ones are deleted automatically.',

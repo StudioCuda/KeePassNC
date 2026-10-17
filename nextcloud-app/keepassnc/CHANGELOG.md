@@ -8,6 +8,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 - The App Store listing links to the docs, and the app declares itself compatible up to Nextcloud 37 (newest tested version plus two) instead of "forever".
+- The search field just says "Search" now, without the cheat sheet of filter examples. The filters (`url:`, `is:weak`, `-tag:` …) still work, the README has the full list.
 
 ### Fixed
 - The generator's strength meter now shows the exact entropy of what it generated. It used to guess from the characters and rated a six-word passphrase at well over 150 bits instead of the honest 77. The editor keeps the exact value as long as you don't touch the generated password.
