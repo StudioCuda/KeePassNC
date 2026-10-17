@@ -23,8 +23,8 @@ browser only. Start with `README.md`, `CONTRIBUTING.md` (build, tests, layout) a
 - User-visible changes get a line under `## [Unreleased]` in `nextcloud-app/keepassnc/CHANGELOG.md`.
 - Releases: a release PR bumps `package.json`, `package-lock.json` and `appinfo/info.xml` and dates the changelog section.
   After the merge, `.github/workflows/release.yml` tags `vX.Y.Z` and creates the GitHub release once `main` is green. The
-  maintainer then runs `tools/publish-release.sh` (or `tools\publish-release.cmd`) on their machine, which signs and pushes to the
-  App Store, see `docs/APPSTORE.md`.
+  maintainer then runs `tools/publish-release.sh` (or `tools\publish-nextcloud-release.cmd`) on their machine, which signs and
+  pushes to the App Store, see `docs/APPSTORE.md`. `SKIP_STORE=1` (or `tools\sign-github-release.cmd`) leaves the App Store out.
 - Before a release PR, compare the whole header with the newest stable Nextcloud, left and right: logo, app menu and account menu
   (`src/ui/ncheader.js`, the `.nch` block in `src/keepassnc.css`). On its `stableNN` branch look at `core/css/header.scss`,
   `core/src/components/AppMenu*.vue`, `AppItem.vue`/`AppIcon.vue`, `core/src/views/AccountMenu.vue` and
