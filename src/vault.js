@@ -6,7 +6,7 @@ import { ConflictError, DavError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
 import { isOutOfMemory, isPasskeyField, isSystemField, valueText } from './core/util.js';
 
-const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream } = kdbxweb;
+const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
 
 kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type) => {
     let out;
@@ -274,6 +274,50 @@ export class Vault {
         return k;
     }
 
+    // ---------------------------------------------------------------- Sicherheits-Einstellungen (Dateikopf)
+    /** {version, cipher: 'aes'|'chacha20'|null, kdf: 'argon2d'|'argon2id'|'aes', memoryKiB, iterations, parallelism, rounds} */
+    securitySettings() {
+        const h = this.db.header, kp = h.kdfParameters;
+        const cipher = { [Consts.CipherId.Aes]: 'aes', [Consts.CipherId.ChaCha20]: 'chacha20' }[h.dataCipherUuid?.toString()] ?? null;
+        const out = { version: h.versionMajor, cipher, kdf: 'aes', memoryKiB: null, iterations: null, parallelism: null, rounds: null };
+        if (!kp) { out.rounds = Number(h.keyEncryptionRounds ?? 0); return out; }
+        const id = kp.get('$UUID'), b64 = id ? btoa(String.fromCharCode(...new Uint8Array(id))) : '';
+        if (b64 === Consts.KdfId.Argon2d || b64 === Consts.KdfId.Argon2id) {
+            out.kdf = b64 === Consts.KdfId.Argon2id ? 'argon2id' : 'argon2d';
+            out.memoryKiB = Math.round(Number(kp.get('M')) / 1024);
+            out.iterations = Number(kp.get('I'));
+            out.parallelism = Number(kp.get('P'));
+        } else out.rounds = Number(kp.get('R'));
+        return out;
+    }
+
+    /**
+     * Aendert Format, Verschluesselung und Schluesselableitung. Argon2 und ChaCha20 gibt es erst ab KDBX 4: eine KDBX-3.1-Datei wird dafuer
+     * umgestellt (ein Zurueck gibt es nicht). Neue Salze und IVs erzeugt kdbxweb beim Speichern ohnehin. "Einstellungen geaendert" wird
+     * gesetzt, damit das Zusammenfuehren mit einem anderen Geraet (Vault._mergedHeader) den neueren Kopf erkennt.
+     */
+    updateSecuritySettings({ cipher, kdf, memoryKiB, iterations, parallelism, rounds, upgrade = false }) {
+        const cur = this.securitySettings();
+        const needs4 = upgrade || kdf !== 'aes' || cipher === 'chacha20';
+        if (needs4 && cur.version < 4) this.db.upgrade();
+        const h = this.db.header;
+        if (cipher && cipher !== cur.cipher) h.dataCipherUuid = new KdbxUuid(cipher === 'chacha20' ? Consts.CipherId.ChaCha20 : Consts.CipherId.Aes);
+        if (h.versionMajor >= 4) {
+            const want = kdf === 'argon2id' ? Consts.KdfId.Argon2id : kdf === 'argon2d' ? Consts.KdfId.Argon2d : Consts.KdfId.Aes;
+            if (kdf !== this.securitySettings().kdf) this.db.setKdf(want);
+            const kp = h.kdfParameters, T = VarDictionary.ValueType;
+            if (kdf === 'aes') kp.set('R', T.UInt64, Int64.from(rounds));
+            else {
+                kp.set('M', T.UInt64, Int64.from(memoryKiB * 1024));
+                kp.set('I', T.UInt64, Int64.from(iterations));
+                kp.set('P', T.UInt32, parallelism);
+            }
+        } else h.keyEncryptionRounds = rounds;
+        this.db.meta.settingsChanged = new Date();
+        this.db.meta.headerHash = undefined;
+        this.dirty = true;
+    }
+
     // ---------------------------------------------------------------- Datenbank-Einstellungen (Metadaten, nicht der Dateikopf)
     get binEnabled() { return this.db.meta.recycleBinEnabled !== false; }
 
@@ -529,7 +573,7 @@ export class Vault {
             out.kdf = b64 === Consts.KdfId.Argon2d ? 'Argon2d' : b64 === Consts.KdfId.Argon2id ? 'Argon2id' : 'AES-KDF';
             if (out.kdf !== 'AES-KDF') { out.memoryMiB = Math.round(Number(kdf.get('M')) / 1048576); out.iterations = Number(kdf.get('I')); out.parallelism = Number(kdf.get('P')); }
             else out.iterations = Number(kdf.get('R'));
-        } else out.iterations = Number(h.transformRounds ?? 0);
+        } else out.iterations = Number(h.keyEncryptionRounds ?? 0); // KDBX 3.1: AES-KDF-Runden direkt im Kopf
         return out;
     }
 

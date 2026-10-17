@@ -393,6 +393,63 @@ async function main() {
         await p.context().close();
     });
 
+    const fUp = path.join(davRoot, 'v3-hoch.kdbx');
+    const openDbSettings = async (p) => { await p.click('#reports-btn'); await p.click('#rep-tab-info'); await p.click('#db-settings-btn'); await p.locator('#db-settings').waitFor(); };
+    await step('Sicherheit: KDBX 3.1 mit AES-KDF -> KDBX 4, Argon2id 64 MiB / 3, ChaCha20; Probelauf, danach oeffnen KeePassXC und die App die Datei', async () => {
+        fs.copyFileSync(path.join(davRoot, 'vault3.kdbx'), fUp);
+        const p = await newPage();
+        await login(p, 'v3-hoch.kdbx'); await rows(p).first().waitFor();
+        await openDbSettings(p);
+        const rounds = Number(await p.inputValue('#db-rounds'));
+        expect(rounds > 0 && (await p.locator('.report-body').innerText()).includes(String(rounds)), 'KDBX 3.1: AES-KDF-Runden in Info und Dialog: ' + rounds);
+        expect(!(await p.isChecked('#db-upgrade')) && !(await p.isDisabled('#db-upgrade')), 'Umstellen auf KDBX 4 sollte frei waehlbar und aus sein');
+        await p.selectOption('#db-kdf', 'argon2id');
+        expect(await p.isChecked('#db-upgrade') && await p.isDisabled('#db-upgrade'), 'Argon2 erzwingt KDBX 4');
+        await p.selectOption('#db-cipher', 'chacha20');
+        await p.selectOption('#db-memory', '64'); await p.fill('#db-iterations', '3'); await p.selectOption('#db-parallelism', '2');
+        expect(/Passt für Handy/.test(await p.locator('#db-level').innerText()), 'Ampel gruen bei 64 MiB');
+        await p.click('#db-apply');
+        await p.waitForFunction(() => !document.querySelector('#db-settings'), null, { timeout: 30000 }); // Probelauf, keine Rueckfrage
+        await p.keyboard.press('Escape');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./, 30000);
+        expect(kdbxVersion(fUp) === '4.0', 'Version: ' + kdbxVersion(fUp));
+        const dbi = xc(['db-info', fUp]);
+        expect(/Cipher: ChaCha20/i.test(dbi) && /KDF: Argon2id/i.test(dbi), 'KeePassXC db-info:\n' + dbi);
+        expect(xc(['show', '-s', fUp, 'Konto']).includes('Password: pw-v3-zwei'), 'Eintrag nach dem Umstellen');
+        await p.context().close();
+        const q = await newPage();
+        await login(q, 'v3-hoch.kdbx'); await rows(q).first().waitFor();
+        await q.click('#reports-btn'); await q.click('#rep-tab-info');
+        const info = await q.locator('.report-body').innerText();
+        expect(/KDBX 4/.test(info) && /ChaCha20/.test(info) && /Argon2id/.test(info) && /64 MiB/.test(info), 'Info nach dem Neuladen: ' + info);
+        await q.context().close();
+        return dbi.split('\n').filter((l) => /^(Cipher|KDF)/.test(l)).join(', ');
+    });
+
+    await step('Sicherheit: Rueckfrage bei "schwaecher" und bei 1 GiB, Abbrechen aendert nichts; "≈ 1 s" schlaegt nie weniger Arbeit vor', async () => {
+        const p = await newPage();
+        await login(p, 'v3-hoch.kdbx'); await rows(p).first().waitFor();
+        await openDbSettings(p);
+        const confirmText = async () => { await p.locator('#confirm-ok').waitFor(); return p.locator('.modal', { has: p.locator('#confirm-ok') }).innerText(); };
+        await p.fill('#db-iterations', '2'); await p.click('#db-apply');
+        expect(/Schwächer als bisher/.test(await confirmText()), 'Rueckfrage "schwaecher" fehlt');
+        await p.click('#confirm-cancel');
+        await p.fill('#db-iterations', '3'); await p.selectOption('#db-memory', '1024');
+        expect(/Viele Handys/.test(await p.locator('#db-level').innerText()), 'Ampel rot bei 1 GiB');
+        await p.click('#db-apply');
+        expect(/Sehr viel Speicher/.test(await confirmText()), 'Rueckfrage 1 GiB fehlt');
+        await p.click('#confirm-cancel');
+        await p.selectOption('#db-memory', '64'); await p.fill('#db-iterations', '1');
+        await p.click('#db-bench');
+        await p.waitForFunction(() => /\d s/.test(document.querySelector('#db-bench-note')?.textContent || ''), null, { timeout: 30000 });
+        const it = Number(await p.inputValue('#db-iterations'));
+        expect(it >= 3, 'Vorschlag unter der bisherigen Arbeit: ' + it);
+        await p.locator('#db-settings button', { hasText: 'Abbrechen' }).click();
+        expect(await p.isDisabled('#save-btn'), 'Abbrechen hat etwas geaendert (Speichern ist aktiv)');
+        await p.context().close();
+        return `Vorschlag ${it} Durchlaeufe`;
+    });
+
     await step('Lokale Datei: oeffnen, aendern, "Speichern" liefert Download, der in KeePassXC oeffnet', async () => {
         const p = await newPage();
         await p.locator('input[value=file]').check({ force: true });
