@@ -117,7 +117,7 @@ export function renderDetail(host) {
     for (const [k, val] of e.fields) {
         if (STANDARD_FIELDS.includes(k) || isSystemField(k)) continue;
         const text = fieldText(val);
-        const span = h('span', { 'data-testid': 'custom-' + k, text: isProtected(val) ? DOTS : text });
+        const span = h('span', { 'data-testid': 'custom-' + k, class: 'multiline', text: isProtected(val) ? DOTS : text });
         const actions = isProtected(val) ? [iconBtn('eye', t('show'), (ev) => { const on = span.dataset.on !== '1'; span.dataset.on = on ? '1' : '0'; span.textContent = on ? text : DOTS; ev.currentTarget.replaceChildren(icon(on ? 'eyeOff' : 'eye')); })] : [];
         custom.push(field(k, span, [...actions, copyBtn(text, k)]));
     }

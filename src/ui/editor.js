@@ -48,12 +48,28 @@ export function renderEditor(host) {
     const genBtn = h('button', { type: 'button', id: 'gen-btn', class: 'btn', onclick: () => openGenerator({ onUse: (pw) => { i.Password.value = pw; i.Password.dispatchEvent(new Event('input')); } }) }, icon('dice'), h('span', { text: t('generator') }));
 
     const customBox = h('div', { id: 'e-custom', class: 'stack' });
+    // Werte sind mehrzeilig (Textfeld). Geschuetzte Werte stehen verdeckt in einem Passwortfeld (nur Anzeige) und werden erst
+    // nach einem Klick aufs Auge bearbeitbar; ein <input> wuerde Zeilenumbrueche beim Speichern verlieren.
+    const lineCount = (v) => Math.min(12, v.split('\n').length);
     const addCustom = (name = '', value = '', protect = false) => {
+        const val = h('textarea', { placeholder: t('field.value'), class: 'c-value', 'aria-label': t('field.value'), rows: lineCount(value), autocomplete: 'off', spellcheck: 'false' });
+        val.value = value;
+        val.addEventListener('input', () => { val.rows = lineCount(val.value); });
+        const mask = h('input', { type: 'password', class: 'c-mask', readonly: true, tabindex: -1, 'aria-hidden': 'true' });
+        const eye = iconBtn('eye', t('show'), () => setMasked(!val.hidden), { type: 'button', class: 'c-eye' });
+        const setMasked = (on) => {
+            val.hidden = on; mask.hidden = !on; mask.value = on ? val.value : '';
+            eye.replaceChildren(icon(on ? 'eye' : 'eyeOff'));
+        };
+        const protectBox = h('input', { type: 'checkbox', class: 'c-protect', checked: protect, onchange: (ev) => { eye.hidden = !ev.target.checked; setMasked(ev.target.checked); } });
         const row = h('div', { class: 'custom-row' },
             h('input', { placeholder: t('field.name'), value: name, class: 'c-name', 'aria-label': t('field.name') }),
-            h('input', { placeholder: t('field.value'), value, class: 'c-value', 'aria-label': t('field.value'), type: protect ? 'password' : 'text', autocomplete: 'off' }),
-            h('label', { class: 'check small' }, h('input', { type: 'checkbox', class: 'c-protect', checked: protect, onchange: (ev) => { row.querySelector('.c-value').type = ev.target.checked ? 'password' : 'text'; } }), h('span', { text: t('field.protected') })),
+            h('div', { class: 'c-value-wrap' }, val, mask, eye),
+            h('label', { class: 'check small' }, protectBox, h('span', { text: t('field.protected') })),
             iconBtn('x', t('remove'), () => row.remove(), { type: 'button' }));
+        // Windows-Zeilenenden (KeePass 2) bleiben erhalten, solange der Wert nicht geaendert wurde (Textfelder liefern nur \n)
+        row.customValue = () => (val.value === value.replace(/\r\n?/g, '\n') ? value : val.value);
+        eye.hidden = !protect; setMasked(protect);
         customBox.append(row);
         return row;
     };
@@ -85,7 +101,7 @@ export function renderEditor(host) {
 
     form.addEventListener('submit', (ev) => {
         ev.preventDefault();
-        const custom = [...customBox.querySelectorAll('.custom-row')].map((r) => ({ name: r.querySelector('.c-name').value, value: r.querySelector('.c-value').value, protect: r.querySelector('.c-protect').checked }));
+        const custom = [...customBox.querySelectorAll('.custom-row')].map((r) => ({ name: r.querySelector('.c-name').value, value: r.customValue(), protect: r.querySelector('.c-protect').checked }));
         const data = {
             Title: i.Title.value, UserName: i.UserName.value, Password: i.Password.value, URL: i.URL.value, Notes: i.Notes.value,
             tags: i.tags.value.split(/[,;]/).map((x) => x.trim()).filter(Boolean), custom,

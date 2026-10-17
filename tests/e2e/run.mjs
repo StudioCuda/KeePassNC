@@ -251,6 +251,27 @@ async function main() {
         expect(fs.readdirSync(davRoot).filter((n) => /^vault4\.kdbx\..*\.bak$/.test(n)).length === 1, 'es darf nur eine Kopie pro Sitzung entstehen');
     });
 
+    await step('Mehrzeilige Zusatzfelder (offen und geschuetzt): Anzeige mit Umbruechen, Bearbeiten behaelt sie, KeePassXC liest sie', async () => {
+        const plain = 'Zeile 1\nZeile 2\n\nZeile 4', secret = 'geheim A\ngeheim B';
+        await page.fill('#search', ''); await page.locator('[data-testid=entry-row]', { hasText: 'Neu E2E' }).click();
+        await page.click('#edit-btn');
+        await page.click('#add-custom'); await page.locator('.c-name').last().fill('Codes'); await page.locator('.c-value').last().fill(plain);
+        await page.click('#add-custom'); await page.locator('.c-name').last().fill('Seed'); await page.locator('.c-value').last().fill(secret); await page.locator('.c-protect').last().check();
+        expect(await page.locator('.c-value').last().isHidden(), 'geschuetzter Wert muss im Editor verdeckt sein');
+        await page.click('#apply-btn');
+        expect(await page.locator('[data-testid="custom-Codes"]').innerText() === plain, 'Anzeige ohne Umbrueche: ' + JSON.stringify(await page.locator('[data-testid="custom-Codes"]').innerText()));
+        // erneut bearbeiten und unveraendert uebernehmen: Umbrueche bleiben, auch im verdeckten Feld
+        await page.click('#edit-btn');
+        const seedRow = page.locator('.custom-row').last();
+        expect(await seedRow.locator('.c-name').inputValue() === 'Seed', 'Reihenfolge der Zusatzfelder');
+        expect(await seedRow.locator('.c-value').isHidden(), 'geschuetzter Wert beim erneuten Bearbeiten offen');
+        await seedRow.locator('.c-eye').click();
+        expect(await seedRow.locator('.c-value').inputValue() === secret, 'geschuetzter Wert nach "Anzeigen" falsch');
+        await page.click('#apply-btn'); await page.click('#save-btn'); await waitStatus(page, /^Gespeichert\./);
+        expect(xc(['show', '-s', '-a', 'Codes', f4, 'Web/Neu E2E']).includes(plain), 'KeePassXC: Codes ohne Umbrueche');
+        expect(xc(['show', '-s', '-a', 'Seed', f4, 'Web/Neu E2E']).includes(secret), 'KeePassXC: Seed ohne Umbrueche');
+    });
+
     await step('Loeschen verschiebt in den Papierkorb (KeePassXC zeigt "Recycle Bin")', async () => {
         await page.fill('#search', ''); await page.locator('[data-testid=entry-row]', { hasText: 'Neu E2E' }).click();
         await page.click('#del-btn'); await page.click('#save-btn'); await waitStatus(page, /^Gespeichert\./);
