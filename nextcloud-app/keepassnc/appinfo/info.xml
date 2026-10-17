@@ -39,11 +39,6 @@ Die Datei bleibt ein normales KeePass-Format und kann jederzeit mit KeePassXC, K
         <php min-version="8.2"/>
         <nextcloud min-version="34" max-version="37"/>
     </dependencies>
-    <repair-steps>
-        <uninstall>
-            <step>OCA\Keepassnc\Migration\RemoveUserData</step>
-        </uninstall>
-    </repair-steps>
     <navigations>
         <navigation>
             <name>KeePassNC</name>

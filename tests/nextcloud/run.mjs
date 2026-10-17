@@ -349,31 +349,28 @@ async function main() {
 
     await browser.close();
 
-    // Zum Schluss, weil die App danach weg ist. Echtes "occ app:remove" loescht den App-Ordner: dafuer den Symlink ins Repo durch
-    // eine Kopie ersetzen, sonst raeumt Nextcloud durch den Link hindurch das Repo leer.
-    await step('Deinstallation (occ app:remove): App-Ordner und alle Benutzereinstellungen der App weg', async () => {
-        const link = path.join(NC_DIR, 'apps/keepassnc');
-        fs.rmSync(link, { force: true, recursive: true });
-        fs.cpSync(path.join(root, 'nextcloud-app/keepassnc'), link, { recursive: true });
+    // Nextcloud fuehrt Uninstall-Schritte bei jedem Deaktivieren aus und kennt keinen eigenen Haken fuers Entfernen. Darum raeumt die
+    // App dabei nichts weg: kurz aus- und wieder einschalten darf gemerkte Schluesseldateien nicht ungueltig machen.
+    await step('Deaktivieren + wieder aktivieren: App laeuft, Server-Geheimwert der Benutzer unveraendert', async () => {
         const sys = (key, fallback) => { try { return occ('config:system:get', key).trim(); } catch { return fallback; } }; // SQLite-Installationen setzen dbname nicht
         const db = path.join(dataDir, `${sys('dbname', 'owncloud')}.db`);
-        const prefix = sys('dbtableprefix', 'oc_');
-        const count = () => Number(execFileSync('php', ['-r', 'echo (new PDO("sqlite:" . $argv[1]))->query("SELECT COUNT(*) FROM ' + prefix + 'preferences WHERE appid = \'keepassnc\'")->fetchColumn();', db]).toString());
-        const before = count();
-        expect(before > 0, 'vorher keine Einstellungen der App - prueft der Schritt ueberhaupt etwas?');
-        const out = occ('app:remove', 'keepassnc');
-        expect(/removed/i.test(out), out);
-        expect(!fs.existsSync(link), 'App-Ordner noch da');
-        const after = count();
-        expect(after === 0, `noch ${after} Einstellungen der App in ${prefix}preferences`);
-        return `${before} -> ${after} Einstellungen`;
+        const sql = `SELECT userid || ':' || configvalue FROM ${sys('dbtableprefix', 'oc_')}preferences WHERE appid = 'keepassnc' AND configkey = 'kf_pepper' ORDER BY userid`;
+        const peppers = () => execFileSync('php', ['-r', 'echo implode("\\n", (new PDO("sqlite:" . $argv[1]))->query($argv[2])->fetchAll(PDO::FETCH_COLUMN));', db, sql]).toString();
+        const before = peppers();
+        expect(before !== '', 'vorher kein Server-Geheimwert - prueft der Schritt ueberhaupt etwas?');
+        occ('app:disable', 'keepassnc');
+        expect(/enabled/.test(occ('app:enable', 'keepassnc')), 'App laesst sich nicht wieder aktivieren');
+        expect(peppers() === before, 'Server-Geheimwert hat sich geaendert oder ist weg');
+        const page = await fetch(`${BASE}/index.php/apps/keepassnc/`, { headers: davAuth, redirect: 'manual' });
+        expect(page.status === 200, 'App-Seite nach Wiederaktivieren: ' + page.status);
+        return `${before.split('\n').length} Benutzer`;
     });
 }
 
 let crashed = null;
 try { await main(); } catch (e) { crashed = e; }
 php?.kill();
-fs.rmSync(path.join(NC_DIR, 'apps/keepassnc'), { force: true, recursive: true }); // Symlink oder (nach dem Deinstallationsschritt) Kopie
+fs.rmSync(path.join(NC_DIR, 'apps/keepassnc'), { force: true });
 fs.rmSync(path.join(NC_DIR, 'config/config.php'), { force: true });
 for (const r of results) console.log(`${r.ok ? 'PASS' : 'FAIL'}  ${r.name}${r.info ? '  -> ' + r.info : ''}`);
 if (crashed) console.log('ABBRUCH:', crashed.message);

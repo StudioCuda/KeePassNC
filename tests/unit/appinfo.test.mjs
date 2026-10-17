@@ -16,9 +16,3 @@ test('info.xml: Versionsspanne passt zu den im CI getesteten Nextcloud-Versionen
     assert.equal(Number(dep[1]), Math.min(...tested), 'min-version');
     assert.equal(Number(dep[2]), Math.max(...tested) + 2, 'max-version (neueste getestete + 2, siehe CONTRIBUTING.md)');
 });
-
-test('info.xml: jede Repair-Step-Klasse existiert als Datei', () => {
-    const steps = [...info.matchAll(/<step>OCA\\Keepassnc\\(.+?)<\/step>/g)].map((m) => m[1]);
-    assert.ok(steps.length > 0);
-    for (const s of steps) assert.ok(fs.existsSync(path.join(root, 'nextcloud-app/keepassnc/lib', s.replaceAll('\\', '/') + '.php')), s);
-});
