@@ -3,13 +3,13 @@
 # signiertes Archiv ans GitHub-Release haengen, Version beim App Store anmelden. Laeuft auf dem Rechner des Maintainers
 # (WSL), der private Schluessel verlaesst ihn nie. Unter Windows per Doppelklick: tools/publish-nextcloud-release.cmd.
 #
-#   tools/publish-nextcloud-release.sh            # neuestes GitHub-Release
-#   tools/publish-nextcloud-release.sh 0.7.1      # bestimmte Version
+#   tools/publish-release.sh            # neuestes GitHub-Release
+#   tools/publish-release.sh 0.7.1      # bestimmte Version
 #
 # Einmalig einrichten (siehe docs/APPSTORE.md): gh auth login, App-Store-Token in "keepassnc.appstore-token" neben dem
 # Schluessel, Nextcloud zum Signieren in /opt/nc-sign/nextcloud.
 # Ueberschreibbar: CERT_DIR, KEY, CRT, TOKEN_FILE, NC_DIR, REPO, WORK.
-# SKIP_STORE=1 signiert nur und ersetzt das Archiv im GitHub-Release, ohne App Store (tools/sign-github-release.sh).
+# SKIP_STORE=1 signiert nur und ersetzt das Archiv im GitHub-Release, ohne App Store (Windows: tools/sign-github-release.cmd).
 set -euo pipefail
 
 REPO="${REPO:-StudioCuda/KeePassNC}"

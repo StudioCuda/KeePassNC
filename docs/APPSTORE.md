@@ -27,7 +27,7 @@ The private key (`keepassnc.key`) stays on the owner's machine. It never goes in
 
 ## Once, on your machine (for publishing)
 
-`tools/publish-nextcloud-release.sh` does the signing and the upload in one go. It needs, in WSL:
+`tools/publish-release.sh` does the signing and the upload in one go. It needs, in WSL:
 
 - Node 22, PHP 8.3, `openssl`, `curl` and the GitHub CLI (`sudo apt install gh`, then `gh auth login` once).
 - A Nextcloud folder with `occ` in `/opt/nc-sign/nextcloud` (an unpacked release package, it doesn't have to be installed) that
@@ -48,16 +48,15 @@ The private key (`keepassnc.key`) stays on the owner's machine. It never goes in
    creates the GitHub release with the changelog section as text and an unsigned archive, so there's something to download until
    the signed one is there. It refuses if `package.json` and `info.xml` disagree or the changelog section isn't dated. (A tag
    pushed by hand works too.)
-3. **Publish.** On Windows double-click `tools\publish-nextcloud-release.cmd`, or in WSL run
-   `tools/publish-nextcloud-release.sh` (optionally with a version, e.g. `tools/publish-nextcloud-release.sh 0.7.1`). It checks
-   everything first, clones the tag fresh into the WSL home (not onto a Windows drive: `npm ci` fails there with
-   `EPERM ... chmod`), builds, signs, verifies the signature, attaches
+3. **Publish.** On Windows double-click `tools\publish-nextcloud-release.cmd`, or in WSL run `tools/publish-release.sh` (optionally with a
+   version, e.g. `tools/publish-release.sh 0.7.1`). It checks everything first, clones the tag fresh into the WSL home (not onto a
+   Windows drive: `npm ci` fails there with `EPERM ... chmod`), builds, signs, verifies the signature, attaches
    `keepassnc-X.Y.Z.tar.gz` to the GitHub release, checks that GitHub serves exactly that file, removes the unsigned archive and
    registers the release with the App Store API. Nextcloud servers pick the update up after a while.
 
-   Skipping a version in the App Store (say, because the next one is right around the corner)? `tools/sign-github-release.sh`
-   (or `tools\sign-github-release.cmd`) does everything above except the App Store part, and needs no token. The GitHub release
-   still ends up with the signed archive.
+   Skipping a version in the App Store (say, because the next one is right around the corner)? Double-click
+   `tools\sign-github-release.cmd`, or run `SKIP_STORE=1 tools/publish-release.sh 0.8.1`: everything above except the App Store
+   part, and no token needed. The GitHub release still ends up with the signed archive.
 
 Doing it by hand still works: `tools/sign-release.sh` signs and prints the signature, then attach the archive to the release and
 enter its download URL and the signature on `apps.nextcloud.com/developer/apps/releases/new`. Not the automatic "Source code"
