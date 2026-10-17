@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser } from '../browser.mjs';
+import { launchBrowser, knownFetchNoise, uncaughtWatch } from '../browser.mjs';
 import { startServer } from './davserver.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -36,9 +36,13 @@ async function main() {
     const pageErrors = [];
 
     const ctx = await browser.newContext({ locale: 'de-DE', viewport: { width: 1280, height: 800 } });
+    await ctx.addInitScript(uncaughtWatch);
     await ctx.addInitScript(() => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'change', offline: true })); } catch {} });
     const page = await ctx.newPage();
-    page.on('pageerror', (e) => pageErrors.push(String(e)));
+    // Der Server wird absichtlich mitten in Anfragen beendet; WebKit meldet das gelegentlich als Seitenfehler (knownFetchNoise).
+    // Echte, nicht abgefangene Fehler kommen trotzdem an: ueber uncaughtWatch als "UNCAUGHT:"-Konsolenmeldung.
+    page.on('pageerror', (e) => { if (!knownFetchNoise(e.message)) pageErrors.push(String(e)); });
+    page.on('console', (m) => { if (m.type() === 'error' && m.text().startsWith('UNCAUGHT: ')) pageErrors.push(m.text()); });
     const url = (q = '') => `${base}/?syncretry=2${q}`;
     const rows = () => page.locator('[data-testid=entry-row]');
     const status = () => page.locator('#status').innerText();
