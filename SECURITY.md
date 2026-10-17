@@ -25,6 +25,12 @@ format being boring is the point.
 Saving is defensive too: writes use ETag checks, a backup copy goes next to the file first, and if two devices edited at once the
 two versions are merged instead of one quietly winning. The app loads no external scripts or fonts and runs under a strict CSP.
 
+In Nextcloud the page is served on its own, without Nextcloud's layout and scripts. Any other app's JavaScript would otherwise run on
+the very page where your passwords sit decrypted. The header with the app menu and your account menu is KeePassNC's own: the server
+hands over the menu entries and the instance color, the browser checks them, and nothing else runs. That's why the header has no
+unified search, notifications or contacts menu, which all need Nextcloud's JavaScript. The color reaches the page as data and gets
+applied through the CSSOM, so the CSP still allows no inline styles at all.
+
 ## Known limitations
 
 Things we know about and can't fix from inside the app. Reports that find a way around them are very welcome.

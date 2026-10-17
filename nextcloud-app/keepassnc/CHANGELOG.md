@@ -2,6 +2,14 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+### Added
+- KeePassNC now dresses like your Nextcloud. It takes the instance color (or your own, if you picked one), follows your light, dark or
+  high-contrast choice from the accessibility settings, and keeps the familiar header with the 9-dot app menu and your account menu.
+  Garish colors get toned down until text on them is readable again, and the plain Nextcloud blue leaves our night blue and gold alone.
+  New setting "Same as Nextcloud" is the default for the color scheme; "Use the Nextcloud accent color" can be switched off. The header
+  has no search, notifications or contacts menu, on purpose: those need Nextcloud's JavaScript, and that stays off this page.
+
 ## [0.7.1] - 2026-10-17
 ### Fixed
 - Custom fields with several lines (KeePass 2 and KeePassXC allow that) now show their line breaks instead of one long sausage, and editing such a field no longer flattens it into a single line on save. Protected fields stay hidden in the editor until you click the eye.

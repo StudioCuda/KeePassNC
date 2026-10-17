@@ -3,6 +3,7 @@ import { loadSettings } from '../settings.js';
 import { createKeyfileStore } from '../keyfile-store.js';
 import { keyfileBackend } from '../cache.js';
 import { t } from '../i18n.js';
+import { ncThemeFrom, themeVars, THEME_VARS } from '../theme.js';
 import { $ } from './dom.js';
 import { toast } from './dom.js';
 
@@ -73,8 +74,16 @@ export function download(name, data, type = 'application/octet-stream') {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
+/** Hell/dunkel, Dichte und (in Nextcloud) Instanzfarbe. Die eigene Wahl in der App geht vor; "wie Nextcloud" folgt der Person. */
 export function applyTheme() {
-    const th = ctx.settings.theme;
-    if (th === 'light' || th === 'dark') document.documentElement.dataset.theme = th; else delete document.documentElement.dataset.theme;
-    document.documentElement.dataset.density = ctx.settings.compact ? 'compact' : 'comfortable';
+    const root = document.documentElement;
+    const nc = ncThemeFrom(ctx.NC?.themes);
+    const th = ctx.settings.theme === 'nextcloud' ? (ctx.NC ? nc.theme : 'auto') : ctx.settings.theme;
+    if (th === 'light' || th === 'dark') root.dataset.theme = th; else delete root.dataset.theme;
+    root.dataset.density = ctx.settings.compact ? 'compact' : 'comfortable';
+    if (ctx.NC && nc.contrast) root.dataset.contrast = 'more'; else delete root.dataset.contrast;
+    for (const name of THEME_VARS) root.style.removeProperty(name);
+    const { vars, accent } = themeVars(ctx.NC?.color, { useAccent: ctx.settings.ncAccent, highContrast: !!(ctx.NC && nc.contrast) });
+    for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v); // CSSOM: faellt nicht unter style-src (kein style-Attribut im Markup)
+    if (accent) root.dataset.accent = 'nc'; else delete root.dataset.accent;
 }

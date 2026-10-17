@@ -210,6 +210,68 @@ async function main() {
         expect(/apps\/keepassnc/.test(html), 'Link auf die App fehlt im Menue');
     });
 
+    // ---- Theming und Kopfleiste (OCP\Defaults, Benutzerwert theming/enabled-themes, INavigationManager) ----
+    const rgb = (hex) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
+    const { deriveAccent } = await import('../../src/theme.js');
+    const look = async () => {
+        await page.goto(`${BASE}/index.php/apps/keepassnc/`); await page.locator('#login-form').waitFor();
+        return page.evaluate(() => ({
+            accent: getComputedStyle(document.querySelector('#open-btn')).backgroundColor, accentMode: document.documentElement.dataset.accent || '',
+            theme: document.documentElement.dataset.theme || '', header: document.querySelector('#nc-header') ? getComputedStyle(document.querySelector('#nc-header')).backgroundColor : null
+        }));
+    };
+    const setTheme = (theme) => page.evaluate((th) => { const s = JSON.parse(localStorage.getItem('kpnc.settings') || '{}'); s.theme = th; localStorage.setItem('kpnc.settings', JSON.stringify(s)); }, theme);
+
+    await step('Kopfleiste wie Nextcloud: App-Menue aus der Navigation, Benutzermenue; Standardblau -> unser Akzent bleibt', async () => {
+        const l = await look();
+        expect(l.header === rgb('#00679e'), 'Kopfleiste ' + l.header);
+        expect(l.accentMode === '' && l.accent === rgb('#0b1f3b'), 'Akzent ' + JSON.stringify(l));
+        await page.click('#nch-waffle'); await page.locator('#nch-apps-pop').waitFor();
+        const tiles = await page.locator('#nch-apps-pop .nch-tile').evaluateAll((as) => as.map((a) => ({ name: a.querySelector('.nch-tile-name').textContent, href: a.getAttribute('href'), current: a.getAttribute('aria-current') })));
+        expect(tiles.some((x) => x.name === 'Dateien' && /\/apps\/files\/?$/.test(x.href)), 'Dateien fehlt: ' + JSON.stringify(tiles));
+        expect(tiles.find((x) => x.current === 'page')?.name === 'KeePassNC', 'aktive App: ' + JSON.stringify(tiles));
+        expect(tiles.some((x) => x.name === 'Weitere Apps'), '"Weitere Apps" fuer Admins fehlt');
+        expect(await page.locator('#nch-apps-pop .nch-glyph.has-icon').count() >= 2, 'App-Symbole fehlen');
+        await page.keyboard.press('Escape');
+        await page.click('#nch-user'); await page.locator('#nch-user-pop').waitFor();
+        const items = await page.locator('#nch-user-pop a').evaluateAll((as) => as.map((a) => [a.textContent, a.getAttribute('href')]));
+        const out = items.find(([, href]) => /\/logout/.test(href));
+        expect(out && !/requesttoken/.test(out[1]), 'Abmelden: ' + JSON.stringify(items));
+        expect(items.some(([n]) => /Persönliche Einstellungen/.test(n)), 'Einstellungen fehlen: ' + JSON.stringify(items));
+        await page.keyboard.press('Escape');
+        return `${tiles.length} Apps, ${items.length} Eintraege im Benutzermenue`;
+    });
+
+    await step('Instanzfarbe per occ theming:config primary_color -> Kopfleiste und Akzent folgen ihr', async () => {
+        occ('theming:config', 'primary_color', '#e6007e');
+        const l = await look();
+        expect(l.header === rgb('#e6007e'), 'Kopfleiste ' + l.header);
+        expect(l.accentMode === 'nc' && l.accent === rgb(deriveAccent('#e6007e', 'light').accent), 'Akzent ' + JSON.stringify(l));
+        return l.accent;
+    });
+
+    await step('Hell/Dunkel der Person (enabled-themes) gilt bei "Wie Nextcloud"; die App-Einstellung "Hell" hat Vorrang', async () => {
+        occ('user:setting', ADMIN, 'theming', 'enabled-themes', '["dark"]');
+        let l = await look();
+        expect(l.theme === 'dark' && l.accent === rgb(deriveAccent('#e6007e', 'dark').accent), 'dunkel: ' + JSON.stringify(l));
+        await setTheme('light');
+        l = await look();
+        expect(l.theme === 'light', 'App-Einstellung ignoriert: ' + JSON.stringify(l));
+        await setTheme('nextcloud');
+        occ('user:setting', ADMIN, 'theming', 'enabled-themes', '--delete');
+        l = await look();
+        expect(l.theme === '', 'System: ' + JSON.stringify(l));
+    });
+
+    await step('Fallback: Instanzfarbe zurueckgesetzt (theming:config --reset) -> wieder Standard-Look', async () => {
+        occ('theming:config', 'primary_color', '--reset');
+        try {
+            const l = await look();
+            expect(l.accentMode === '' && l.accent === rgb('#0b1f3b'), 'Akzent ' + JSON.stringify(l));
+            expect(l.header === rgb('#00679e'), 'Kopfleiste ' + l.header);
+        } finally { occ('theming:config', 'primary_color', '#e6007e'); } // fuer den Offline-Schritt unten
+    });
+
     // ---- Freigaben: die Datei gehoert "bob" und ist mit admin geteilt (Rechte: 1 = lesen, 2 = aendern, 4 = erstellen) ----
     const OWNER = 'bob', OWNER_PW = 'Bob-Pass-12345';
     const ownerAuth = { Authorization: 'Basic ' + Buffer.from(`${OWNER}:${OWNER_PW}`).toString('base64') };
@@ -277,6 +339,7 @@ async function main() {
         await page2.goto(`${appUrl}?syncretry=2`);
         await page2.locator('#login-form').waitFor({ timeout: 20000 });
         expect(await page2.inputValue('#nc-path') === '/Passwörter privat/vault4.kdbx', 'zuletzt benutzter Pfad nicht vorbelegt: ' + await page2.inputValue('#nc-path'));
+        expect(await page2.evaluate(() => document.documentElement.dataset.accent === 'nc' && getComputedStyle(document.querySelector('#nc-header')).backgroundColor) === 'rgb(230, 0, 126)', 'Theming aus dem Cache fehlt');
         await login2(); await rows2().first().waitFor({ timeout: 30000 });
         expect(/Offline-Kopie/.test(await page2.locator('#status').innerText()), await page2.locator('#status').innerText());
         await page2.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
@@ -338,6 +401,16 @@ async function main() {
     await step('Abmelden/Fremder Benutzer: ohne Sitzung kein Zugriff auf die App-Seite', async () => {
         const anon = await fetch(`${BASE}/index.php/apps/keepassnc/`, { redirect: 'manual' });
         expect([302, 303, 401, 403].includes(anon.status), 'Status ' + anon.status);
+    });
+
+    await step('Abmelden ueber das Benutzermenue der Kopfleiste (frisches CSRF-Token) -> Login-Seite', async () => {
+        const p = await newSession();
+        await p.goto(`${BASE}/index.php/apps/keepassnc/`); await p.locator('#login-form').waitFor();
+        await p.click('#nch-user'); await p.locator('#nch-user-pop').waitFor();
+        await Promise.all([p.waitForURL(/\/login/, { timeout: 30000 }), p.click('#nch-user-pop a[data-id=logout]')]);
+        const back = await p.goto(`${BASE}/index.php/apps/keepassnc/`);
+        expect(/\/login/.test(p.url()) || back.status() >= 300, 'Sitzung noch aktiv: ' + p.url());
+        await p.context().close();
     });
 
     await step('Keine externen Anfragen, keine Seitenfehler, keine CSP-Verstoesse der App', async () => {

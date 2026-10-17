@@ -31,6 +31,8 @@ No lock-in, no special format, no drama.
 - **Passkeys:** passkeys saved by KeePassXC are shown and kept intact.
 - **Better passwords:** a generator for passwords and passphrases, and a health report that finds weak, reused and expired ones.
 - **Shared files:** databases someone shared with you open fine; read-only shares say so.
+- **Feels at home:** picks up your instance's color and your light or dark choice, and keeps the Nextcloud header with the app menu
+  on top. Search, notifications and the contacts menu sit this one out, [here's why](SECURITY.md#model-in-short).
 - **Key file, remembered:** if you use a key file, KeePassNC can remember it on your device, protected by a secret on your
   server. Optional, and off by default. [How it works](docs/KEYFILE-MEMORY.md).
 

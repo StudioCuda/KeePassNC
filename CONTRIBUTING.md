@@ -18,7 +18,7 @@ Bug reports, odd KDBX files, and patches are welcome.
 
 ```sh
 npm ci
-npm test                  # build, unit, KeePassXC compatibility, e2e, UI, key file, offline, fidelity
+npm test                  # build, unit, KeePassXC compatibility, e2e, UI, theming, key file, offline, fidelity
 BROWSER=firefox npm run test:e2e                            # or webkit; Chromium is the default
 NC_DIR=/path/to/nextcloud NC_PORT=18035 npm run test:nc   # fresh Nextcloud install + browser run
 npm run package:nc        # builds keepassnc-nextcloud-app.tar.gz from source
@@ -28,7 +28,9 @@ Needs Node 22, `keepassxc-cli` 2.7, Python 3 with `pykeepass`, and Chromium (set
 `.github/workflows/nextcloud.yml` shows the whole setup.
 
 The app is tested against Nextcloud 34 and 35 (PHP 8.3) and kept an eye on against `master`. It only uses public interfaces
-(WebDAV, the CSRF token endpoint, the files action API), and `info.xml` doesn't cap the version, so newer releases aren't locked
+(WebDAV, the CSRF token endpoint, the files action API, `OCP\Defaults` for the instance color and `OCP\INavigationManager` for the
+header). The one exception is the user's light/dark choice: Nextcloud has no public API for it, so the page reads the theming app's
+`enabled-themes` user setting and falls back to "automatic" if that ever moves. `info.xml` `info.xml` doesn't cap the version, so newer releases aren't locked
 out in advance.
 
 ## Where things live
