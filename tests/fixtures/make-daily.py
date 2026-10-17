@@ -15,7 +15,9 @@ for f in (db, keyfile):
 # Hartes Master-Passwort: Umlaute, Sonderzeichen, Anfuehrungszeichen, Backslash, Euro, CJK, Emoji, kombinierendes Zeichen (NFD), doppelte Leerzeichen
 PASSWORD = 'Zähl-Ünï§ "Q\'uote" \\ €uro 日本語 🔐🗝️  é 0O1lI| ;&$`{}'
 random.seed(20261011)
-now = datetime(2026, 10, 11, 12, 0, tzinfo=timezone.utc)
+# Ablaufdaten relativ zu heute: die App rechnet mit der echten Uhr, ein festes Datum wird sonst zur Zeitbombe
+# ("laeuft bald ab" war ab dem 16.10.2026 abgelaufen).
+now = datetime.now(timezone.utc)
 
 # 1) Schluesseldatei durch KeePassXC erzeugen lassen (Endung .keyx -> XML v2), Datenbank als KDBX4/Argon2 anlegen
 tmpdb = db + '.tmp'
