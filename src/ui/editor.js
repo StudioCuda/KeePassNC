@@ -42,10 +42,11 @@ export function renderEditor(host) {
     i.expiry.disabled = !i.expires.checked;
     i.expires.addEventListener('change', () => { i.expiry.disabled = !i.expires.checked; });
     const groupSel = groupSelect({ value: group, id: 'e-group' });
+    let generated = null; // {pw, bits} aus dem Generator: exakte Staerke, solange das Feld unveraendert ist
     const meter = h('div', { class: 'meter' }, strengthBar(i.Password.value));
-    i.Password.addEventListener('input', () => meter.replaceChildren(strengthBar(i.Password.value)));
+    i.Password.addEventListener('input', () => meter.replaceChildren(strengthBar(i.Password.value, generated?.pw === i.Password.value ? generated.bits : undefined)));
     const showBtn = iconBtn('eye', t('show'), () => { const on = i.Password.type === 'password'; i.Password.type = on ? 'text' : 'password'; showBtn.replaceChildren(icon(on ? 'eyeOff' : 'eye')); }, { id: 'e-show', type: 'button' });
-    const genBtn = h('button', { type: 'button', id: 'gen-btn', class: 'btn', onclick: () => openGenerator({ onUse: (pw) => { i.Password.value = pw; i.Password.dispatchEvent(new Event('input')); } }) }, icon('dice'), h('span', { text: t('generator') }));
+    const genBtn = h('button', { type: 'button', id: 'gen-btn', class: 'btn', onclick: () => openGenerator({ onUse: (pw, bits) => { generated = { pw, bits }; i.Password.value = pw; i.Password.dispatchEvent(new Event('input')); } }) }, icon('dice'), h('span', { text: t('generator') }));
 
     const customBox = h('div', { id: 'e-custom', class: 'stack' });
     // Werte sind mehrzeilig (Textfeld). Geschuetzte Werte stehen verdeckt in einem Passwortfeld (nur Anzeige) und werden erst
