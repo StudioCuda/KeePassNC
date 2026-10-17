@@ -45,16 +45,18 @@ The private key (`keepassnc.key`) stays on the owner's machine. It never goes in
    `## [X.Y.Z] - YYYY-MM-DD`. If a new Nextcloud major version came out, add it to the CI matrix in
    `.github/workflows/nextcloud.yml` and raise `max-version` in `info.xml` to that version plus two. Merge it.
 2. **Tag and GitHub release happen by themselves.** Once the tests on `main` are green, the release workflow tags `vX.Y.Z` and
-   creates the GitHub release with the changelog section as text and the unsigned archive for manual installs. It refuses if
-   `package.json` and `info.xml` disagree or the changelog section isn't dated. (A tag pushed by hand works too.)
+   creates the GitHub release with the changelog section as text and an unsigned archive, so there's something to download until
+   the signed one is there. It refuses if `package.json` and `info.xml` disagree or the changelog section isn't dated. (A tag
+   pushed by hand works too.)
 3. **Publish.** On Windows double-click `tools\publish-release.cmd`, or in WSL run `tools/publish-release.sh` (optionally with a
    version, e.g. `tools/publish-release.sh 0.7.1`). It checks everything first, clones the tag fresh into the WSL home (not onto a
    Windows drive: `npm ci` fails there with `EPERM ... chmod`), builds, signs, verifies the signature, attaches
-   `keepassnc-X.Y.Z.tar.gz` to the GitHub release, checks that GitHub serves exactly that file and registers the release with the
-   App Store API. Nextcloud servers pick the update up after a while.
+   `keepassnc-X.Y.Z.tar.gz` to the GitHub release, checks that GitHub serves exactly that file, removes the unsigned archive and
+   registers the release with the App Store API. Nextcloud servers pick the update up after a while.
 
 Doing it by hand still works: `tools/sign-release.sh` signs and prints the signature, then attach the archive to the release and
 enter its download URL and the signature on `apps.nextcloud.com/developer/apps/releases/new`. Not the automatic "Source code"
-download, its folder name is wrong. Signing again makes a new archive with a new signature; only the latest pair belongs together.
+download, its folder name is wrong. Then delete the unsigned archive from the release. Signing again makes a new archive with a
+new signature; only the latest pair belongs together.
 
 No file in the archive may change after signing.
