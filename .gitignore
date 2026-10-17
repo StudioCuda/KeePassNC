@@ -12,3 +12,4 @@ nextcloud-app/keepassnc/COPYING
 
 # App Store signing key (docs/APPSTORE.md). It stays on the maintainer's machine, never in the repository.
 *.key
+*.appstore-token

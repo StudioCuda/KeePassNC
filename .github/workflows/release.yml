@@ -1,21 +1,66 @@
-# Builds the unsigned Nextcloud app archive when a version tag is pushed and attaches it to a GitHub release.
-# Signing and uploading to the App Store stay manual on purpose (see docs/APPSTORE.md), so the private key never touches CI.
+# Release without hand-made tags: when a release pull request (new version in info.xml, dated changelog section) lands on
+# main and the tests there are green, this tags vX.Y.Z and creates the GitHub release with the unsigned archive.
+# A tag pushed by hand still works the same way.
+# Signing and the App Store upload stay on the maintainer's machine (tools/publish-release.sh, see docs/APPSTORE.md),
+# so the private key never touches CI.
 name: release
 on:
+  workflow_run:
+    workflows: [nextcloud-compat]
+    types: [completed]
+    branches: [main]
   push:
     tags: ['v*']
 permissions:
   contents: write
+concurrency: { group: release, cancel-in-progress: false }
 jobs:
-  archive:
+  release:
+    # After a main run only when it was green and came from a push (not from a pull request that happens to target main).
+    if: github.event_name == 'push' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with: { node-version: 22 }
-      - run: npm ci
-      - run: npm run package:nc
-      - run: mv keepassnc-nextcloud-app.tar.gz keepassnc-${GITHUB_REF_NAME#v}-unsigned.tar.gz
-      - uses: softprops/action-gh-release@v3
         with:
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
+          fetch-depth: 0
+      - name: Version, tag and release notes
+        id: v
+        run: |
+          ver="$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' nextcloud-app/keepassnc/appinfo/info.xml | head -1)"
+          tag="v$ver"
+          echo "version=$ver" >> "$GITHUB_OUTPUT"; echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_EVENT_NAME" = push ]; then
+            [ "$GITHUB_REF_NAME" = "$tag" ] || { echo "::error::Tag $GITHUB_REF_NAME does not match info.xml version $ver"; exit 1; }
+            echo "create=true" >> "$GITHUB_OUTPUT"
+          elif git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+            echo "$tag already exists, nothing to release."; echo "create=false" >> "$GITHUB_OUTPUT"; exit 0
+          else
+            echo "create=true" >> "$GITHUB_OUTPUT"
+          fi
+          pkg="$(node -p "require('./package.json').version")"
+          [ "$pkg" = "$ver" ] || { echo "::error::package.json says $pkg, info.xml says $ver"; exit 1; }
+          # Release notes: the changelog section of this version. It has to be dated, otherwise it isn't a release yet.
+          awk -v v="$ver" '$0 ~ "^## \\[" v "\\] - [0-9]{4}-[0-9]{2}-[0-9]{2}" {on=1; next} on && /^## \[/ {exit} on' \
+            nextcloud-app/keepassnc/CHANGELOG.md > notes.md
+          [ -s notes.md ] || { echo "::error::CHANGELOG.md has no dated section for $ver"; exit 1; }
+          cat notes.md
+      - name: Tag
+        if: steps.v.outputs.create == 'true' && github.event_name == 'workflow_run'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git tag -a "${{ steps.v.outputs.tag }}" -m "KeePassNC ${{ steps.v.outputs.version }}"
+          git push origin "${{ steps.v.outputs.tag }}"
+      - uses: actions/setup-node@v7
+        if: steps.v.outputs.create == 'true'
+        with: { node-version: 22 }
+      - if: steps.v.outputs.create == 'true'
+        run: npm ci && npm run package:nc && mv keepassnc-nextcloud-app.tar.gz "keepassnc-${{ steps.v.outputs.version }}-unsigned.tar.gz"
+      - uses: softprops/action-gh-release@v3
+        if: steps.v.outputs.create == 'true'
+        with:
+          tag_name: ${{ steps.v.outputs.tag }}
+          name: KeePassNC ${{ steps.v.outputs.version }}
+          body_path: notes.md
           files: keepassnc-*-unsigned.tar.gz

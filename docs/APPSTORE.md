@@ -25,24 +25,35 @@ The private key (`keepassnc.key`) stays on the owner's machine. It never goes in
    echo -n "keepassnc" | openssl dgst -sha512 -sign ~/.nextcloud/certificates/keepassnc.key | openssl base64
    ```
 
+## Once, on your machine (for publishing)
+
+`tools/publish-release.sh` does the signing and the upload in one go. It needs, in WSL:
+
+- Node 22, PHP 8.3, `openssl`, `curl` and the GitHub CLI (`sudo apt install gh`, then `gh auth login` once).
+- A Nextcloud folder with `occ` in `/opt/nc-sign/nextcloud` (an unpacked release package, it doesn't have to be installed) that
+  belongs to you: `sudo chown -R $USER /opt/nc-sign/nextcloud`. Otherwise `occ` says "Cannot write into config directory".
+- Key and certificate in `~/.nextcloud/certificates/` or in the Windows user folder (`C:\Users\<you>\.nextcloud\certificates\`);
+  the script looks in both.
+- Next to them an App Store API token in a file `keepassnc.appstore-token`. Get it from
+  [apps.nextcloud.com/account/token](https://apps.nextcloud.com/account/token). It allows uploading releases, so treat it like the key:
+  never in the repository, the CI or a chat.
+
 ## Every release
 
-1. Raise the version in `package.json`, `package-lock.json` and `nextcloud-app/keepassnc/appinfo/info.xml`, move the `Unreleased`
-   part of `nextcloud-app/keepassnc/CHANGELOG.md` under the new version. CI has to be green.
-2. Tag the merged `main`: `git tag -a vX.Y.Z -m "KeePassNC X.Y.Z" && git push origin vX.Y.Z`. The release workflow then attaches
-   the unsigned archive `keepassnc-X.Y.Z-unsigned.tar.gz` to a GitHub release, for manual installs.
-3. Sign and pack. `occ integrity:sign-app` needs a Nextcloud folder with `occ`; it doesn't have to be installed. On Windows this runs
-   in WSL (Ubuntu with PHP 8.3, Node 22 and an unpacked release package in `/opt/nc-sign/nextcloud`). Use a fresh clone in the
-   WSL home, not a checkout on a Windows drive: `npm ci` fails there with `EPERM ... chmod`, and leftovers would end up in the archive.
-   ```
-   git clone https://github.com/StudioCuda/KeePassNC.git ~/keepassnc-release && cd ~/keepassnc-release && npm ci
-   NC_DIR=/opt/nc-sign/nextcloud KEY=~/.nextcloud/certificates/keepassnc.key CRT=~/.nextcloud/certificates/keepassnc.crt tools/sign-release.sh
-   ```
-   That writes `keepassnc-<version>.tar.gz` and prints the archive signature for the upload form. If the key lives in the Windows
-   user folder, `KEY`/`CRT` point to `/mnt/c/Users/<you>/.nextcloud/certificates/…` instead. The script stops if `occ` didn't sign:
-   "Cannot write into config directory" means `/opt/nc-sign/nextcloud` belongs to root, `sudo chown -R $USER /opt/nc-sign/nextcloud`
-   fixes it once and for all. Signing again makes a new archive with a new signature; only the latest pair belongs together.
-4. Attach that signed archive to the same GitHub release. Not the automatic "Source code" download, its folder name is wrong.
-5. On `apps.nextcloud.com/developer/apps/releases/new` enter the download URL of the asset and the signature.
+1. **Release pull request.** Raise the version in `package.json`, `package-lock.json` and
+   `nextcloud-app/keepassnc/appinfo/info.xml`, move the `Unreleased` part of `nextcloud-app/keepassnc/CHANGELOG.md` under
+   `## [X.Y.Z] - YYYY-MM-DD`. Merge it.
+2. **Tag and GitHub release happen by themselves.** Once the tests on `main` are green, the release workflow tags `vX.Y.Z` and
+   creates the GitHub release with the changelog section as text and the unsigned archive for manual installs. It refuses if
+   `package.json` and `info.xml` disagree or the changelog section isn't dated. (A tag pushed by hand works too.)
+3. **Publish.** On Windows double-click `tools\publish-release.cmd`, or in WSL run `tools/publish-release.sh` (optionally with a
+   version, e.g. `tools/publish-release.sh 0.7.1`). It checks everything first, clones the tag fresh into the WSL home (not onto a
+   Windows drive: `npm ci` fails there with `EPERM ... chmod`), builds, signs, verifies the signature, attaches
+   `keepassnc-X.Y.Z.tar.gz` to the GitHub release, checks that GitHub serves exactly that file and registers the release with the
+   App Store API. Nextcloud servers pick the update up after a while.
+
+Doing it by hand still works: `tools/sign-release.sh` signs and prints the signature, then attach the archive to the release and
+enter its download URL and the signature on `apps.nextcloud.com/developer/apps/releases/new`. Not the automatic "Source code"
+download, its folder name is wrong. Signing again makes a new archive with a new signature; only the latest pair belongs together.
 
 No file in the archive may change after signing.

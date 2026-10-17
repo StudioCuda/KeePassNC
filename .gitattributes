@@ -1,1 +1,4 @@
 * text=auto eol=lf
+
+# Windows batch files need CRLF
+*.cmd text eol=crlf
