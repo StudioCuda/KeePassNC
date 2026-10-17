@@ -25,8 +25,8 @@ const NAV = {
     moreApps: '/index.php/settings/apps',
     settings: [
         { id: 'profile', name: 'Profil anzeigen', href: '/index.php/u/anna', csrf: false },
-        { id: 'settings', name: 'Persönliche Einstellungen', href: '/index.php/settings/user', csrf: false },
-        { id: 'logout', name: 'Abmelden', href: '/index.php/logout', csrf: true }
+        { id: 'settings', name: 'Persönliche Einstellungen', href: '/index.php/settings/user', icon: '/core/img/actions/settings-dark.svg', csrf: false },
+        { id: 'logout', name: 'Abmelden', href: '/index.php/logout', icon: 'https://evil.example/logout.svg', csrf: true }
     ]
 };
 const srv = { color: '#2e7d4f', themes: 'default', nav: NAV, log: [] };
@@ -189,6 +189,7 @@ async function main() {
         const text = await p.locator('#nch-user-pop').innerText();
         expect(/Anna Beispiel/.test(text) && /Profil anzeigen/.test(text) && /Persönliche Einstellungen/.test(text) && /Abmelden/.test(text), text);
         expect(!(await p.locator('#nch-user-pop').innerHTML()).includes('requesttoken'), 'Token im Markup');
+        expect(await p.locator('#nch-user-pop a[data-id=settings] .nch-glyph.has-icon').count() === 1 && await p.locator('#nch-user-pop a[data-id=logout] .nch-glyph.has-icon').count() === 0, 'Eintrags-Symbole');
         await Promise.all([p.waitForURL(/\/index\.php\/logout\?requesttoken=tok-anna$/), p.click('#nch-user-pop >> text=Abmelden')]);
         await close();
     });

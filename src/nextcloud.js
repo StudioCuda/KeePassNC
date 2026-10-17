@@ -25,6 +25,7 @@ export function readNextcloudContext(root) {
 // Nur Pfade derselben Herkunft ohne Zeichen, die in CSS url("...") oder einem Attribut stoeren koennten.
 const SAFE_PATH = /^\/(?!\/)[A-Za-z0-9\-._~!$&*+,;=:@%/?]*$/;
 function sameOriginPath(u, origin) {
+    if (!u) return '';
     try {
         const x = new URL(String(u), origin);
         const p = x.pathname + x.search;
@@ -50,7 +51,7 @@ export function parseNcNav(json, origin) {
     if (!d || typeof d !== 'object' || !Array.isArray(d.apps)) return null;
     const apps = d.apps.slice(0, 60).map((a) => ({ id: label(a?.id), name: label(a?.name), href: httpLink(a?.href, origin), icon: sameOriginPath(a?.icon, origin), active: a?.active === true }))
         .filter((a) => a.id && a.name && a.href);
-    const settings = (Array.isArray(d.settings) ? d.settings : []).slice(0, 30).map((s) => ({ id: label(s?.id), name: label(s?.name), href: httpLink(s?.href, origin), csrf: s?.csrf === true }))
+    const settings = (Array.isArray(d.settings) ? d.settings : []).slice(0, 30).map((s) => ({ id: label(s?.id), name: label(s?.name), href: httpLink(s?.href, origin), icon: sameOriginPath(s?.icon, origin), csrf: s?.csrf === true }))
         .filter((s) => s.id && s.name && s.href);
     if (!apps.length) return null;
     return {

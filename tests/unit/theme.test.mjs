@@ -84,7 +84,7 @@ const nav = (o = {}) => JSON.stringify({
     home: '/index.php/apps/dashboard/', logo: '/core/img/logo/logo.svg?v=1', avatar: '/index.php/avatar/anna/64', name: 'Anna',
     apps: [{ id: 'files', name: 'Dateien', href: '/index.php/apps/files/', icon: '/apps/files/img/app.svg', active: false },
         { id: 'keepassnc', name: 'KeePassNC', href: '/index.php/apps/keepassnc/', icon: '/apps/keepassnc/img/app.svg', active: true }],
-    settings: [{ id: 'settings', name: 'Persönliche Einstellungen', href: '/index.php/settings/user' }, { id: 'logout', name: 'Abmelden', href: '/index.php/logout', csrf: true }],
+    settings: [{ id: 'settings', name: 'Persönliche Einstellungen', href: '/index.php/settings/user', icon: '/core/img/actions/settings-dark.svg' }, { id: 'logout', name: 'Abmelden', href: '/index.php/logout', csrf: true }],
     ...o
 });
 
@@ -95,6 +95,8 @@ test('Navigation: gueltige Daten werden uebernommen', () => {
     assert.equal(n.apps[0].href, ORIGIN + '/index.php/apps/files/');
     assert.equal(n.apps[0].icon, '/apps/files/img/app.svg');
     assert.equal(n.settings[1].csrf, true);
+    assert.equal(n.settings[0].icon, '/core/img/actions/settings-dark.svg');
+    assert.equal(n.settings[1].icon, '', 'ohne Symbol');
     assert.equal(n.logo, '/core/img/logo/logo.svg?v=1');
     assert.equal(n.name, 'Anna');
     assert.equal(n.moreApps, '');
@@ -117,6 +119,8 @@ test('Navigation: fremde Herkunft, javascript:-Links und kaputtes JSON werden ve
     assert.equal(n.apps[1].icon, '', 'Symbol mit Anfuehrungszeichen/Klammern');
     assert.equal(n.logo, '');
     assert.equal(n.avatar, '');
+    const s = parseNcNav(nav({ settings: [{ id: 'a', name: 'A', href: '/a', icon: 'https://evil.example/i.svg' }, { id: 'b', name: 'B', href: '/b', icon: '/b.svg") , url("x' }] }), ORIGIN).settings;
+    assert.deepEqual(s.map((x) => x.icon), ['', ''], 'Eintrags-Symbole fremder Herkunft oder mit Anfuehrungszeichen');
     assert.equal(parseNcNav(nav({ name: 'A\u0000\nB' }), ORIGIN).name, 'AB');
 });
 
