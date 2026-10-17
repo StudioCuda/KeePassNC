@@ -2,7 +2,7 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.9.0] - 2026-10-17
 ### Added
 - Icons for entries and groups: pick one of KeePass's 69 standard icons (redrawn in the app's own line style) or add your own picture. PNG, JPEG, GIF, WebP, BMP, ICO and SVG all work; they get shrunk (or, for SVG, drawn) to 128 px and saved as PNG, so KeePass, KeePassXC and the mobile apps show them too. The same picture twice is recognized, unused ones can be removed, and a group can hand its icon down to its subgroups and entries, just like in KeePassXC. Nothing is fetched from the web, not even favicons.
 - Entries with a standard icon now show it in the list instead of the first letter. Entries with the default key icon keep their colorful letter.
