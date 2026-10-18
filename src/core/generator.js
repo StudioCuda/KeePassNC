@@ -104,23 +104,9 @@ export const SYLLABLES = Object.values(SYLLABLE_SHAPES).flatMap(({ weight, list 
 export const SIMPLE_DIGITS = '23456789';
 export const DEFAULT_SIMPLE_OPTIONS = { blocks: 2, separator: ' ', capital: true };
 export const badJunction = (a, b) => (a.length === 4 && a[3] === b[0]) || (a.endsWith('h') && b[0] === 'h');
-// Entropie eines Blocks aus `syllables` Silben, ohne verbotene Uebergaenge. Mit P = Produkt der Silben-Wahrscheinlichkeiten und
-// Z = Summe aller P der erlaubten Bloecke ist H = log2(Z) - Summe(P * log2 P) / Z. badJunction haengt nur von den letzten zwei
-// Buchstaben der vorderen Silbe ab, also fuehren wir Z und Summe(P * log2 P) je Endung mit.
-export function simpleBlockEntropy(syllables = 3) {
-    const end = (s) => s.slice(-2);
-    const add = (m, s, z, b) => { const e = m.get(end(s)) || { z: 0, b: 0, s }; e.z += z; e.b += b; m.set(end(s), e); };
-    let f = new Map();
-    for (const { s, p } of SYLLABLES) add(f, s, p, p * Math.log2(p));
-    for (let i = 1; i < syllables; i++) {
-        const g = new Map();
-        for (const { z, b, s: prev } of f.values()) for (const { s, p } of SYLLABLES) if (!badJunction(prev, s)) add(g, s, z * p, b * p + z * p * Math.log2(p));
-        f = g;
-    }
-    const all = [...f.values()].reduce((a, { z, b }) => ({ z: a.z + z, b: a.b + b }), { z: 0, b: 0 });
-    return Math.log2(all.z) - all.b / all.z;
-}
-export const SIMPLE_BLOCK_BITS = simpleBlockEntropy(3);
+// Exakte Entropie eines Blocks aus drei Silben mit diesen Gewichten und ohne verbotene Uebergaenge. Das Ausrechnen dauert rund
+// 75 ms, deshalb steht hier das Ergebnis; tests/unit/core.test.mjs rechnet es nach und schlaegt an, wenn sich etwas aendert.
+export const SIMPLE_BLOCK_BITS = 31.972186269066746;
 const SIMPLE_DIGITS_BITS = 2 * Math.log2(SIMPLE_DIGITS.length);
 
 function pickSyllable() {

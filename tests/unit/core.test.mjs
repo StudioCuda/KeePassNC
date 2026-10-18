@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseQuery, matches } from '../../src/core/search.js';
-import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SYLLABLES, SYLLABLE_SHAPES, SIMPLE_DIGITS, SEPARATORS, migratePasswordOptions, SIMPLE_BLOCK_BITS, simpleBlockEntropy, badJunction, randomInt } from '../../src/core/generator.js';
+import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SYLLABLES, SYLLABLE_SHAPES, SIMPLE_DIGITS, SEPARATORS, migratePasswordOptions, SIMPLE_BLOCK_BITS, badJunction, randomInt } from '../../src/core/generator.js';
 import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
 import { auditEntries } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
@@ -89,6 +89,22 @@ test('Passphrase: Ziffer hinter einem Wort, exakte Entropie', () => {
         assert.ok(Math.abs(bits - (5 * Math.log2(7776) + Math.log2(50))) < 1e-9);
     }
 });
+// Entropie eines Blocks aus `syllables` Silben, ohne verbotene Uebergaenge. Mit P = Produkt der Silben-Wahrscheinlichkeiten und
+// Z = Summe aller P der erlaubten Bloecke ist H = log2(Z) - Summe(P * log2 P) / Z. badJunction haengt nur von den letzten zwei
+// Buchstaben der vorderen Silbe ab, also fuehren wir Z und Summe(P * log2 P) je Endung mit.
+function simpleBlockEntropy(syllables) {
+    const end = (s) => s.slice(-2);
+    const add = (m, s, z, b) => { const e = m.get(end(s)) || { z: 0, b: 0, s }; e.z += z; e.b += b; m.set(end(s), e); };
+    let f = new Map();
+    for (const { s, p } of SYLLABLES) add(f, s, p, p * Math.log2(p));
+    for (let i = 1; i < syllables; i++) {
+        const g = new Map();
+        for (const { z, b, s: prev } of f.values()) for (const { s, p } of SYLLABLES) if (!badJunction(prev, s)) add(g, s, z * p, b * p + z * p * Math.log2(p));
+        f = g;
+    }
+    const all = [...f.values()].reduce((a, { z, b }) => ({ z: a.z + z, b: a.b + b }), { z: 0, b: 0 });
+    return Math.log2(all.z) - all.b / all.z;
+}
 // Zerlegt einen Silbenblock: vor jedem Vokal beginnt mit dem Konsonanten davor eine neue Silbe
 const splitSyllables = (w) => w.replace(/([^aeiou])(?=[aeiou])/g, ' $1').trim().split(' ');
 test('Simpel: Silbenvorrat, eindeutige Zerlegung, Uebergaenge, exakte Entropie', () => {
@@ -109,7 +125,8 @@ test('Simpel: Silbenvorrat, eindeutige Zerlegung, Uebergaenge, exakte Entropie',
     assert.ok(Math.abs(simpleBlockEntropy(2) - (Math.log2(z) - b / z)) < 1e-9);
     assert.ok(Math.abs(simpleBlockEntropy(1) + SYLLABLES.reduce((a, { p }) => a + p * Math.log2(p), 0)) < 1e-9);
     // Gleichverteilt waeren es log2(1960) = 10,94 Bit je Silbe; die Gewichtung kostet nur wenig
-    assert.ok(Math.abs(SIMPLE_BLOCK_BITS - simpleBlockEntropy(3)) < 1e-12 && SIMPLE_BLOCK_BITS > 31.5 && SIMPLE_BLOCK_BITS < 3 * Math.log2(1960));
+    assert.ok(Math.abs(SIMPLE_BLOCK_BITS - simpleBlockEntropy(3)) < 1e-9, `SIMPLE_BLOCK_BITS muss ${simpleBlockEntropy(3)} sein`);
+    assert.ok(SIMPLE_BLOCK_BITS > 31.5 && SIMPLE_BLOCK_BITS < 3 * Math.log2(1960));
 });
 test('Simpel: Silben, Ziffern, Silben (+ weitere Silbenbloecke), Trennzeichen fest, nur a-z und 2-9, exakte Entropie', () => {
     const syl = new Set(SYLLABLES.map(({ s }) => s));
