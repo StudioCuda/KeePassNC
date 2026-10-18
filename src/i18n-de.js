@@ -83,6 +83,8 @@ export default {
     'download': 'Herunterladen',
     'duplicate': 'Duplizieren',
     'duplicate.suffix': ' - Kopie',
+    'duplicate.link': 'Benutzername und Passwort mit dem Original verknüpfen',
+    'duplicate.link.hint': 'Die Kopie übernimmt dann jede Änderung am Original, etwa ein neues Passwort. Praktisch für ein Konto, das an mehreren Stellen gebraucht wird.',
     'duplicated': 'Eintrag dupliziert.',
     'duplicated.nopasskey': 'Eintrag dupliziert - ohne den Passkey, der gehört nur zum Original.',
     'e.argonmem': 'Diese Datenbank braucht {mb} MB Arbeitsspeicher, um dein Passwort zu verarbeiten (Argon2) - mehr, als dieses Gerät oder dieser Browser hergibt. Öffne sie an einem Rechner und senke in KeePassXC unter Datenbank-Einstellungen → Verschlüsselung den Speicherverbrauch (weniger Speicher heißt etwas weniger Schutz gegen Knack-Versuche).',

@@ -143,6 +143,7 @@ async function main() {
         const total = await count(page, 'nav-all');
         await pick(page, 'Gmail');
         await page.click('#entry-more'); await menuItem(page, 'Duplizieren').click();
+        expect(!(await page.isChecked('#dup-link')), 'Verknuepfen ist anfangs aus'); await page.click('#dup-ok');
         await page.waitForFunction(() => /Gmail - Kopie/.test(document.querySelector('#detail h2')?.textContent || ''));
         expect(await count(page, 'nav-all') === total + 1, 'Kopie zaehlt');
         await page.click('#entry-more'); await menuItem(page, 'Verschieben').click();
@@ -330,23 +331,24 @@ async function main() {
         await page.waitForFunction(() => navigator.clipboard.readText().then((y) => y === ''), null, { timeout: 15000 });
     });
 
-    await step('Feldreferenzen: Detail zeigt und kopiert, was {REF:U@I:…}/{REF:P@I:…} meinen; gespeichert bleibt die Referenz', async () => {
+    await step('Verknuepft duplizieren: Kopie zeigt per {REF:U@I:…}/{REF:P@I:…} auf das Original, Detail zeigt und kopiert die echten Werte', async () => {
         const amazon = walk(loadXml()).find((x) => x.title === 'Amazon').entry;
         const hex = Buffer.from(text(kids(amazon, 'UUID')[0]), 'base64').toString('hex').toUpperCase();
         const user = text(strOf(amazon, 'UserName')), pw = text(strOf(amazon, 'Password'));
-        await page.click('#new-btn');
-        await page.fill('#e-title', 'UI Referenz'); await page.fill('#e-user', `{REF:U@I:${hex}}`); await page.fill('#e-pass', `{REF:P@I:${hex}}`);
-        await page.click('#apply-btn');
+        await pick(page, 'Amazon');
+        await page.click('#entry-more'); await menuItem(page, 'Duplizieren').click();
+        await page.check('#dup-link'); await page.click('#dup-ok');
+        await page.waitForFunction(() => /Amazon - Kopie/.test(document.querySelector('#detail h2')?.textContent || ''));
         await page.waitForFunction((u) => document.querySelector('[data-testid=f-user]')?.textContent === u, user);
         await page.click('[data-testid=pw-toggle]');
         expect((await page.locator('[data-testid=pw-value]').innerText()).trim() === pw, 'Passwort aufgeloest');
         expect(await page.locator('.field.pw .strength').count() === 1, 'Staerke des Ziel-Passworts');
-        await rows(page).filter({ hasText: 'UI Referenz' }).first().focus();
+        await rows(page).filter({ hasText: 'Amazon - Kopie' }).first().focus();
         if (browserName === 'webkit') return 'Anzeige geprueft; Zwischenablage NICHT (WebKit verweigert dem Test das Lesen)';
         await page.keyboard.press('Control+c');
         await page.waitForFunction((x) => navigator.clipboard.readText().then((y) => y === x), pw);
         await page.click('#edit-btn');
-        expect(await page.inputValue('#e-pass') === `{REF:P@I:${hex}}`, 'Editor zeigt die Referenz selbst');
+        expect(await page.inputValue('#e-pass') === `{REF:P@I:${hex}}` && await page.inputValue('#e-user') === `{REF:U@I:${hex}}`, 'Editor zeigt die Referenzen selbst');
         await page.click('#cancel-btn');
     });
 
@@ -426,7 +428,11 @@ async function main() {
         const ui = find('UI Ablauf-TOTP')[0].entry;
         expect(/^otpauth:\/\/totp\//.test(text(strOf(ui, 'otp'))) && /secret=JBSWY3DPEHPK3PXP/.test(text(strOf(ui, 'otp'))), 'otp-Feld: ' + text(strOf(ui, 'otp')));
         expect(text(kids(kids(ui, 'Times')[0], 'Expires')[0]) === 'True', 'Expires');
-        expect(/^\{REF:P@I:[0-9A-F]{32}\}$/.test(text(strOf(find('UI Referenz')[0].entry, 'Password'))), 'Referenz gespeichert, nicht ihr Ziel');
+        const linked = find('Amazon - Kopie')[0].entry, amazonId = Buffer.from(text(kids(find('Amazon')[0].entry, 'UUID')[0]), 'base64').toString('hex').toUpperCase();
+        expect(text(strOf(linked, 'Password')) === `{REF:P@I:${amazonId}}` && text(strOf(linked, 'UserName')) === `{REF:U@I:${amazonId}}`, 'Verknuepfte Kopie speichert Referenzen aufs Original');
+        expect(strOf(linked, 'Password').getAttribute('ProtectInMemory') === 'True', 'Passwort-Referenz bleibt geschuetzt');
+        const linkedPath = [...find('Amazon - Kopie')[0].path.split('/').slice(1), 'Amazon - Kopie'].join('/');
+        expect(xc(['show', '-s', dbFile, linkedPath]).includes('Password: ' + text(strOf(find('Amazon')[0].entry, 'Password'))), 'KeePassXC loest die Verknuepfung auf');
         expect(es.length >= meta.entries, 'Eintragszahl ' + es.length);
         // Symbole
         const iconOf = (el) => text(kids(el, 'IconID')[0]), customOf = (el) => text(kids(el, 'CustomIconUUID')[0]);

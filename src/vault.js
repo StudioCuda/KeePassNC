@@ -4,7 +4,7 @@ import * as kdbxweb from '../vendor/kdbxweb/lib/index';
 import { argon2 } from './argon2.js';
 import { ConflictError, DavError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
-import { isOutOfMemory, isPasskeyField, isSystemField, valueText } from './core/util.js';
+import { isOutOfMemory, isPasskeyField, isSystemField, uuidHex, valueText } from './core/util.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
 
@@ -370,8 +370,9 @@ export class Vault {
     /**
      * Kopie mit neuer UUID, neuen Zeitstempeln und ohne Verlauf, in derselben Gruppe. Ein Passkey wird NICHT mitkopiert:
      * zwei Eintraege mit demselben privaten Schluessel und derselben Credential-ID verwirren die Browser-Erweiterung.
+     * linked: Benutzername und Passwort zeigen per Feldreferenz ({REF:U@I:…}, {REF:P@I:…}) auf das Original, wie "Klonen" in KeePassXC.
      */
-    duplicateEntry(entry, suffix = ' - Kopie') {
+    duplicateEntry(entry, suffix = ' - Kopie', { linked = false } = {}) {
         const copy = this.db.createEntry(entry.parentGroup);
         copy.copyFrom(entry);
         for (const k of [...copy.fields.keys()]) if (isPasskeyField(k)) copy.fields.delete(k);
@@ -382,6 +383,11 @@ export class Vault {
         const now = new Date();
         copy.times.creationTime = now; copy.times.lastModTime = now; copy.times.lastAccessTime = now; copy.times.locationChanged = now; copy.times.usageCount = 0;
         copy.fields.set('Title', valueText(entry.fields.get('Title')) + suffix);
+        if (linked) {
+            const id = uuidHex(entry.uuid);
+            copy.fields.set('UserName', `{REF:U@I:${id}}`);
+            copy.fields.set('Password', ProtectedValue.fromString(`{REF:P@I:${id}}`));
+        }
         this.dirty = true;
         return copy;
     }

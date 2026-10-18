@@ -3,7 +3,7 @@ import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
 import { parseOtpConfig, totp } from '../totp.js';
 import { entryExpiry, daysUntil, domainOf, openableUrl, isSystemField, isPasskey, groupPath, fieldOf } from '../core/util.js';
 import { t, fmtDate, errText } from '../i18n.js';
-import { ctx, copy, download, setStatus } from './ctx.js';
+import { ctx, copy, download, setStatus, pref } from './ctx.js';
 import { h, icon, iconBtn, modal, toast, confirmDialog, popupMenu } from './dom.js';
 import { avatar, bitsOf, strengthLabel, expiryBadge, resolvedField } from './common.js';
 import { changed } from './session.js';
@@ -240,11 +240,24 @@ export function restoreEntry(e) {
 function entryMenu(anchor, e) {
     const v = state.vault;
     popupMenu(anchor, [
-        { label: t('duplicate'), icon: 'duplicate', onclick: () => { const pk = isPasskey(e); const c = v.duplicateEntry(e, t('duplicate.suffix')); state.selEntry = c; changed(); toast(t(pk ? 'duplicated.nopasskey' : 'duplicated')); } },
+        { label: t('duplicate'), icon: 'duplicate', onclick: () => (v.isInRecycleBin(e) ? duplicate(e) : duplicateDialog(e)) },
         { label: t('move'), icon: 'moveTo', onclick: () => moveEntryDialog(e) },
         { label: t('entry.copy.user'), icon: 'user', hint: 'Ctrl+B', onclick: () => copy(resolvedField(e, 'UserName'), t('f.user')) },
         { label: t('entry.copy.url'), icon: 'link', onclick: () => copy(resolvedField(e, 'URL'), t('f.url')) }
     ], { align: 'end' });
+}
+function duplicate(e, linked = false) {
+    const c = state.vault.duplicateEntry(e, t('duplicate.suffix'), { linked });
+    state.selEntry = c; changed(); toast(t(isPasskey(e) ? 'duplicated.nopasskey' : 'duplicated'));
+}
+/** Duplizieren mit der Wahl, Benutzername und Passwort mit dem Original zu verknuepfen (Feldreferenzen); die Wahl bleibt gemerkt. */
+function duplicateDialog(e) {
+    const link = h('input', { id: 'dup-link', type: 'checkbox', checked: pref('dupLinked') === '1' });
+    const ok = h('button', { type: 'submit', class: 'primary', id: 'dup-ok', text: t('duplicate') });
+    const m = modal({ title: t('duplicate'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (ev) => { ev.preventDefault(); pref('dupLinked', link.checked ? '1' : '0'); m.close(); duplicate(e, link.checked); } },
+        h('label', { class: 'check' }, link, h('span', { text: t('duplicate.link') })), h('small', { class: 'hint', text: t('duplicate.link.hint') }),
+        h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), ok)) });
+    ok.focus();
 }
 export function moveEntryDialog(e) {
     const v = state.vault;
