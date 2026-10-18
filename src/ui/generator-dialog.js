@@ -1,14 +1,15 @@
 // Passwort-/Passphrasen-Generator als Dialog (aus dem Editor mit "Verwenden", sonst nur Kopieren).
 import { generatePassword, generatePassphrase, generateSimple, DEFAULT_PASSWORD_OPTIONS, DEFAULT_PASSPHRASE_OPTIONS, DEFAULT_SIMPLE_OPTIONS, SEPARATORS, CLASSES, migratePasswordOptions } from '../core/generator.js';
 import { t, getLang } from '../i18n.js';
-import { ctx, pref, copy } from './ctx.js';
-import { h, icon, iconBtn, modal } from './dom.js';
+import { pref, copy } from './ctx.js';
+import { h, icon, modal } from './dom.js';
 import { colorizedPassword, strengthBar } from './detail.js';
 
 const CLASS_KEYS = ['lower', 'upper', 'digits', 'special1', 'special2'];
-// Selten gebraucht, deshalb unter "Mehr"
-const MORE_CLASS_KEYS = ['extended'];
 const SEP_KEYS = { ' ': 'space', '.': 'dot', '-': 'dash', ',': 'comma', '_': 'underscore', '@': 'at', '!': 'excl' };
+
+// Version der gespeicherten Einstellungen; ab 2 ist ein gespeichertes "-" eine bewusste Wahl
+const PREFS_VERSION = 2;
 
 function loadOpts() {
     try { return JSON.parse(pref('gen') || '{}'); } catch { return {}; }
@@ -23,8 +24,8 @@ export function openGenerator({ onUse } = {}) {
     // Frei eingegebene Trennzeichen von frueher, die nicht mehr zur Auswahl stehen
     for (const o of [phOpts, siOpts]) if (!SEPARATORS.includes(o.separator)) o.separator = SEPARATORS[0];
     // Bis 0.9 war "-" die Vorgabe und wurde bei jedem Oeffnen mitgespeichert, also meist keine bewusste Wahl: einmalig auf die neue
-    // Vorgabe umstellen. Ab Version 2 bleibt jede Wahl erhalten.
-    if (!(saved.v >= 2) && phOpts.separator === '-') phOpts.separator = DEFAULT_PASSPHRASE_OPTIONS.separator;
+    // Vorgabe umstellen.
+    if (!(saved.v >= PREFS_VERSION) && phOpts.separator === '-') phOpts.separator = DEFAULT_PASSPHRASE_OPTIONS.separator;
     // 'pr' war bis 0.9 "Aussprechbar", daraus wurde "Simpel"
     let mode = saved.mode === 'pr' ? 'si' : ['pw', 'si'].includes(saved.mode) ? saved.mode : 'ph';
     let current = '';
@@ -34,7 +35,7 @@ export function openGenerator({ onUse } = {}) {
     const optsBox = h('div', { class: 'stack' });
     const tabs = h('div', { class: 'seg-group', role: 'tablist' });
 
-    function persist() { pref('gen', JSON.stringify({ v: 2, mode, pw: pwOpts, ph: phOpts, si: siOpts })); }
+    function persist() { pref('gen', JSON.stringify({ v: PREFS_VERSION, mode, pw: pwOpts, ph: phOpts, si: siOpts })); }
     function generate() {
         try {
             const r = mode === 'pw' ? generatePassword(pwOpts) : mode === 'ph' ? generatePassphrase(phOpts) : generateSimple(siOpts);
@@ -69,15 +70,15 @@ export function openGenerator({ onUse } = {}) {
                 if (k.startsWith('special')) { c.classList.add('wide'); c.append(h('span', { class: 'gen-chars', text: [...CLASSES[k]].join(' ') })); }
                 return c;
             };
-            // Offen, sobald dort etwas eingestellt ist, damit nichts unsichtbar mitwirkt
-            const moreUsed = MORE_CLASS_KEYS.some((k) => pwOpts[k]) || pwOpts.custom || pwOpts.exclude;
+            // Selten gebraucht, deshalb unter "Mehr"; offen, sobald dort etwas eingestellt ist, damit nichts unsichtbar mitwirkt
+            const moreUsed = pwOpts.extended || pwOpts.custom || pwOpts.exclude;
             optsBox.replaceChildren(
                 num('gen-length', t('gen.length'), 4, 128, pwOpts, 'length'),
                 h('div', { class: 'check-grid gen-cls' }, ...CLASS_KEYS.map(classChk)),
                 h('div', { class: 'check-grid' }, chk('gen-lookalike', t('gen.lookalike'), pwOpts, 'lookalike'), chk('gen-every', t('gen.every'), pwOpts, 'everyGroup')),
                 h('details', { class: 'gen-more', id: 'gen-more', open: !!moreUsed }, h('summary', { text: t('gen.more') }),
                     h('div', { class: 'stack' },
-                        h('div', { class: 'check-grid' }, ...MORE_CLASS_KEYS.map(classChk)),
+                        h('div', { class: 'check-grid' }, chk('gen-extended', t('gen.class.extended'), pwOpts, 'extended')),
                         h('div', { class: 'grid2' },
                             h('label', {}, h('span', { text: t('gen.custom') }), h('input', { id: 'gen-custom', value: pwOpts.custom, oninput: (e) => { pwOpts.custom = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' })),
                             h('label', {}, h('span', { text: t('gen.exclude') }), h('input', { id: 'gen-exclude', value: pwOpts.exclude, oninput: (e) => { pwOpts.exclude = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' }))))));

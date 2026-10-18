@@ -3,7 +3,7 @@
 import { WORDS as WORDS_EN } from './wordlist-eff.js';
 import { WORDS as WORDS_DE } from './wordlist-de.js';
 
-export const WORDLISTS = { en: WORDS_EN, de: WORDS_DE };
+const WORDLISTS = { en: WORDS_EN, de: WORDS_DE };
 
 export const CLASSES = {
     lower: 'abcdefghijklmnopqrstuvwxyz',
@@ -74,8 +74,8 @@ export function generatePassphrase(opts = {}) {
     return { password: list.join(o.separator), bits };
 }
 
-// Simpel: fuer Geraete mit Bildschirmtastatur (TV-Fernbedienung, Konsole). Nur Kleinbuchstaben, Ziffern und ein Trennzeichen;
-// Grossbuchstaben und die meisten Zeichen kosten je Taste einen Seitenwechsel.
+// Simpel: fuer Geraete mit Bildschirmtastatur (TV-Fernbedienung, Konsole). Nur Kleinbuchstaben (auf Wunsch der erste gross), Ziffern
+// und ein Trennzeichen; Grossbuchstaben und die meisten Zeichen kosten je Taste einen Seitenwechsel.
 // Aufbau: Silben, Ziffern und je weiterem Block noch einmal Silben, z. B. "Bodfussim 47" oder "Bodfussim 47 katnoriz lupmesgad".
 // Ein Block sind drei Silben: offen (ba), geschlossen (bal) oder mit verdoppeltem Endkonsonanten (ball). Jede Silbe beginnt mit genau
 // einem Konsonanten und einem Vokal, deshalb laesst sich jedes Ergebnis nur auf eine Weise in Silben zerlegen (vor jedem Vokal beginnt
@@ -121,7 +121,7 @@ export function simpleBlockEntropy(syllables = 3) {
     return Math.log2(all.z) - all.b / all.z;
 }
 export const SIMPLE_BLOCK_BITS = simpleBlockEntropy(3);
-export const SIMPLE_DIGITS_BITS = 2 * Math.log2(SIMPLE_DIGITS.length);
+const SIMPLE_DIGITS_BITS = 2 * Math.log2(SIMPLE_DIGITS.length);
 
 function pickSyllable() {
     let r = randomInt(SHAPE_TOTAL);
