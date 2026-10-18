@@ -5,6 +5,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ### Fixed
 - Long passphrases in the password generator no longer get chopped mid-word at the end of a line. A word that doesn't fit simply moves to the next line, like words do.
+- Entry history now remembers an entry's custom data and its "exclude from reports" flag, too. Before, each saved state lost them, so KeePassXC showed old versions without their browser integration settings, and synced changes to that data could get dropped when merging. (KeePassXC fixed the very same thing for its own history in 2.8.)
 
 ## [0.11.0] - 2026-10-18
 ### Changed
