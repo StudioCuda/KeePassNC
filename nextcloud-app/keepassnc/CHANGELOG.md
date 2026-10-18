@@ -2,7 +2,7 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.11.0] - 2026-10-18
 ### Changed
 - The sidebar puts your groups first now. "Expiring", "Weak passwords", TOTP and passkeys moved below them, under a new "Filters" heading.
 - "Reports" is now called "Database": everything about the open file lives there, from password health and statistics to the database settings, which got their own "Settings" tab. Things that only concern the app on this device stay in the regular settings.
