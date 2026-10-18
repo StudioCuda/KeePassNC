@@ -142,6 +142,9 @@ async function main() {
         expect(r.headers()['cache-control']?.includes('no-store'), 'no-store fehlt');
         expect(await page.inputValue('#nc-path') === '/Passwörter privat/vault4.kdbx', 'Pfad nicht vorbelegt');
         expect(await page.locator('#nc-path').getAttribute('readonly') !== null, 'Pfad sollte readonly sein');
+        // Relativ, damit ein Reverse-Proxy ohne overwriteprotocol nicht zu http:// auf einer https-Seite fuehrt (Issue #50)
+        const davBase = await page.locator('#app').getAttribute('data-dav-base');
+        expect(davBase === `/remote.php/dav/files/${ADMIN}`, 'data-dav-base ' + davBase);
     });
 
     await step('Entsperren ueber Sitzung (kein App-Passwort): falsches Master-Passwort -> Fehlermeldung', async () => {

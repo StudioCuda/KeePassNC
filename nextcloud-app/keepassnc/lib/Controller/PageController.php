@@ -51,7 +51,10 @@ class PageController extends Controller {
 		$version = $this->appManager->getAppVersion(Application::APP_ID);
 
 		$indexPhp = $this->urlGenerator->linkTo('', 'index.php');
-		$davBase = rtrim($this->urlGenerator->linkToRemote('dav'), '/') . '/files/' . rawurlencode($uid);
+		// Relativ wie alle anderen Adressen der Seite: linkToRemote() baut eine absolute URL aus Protokoll und Host, wie PHP sie sieht.
+		// Hinter einem Reverse-Proxy ohne overwriteprotocol wird daraus http://, und Browser (Mixed Content) wie CSP (connect-src 'self')
+		// blockieren den Abruf, bevor er den Server erreicht (Issue #50).
+		$davBase = $this->urlGenerator->linkTo('', 'remote.php') . '/dav/files/' . rawurlencode($uid);
 		try {
 			$filesUrl = $this->urlGenerator->linkToRoute('files.view.index');
 		} catch (\Throwable) {

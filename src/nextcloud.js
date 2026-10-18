@@ -9,7 +9,7 @@ import { parseHex } from './theme.js';
 export function readNextcloudContext(root) {
     if (!root || root.dataset.mode !== 'nextcloud') return null;
     return {
-        davBase: root.dataset.davBase, // z. B. https://cloud.example.org/remote.php/dav/files/NAME
+        davBase: root.dataset.davBase, // z. B. /remote.php/dav/files/NAME (relativ, gleicher Origin wie die Seite)
         csrfUrl: root.dataset.csrfUrl,
         filesUrl: root.dataset.filesUrl,
         swUrl: root.dataset.swUrl || '',
