@@ -21,7 +21,8 @@ browser only. Start with `README.md`, `CONTRIBUTING.md` (build, tests, layout) a
   (`CHROMIUM=/path/to/chrome npm run test:ui`, `test:e2e`, …). Build output isn't committed.
 - New UI text goes into both `src/i18n-de.js` and `src/i18n-en.js`.
 - User-visible changes get a line under `## [Unreleased]` in `nextcloud-app/keepassnc/CHANGELOG.md`.
-- Releases: a release PR bumps `package.json`, `package-lock.json` and `appinfo/info.xml` and dates the changelog section.
+- Releases: a release PR bumps `package.json`, `package-lock.json` and `appinfo/info.xml` (including the tag `vX.Y.Z` in the
+  `<screenshot>` URLs: the App Store caches screenshots per URL forever) and dates the changelog section.
   After the merge, `.github/workflows/release.yml` tags `vX.Y.Z` and creates the GitHub release once `main` is green. The
   maintainer then runs `tools/publish-release.sh` (or `tools\publish-nextcloud-release.cmd`) on their machine, which signs and
   pushes to the App Store, see `docs/APPSTORE.md`. `SKIP_STORE=1` (or `tools\sign-github-release.cmd`) leaves the App Store out.

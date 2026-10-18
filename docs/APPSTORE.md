@@ -41,7 +41,9 @@ The private key (`keepassnc.key`) stays on the owner's machine. It never goes in
 ## Every release
 
 1. **Release pull request.** Raise the version in `package.json`, `package-lock.json` and
-   `nextcloud-app/keepassnc/appinfo/info.xml`, move the `Unreleased` part of `nextcloud-app/keepassnc/CHANGELOG.md` under
+   `nextcloud-app/keepassnc/appinfo/info.xml` (there also in the four `<screenshot>` URLs, which point at the tag `vX.Y.Z`:
+   the App Store caches each screenshot URL forever, so only a new URL brings new pictures; `test:unit` complains if you
+   forget), move the `Unreleased` part of `nextcloud-app/keepassnc/CHANGELOG.md` under
    `## [X.Y.Z] - YYYY-MM-DD`. If a new Nextcloud major version came out, add it to the CI matrix in
    `.github/workflows/nextcloud.yml` and raise `max-version` in `info.xml` to that version plus two. Merge it.
 2. **Tag and GitHub release happen by themselves.** Once the tests on `main` are green, the release workflow tags `vX.Y.Z` and
