@@ -22,6 +22,9 @@ export function openGenerator({ onUse } = {}) {
     const siOpts = { ...DEFAULT_SIMPLE_OPTIONS, ...(saved.si || {}) };
     // Frei eingegebene Trennzeichen von frueher, die nicht mehr zur Auswahl stehen
     for (const o of [phOpts, siOpts]) if (!SEPARATORS.includes(o.separator)) o.separator = SEPARATORS[0];
+    // Bis 0.9 war "-" die Vorgabe und wurde bei jedem Oeffnen mitgespeichert, also meist keine bewusste Wahl: einmalig auf die neue
+    // Vorgabe umstellen. Ab Version 2 bleibt jede Wahl erhalten.
+    if (!(saved.v >= 2) && phOpts.separator === '-') phOpts.separator = DEFAULT_PASSPHRASE_OPTIONS.separator;
     // 'pr' war bis 0.9 "Aussprechbar", daraus wurde "Simpel"
     let mode = saved.mode === 'pr' ? 'si' : ['pw', 'si'].includes(saved.mode) ? saved.mode : 'ph';
     let current = '';
@@ -31,7 +34,7 @@ export function openGenerator({ onUse } = {}) {
     const optsBox = h('div', { class: 'stack' });
     const tabs = h('div', { class: 'seg-group', role: 'tablist' });
 
-    function persist() { pref('gen', JSON.stringify({ mode, pw: pwOpts, ph: phOpts, si: siOpts })); }
+    function persist() { pref('gen', JSON.stringify({ v: 2, mode, pw: pwOpts, ph: phOpts, si: siOpts })); }
     function generate() {
         try {
             const r = mode === 'pw' ? generatePassword(pwOpts) : mode === 'ph' ? generatePassphrase(phOpts) : generateSimple(siOpts);

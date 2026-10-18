@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseQuery, matches } from '../../src/core/search.js';
-import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SIMPLE_DIGITS, SEPARATORS, SYLLABLE_BITS, migratePasswordOptions, SIMPLE_BLOCK_BITS } from '../../src/core/generator.js';
+import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SYLLABLES, SIMPLE_DIGITS, SEPARATORS, SYLLABLE_BITS, migratePasswordOptions, SIMPLE_BLOCK_BITS, countSimpleBlocks, badJunction, randomInt } from '../../src/core/generator.js';
 import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
 import { auditEntries } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
@@ -65,7 +65,7 @@ test('Generator: Sonderzeichen 1 und 2 decken alle ASCII-Sonderzeichen genau ein
     const all = [...Array(95).keys()].map((i) => String.fromCharCode(32 + i)).filter((c) => !/[ a-zA-Z0-9]/.test(c));
     const both = [...CLASSES.special1, ...CLASSES.special2];
     assert.equal(both.length, all.length); assert.deepEqual([...both].sort(), all.sort());
-    assert.deepEqual([...CLASSES.special1].sort(), [...'!*"-=?\'$%&@.:;'].sort());
+    assert.deepEqual([...CLASSES.special1].sort(), [...'!*"-=?$%&@.:;,_+'].sort());
     const p = generatePassword({ length: 60 }).password;
     assert.ok(![...p].some((c) => CLASSES.special2.includes(c)) && [...p].some((c) => CLASSES.special1.includes(c)), p);
     assert.deepEqual(migratePasswordOptions({ length: 30, braces: false, punct: false, quotes: false, dashes: true, math: true, logograms: true, custom: 'x' }), { length: 30, custom: 'x', special1: true, special2: false });
@@ -89,22 +89,46 @@ test('Passphrase: Ziffer hinter einem Wort, exakte Entropie', () => {
         assert.ok(Math.abs(bits - (5 * Math.log2(7776) + Math.log2(50))) < 1e-9);
     }
 });
+// Zerlegt einen Silbenblock: vor jedem Vokal beginnt mit dem Konsonanten davor eine neue Silbe
+const splitSyllables = (w) => w.replace(/([^aeiou])(?=[aeiou])/g, ' $1').trim().split(' ');
+test('Simpel: Silbenvorrat, eindeutige Zerlegung, Uebergaenge, exakt gezaehlte Bloecke', () => {
+    const { consonants: C, vowels: V } = SYLLABLE;
+    assert.equal(SYLLABLES.length, 14 * 5 * (1 + 14 + 13)); assert.equal(new Set(SYLLABLES).size, SYLLABLES.length);
+    assert.ok(SYLLABLES.every((s) => C.includes(s[0]) && V.includes(s[1]) && (s.length < 4 || (s[2] === s[3] && s[3] !== 'h'))));
+    assert.ok(!SYLLABLES.some((s) => /[cjqvwxy]/.test(s)));
+    for (let i = 0; i < 20000; i++) {
+        const seq = [0, 1, 2].map(() => SYLLABLES[randomInt(SYLLABLES.length)]);
+        assert.deepEqual(splitSyllables(seq.join('')), seq);
+    }
+    // Zaehlung gegen Durchprobieren aller Paare
+    let pairs = 0;
+    for (const a of SYLLABLES) for (const b of SYLLABLES) if (!badJunction(a, b)) pairs++;
+    assert.equal(countSimpleBlocks(2), pairs); assert.equal(countSimpleBlocks(1), SYLLABLES.length);
+    assert.ok(Math.abs(SIMPLE_BLOCK_BITS - Math.log2(countSimpleBlocks(3))) < 1e-12 && SIMPLE_BLOCK_BITS > 32.6 && SIMPLE_BLOCK_BITS < 3 * SYLLABLE_BITS);
+});
 test('Simpel: Silben, Ziffern, Silben (+ weitere Silbenbloecke), Trennzeichen fest, nur a-z und 2-9, exakte Entropie', () => {
-    const C = `[${SYLLABLE.consonants}]`, V = `[${SYLLABLE.vowels}]`, B = `(${C}${V}${C}){3}`, D = `[${SIMPLE_DIGITS}]{2}`;
+    const syl = new Set(SYLLABLES);
     assert.ok(![...SIMPLE_DIGITS].some((c) => '01'.includes(c))); assert.deepEqual(SEPARATORS, [' ', '.', '-', ',', '_', '@', '!']);
-    const esc = (c) => c.replace(/[.]/g, '\\.');
+    const shapes = new Set();
     for (const sep of SEPARATORS) for (const blocks of [1, 2, 3, 6]) {
         for (let i = 0; i < 50; i++) {
             const { password: p, bits } = generateSimple({ blocks, separator: sep, capital: false });
-            const S = esc(sep);
-            assert.match(p, new RegExp(`^${B}${S}${D}(${S}${B}){${blocks - 1}}$`), p);
-            assert.ok(Math.abs(bits - (blocks * 3 * SYLLABLE_BITS + 2 * Math.log2(8))) < 1e-9); assert.ok(Math.abs(SIMPLE_BLOCK_BITS - 29.8) < 0.1);
+            const parts = p.split(sep);
+            assert.equal(parts.length, blocks + 1, p); assert.match(parts[1], /^[2-9]{2}$/, p);
+            for (const w of [parts[0], ...parts.slice(2)]) {
+                const s = splitSyllables(w);
+                assert.equal(s.length, 3, p); assert.ok(s.every((x) => syl.has(x)), p);
+                assert.ok(!/(.)\1\1|hh/.test(w), 'dreifach oder hh in ' + p);
+                s.forEach((x) => shapes.add(x.length));
+            }
+            assert.ok(Math.abs(bits - (blocks * SIMPLE_BLOCK_BITS + 2 * Math.log2(8))) < 1e-9);
         }
     }
-    assert.match(generateSimple().password, /^[A-Z][a-z]{8} [2-9]{2} [a-z]{9}$/, 'Vorgabe: zwei Bloecke, Leerzeichen, erster Buchstabe gross');
-    assert.match(generateSimple({ capital: true, separator: '@' }).password, /^[A-Z][a-z]{8}@[2-9]{2}@[a-z]{9}$/);
-    assert.match(generateSimple({ blocks: 1, capital: false, separator: '.' }).password, /^[a-z]{9}\.[2-9]{2}$/);
-    assert.match(generateSimple({ blocks: 0, separator: '/' }).password, /^[A-Z][a-z]{8} [2-9]{2}$/, 'mindestens ein Block, nur erlaubte Trenner');
+    assert.deepEqual([...shapes].sort(), [2, 3, 4]);
+    assert.match(generateSimple().password, /^[A-Z][a-z]{5,11} [2-9]{2} [a-z]{6,12}$/, 'Vorgabe: zwei Bloecke, Leerzeichen, erster Buchstabe gross');
+    assert.match(generateSimple({ capital: true, separator: '@' }).password, /^[A-Z][a-z]+@[2-9]{2}@[a-z]+$/);
+    assert.match(generateSimple({ blocks: 1, capital: false, separator: '.' }).password, /^[a-z]{6,12}\.[2-9]{2}$/);
+    assert.match(generateSimple({ blocks: 0, separator: '/' }).password, /^[A-Z][a-z]+ [2-9]{2}$/, 'mindestens ein Block, nur erlaubte Trenner');
     const seen = new Set();
     for (let i = 0; i < 400; i++) for (const c of generateSimple().password.replace(/[a-zA-Z ]/g, '')) seen.add(c);
     assert.equal(seen.size, SIMPLE_DIGITS.length);

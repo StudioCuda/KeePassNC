@@ -10,8 +10,8 @@ export const CLASSES = {
     upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
     digits: '0123456789',
     // Sonderzeichen 1: auf Handy- und TV-Tastaturen meist schnell erreichbar; Sonderzeichen 2: der Rest der ASCII-Zeichen
-    special1: '!?.:;-=*\'"$%&@',
-    special2: ',_+/\\|()[]{}<>#^~`',
+    special1: '!?.,:;-_+=*"$%&@',
+    special2: '\'/\\|()[]{}<>#^~`',
     extended: [...Array(0xff - 0xa1 + 1).keys()].map((i) => String.fromCharCode(0xa1 + i)).filter((c) => c !== '­').join('')
 };
 export const LOOKALIKE = new Set('lBGIO0168|ù'.split(''));
@@ -76,15 +76,44 @@ export function generatePassphrase(opts = {}) {
 
 // Simpel: fuer Geraete mit Bildschirmtastatur (TV-Fernbedienung, Konsole). Nur Kleinbuchstaben, Ziffern und ein Trennzeichen;
 // Grossbuchstaben und die meisten Zeichen kosten je Taste einen Seitenwechsel.
-// Aufbau: Silben, Ziffern und je weiterem Block noch einmal Silben, z. B. "Bodfuspim 47" oder "Bodfuspim 47 katnoriz lupmesgad". Ein Block sind drei
-// Silben Konsonant-Vokal-Konsonant, jede gleichverteilt (anders als FIPS 181/pwgen, deren Silben ungleich haeufig sind und deren
-// Staerke deshalb ueberschaetzt wird). Ohne Buchstaben, die man beim Buchstabieren leicht verwechselt (c/k, v/f/w, j/y, q, x), und
-// ohne 0/1 (sehen aus wie o/l). Das Trennzeichen ist fest gewaehlt und bringt keine Bits.
-export const SYLLABLE = { consonants: 'bdfghklmnprstz', vowels: 'aeiou' };
+// Aufbau: Silben, Ziffern und je weiterem Block noch einmal Silben, z. B. "Bodfussim 47" oder "Bodfussim 47 katnoriz lupmesgad".
+// Ein Block sind drei Silben: Konsonant-Vokal (ba), Konsonant-Vokal-Konsonant (bal) oder mit verdoppeltem Endkonsonanten (ball).
+// Jede Silbe beginnt mit genau einem Konsonanten und einem Vokal, deshalb laesst sich jedes Ergebnis nur auf eine Weise in Silben
+// zerlegen (vor jedem Vokal beginnt mit dem Konsonanten davor eine neue Silbe). Gezogen wird gleichverteilt aus allen Silben (anders
+// als FIPS 181/pwgen, deren Silben ungleich haeufig sind und deren Staerke deshalb ueberschaetzt wird), so stimmen die Bits genau.
+// Ohne Buchstaben, die man beim Buchstabieren leicht verwechselt (c/k, v/f/w, j/y, q, x), ohne hh (sieht ungewohnt aus) und ohne
+// 0/1 (sehen aus wie o/l). Auch an Silbengrenzen kein dreifacher Buchstabe ("tupp" + "pup") und kein hh ("huh" + "hak"): ein Block
+// mit so einem Uebergang wird neu gezogen, das haelt die Verteilung gleich, und die Bits ergeben sich aus der Zahl der erlaubten Bloecke. Das Trennzeichen ist fest gewaehlt und
+// bringt keine Bits.
+export const SYLLABLE = { consonants: 'bdfghklmnprstz', vowels: 'aeiou', doubled: 'bdfgklmnprstz' };
+export const SYLLABLES = (() => {
+    const { consonants: C, vowels: V, doubled: D } = SYLLABLE;
+    const out = [];
+    for (const c of C) for (const v of V) {
+        out.push(c + v);
+        for (const e of C) out.push(c + v + e);
+        for (const e of D) out.push(c + v + e + e);
+    }
+    return out;
+})();
 export const SIMPLE_DIGITS = '23456789';
 export const DEFAULT_SIMPLE_OPTIONS = { blocks: 2, separator: ' ', capital: true };
-export const SYLLABLE_BITS = Math.log2(SYLLABLE.consonants.length ** 2 * SYLLABLE.vowels.length);
-export const SIMPLE_BLOCK_BITS = 3 * SYLLABLE_BITS;
+export const SYLLABLE_BITS = Math.log2(SYLLABLES.length);
+export const badJunction = (a, b) => (a.length === 4 && a[3] === b[0]) || (a.endsWith('h') && b[0] === 'h');
+// Erlaubte Bloecke zaehlen. badJunction haengt nur von den letzten zwei Buchstaben der ersten Silbe ab; je Endung zaehlen wir,
+// wie viele Silbenfolgen darauf enden, und merken uns eine Silbe mit dieser Endung fuer die Pruefung.
+export function countSimpleBlocks(syllables = 3) {
+    const end = (s) => s.slice(-2);
+    let f = new Map();
+    for (const s of SYLLABLES) f.set(end(s), { n: (f.get(end(s))?.n || 0) + 1, s });
+    for (let i = 1; i < syllables; i++) {
+        const g = new Map();
+        for (const { n, s: prev } of f.values()) for (const s of SYLLABLES) if (!badJunction(prev, s)) g.set(end(s), { n: (g.get(end(s))?.n || 0) + n, s });
+        f = g;
+    }
+    return [...f.values()].reduce((a, { n }) => a + n, 0);
+}
+export const SIMPLE_BLOCK_BITS = Math.log2(countSimpleBlocks(3));
 export const SIMPLE_DIGITS_BITS = 2 * Math.log2(SIMPLE_DIGITS.length);
 
 /** Liefert {password, bits}. blocks: Silbenbloecke (1-8, die Ziffern stehen immer nach dem ersten). separator: eines aus
@@ -93,10 +122,12 @@ export function generateSimple(opts = {}) {
     const o = { ...DEFAULT_SIMPLE_OPTIONS, ...opts };
     const n = Math.max(1, Math.min(8, o.blocks));
     const sep = SEPARATORS.includes(o.separator) ? o.separator : DEFAULT_SIMPLE_OPTIONS.separator;
-    const { consonants: C, vowels: V } = SYLLABLE;
     const pick = (s) => s[randomInt(s.length)];
-    const syl = () => pick(C) + pick(V) + pick(C);
-    const block = () => syl() + syl() + syl();
+    const block = () => {
+        let a, b, c;
+        do { a = pick(SYLLABLES); b = pick(SYLLABLES); c = pick(SYLLABLES); } while (badJunction(a, b) || badJunction(b, c));
+        return a + b + c;
+    };
     const parts = [block(), pick(SIMPLE_DIGITS) + pick(SIMPLE_DIGITS)];
     for (let i = 1; i < n; i++) parts.push(block());
     let pw = parts.join(sep);

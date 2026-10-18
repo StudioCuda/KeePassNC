@@ -166,7 +166,7 @@ export default {
     'gen.sep.underscore': 'Underscore (_)',
     'gen.separator': 'Separator',
     'gen.simple': 'Simple',
-    'gen.simple.hint': 'For TVs, consoles and anything else with an on-screen keyboard: letters, digits and a separator, nothing else. Space, dot, comma and @ are on Fire TV\'s first keyboard page. Each block of three syllables adds about 30 bits, the digits another 6.',
+    'gen.simple.hint': 'Each block of three syllables adds about 33 bits, the digits another 6.',
     'gen.use': 'Use',
     'gen.wordlist.de': 'Word list: dys2p de-7776 (7776 words, CC0). Each word adds about 12.9 bits.',
     'gen.wordlist.en': 'Word list: EFF Large Wordlist (7776 words, CC BY 3.0 US). Each word adds about 12.9 bits.',
