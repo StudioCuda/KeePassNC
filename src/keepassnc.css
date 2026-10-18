@@ -388,6 +388,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
 .issue-list { display: flex; flex-direction: column; margin-top: 8px; max-height: 40vh; overflow-y: auto; }
 .issue { display: flex; align-items: center; gap: 12px; padding: 8px 6px; border: 0; background: transparent; border-radius: 10px; text-align: left; width: 100%; } .issue:hover { background: var(--surface-2); }
 .chips-inline { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.report-note { display: flex; flex-direction: column; gap: 2px; margin: 20px 0 0; }
 .empty-note { padding: 24px; text-align: center; color: var(--ok); font-weight: 600; }
 .kv { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; } .kv + .kv { border-top: 1px solid var(--border); }
 .palette-modal { align-self: start; margin-top: 10vh; } .palette-modal .modal-head { display: none; } .palette-modal .modal-body { padding: 10px; }

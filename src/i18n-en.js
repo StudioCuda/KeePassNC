@@ -319,7 +319,7 @@ export default {
     'remove': 'Remove',
     'rep.attachments': 'Entries with attachment', 'rep.avglen': 'Avg. password length', 'rep.entries': 'Entries', 'rep.expired': 'expired {n} days ago', 'rep.expired.n': 'Expired', 'rep.expiring': 'expires in {n} days', 'rep.expiring.n': 'Expiring soon',
     'rep.groups': 'Groups', 'rep.health': 'Password health', 'rep.none': 'Nothing suspicious found.',
-    'rep.nopw': 'Without password', 'rep.note': 'Scoring happens locally in the browser (entropy estimate, reuse, expiry). Passwords are never sent anywhere.',
+    'rep.nopw': 'Without password', 'rep.note': 'Scoring happens locally in the browser (entropy estimate, reuse, expiry).', 'rep.note.private': 'Passwords are never sent anywhere.',
     'rep.passkeys': 'Passkeys', 'rep.reused': 'used {n}×', 'rep.reused.n': 'Reused', 'rep.settings': 'Settings', 'rep.score': 'Health', 'rep.short': 'only {n} characters', 'rep.short.n': 'Very short', 'rep.stats': 'Statistics', 'rep.totp': 'With TOTP', 'rep.unique': 'Distinct passwords',
     'rep.weak': 'weak ({bits} bit)', 'rep.weak.n': 'Weak',
     'restore': 'Restore',

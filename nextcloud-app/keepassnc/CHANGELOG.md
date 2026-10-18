@@ -2,6 +2,11 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+### Fixed
+- The password health in the "Database" dialog could read 0 % for a database that was far from hopeless. It subtracted entries with findings from the number of different passwords, so a few weak passwords shared by many entries pushed it right to the floor. It's now the average score of your entries, where an entry without findings counts as 100.
+- The privacy note under the health list sits a bit lower now, with its second sentence on a line of its own.
+
 ## [0.11.0] - 2026-10-18
 ### Changed
 - The sidebar puts your groups first now. "Expiring", "Weak passwords", TOTP and passkeys moved below them, under a new "Filters" heading.

@@ -175,6 +175,22 @@ test('Bericht: schwache, doppelte, abgelaufene Passwoerter; Ausnahmen', () => {
     assert.equal(r.items.find((i) => i.entry === d).score, 0);
     assert.ok(r.items.find((i) => i.entry === a).reasons.some((x) => x.code === 'reused' && x.uses === 2));
     assert.equal(r.stats.excluded, 1); assert.equal(r.stats.noPassword, 1); assert.equal(r.stats.expired, 1);
+    const sum = r.items.reduce((s, i) => s + i.score, 0) + 100;
+    assert.equal(r.stats.health, Math.round(sum / 4), 'Durchschnitt ueber die 4 geprueften Eintraege, c zaehlt 100');
+});
+test('Bericht: Gesundheit ist ein Durchschnitt pro Eintrag, nicht Treffer minus verschiedene Passwoerter', () => {
+    const strong = () => entry({ Title: 's', Password: generatePassword().password });
+    assert.equal(auditEntries([], NOW).stats.health, 100);
+    assert.equal(auditEntries([strong(), strong()], NOW).stats.health, 100);
+    // Viele Eintraege mit wenigen schwachen Passwoertern: frueher 0 %, weil Treffer (Eintraege) >= verschiedene Passwoerter
+    const many = [...Array(30)].map((_, i) => entry({ Title: 'w' + i, Password: 'Sommer' + (i % 3) + 'x!' })).concat([...Array(10)].map(strong));
+    const h = auditEntries(many, NOW).stats.health;
+    assert.ok(h > 0 && h < 100, `health ${h}`);
+    // Ein Treffer zwischen lauter starken Passwoertern rundet nicht auf 100 %
+    const almost = [...Array(300)].map(strong).concat([entry({ Title: 'x', Password: generatePassword().password }, { times: { expires: true, expiryTime: new Date(NOW + 20 * 86400000) } })]);
+    assert.equal(auditEntries(almost, NOW).stats.health, 99);
+    const gone = entry({ Title: 'g', Password: generatePassword().password }, { times: { expires: true, expiryTime: new Date(NOW - 86400000) } });
+    assert.equal(auditEntries([gone], NOW).stats.health, 0, 'alles abgelaufen bleibt ehrlich 0 %');
 });
 
 test('Argon2-Speicherfehler werden erkannt (RangeError, WebAssembly-Trap, Textmeldungen), andere Fehler nicht', () => {
