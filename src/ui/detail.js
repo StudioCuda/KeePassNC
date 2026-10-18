@@ -5,7 +5,7 @@ import { entryExpiry, daysUntil, domainOf, openableUrl, isSystemField, isPasskey
 import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, copy, download, setStatus } from './ctx.js';
 import { h, icon, iconBtn, modal, toast, confirmDialog, popupMenu } from './dom.js';
-import { avatar, bitsOf, strengthLabel, expiryBadge, passwordOf } from './common.js';
+import { avatar, bitsOf, strengthLabel, expiryBadge, resolvedField } from './common.js';
 import { changed } from './session.js';
 import { setFilter, groupSelect, selectedGroup } from './groups.js';
 import { startEdit } from './editor.js';
@@ -50,7 +50,7 @@ export function renderDetail(host) {
     }
     const v = state.vault;
     const inBin = v.isInRecycleBin(e), forever = v.deletesForever(e);
-    const pwText = fieldText(e.fields.get('Password')), pwReal = passwordOf(e); // pwReal: Referenzen aufgeloest, fuer die Staerke
+    const pwText = resolvedField(e, 'Password');
     const title = fieldText(e.fields.get('Title')) || t('entry.untitled');
 
     // --- Kopf
@@ -66,8 +66,8 @@ export function renderDetail(host) {
 
     // --- Felder
     const cards = [];
-    const user = fieldText(e.fields.get('UserName'));
-    const url = fieldText(e.fields.get('URL'));
+    const user = resolvedField(e, 'UserName');
+    const url = resolvedField(e, 'URL');
     const main = [];
     main.push(field(t('f.user'), h('span', { 'data-testid': 'f-user', text: user }), [copyBtn(user, t('f.user'), { 'data-testid': 'user-copy' })]));
 
@@ -78,7 +78,7 @@ export function renderDetail(host) {
         pwSpan.replaceChildren(...(shown ? [colorizedPassword(pwText)] : [DOTS]));
         toggle.replaceChildren(icon(shown ? 'eyeOff' : 'eye')); toggle.title = toggle.ariaLabel = shown ? t('hide') : t('show');
     }, { 'data-testid': 'pw-toggle' });
-    main.push(field(t('f.password'), h('div', {}, pwSpan, pwReal && !pwReal.includes('{REF:') ? strengthBar(pwReal) : null), [toggle,
+    main.push(field(t('f.password'), h('div', {}, pwSpan, pwText && !pwText.includes('{REF:') ? strengthBar(pwText) : null), [toggle,
         iconBtn('search', t('pw.large'), () => largeType(pwText, title)), copyBtn(pwText, t('f.password'), { 'data-testid': 'pw-copy' })], 'pw'));
 
     if (url) {
@@ -242,8 +242,8 @@ function entryMenu(anchor, e) {
     popupMenu(anchor, [
         { label: t('duplicate'), icon: 'duplicate', onclick: () => { const pk = isPasskey(e); const c = v.duplicateEntry(e, t('duplicate.suffix')); state.selEntry = c; changed(); toast(t(pk ? 'duplicated.nopasskey' : 'duplicated')); } },
         { label: t('move'), icon: 'moveTo', onclick: () => moveEntryDialog(e) },
-        { label: t('entry.copy.user'), icon: 'user', hint: 'Ctrl+B', onclick: () => copy(fieldOf(e, 'UserName'), t('f.user')) },
-        { label: t('entry.copy.url'), icon: 'link', onclick: () => copy(fieldOf(e, 'URL'), t('f.url')) }
+        { label: t('entry.copy.user'), icon: 'user', hint: 'Ctrl+B', onclick: () => copy(resolvedField(e, 'UserName'), t('f.user')) },
+        { label: t('entry.copy.url'), icon: 'link', onclick: () => copy(resolvedField(e, 'URL'), t('f.url')) }
     ], { align: 'end' });
 }
 export function moveEntryDialog(e) {
