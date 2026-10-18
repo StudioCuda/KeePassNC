@@ -330,6 +330,26 @@ async function main() {
         await page.waitForFunction(() => navigator.clipboard.readText().then((y) => y === ''), null, { timeout: 15000 });
     });
 
+    await step('Feldreferenzen: Detail zeigt und kopiert, was {REF:U@I:…}/{REF:P@I:…} meinen; gespeichert bleibt die Referenz', async () => {
+        const amazon = walk(loadXml()).find((x) => x.title === 'Amazon').entry;
+        const hex = Buffer.from(text(kids(amazon, 'UUID')[0]), 'base64').toString('hex').toUpperCase();
+        const user = text(strOf(amazon, 'UserName')), pw = text(strOf(amazon, 'Password'));
+        await page.click('#new-btn');
+        await page.fill('#e-title', 'UI Referenz'); await page.fill('#e-user', `{REF:U@I:${hex}}`); await page.fill('#e-pass', `{REF:P@I:${hex}}`);
+        await page.click('#apply-btn');
+        await page.waitForFunction((u) => document.querySelector('[data-testid=f-user]')?.textContent === u, user);
+        await page.click('[data-testid=pw-toggle]');
+        expect((await page.locator('[data-testid=pw-value]').innerText()).trim() === pw, 'Passwort aufgeloest');
+        expect(await page.locator('.field.pw .strength').count() === 1, 'Staerke des Ziel-Passworts');
+        await rows(page).filter({ hasText: 'UI Referenz' }).first().focus();
+        if (browserName === 'webkit') return 'Anzeige geprueft; Zwischenablage NICHT (WebKit verweigert dem Test das Lesen)';
+        await page.keyboard.press('Control+c');
+        await page.waitForFunction((x) => navigator.clipboard.readText().then((y) => y === x), pw);
+        await page.click('#edit-btn');
+        expect(await page.inputValue('#e-pass') === `{REF:P@I:${hex}}`, 'Editor zeigt die Referenz selbst');
+        await page.click('#cancel-btn');
+    });
+
     await step('Symbole: Standard-Symbol, eigenes Bild (verkleinert, doppelt erkannt, entfernt), Gruppe samt Untergruppen', async () => {
         const row = (t) => rows(page).filter({ hasText: t }).first();
         const shot = (width, height) => page.screenshot({ clip: { x: 0, y: 0, width, height } });
@@ -406,6 +426,7 @@ async function main() {
         const ui = find('UI Ablauf-TOTP')[0].entry;
         expect(/^otpauth:\/\/totp\//.test(text(strOf(ui, 'otp'))) && /secret=JBSWY3DPEHPK3PXP/.test(text(strOf(ui, 'otp'))), 'otp-Feld: ' + text(strOf(ui, 'otp')));
         expect(text(kids(kids(ui, 'Times')[0], 'Expires')[0]) === 'True', 'Expires');
+        expect(/^\{REF:P@I:[0-9A-F]{32}\}$/.test(text(strOf(find('UI Referenz')[0].entry, 'Password'))), 'Referenz gespeichert, nicht ihr Ziel');
         expect(es.length >= meta.entries, 'Eintragszahl ' + es.length);
         // Symbole
         const iconOf = (el) => text(kids(el, 'IconID')[0]), customOf = (el) => text(kids(el, 'CustomIconUUID')[0]);

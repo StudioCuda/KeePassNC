@@ -13,9 +13,12 @@ export function bitsOf(pw) {
     if (b === undefined) { b = estimateBits(pw); if (bitsCache.size > 5000) bitsCache.clear(); bitsCache.set(pw, b); }
     return b;
 }
-/** Passwort eines Eintrags mit aufgeloesten Feldreferenzen ({REF:P@I:…}); nicht aufloesbare bleiben als {REF:…} stehen. */
-export const passwordOf = (e) => { const pw = fieldOf(e, 'Password'); return pw.includes('{REF:') ? resolveRefs(pw, allRealEntries()) : pw; };
-export const isWeak = (e) => { const pw = passwordOf(e); return !!pw && !pw.includes('{REF:') && bitsOf(pw) < 75; };
+/**
+ * Feldwert mit aufgeloesten Feldreferenzen ({REF:P@I:…} auf andere Eintraege), wie ihn Anzeige, Kopieren und Bewertung brauchen;
+ * nicht aufloesbare bleiben als {REF:…} stehen. Der Editor arbeitet weiter mit dem Rohwert, damit die Referenz erhalten bleibt.
+ */
+export const resolvedField = (e, name) => { const v = fieldOf(e, name); return v.includes('{REF:') ? resolveRefs(v, allRealEntries()) : v; };
+export const isWeak = (e) => { const pw = resolvedField(e, 'Password'); return !!pw && !pw.includes('{REF:') && bitsOf(pw) < 75; };
 export { strengthLabel };
 
 const hueOf = (s) => { let x = 0; for (const c of s) x = (x * 31 + c.codePointAt(0)) >>> 0; return x % 12; };
