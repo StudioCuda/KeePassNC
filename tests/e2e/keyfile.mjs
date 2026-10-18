@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser } from '../browser.mjs';
+import { launchBrowser, waitOpened } from '../browser.mjs';
 import { startServer } from './davserver.mjs';
 import { createKeyfileStore, limits as kfLimits } from '../../src/keyfile-store.js';
 
@@ -57,7 +57,7 @@ async function main() {
         await p1.setInputFiles('#keyfile', KEY);
         expect(await p1.locator('#kf-remember').isVisible() && !(await p1.locator('#kf-remember').isChecked()), 'Checkbox muss sichtbar und AUS sein');
         await fillLogin(p1, { withKey: true });
-        await p1.click('#open-btn'); await p1.locator('.shell').waitFor({ timeout: 90000 });
+        await p1.click('#open-btn'); await waitOpened(p1, 90000);
         expect((await kfRecords(p1)).length === 0, 'ohne Opt-in darf nichts gespeichert werden');
         await p1.click('#lock-btn');
         await p1.locator('#login-form').waitFor();
@@ -65,7 +65,7 @@ async function main() {
 
     await step('Opt-in: Datei merken -> Datensatz verschluesselt in IndexedDB (kein Klartext, kein Master-Passwort), Status meldet es', async () => {
         await fillLogin(p1, { withKey: true, remember: true });
-        await p1.click('#open-btn'); await p1.locator('.shell').waitFor({ timeout: 120000 });
+        await p1.click('#open-btn'); await waitOpened(p1, 120000);
         expect(/gemerkt/.test(await p1.locator('#status').innerText()), 'Status: ' + await p1.locator('#status').innerText());
         const recs = await kfRecords(p1);
         expect(recs.length === 1, 'ein Datensatz erwartet');
@@ -82,7 +82,7 @@ async function main() {
         await fillLogin(p1);
         await p1.locator('#kf-remembered').waitFor({ state: 'visible' });
         expect(/daily\.keyx/.test(await p1.locator('#kf-remembered').innerText()), 'Name der gemerkten Datei angezeigt');
-        await p1.click('#open-btn'); await p1.locator('.shell').waitFor({ timeout: 120000 });
+        await p1.click('#open-btn'); await waitOpened(p1, 120000);
         expect(await p1.locator('[data-testid=entry-row]').count() > 100, 'Eintraege sichtbar');
         await p1.click('#lock-btn'); await p1.locator('#login-form').waitFor();
     });
@@ -112,7 +112,7 @@ async function main() {
     });
 
     await step('Einstellungen listen gemerkte Dateien; "Alle vergessen" und "Lokale Daten loeschen" entfernen sie', async () => {
-        await fillLogin(p1, { withKey: true, remember: true }); await p1.click('#open-btn'); await p1.locator('.shell').waitFor({ timeout: 120000 });
+        await fillLogin(p1, { withKey: true, remember: true }); await p1.click('#open-btn'); await waitOpened(p1, 120000);
         await p1.click('#settings-btn');
         await p1.locator('[data-testid=kf-forget]').first().waitFor();
         expect(await p1.locator('#kf-list').innerText().then((x) => /daily\.keyx/.test(x)), 'Liste zeigt Datei');
@@ -120,7 +120,7 @@ async function main() {
         await p1.waitForFunction(() => /keine Schl/i.test(document.querySelector('#kf-list')?.textContent || ''));
         await p1.click('#settings-close'); await p1.click('#lock-btn'); await p1.locator('#login-form').waitFor();
         // erneut merken, dann "Lokale Daten loeschen"
-        await fillLogin(p1, { withKey: true, remember: true }); await p1.click('#open-btn'); await p1.locator('.shell').waitFor({ timeout: 120000 });
+        await fillLogin(p1, { withKey: true, remember: true }); await p1.click('#open-btn'); await waitOpened(p1, 120000);
         expect((await kfRecords(p1)).length === 1, 'wieder gemerkt');
         await p1.click('#lock-btn'); await p1.locator('#login-form').waitFor();
         await p1.click('#wipe-btn'); await p1.click('#wipe-btn');
@@ -133,7 +133,7 @@ async function main() {
         await p1.click('#open-btn');
         await p1.fill('#dav-url', `${base}/dav/andere.kdbx`); // waehrend Download/KDF
         await p1.setInputFiles('#keyfile', []);
-        await p1.locator('.shell').waitFor({ timeout: 120000 });
+        await waitOpened(p1, 120000);
         const recs = await kfRecords(p1);
         expect(recs.length === 1 && recs[0][0] === `kf:dav:${base}/dav/daily.kdbx` && recs[0][1].name === 'daily.keyx', 'Datensatz: ' + recs.map(([k, r]) => k + '=' + r.name).join(','));
         await p1.click('#lock-btn'); await p1.locator('#login-form').waitFor();
@@ -146,7 +146,7 @@ async function main() {
         await p1.locator('input[value=file]').check({ force: true });
         await p1.setInputFiles('#local-file', path.join(davRoot, 'daily.kdbx'));
         await p1.fill('#master', meta.password); await p1.setInputFiles('#keyfile', KEY); await p1.check('#kf-remember');
-        await p1.click('#open-btn'); await p1.locator('.shell').waitFor({ timeout: 120000 });
+        await p1.click('#open-btn'); await waitOpened(p1, 120000);
         const recs = await kfRecords(p1);
         expect(recs.length === 1 && recs[0][0] === 'kf:file:daily.kdbx', 'Kennung: ' + recs.map(([k]) => k));
         const info = await p1.evaluate(() => document.querySelector('#status')?.textContent || '');
@@ -178,12 +178,12 @@ async function main() {
         }), { key: 'kf:' + id, r: plain });
         await fillLogin(p1);
         await p1.locator('#kf-remembered').waitFor({ state: 'visible' });
-        await p1.click('#open-btn'); await p1.locator('.shell').waitFor({ timeout: 120000 });
+        await p1.click('#open-btn'); await waitOpened(p1, 120000);
         let k;
         for (let i = 0; i < 60; i++) { k = (await kfRecords(p1))[0]?.[1]?.kdf; if (k && k.memoryKiB !== 8192) break; await p1.waitForTimeout(500); }
         expect(k && k.memoryKiB === 256 * 1024 && k.iterations === 8, 'nicht aufgewertet: ' + JSON.stringify({ ...k, salt: undefined }));
         await p1.click('#lock-btn'); await p1.locator('#login-form').waitFor();
-        await fillLogin(p1); await p1.click('#open-btn'); await p1.locator('.shell').waitFor({ timeout: 120000 }); // aufgewerteter Datensatz funktioniert
+        await fillLogin(p1); await p1.click('#open-btn'); await waitOpened(p1, 120000); // aufgewerteter Datensatz funktioniert
         await p1.click('#lock-btn'); await p1.locator('#login-form').waitFor();
         await p1.click('#kf-forget'); await p1.locator('#kf-remembered').waitFor({ state: 'hidden' });
         return '8 MiB / 1 -> 256 MiB / 8';

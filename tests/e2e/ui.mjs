@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser, browserName } from '../browser.mjs';
+import { launchBrowser, browserName, waitOpened } from '../browser.mjs';
 import { DOMParser } from '@xmldom/xmldom';
 import { startServer } from './davserver.mjs';
 
@@ -63,7 +63,7 @@ async function main() {
         await page.fill('#dav-url', `${base}/dav/daily.kdbx`); await page.fill('#dav-user', 'tester'); await page.fill('#dav-pass', 'app-secret');
         await page.fill('#master', meta.password); await page.setInputFiles('#keyfile', KEY);
         await page.click('#open-btn');
-        await page.locator('.shell').waitFor({ timeout: 90000 });
+        await waitOpened(page, 90000);
     }
     const rows = (p) => p.locator('[data-testid=entry-row]');
     const pick = async (p, title) => { await p.click('#nav-all'); await p.fill('#search', `title:"${title}"`); await rows(p).filter({ hasText: title }).first().click(); await p.fill('#search', ''); };

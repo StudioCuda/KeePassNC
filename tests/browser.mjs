@@ -22,6 +22,37 @@ export const webkitCspWatch = () => document.addEventListener('securitypolicyvio
     if (!(e.target instanceof HTMLSelectElement)) console.error(`CSP-Verstoss ausserhalb von <select>: ${e.violatedDirective} ${e.blockedURI} ${String((e.target && e.target.outerHTML) || e.target).slice(0, 120)}`);
 }, true);
 
+// Letzte Konsolenmeldungen je Seite, fuer waitOpened. Wird beim ersten Aufruf angehaengt; was davor kam, fehlt.
+const consoleTails = new WeakMap();
+function consoleTail(page) {
+    let tail = consoleTails.get(page);
+    if (!tail) {
+        tail = [];
+        consoleTails.set(page, tail);
+        page.on('console', (m) => { tail.push(`${m.type()}: ${m.text()}`.slice(0, 300)); if (tail.length > 5) tail.shift(); });
+    }
+    return tail;
+}
+
+/**
+ * Wartet, bis die Datenbank offen ist (.shell). Klappt das nicht, sagt der Fehler, wo die Anmeldung stand: Knopf-Text
+ * ("Entschlüssele …" = haengt noch in Netz/KDF), Fehlermeldung, Status und die letzten Konsolenmeldungen. Ein Timeout allein
+ * verraet nicht, ob die App haengt oder still gescheitert ist.
+ */
+export async function waitOpened(page, timeout) {
+    const tail = consoleTail(page);
+    try {
+        await page.locator('.shell').waitFor({ timeout });
+    } catch (e) {
+        const state = await page.evaluate(() => ({
+            button: document.querySelector('#open-btn')?.textContent?.trim(),
+            error: document.querySelector('#login-error')?.textContent?.trim(),
+            status: document.querySelector('#status')?.textContent?.trim()
+        })).catch((x) => ({ unreadable: String(x).split('\n')[0] }));
+        throw new Error([`${String(e.message).split('\n')[0]}`, `Anmeldung: ${JSON.stringify(state)}`, ...tail.map((t) => `Konsole ${t}`)].join('\n'));
+    }
+}
+
 export async function launchBrowser() {
     if (browserName === 'chromium') {
         // ohne CHROMIUM: das von Playwright installierte Chromium (npx playwright-core install chromium)

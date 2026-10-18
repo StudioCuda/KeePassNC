@@ -8,7 +8,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser } from '../browser.mjs';
+import { launchBrowser, waitOpened } from '../browser.mjs';
 import { createKeyfileStore, limits as kfLimits } from '../../src/keyfile-store.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -116,7 +116,7 @@ async function main() {
         if (withKey) { await p.setInputFiles('#keyfile', KEY); if (remember) await p.check('#kf-remember'); }
         await p.click('#open-btn');
     };
-    const opened = (p) => p.locator('.shell').waitFor({ timeout: 120000 });
+    const opened = (p) => waitOpened(p, 120000);
     const failedWith = (p, re) => p.waitForFunction((src) => new RegExp(src).test(document.querySelector('#login-error')?.textContent || ''), re.source, { timeout: 90000 });
     const lock = async (p) => { await p.click('#lock-btn'); await p.locator('#login-form').waitFor(); };
     const ID = `nc:anna:${FILE}`;
