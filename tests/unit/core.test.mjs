@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseQuery, matches } from '../../src/core/search.js';
-import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SIMPLE_DIGITS, SYLLABLE_BITS, SIMPLE_BLOCK_BITS } from '../../src/core/generator.js';
+import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SIMPLE_DIGITS, SIMPLE_SEPARATORS, SYLLABLE_BITS, SIMPLE_BLOCK_BITS } from '../../src/core/generator.js';
 import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
 import { auditEntries } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
@@ -69,20 +69,31 @@ test('Passphrase: deutsche Wortliste (7776 eindeutige Woerter, nur a-z), Englisc
     const en = new Set(WORDS);
     assert.ok(generatePassphrase({ words: 5, separator: ' ' }).password.split(' ').every((w) => en.has(w)));
 });
-test('Simpel: Bloecke aus drei Silben und zwei Ziffern, nur a-z und 2-9, exakte Entropie', () => {
-    const C = `[${SYLLABLE.consonants}]`, V = `[${SYLLABLE.vowels}]`, syl = C + V + C, D = `[${SIMPLE_DIGITS}]`;
-    assert.ok(![...SIMPLE_DIGITS].some((c) => '01'.includes(c)));
-    for (const blocks of [1, 2, 3, 6]) {
-        for (let i = 0; i < 100; i++) {
-            const { password: p, bits } = generateSimple({ blocks });
-            assert.match(p, new RegExp(`^((${syl}){3}${D}{2}){${blocks}}$`)); assert.equal(p.length, 11 * blocks);
-            assert.ok(Math.abs(bits - blocks * (3 * SYLLABLE_BITS + 2 * Math.log2(8))) < 1e-9); assert.ok(Math.abs(SIMPLE_BLOCK_BITS - 35.8) < 0.1);
+test('Passphrase: Ziffer hinter einem Wort, exakte Entropie', () => {
+    for (let i = 0; i < 200; i++) {
+        const { password, bits } = generatePassphrase({ words: 5, separator: '-', list: 'de', digit: true });
+        const w = password.split('-'); assert.equal(w.length, 5);
+        assert.equal(w.filter((x) => /^[a-z]+[0-9]$/.test(x)).length, 1, password); assert.equal(w.filter((x) => /^[a-z]+$/.test(x)).length, 4, password);
+        assert.ok(Math.abs(bits - (5 * Math.log2(7776) + Math.log2(50))) < 1e-9);
+    }
+});
+test('Simpel: Silben, Ziffern, Silben (+ weitere Silbenbloecke), Trennzeichen fest, nur a-z und 2-9, exakte Entropie', () => {
+    const C = `[${SYLLABLE.consonants}]`, V = `[${SYLLABLE.vowels}]`, B = `(${C}${V}${C}){3}`, D = `[${SIMPLE_DIGITS}]{2}`;
+    assert.ok(![...SIMPLE_DIGITS].some((c) => '01'.includes(c))); assert.deepEqual(SIMPLE_SEPARATORS, ['.', ',', ' ', '@']);
+    const esc = (c) => c.replace(/[.]/g, '\\.');
+    for (const sep of SIMPLE_SEPARATORS) for (const blocks of [2, 3, 6]) {
+        for (let i = 0; i < 50; i++) {
+            const { password: p, bits } = generateSimple({ blocks, separator: sep });
+            const S = esc(sep);
+            assert.match(p, new RegExp(`^${B}${S}${D}${S}${B}(${S}${B}){${blocks - 2}}$`), p);
+            assert.ok(Math.abs(bits - (blocks * 3 * SYLLABLE_BITS + 2 * Math.log2(8))) < 1e-9); assert.ok(Math.abs(SIMPLE_BLOCK_BITS - 29.8) < 0.1);
         }
     }
-    assert.match(generateSimple({ blocks: 2, capital: true }).password, /^[A-Z][a-z]{8}[2-9]{2}[a-z]{9}[2-9]{2}$/);
-    assert.match(generateSimple().password, /^[a-z]{9}[2-9]{2}[a-z]{9}[2-9]{2}$/);
+    assert.match(generateSimple().password, /^[a-z]{9}\.[2-9]{2}\.[a-z]{9}$/);
+    assert.match(generateSimple({ capital: true, separator: '@' }).password, /^[A-Z][a-z]{8}@[2-9]{2}@[a-z]{9}$/);
+    assert.match(generateSimple({ blocks: 1, separator: '/' }).password, /^[a-z]{9}\.[2-9]{2}\.[a-z]{9}$/, 'mindestens zwei Bloecke, nur erlaubte Trenner');
     const seen = new Set();
-    for (let i = 0; i < 400; i++) for (const c of generateSimple({ blocks: 1 }).password.replace(/[a-z]/g, '')) seen.add(c);
+    for (let i = 0; i < 400; i++) for (const c of generateSimple().password.replace(/[a-z.]/g, '')) seen.add(c);
     assert.equal(seen.size, SIMPLE_DIGITS.length);
 });
 test('Staerke-Schaetzung: Reihenfolge sinnvoll', () => {

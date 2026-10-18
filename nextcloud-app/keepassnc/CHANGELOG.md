@@ -6,7 +6,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - The password generator opens with passphrases now, since they are the easiest strong passwords to live with. Passwords come second, and "Pronounceable" became "Simple".
 - Passphrases can now use German words: the [dys2p de-7776](https://github.com/dys2p/wordlists-de) list (7776 words, no umlauts, CC0), so each word is worth the same 12.9 bits as with the English EFF list. It starts out in the app's language.
-- "Simple" is made for TVs, consoles and anything else you have to type on with a remote: lower-case letters and digits only, which sit on the first page of pretty much every on-screen keyboard. It comes in fixed blocks of three syllables and two digits (`bodfuspim47katnoriz83`), about 36 bits each, and the slider adds more blocks. Two blocks are the minimum. Need a capital letter for some password rule? There's a checkbox for that.
+- "Simple" is made for TVs, consoles and anything else you have to type on with a remote: lower-case letters, two digits and a separator that sits on the first page of the Fire TV keyboard (dot, comma, space or `@`). It always looks like `rigleztoh.25.pepbiffup`, three syllables, the digits, three syllables, and the slider just tacks on more `.syllables`. Each syllable block is worth about 30 bits, the digits another 6. Need a capital letter for some password rule? There's a checkbox for that.
+- Passphrases can get a digit stuck to one of their words, for sites that insist on a number.
+- The password tab tucks the rarely used bits (braces, punctuation, quotes, extended ASCII, custom and excluded characters) away under "More options". If you use any of them, it opens by itself.
 
 ## [0.9.1] - 2026-10-17
 ### Changed

@@ -1,11 +1,14 @@
 // Passwort-/Passphrasen-Generator als Dialog (aus dem Editor mit "Verwenden", sonst nur Kopieren).
-import { generatePassword, generatePassphrase, generateSimple, DEFAULT_PASSWORD_OPTIONS, DEFAULT_PASSPHRASE_OPTIONS, DEFAULT_SIMPLE_OPTIONS, CLASSES } from '../core/generator.js';
+import { generatePassword, generatePassphrase, generateSimple, DEFAULT_PASSWORD_OPTIONS, DEFAULT_PASSPHRASE_OPTIONS, DEFAULT_SIMPLE_OPTIONS, SIMPLE_SEPARATORS, CLASSES } from '../core/generator.js';
 import { t, getLang } from '../i18n.js';
 import { ctx, pref, copy } from './ctx.js';
 import { h, icon, iconBtn, modal } from './dom.js';
 import { colorizedPassword, strengthBar } from './detail.js';
 
-const CLASS_KEYS = ['lower', 'upper', 'digits', 'dashes', 'math', 'logograms', 'braces', 'punct', 'quotes', 'extended'];
+const CLASS_KEYS = ['lower', 'upper', 'digits', 'dashes', 'math', 'logograms'];
+// Selten gebraucht, deshalb unter "Mehr"
+const MORE_CLASS_KEYS = ['braces', 'punct', 'quotes', 'extended'];
+const SEP_KEYS = { '.': 'dot', ',': 'comma', ' ': 'space', '@': 'at' };
 
 function loadOpts() {
     try { return JSON.parse(pref('gen') || '{}'); } catch { return {}; }
@@ -54,16 +57,23 @@ export function openGenerator({ onUse } = {}) {
     function renderOpts() {
         tabs.replaceChildren(tab('ph', t('gen.passphrase')), tab('pw', t('gen.password')), tab('si', t('gen.simple')));
         if (mode === 'pw') {
+            const classChk = (k) => chk('gen-' + k, t('gen.class.' + k) + (k === 'extended' ? '' : ` ${previewChars(k)}`), pwOpts, k);
+            // Offen, sobald dort etwas eingestellt ist, damit nichts unsichtbar mitwirkt
+            const moreUsed = MORE_CLASS_KEYS.some((k) => pwOpts[k]) || pwOpts.custom || pwOpts.exclude;
             optsBox.replaceChildren(
                 num('gen-length', t('gen.length'), 4, 128, pwOpts, 'length'),
-                h('div', { class: 'check-grid' }, ...CLASS_KEYS.map((k) => chk('gen-' + k, t('gen.class.' + k) + (k === 'extended' ? '' : ` ${previewChars(k)}`), pwOpts, k))),
+                h('div', { class: 'check-grid' }, ...CLASS_KEYS.map(classChk)),
                 h('div', { class: 'check-grid' }, chk('gen-lookalike', t('gen.lookalike'), pwOpts, 'lookalike'), chk('gen-every', t('gen.every'), pwOpts, 'everyGroup')),
-                h('div', { class: 'grid2' },
-                    h('label', {}, h('span', { text: t('gen.custom') }), h('input', { id: 'gen-custom', value: pwOpts.custom, oninput: (e) => { pwOpts.custom = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' })),
-                    h('label', {}, h('span', { text: t('gen.exclude') }), h('input', { id: 'gen-exclude', value: pwOpts.exclude, oninput: (e) => { pwOpts.exclude = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' }))));
+                h('details', { class: 'gen-more', id: 'gen-more', open: !!moreUsed }, h('summary', { text: t('gen.more') }),
+                    h('div', { class: 'stack' },
+                        h('div', { class: 'check-grid' }, ...MORE_CLASS_KEYS.map(classChk)),
+                        h('div', { class: 'grid2' },
+                            h('label', {}, h('span', { text: t('gen.custom') }), h('input', { id: 'gen-custom', value: pwOpts.custom, oninput: (e) => { pwOpts.custom = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' })),
+                            h('label', {}, h('span', { text: t('gen.exclude') }), h('input', { id: 'gen-exclude', value: pwOpts.exclude, oninput: (e) => { pwOpts.exclude = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' }))))));
         } else if (mode === 'si') {
+            const sep = h('select', { id: 'gen-si-sep', onchange: (e) => { siOpts.separator = e.target.value; generate(); } }, ...SIMPLE_SEPARATORS.map((c) => h('option', { value: c, selected: siOpts.separator === c, text: t('gen.sep.' + SEP_KEYS[c]) })));
             optsBox.replaceChildren(num('gen-blocks', t('gen.blocks'), 2, 6, siOpts, 'blocks'),
-                h('div', { class: 'check-grid' }, chk('gen-capital', t('gen.capital'), siOpts, 'capital')),
+                h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('div', { class: 'gen-side' }, chk('gen-capital', t('gen.capital'), siOpts, 'capital'))),
                 h('p', { class: 'hint', text: t('gen.simple.hint') }));
         } else {
             const sep = h('input', { id: 'gen-sep', value: phOpts.separator, maxlength: 4, oninput: (e) => { phOpts.separator = e.target.value; generate(); }, autocomplete: 'off' });
@@ -72,7 +82,7 @@ export function openGenerator({ onUse } = {}) {
             const list = h('select', { id: 'gen-list', onchange: (e) => { phOpts.list = e.target.value; hint.textContent = t('gen.wordlist.' + phOpts.list); generate(); } }, ...['de', 'en'].map((l) => h('option', { value: l, selected: phOpts.list === l, text: t('gen.list.' + l) })));
             optsBox.replaceChildren(num('gen-words', t('gen.words'), 3, 20, phOpts, 'words'),
                 h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('label', {}, h('span', { text: t('gen.casing') }), casing)),
-                h('label', {}, h('span', { text: t('gen.list') }), list),
+                h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.list') }), list), h('div', { class: 'gen-side' }, chk('gen-digit', t('gen.digit'), phOpts, 'digit'))),
                 hint);
         }
     }

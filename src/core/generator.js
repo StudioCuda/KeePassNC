@@ -50,8 +50,9 @@ export function generatePassword(opts = {}) {
     return { password: shuffle(out).join(''), bits: len * Math.log2(pool.length) };
 }
 
-export const DEFAULT_PASSPHRASE_OPTIONS = { words: 6, separator: '-', casing: 'lower', list: 'en' };
-/** list: 'en' (EFF Large Wordlist) oder 'de' (dys2p de-7776); beide 7776 Woerter, also ca. 12,9 Bit je Wort. */
+export const DEFAULT_PASSPHRASE_OPTIONS = { words: 6, separator: '-', casing: 'lower', list: 'en', digit: false };
+/** list: 'en' (EFF Large Wordlist) oder 'de' (dys2p de-7776); beide 7776 Woerter, also ca. 12,9 Bit je Wort. digit: eine Ziffer
+ * 0-9 hinter einem zufaelligen Wort, fuer Dienste, die eine Zahl verlangen (die Woerter enthalten keine Ziffern, die Bits sind exakt). */
 export function generatePassphrase(opts = {}) {
     const o = { ...DEFAULT_PASSPHRASE_OPTIONS, ...opts };
     const words = WORDLISTS[o.list] || WORDS_EN;
@@ -60,33 +61,38 @@ export function generatePassphrase(opts = {}) {
     if (o.casing === 'upper') list = list.map((w) => w.toUpperCase());
     else if (o.casing === 'title') list = list.map((w) => w[0].toUpperCase() + w.slice(1));
     else if (o.casing === 'mixed') { const i = randomInt(n); list[i] = list[i].toUpperCase(); }
-    return { password: list.join(o.separator), bits: n * Math.log2(words.length) };
+    let bits = n * Math.log2(words.length);
+    if (o.digit) { const i = randomInt(n); list[i] += CLASSES.digits[randomInt(10)]; bits += Math.log2(n * 10); }
+    return { password: list.join(o.separator), bits };
 }
 
-// Simpel: fuer Geraete mit Bildschirmtastatur (TV-Fernbedienung, Konsole). Nur Kleinbuchstaben und Ziffern, weil die auf
-// praktisch jeder TV-Tastatur auf der ersten Seite liegen; Grossbuchstaben und Zeichen kosten je Taste einen Seitenwechsel.
-// Feste Bloecke aus drei Silben Konsonant-Vokal-Konsonant und zwei Ziffern, z. B. "bodfuspim47katnoriz83". Jede Silbe gleichverteilt
-// (anders als FIPS 181/pwgen, deren Silben ungleich haeufig sind und deren Staerke deshalb ueberschaetzt wird). Ohne Buchstaben,
-// die man beim Buchstabieren leicht verwechselt (c/k, v/f/w, j/y, q, x), und ohne 0/1 (sehen aus wie o/l).
+// Simpel: fuer Geraete mit Bildschirmtastatur (TV-Fernbedienung, Konsole). Nur Kleinbuchstaben, Ziffern und ein Trennzeichen, das
+// auf der ersten Seite der Fire-TV-Tastatur liegt; Grossbuchstaben und andere Zeichen kosten je Taste einen Seitenwechsel.
+// Aufbau: Silben, Ziffern, Silben und je weiterem Block noch einmal Silben, z. B. "bodfuspim.47.katnoriz.lupmesgad". Ein Block sind drei
+// Silben Konsonant-Vokal-Konsonant, jede gleichverteilt (anders als FIPS 181/pwgen, deren Silben ungleich haeufig sind und deren
+// Staerke deshalb ueberschaetzt wird). Ohne Buchstaben, die man beim Buchstabieren leicht verwechselt (c/k, v/f/w, j/y, q, x), und
+// ohne 0/1 (sehen aus wie o/l). Das Trennzeichen ist fest gewaehlt und bringt keine Bits.
 export const SYLLABLE = { consonants: 'bdfghklmnprstz', vowels: 'aeiou' };
 export const SIMPLE_DIGITS = '23456789';
-export const SIMPLE_BLOCK = { syllables: 3, digits: 2 };
-export const DEFAULT_SIMPLE_OPTIONS = { blocks: 2, capital: false };
+export const SIMPLE_SEPARATORS = ['.', ',', ' ', '@'];
+export const DEFAULT_SIMPLE_OPTIONS = { blocks: 2, separator: '.', capital: false };
 export const SYLLABLE_BITS = Math.log2(SYLLABLE.consonants.length ** 2 * SYLLABLE.vowels.length);
-export const SIMPLE_BLOCK_BITS = SIMPLE_BLOCK.syllables * SYLLABLE_BITS + SIMPLE_BLOCK.digits * Math.log2(SIMPLE_DIGITS.length);
+export const SIMPLE_BLOCK_BITS = 3 * SYLLABLE_BITS;
+export const SIMPLE_DIGITS_BITS = 2 * Math.log2(SIMPLE_DIGITS.length);
 
-/** Liefert {password, bits}. blocks: Anzahl der Bloecke (1-8). capital: erster Buchstabe gross (bringt keine Bits, erfuellt aber
- * "mindestens ein Grossbuchstabe"). */
+/** Liefert {password, bits}. blocks: Silbenbloecke (2-8, die Ziffern stehen immer nach dem ersten). separator: eines aus
+ * SIMPLE_SEPARATORS. capital: erster Buchstabe gross (bringt keine Bits, erfuellt aber "mindestens ein Grossbuchstabe"). */
 export function generateSimple(opts = {}) {
     const o = { ...DEFAULT_SIMPLE_OPTIONS, ...opts };
-    const n = Math.max(1, Math.min(8, o.blocks));
+    const n = Math.max(2, Math.min(8, o.blocks));
+    const sep = SIMPLE_SEPARATORS.includes(o.separator) ? o.separator : DEFAULT_SIMPLE_OPTIONS.separator;
     const { consonants: C, vowels: V } = SYLLABLE;
     const pick = (s) => s[randomInt(s.length)];
-    let pw = '';
-    for (let b = 0; b < n; b++) {
-        for (let i = 0; i < SIMPLE_BLOCK.syllables; i++) pw += pick(C) + pick(V) + pick(C);
-        for (let i = 0; i < SIMPLE_BLOCK.digits; i++) pw += pick(SIMPLE_DIGITS);
-    }
+    const syl = () => pick(C) + pick(V) + pick(C);
+    const block = () => syl() + syl() + syl();
+    const parts = [block(), pick(SIMPLE_DIGITS) + pick(SIMPLE_DIGITS)];
+    for (let i = 1; i < n; i++) parts.push(block());
+    let pw = parts.join(sep);
     if (o.capital) pw = pw[0].toUpperCase() + pw.slice(1);
-    return { password: pw, bits: n * SIMPLE_BLOCK_BITS };
+    return { password: pw, bits: n * SIMPLE_BLOCK_BITS + SIMPLE_DIGITS_BITS };
 }
