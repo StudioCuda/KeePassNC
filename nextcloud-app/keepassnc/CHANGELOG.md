@@ -3,16 +3,9 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [0.10.0] - 2026-10-18
-### Added
-- Passphrases can now use German words: the [dys2p de-7776](https://github.com/dys2p/wordlists-de) list (7776 words, no umlauts, CC0), so each word is worth the same 12.9 bits as with the English EFF list. It starts out in the app's language.
-- Passphrases can get a digit stuck to one of their words, for sites that insist on a number.
-
 ### Changed
 - The header now looks like the one in Nextcloud 35 instead of its older sibling from 34: it's a bit slimmer (44 px), uses Nextcloud's font and the very same 9-dot icon. The app menu got pale round icons in your instance color that grow a little when you point at them, one shared highlight behind the 9-dot button and the app name, no arrow, and it opens when you hover there for a moment. Below the apps sits Nextcloud 35's new row of quick actions, like "Text document" from Office. Actions that need Nextcloud's own JavaScript stay out, since that doesn't run on this page.
-- The password generator opens with passphrases now, since they are the easiest strong passwords to live with. Passwords come second, and "Pronounceable" became "Simple".
-- "Simple" is made for TVs, consoles and anything else you have to type on with a remote: letters, two digits and a separator, nothing else. It always looks like `Fulhattmon 37 dazznellfirr`, three syllables, the digits, three syllables, and the slider just tacks on more syllables (or, if you really must, takes it down to `Fulhattmon 37`). Syllables come as `bal` (60 %), `ball` (25 %) or `ba` (15 %), so it reads a bit more like words, and they always split up only one way. No triple letters and no `hh` where two syllables meet. Each block of three syllables is worth about 32 bits, the digits another 6, and that's the exact entropy of what actually comes out, not a hopeful count. It starts with a capital letter, because so many password rules want one; if Shift on your remote is a pain, untick it.
-- Passphrases and "Simple" share one separator menu: space (the new default), dot, hyphen, comma, underscore, `@` and `!`. Space, dot, comma and `@` are on the first page of the Fire TV keyboard. Since the old hyphen default got saved every time the generator opened, a saved hyphen turns into a space once; pick it again and it stays. A separator you once typed in yourself and that isn't on the menu turns into a space, too.
-- The password tab sorts its symbols into two groups: "Symbols 1" (`! ? . , : ; - _ + = * " $ % & @`, on by default) are the ones phones and TVs offer without much hunting, "Symbols 2" (`' / \ | ( ) [ ] { } < > # ^ ~` and the backtick) are the rest. The six old groups get mapped over, so if you had symbols switched off, they stay off. Extended ASCII and custom or excluded characters live under "More options", which opens by itself when you use them.
+- The password generator got simpler and clearer. Passphrases come first and now speak German too, passwords sort their symbols into two easy groups instead of six, and "Pronounceable" became "Simple": made for typing on a TV remote, and still honest about its strength.
 
 ## [0.9.1] - 2026-10-17
 ### Changed
