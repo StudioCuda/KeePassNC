@@ -72,7 +72,7 @@ export function openGenerator({ onUse } = {}) {
                             h('label', {}, h('span', { text: t('gen.exclude') }), h('input', { id: 'gen-exclude', value: pwOpts.exclude, oninput: (e) => { pwOpts.exclude = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' }))))));
         } else if (mode === 'si') {
             const sep = h('select', { id: 'gen-si-sep', onchange: (e) => { siOpts.separator = e.target.value; generate(); } }, ...SIMPLE_SEPARATORS.map((c) => h('option', { value: c, selected: siOpts.separator === c, text: t('gen.sep.' + SEP_KEYS[c]) })));
-            optsBox.replaceChildren(num('gen-blocks', t('gen.blocks'), 2, 6, siOpts, 'blocks'),
+            optsBox.replaceChildren(num('gen-blocks', t('gen.blocks'), 1, 6, siOpts, 'blocks'),
                 h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('div', { class: 'gen-side' }, chk('gen-capital', t('gen.capital'), siOpts, 'capital'))),
                 h('p', { class: 'hint', text: t('gen.simple.hint') }));
         } else {

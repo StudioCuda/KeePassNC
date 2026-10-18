@@ -258,6 +258,9 @@ async function main() {
         await page.selectOption('#gen-si-sep', '@');
         pw = (await page.locator('#gen-preview').innerText()).trim();
         expect(/^[A-Z][a-z]{8}@[2-9]{2}@[a-z]{9}@[a-z]{9}$/.test(pw), 'Simpel mit @ ' + pw);
+        await page.fill('#gen-blocks', '1'); await page.locator('#gen-blocks').press('Tab');
+        pw = (await page.locator('#gen-preview').innerText()).trim();
+        expect(/^[A-Z][a-z]{8}@[2-9]{2}$/.test(pw), 'Simpel mit einem Block ' + pw);
         await page.keyboard.press('Escape');
         await pick(page, 'UI Ablauf-TOTP'); await page.click('#edit-btn'); await page.click('#gen-btn');
         await page.click('#gen-tab-pw'); await page.click('#gen-use'); await page.click('#e-show');

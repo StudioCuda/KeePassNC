@@ -68,7 +68,7 @@ export function generatePassphrase(opts = {}) {
 
 // Simpel: fuer Geraete mit Bildschirmtastatur (TV-Fernbedienung, Konsole). Nur Kleinbuchstaben, Ziffern und ein Trennzeichen, das
 // auf der ersten Seite der Fire-TV-Tastatur liegt; Grossbuchstaben und andere Zeichen kosten je Taste einen Seitenwechsel.
-// Aufbau: Silben, Ziffern, Silben und je weiterem Block noch einmal Silben, z. B. "bodfuspim.47.katnoriz.lupmesgad". Ein Block sind drei
+// Aufbau: Silben, Ziffern und je weiterem Block noch einmal Silben, z. B. "bodfuspim.47" oder "bodfuspim.47.katnoriz.lupmesgad". Ein Block sind drei
 // Silben Konsonant-Vokal-Konsonant, jede gleichverteilt (anders als FIPS 181/pwgen, deren Silben ungleich haeufig sind und deren
 // Staerke deshalb ueberschaetzt wird). Ohne Buchstaben, die man beim Buchstabieren leicht verwechselt (c/k, v/f/w, j/y, q, x), und
 // ohne 0/1 (sehen aus wie o/l). Das Trennzeichen ist fest gewaehlt und bringt keine Bits.
@@ -80,11 +80,11 @@ export const SYLLABLE_BITS = Math.log2(SYLLABLE.consonants.length ** 2 * SYLLABL
 export const SIMPLE_BLOCK_BITS = 3 * SYLLABLE_BITS;
 export const SIMPLE_DIGITS_BITS = 2 * Math.log2(SIMPLE_DIGITS.length);
 
-/** Liefert {password, bits}. blocks: Silbenbloecke (2-8, die Ziffern stehen immer nach dem ersten). separator: eines aus
+/** Liefert {password, bits}. blocks: Silbenbloecke (1-8, die Ziffern stehen immer nach dem ersten). separator: eines aus
  * SIMPLE_SEPARATORS. capital: erster Buchstabe gross (bringt keine Bits, erfuellt aber "mindestens ein Grossbuchstabe"). */
 export function generateSimple(opts = {}) {
     const o = { ...DEFAULT_SIMPLE_OPTIONS, ...opts };
-    const n = Math.max(2, Math.min(8, o.blocks));
+    const n = Math.max(1, Math.min(8, o.blocks));
     const sep = SIMPLE_SEPARATORS.includes(o.separator) ? o.separator : DEFAULT_SIMPLE_OPTIONS.separator;
     const { consonants: C, vowels: V } = SYLLABLE;
     const pick = (s) => s[randomInt(s.length)];
