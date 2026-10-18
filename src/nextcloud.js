@@ -38,6 +38,10 @@ function httpLink(u, origin) {
         return x.protocol === 'https:' || x.protocol === 'http:' ? x.href : '';
     } catch { return ''; }
 }
+// Office & Co. liefern ihre Aktions-Symbole als data:-URI (Base64, also ohne Zeichen, die url("...") stoeren); img-src erlaubt data:.
+const DATA_ICON = /^data:image\/(?:svg\+xml|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
+const actionIcon = (u, origin) => (typeof u === 'string' && u.length <= 32768 && DATA_ICON.test(u) ? u : sameOriginPath(u, origin));
+const hexColor = (v) => (typeof v === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(v) ? v : '');
 const label = (v) => String(v ?? '').replace(/[\x00-\x1f\x7f]/g, '').trim().slice(0, 80);
 
 /**
@@ -53,9 +57,13 @@ export function parseNcNav(json, origin) {
         .filter((a) => a.id && a.name && a.href);
     const settings = (Array.isArray(d.settings) ? d.settings : []).slice(0, 30).map((s) => ({ id: label(s?.id), name: label(s?.name), href: httpLink(s?.href, origin), icon: sameOriginPath(s?.icon, origin), csrf: s?.csrf === true }))
         .filter((s) => s.id && s.name && s.href);
+    // Navigations-Aktionen (Nextcloud 35, z. B. "Textdokument" von Office): nur echte Links. Aktionen ohne Link erledigt
+    // Nextcloud-JavaScript ueber den Event-Bus, das laeuft hier nicht.
+    const actions = (Array.isArray(d.actions) ? d.actions : []).slice(0, 20).map((a) => ({ id: label(a?.id), name: label(a?.name), href: httpLink(a?.href, origin), icon: actionIcon(a?.icon, origin), color: hexColor(a?.color) }))
+        .filter((a) => a.id && a.name && a.href && !/#$/.test(a.href));
     if (!apps.length) return null;
     return {
-        apps, settings,
+        apps, settings, actions,
         home: httpLink(d.home, origin) || origin + '/',
         logo: sameOriginPath(d.logo, origin),
         avatar: sameOriginPath(d.avatar, origin),

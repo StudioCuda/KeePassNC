@@ -181,6 +181,15 @@ class PageController extends Controller {
 					'active' => ($e['active'] ?? false) === true,
 				];
 			}
+			// Navigations-Aktionen gibt es erst ab Nextcloud 35 (INavigationManager::TYPE_ACTION); in 34 liefert 'action' nichts.
+			$actions = [];
+			foreach ($this->navigationManager->getAll('action') as $e) {
+				$entry = ['id' => (string)($e['id'] ?? ''), 'name' => (string)($e['name'] ?? ''), 'href' => (string)($e['href'] ?? ''), 'icon' => (string)($e['icon'] ?? '')];
+				if (isset($e['color'])) {
+					$entry['color'] = (string)$e['color'];
+				}
+				$actions[] = $entry;
+			}
 			$settings = [];
 			foreach ($this->navigationManager->getAll(INavigationManager::TYPE_SETTINGS) as $e) {
 				$href = (string)($e['href'] ?? '');
@@ -206,6 +215,7 @@ class PageController extends Controller {
 				// Wie das App-Menue von Nextcloud: Admins bekommen am Ende die Kachel "Weitere Apps" (generateUrl('/settings/apps')).
 				'moreApps' => $this->groupManager->isAdmin($uid) ? $indexPhp . '/settings/apps' : '',
 				'settings' => $settings,
+				'actions' => $actions,
 			], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE);
 			return $json === false ? '' : $json;
 		} catch (\Throwable) {

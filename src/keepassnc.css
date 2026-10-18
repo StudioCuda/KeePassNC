@@ -5,7 +5,7 @@
     --text: #18202c; --muted: #685f58; --accent: #0b1f3b; --accent-2: #4f7774; --accent-soft: #e7e7e7; --on-accent: #fff; --on-accent-2: #fff; --ring: #a8893f;
     --ok: #2f7d46; --ok-soft: #e2f0e5; --warn: #9d5a00; --warn-soft: #fbefd9; --bad: #c0362c; --bad-soft: #f9e3e0;
     --shadow-1: 0 1px 2px rgb(11 31 59 / .06), 0 1px 1px rgb(11 31 59 / .04); --shadow-2: 0 8px 28px rgb(11 31 59 / .14), 0 2px 6px rgb(11 31 59 / .08);
-    --hero: #0b1f3b; --hero-2: #1a3560; --nch-h: 50px;
+    --hero: #0b1f3b; --hero-2: #1a3560; --nch-h: 44px;
     --radius: 12px; --radius-sm: 8px; --row-h: 60px; --topbar-h: 56px; --sidebar-w: 264px; --list-w: 368px;
     --font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
     color-scheme: light;
@@ -179,39 +179,77 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 body.has-nch .login { min-height: calc(100vh - var(--nch-h)); }
 body.has-nch .shell { height: calc(100vh - var(--nch-h)); height: calc(100dvh - var(--nch-h)); }
 body.has-nch .topbar .brand { display: none; } /* der Name steht schon in der Kopfleiste */
-.nch { position: relative; z-index: 30; display: flex; align-items: center; height: var(--nch-h); padding: 0 12px 0 0; background: var(--nch-bg, #0b1f3b); color: var(--nch-fg, #fff); --nch-hover: rgb(0 0 0 / .1); --nch-press: rgb(0 0 0 / .15); }
+/* Schrift wie --font-face in Nextcloud, damit Namen im Header und im App-Menue genauso umbrechen */
+.nch { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Oxygen-Sans, Cantarell, Ubuntu, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif; position: relative; z-index: 30; display: flex; align-items: center; height: var(--nch-h); padding: 0 12px 0 0; background: var(--nch-bg, #0b1f3b); color: var(--nch-fg, #fff); --nch-hover: rgb(0 0 0 / .1); --nch-press: rgb(0 0 0 / .15); }
 .nch a { color: inherit; text-decoration: none; }
 .nch :focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 .nch[data-offline="1"] > .nch-logo, .nch[data-offline="1"] > .nch-apps, .nch[data-offline="1"] .nch-user { opacity: .55; }
-/* Masse wie Nextcloud 34/35: Logo 62 px breit, Knoepfe 34 px hoch mit eigenem Hover, App-Raster 4 x 69 px */
-.nch-logo { display: flex; align-items: center; height: 44px; margin: 0 2px; padding: 0 12px; border-radius: 8px; }
-.nch-logo img { display: block; width: 62px; height: 44px; object-fit: contain; }
+/* Masse wie Nextcloud 35 (tools/nc-header.json): Logo 62 px breit, Knoepfe 34 px hoch, App-Raster 4 x 69 px */
+.nch-logo { display: flex; align-items: center; height: calc(var(--nch-h) - 4px); margin: 0 2px; padding: 0 12px; border-radius: 8px; }
+.nch-logo img { display: block; width: 62px; height: calc(var(--nch-h) - 6px); object-fit: contain; }
 .nch[data-fg="dark"] .nch-logo img.stock { filter: invert(1); }
-.nch-apps { position: relative; display: flex; align-items: center; }
+.nch-apps { position: relative; display: flex; align-items: center; --nch-el: var(--nch-bg, #0b1f3b); --nch-el-light: color-mix(in srgb, var(--nch-el) 10%, var(--surface)); }
+/* Wie Nextcloud 35: Beide Knoepfe sind volle Kopfleistenhoehe und durchsichtig, ein gemeinsamer Hover (34 px hoch) liegt dahinter */
+.nch-trigger { position: relative; display: flex; align-items: center; height: var(--nch-h); isolation: isolate; }
+.nch-trigger::before { content: ""; position: absolute; inset: calc((var(--nch-h) - 34px) / 2) 0; z-index: -1; border-radius: 8px; pointer-events: none; }
+.nch-trigger:hover::before, .nch-trigger:has([aria-expanded="true"])::before { background: var(--nch-hover); }
+.nch-trigger:active::before { background: var(--nch-press); }
 .nch-btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 34px; min-width: 34px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: inherit; font-size: 15px; font-weight: 500; }
 .nch-btn:hover { background: var(--nch-hover); } .nch-btn:active { background: var(--nch-press); }
 .nch .nch-btn:focus-visible { outline: none; background: var(--nch-hover); box-shadow: inset 0 0 0 2px currentColor; }
+.nch .nch-trigger .nch-btn { position: relative; height: var(--nch-h); background: transparent; }
+.nch .nch-trigger .nch-btn:focus-visible { box-shadow: none; }
+.nch .nch-trigger .nch-btn:focus-visible::before { content: ""; position: absolute; inset: calc((var(--nch-h) - 34px) / 2) 0; border-radius: 8px; box-shadow: inset 0 0 0 2px currentColor; pointer-events: none; }
 .nch-btn .icon { width: 20px; height: 20px; }
 .nch-current { padding: 0 12px 0 7px; } .nch-current-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: clamp(80px, 22vw, 320px); letter-spacing: -.5px; }
 .nch-glyph { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none; font-weight: 700; font-size: 13px; }
 /* App-Symbole nach unten leicht ausgeblendet wie --header-menu-icon-mask in Nextcloud */
 .nch-glyph.has-icon { background: linear-gradient(currentColor 25%, color-mix(in srgb, currentColor 45%, transparent) 90%); -webkit-mask: var(--nch-icon) center / contain no-repeat; mask: var(--nch-icon) center / contain no-repeat; }
 .nch-pop { position: absolute; top: calc(100% + 6px); z-index: 40; padding: 10px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-2); }
-/* Wie in Nextcloud 82 px nach links versetzt, der Pfeil zeigt auf den 9-Punkte-Knopf */
-.nch-apps-pop { top: calc(100% + 16px); left: -82px; max-width: calc(100vw - 16px); max-height: calc(100vh - var(--nch-h) - 16px); overflow-y: auto; display: grid; grid-template-columns: repeat(4, 69px); grid-auto-rows: minmax(64px, max-content); padding: 8px; }
-/* Pfeil am Knopf statt am Popover, das scrollt und wuerde ihn abschneiden */
-.nch-waffle { position: relative; }
-.nch-waffle[aria-expanded="true"]::after { content: ""; position: absolute; z-index: 41; top: 43px; left: 11px; width: 12px; height: 12px; background: var(--surface); border: solid var(--border); border-width: 1px 0 0 1px; border-top-left-radius: 2px; transform: rotate(45deg); }
+/* App-Menue wie Nextcloud 35: ohne Pfeil direkt unter der Kopfleiste, 82 px nach links versetzt (Logo + Abstand), Raster 4 x 69 px */
+.nch-apps-pop { top: 100%; left: -82px; display: flex; flex-direction: column; overflow: hidden; max-width: calc(100vw - 16px); max-height: calc(100vh - var(--nch-h) - 4px); padding: 0; border: 0; box-shadow: 0 1px 10px rgb(77 77 77 / .5); }
+.nch-grid { box-sizing: border-box; display: grid; grid-template-columns: repeat(4, 69px); grid-auto-rows: minmax(82.5px, max-content); min-height: 0; padding: 8px; overflow: hidden auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.nch-grid::-webkit-scrollbar { width: 6px; } .nch-grid::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 .nch .nch-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 4px 0; border-radius: 8px; color: var(--text); font-size: 12px; line-height: 1.3; letter-spacing: -.3px; text-align: center; }
-.nch .nch-tile:nth-child(-n+4) { padding-top: 8px; }
-.nch .nch-tile:hover { background: var(--surface-3); }
-.nch .nch-tile:focus-visible { background: var(--surface-3); outline: none; box-shadow: inset 0 0 0 2px var(--accent); }
-.nch-tile-icon { display: grid; place-items: center; flex: none; width: 40px; height: 40px; border-radius: 50%; color: var(--nch-fg, #fff); background: var(--nch-bg, #0b1f3b) linear-gradient(rgb(255 255 255 / .18), rgb(255 255 255 / 0) 45%, rgb(0 0 0 / .15)); box-shadow: inset 0 1px 0 rgb(255 255 255 / .25), inset 0 -1px 0 rgb(0 0 0 / .2), 0 2px 4px rgb(0 0 0 / .15); }
-.nch-tile-icon .nch-glyph { width: 22px; height: 22px; font-size: 15px; }
-.nch-tile-name { max-width: 100%; overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto; }
+.nch-grid > .nch-tile:nth-child(-n+4) { padding-top: 8px; }
+/* Kein Hover-Hintergrund mehr: der Kreis waechst ein wenig, beim Klicken schrumpft er */
+.nch .nch-tile:hover, .nch .nch-tile:focus-visible { --nch-scale: 1.08; }
+.nch .nch-tile:active { --nch-scale: .96; }
+.nch .nch-tile:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--nch-el); }
+.nch-tile-icon { box-sizing: border-box; position: relative; display: grid; place-items: center; flex: none; width: 48px; height: 48px; border-radius: 50%; color: var(--nch-el); transform: scale(var(--nch-scale, 1)); transition: transform .1s ease-out;
+    background: var(--nch-el-light) linear-gradient(color-mix(in srgb, var(--nch-el-light), var(--surface) 15%), var(--nch-el-light));
+    box-shadow: inset 0 -1px 0 0 color-mix(in srgb, var(--nch-el-light), var(--nch-el) 10%), inset 0 -4px 6px -4px color-mix(in srgb, var(--nch-el-light), var(--nch-el) 16%); }
+.nch-tile-icon .nch-glyph { width: 28px; height: 28px; font-size: 18px; }
+.nch-tile-icon .nch-glyph.has-icon { background: linear-gradient(color-mix(in srgb, var(--nch-el), var(--nch-el-light) 28%), var(--nch-el)); }
+.nch-tile-name { max-width: 100%; padding: 0 4px; overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto; }
 .nch .nch-tile[aria-current="page"] .nch-tile-name { font-weight: 700; }
-.nch-tile.more .nch-tile-icon { background: transparent; box-shadow: inset 0 0 0 2px var(--border-strong); color: var(--text); }
-.nch-tile.more .nch-glyph { font-size: 26px; font-weight: 400; }
+/* "Weitere Apps" ist keine App: nur ein Ring, Symbol und Name gedaempft */
+.nch-tile.outlined .nch-tile-icon { background: transparent; box-shadow: inset 0 0 0 2px var(--border); color: var(--muted); }
+.nch .nch-tile.outlined .nch-tile-name { color: var(--muted); }
+.nch-tile-svg { width: 28px; height: 28px; }
+/* Navigations-Aktionen (z. B. "Textdokument" von Office) in einer eigenen Zeile unter dem Raster */
+.nch-actions-wrap { flex: none; border-top: 1px solid var(--border); background: var(--surface); }
+.nch-actions { display: grid; grid-template-columns: repeat(4, 69px); padding: 8px; }
+.nch-action-icon { position: relative; display: grid; place-items: center; flex: none; width: 48px; height: 48px; transform: scale(var(--nch-scale, 1)); transition: transform .1s ease-out; }
+.nch-action-img { width: 80%; height: 80%; background: var(--nch-icon) center / contain no-repeat; }
+.nch-action-img.letter { display: grid; place-items: center; border-radius: 8px; background: var(--surface-3); color: var(--muted); font-weight: 700; font-size: 18px; }
+.nch-action-svg { width: 80%; height: 80%; color: var(--muted); }
+.nch-indicator { box-sizing: content-box; position: absolute; right: 0; bottom: 0; display: grid; place-items: center; width: max(12px, 36%); height: max(12px, 36%); border-radius: 50%; border: 2px solid var(--surface); background: var(--nch-indicator); color: #fff; }
+.nch-indicator-svg { width: 100%; height: 100%; }
+.nch-more-list { display: flex; flex-direction: column; gap: 4px; padding: 0 8px 8px; }
+.nch .nch-action.compact { flex-direction: row; gap: 8px; width: 100%; padding: 2px 4px; font-size: 15px; text-align: start; letter-spacing: normal; }
+.nch .nch-action.compact:hover, .nch .nch-action.compact:focus-visible { background: var(--surface-3); --nch-scale: 1; }
+.nch-action.compact .nch-action-icon { width: 32px; height: 32px; }
+.nch-action.compact .nch-tile-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-hyphens: none; hyphens: none; }
+/* Dunkel: Instanzfarbe aufgehellt wie --color-primary-element in Nextcloud, ohne Schliff am Kreis */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .nch-apps { --nch-el: color-mix(in srgb, var(--nch-bg, #0b1f3b) 55%, #fff); }
+    :root:not([data-theme="light"]) .nch-tile:not(.outlined) .nch-tile-icon { box-shadow: none; }
+}
+:root[data-theme="dark"] .nch-apps { --nch-el: color-mix(in srgb, var(--nch-bg, #0b1f3b) 55%, #fff); }
+:root[data-theme="dark"] .nch-tile:not(.outlined) .nch-tile-icon { box-shadow: none; }
+@media (prefers-reduced-motion: reduce) { .nch-tile-icon, .nch-action-icon { transition: none; } }
+@media (forced-colors: active) { .nch-tile-icon .nch-glyph.has-icon { background: CanvasText; } }
 .nch-offline { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--bad-soft); color: var(--bad); white-space: nowrap; }
 .nch-user-wrap { position: relative; }
 /* Kontomenue wie Nextcloud 35: Bild mit duennem Ring, beim Hover ein 2-px-Rand statt einer Flaeche */
@@ -369,9 +407,11 @@ textarea.c-value { min-height: 0; resize: vertical; }
     .hide-narrow, .topbar .kbd, .searchbox kbd { display: none !important; }
     .file-name { display: none; }
 }
+/* Wie Nextcloud: unter 1024 px nur der 9-Punkte-Knopf */
+@media (max-width: 1024px) { .nch-current { display: none; } }
 @media (max-width: 760px) {
     :root { --topbar-h: 52px; }
-    .nch-current { display: none; } .nch-offline { display: none; }
+    .nch-offline { display: none; }
     .panes { grid-template-columns: minmax(0, 1fr); }
     .listpane, .detailpane { grid-column: 1; grid-row: 1; }
     .shell[data-view="list"] .detailpane, .shell[data-view="groups"] .detailpane { display: none; }
