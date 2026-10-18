@@ -372,7 +372,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
 
 /* Generator / Berichte / Palette */
 .gen-top { display: flex; gap: 8px; align-items: stretch; }
-.gen-preview { flex: 1; min-height: 64px; display: flex; align-items: center; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font: 600 20px/1.35 var(--mono); overflow-wrap: anywhere; word-break: break-all; } .gen-preview.error { color: var(--bad); font: 14px var(--font); }
+.gen-preview { flex: 1; min-height: 64px; display: flex; align-items: center; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font: 600 20px/1.35 var(--mono); overflow-wrap: anywhere; word-break: break-all; } .gen-preview.phrase { word-break: normal; } .gen-preview.error { color: var(--bad); font: 14px var(--font); }
 .slider-row { display: grid; grid-template-columns: 110px 1fr 76px; gap: 12px; align-items: center; } .slider-label { font-size: 13.5px; font-weight: 550; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 14px; }
 .check-grid > .wide { grid-column: 1 / -1; } .gen-chars { font: 500 13px var(--mono); color: var(--muted); }
