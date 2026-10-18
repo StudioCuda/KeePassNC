@@ -1,6 +1,9 @@
 // Passwort- und Passphrasen-Generator (Verhalten angelehnt an KeePassXC: Zeichenklassen, aehnlich aussehende Zeichen ausschliessen,
 // mindestens ein Zeichen je gewaehlter Klasse, gleichverteilt per Rejection Sampling).
-import { WORDS } from './wordlist-eff.js';
+import { WORDS as WORDS_EN } from './wordlist-eff.js';
+import { WORDS as WORDS_DE } from './wordlist-de.js';
+
+export const WORDLISTS = { en: WORDS_EN, de: WORDS_DE };
 
 export const CLASSES = {
     lower: 'abcdefghijklmnopqrstuvwxyz',
@@ -47,52 +50,43 @@ export function generatePassword(opts = {}) {
     return { password: shuffle(out).join(''), bits: len * Math.log2(pool.length) };
 }
 
-export const DEFAULT_PASSPHRASE_OPTIONS = { words: 6, separator: '-', casing: 'lower' };
+export const DEFAULT_PASSPHRASE_OPTIONS = { words: 6, separator: '-', casing: 'lower', list: 'en' };
+/** list: 'en' (EFF Large Wordlist) oder 'de' (dys2p de-7776); beide 7776 Woerter, also ca. 12,9 Bit je Wort. */
 export function generatePassphrase(opts = {}) {
     const o = { ...DEFAULT_PASSPHRASE_OPTIONS, ...opts };
+    const words = WORDLISTS[o.list] || WORDS_EN;
     const n = Math.max(1, Math.min(32, o.words));
-    let list = Array.from({ length: n }, () => WORDS[randomInt(WORDS.length)]);
+    let list = Array.from({ length: n }, () => words[randomInt(words.length)]);
     if (o.casing === 'upper') list = list.map((w) => w.toUpperCase());
     else if (o.casing === 'title') list = list.map((w) => w[0].toUpperCase() + w.slice(1));
     else if (o.casing === 'mixed') { const i = randomInt(n); list[i] = list[i].toUpperCase(); }
-    return { password: list.join(o.separator), bits: n * Math.log2(WORDS.length) };
+    return { password: list.join(o.separator), bits: n * Math.log2(words.length) };
 }
 
-// Aussprechbar: Silben Konsonant-Vokal-Konsonant, jede Silbe gleichverteilt (anders als FIPS 181/pwgen, deren Silben ungleich
-// haeufig sind und deren Staerke deshalb ueberschaetzt wird). Ohne Buchstaben, die man beim Buchstabieren leicht verwechselt
-// (c/k, v/f/w, j/y, q, x). Zwischen den Silbengruppen ein zufaelliges Zeichen, ohne Klammern, Schraegstriche und | (diktiert
-// verwechselbar) und ohne 0/1 (sehen aus wie o/l).
+// Simpel: fuer Geraete mit Bildschirmtastatur (TV-Fernbedienung, Konsole). Nur Kleinbuchstaben und Ziffern, weil die auf
+// praktisch jeder TV-Tastatur auf der ersten Seite liegen; Grossbuchstaben und Zeichen kosten je Taste einen Seitenwechsel.
+// Feste Bloecke aus drei Silben Konsonant-Vokal-Konsonant und zwei Ziffern, z. B. "bodfuspim47katnoriz83". Jede Silbe gleichverteilt
+// (anders als FIPS 181/pwgen, deren Silben ungleich haeufig sind und deren Staerke deshalb ueberschaetzt wird). Ohne Buchstaben,
+// die man beim Buchstabieren leicht verwechselt (c/k, v/f/w, j/y, q, x), und ohne 0/1 (sehen aus wie o/l).
 export const SYLLABLE = { consonants: 'bdfghklmnprstz', vowels: 'aeiou' };
-export const PRON_SEPARATORS = { digits: '23456789', symbols: '-+=.!?#%&*@' };
-export const DEFAULT_PRONOUNCEABLE_OPTIONS = { syllables: 8, group: 2, separators: 'mixed', casing: 'first' };
+export const SIMPLE_DIGITS = '23456789';
+export const SIMPLE_BLOCK = { syllables: 3, digits: 2 };
+export const DEFAULT_SIMPLE_OPTIONS = { blocks: 2, capital: false };
 export const SYLLABLE_BITS = Math.log2(SYLLABLE.consonants.length ** 2 * SYLLABLE.vowels.length);
+export const SIMPLE_BLOCK_BITS = SIMPLE_BLOCK.syllables * SYLLABLE_BITS + SIMPLE_BLOCK.digits * Math.log2(SIMPLE_DIGITS.length);
 
-/** Liefert {password, bits}. casing: 'first' (erster Buchstabe gross), 'title' (jede Gruppe) oder 'lower'. separators: 'mixed' (Ziffern und Zeichen, ab zwei Trennern mindestens je eines), 'digits', 'symbols' oder 'dash'. */
-export function generatePronounceable(opts = {}) {
-    const o = { ...DEFAULT_PRONOUNCEABLE_OPTIONS, ...opts };
-    const n = Math.max(1, Math.min(32, o.syllables));
-    const group = Math.max(1, Math.min(n, o.group));
+/** Liefert {password, bits}. blocks: Anzahl der Bloecke (1-8). capital: erster Buchstabe gross (bringt keine Bits, erfuellt aber
+ * "mindestens ein Grossbuchstabe"). */
+export function generateSimple(opts = {}) {
+    const o = { ...DEFAULT_SIMPLE_OPTIONS, ...opts };
+    const n = Math.max(1, Math.min(8, o.blocks));
     const { consonants: C, vowels: V } = SYLLABLE;
     const pick = (s) => s[randomInt(s.length)];
-    const groups = [];
-    for (let i = 0; i < n; i += group) {
-        let g = '';
-        for (let j = i; j < Math.min(n, i + group); j++) g += pick(C) + pick(V) + pick(C);
-        // Feste Grossschreibung bringt keine Bits, erfuellt aber "mindestens ein Grossbuchstabe"
-        groups.push(o.casing === 'title' || (o.casing === 'first' && i === 0) ? g[0].toUpperCase() + g.slice(1) : g);
+    let pw = '';
+    for (let b = 0; b < n; b++) {
+        for (let i = 0; i < SIMPLE_BLOCK.syllables; i++) pw += pick(C) + pick(V) + pick(C);
+        for (let i = 0; i < SIMPLE_BLOCK.digits; i++) pw += pick(SIMPLE_DIGITS);
     }
-    const k = groups.length - 1;
-    const { digits: D, symbols: S } = PRON_SEPARATORS;
-    let seps;
-    let sepBits = 0;
-    if (o.separators === 'dash') seps = Array(k).fill('-');
-    else {
-        const pool = o.separators === 'digits' ? D : o.separators === 'symbols' ? S : D + S;
-        const both = o.separators === 'mixed' && k >= 2;
-        // Rejection Sampling: gleichverteilt ueber alle Folgen mit mindestens einer Ziffer und einem Zeichen
-        do seps = Array.from({ length: k }, () => pick(pool));
-        while (both && !(seps.some((c) => D.includes(c)) && seps.some((c) => S.includes(c))));
-        sepBits = both ? Math.log2(pool.length ** k - D.length ** k - S.length ** k) : k * Math.log2(pool.length);
-    }
-    return { password: groups.map((g, i) => g + (seps[i] ?? '')).join(''), bits: n * SYLLABLE_BITS + sepBits };
+    if (o.capital) pw = pw[0].toUpperCase() + pw.slice(1);
+    return { password: pw, bits: n * SIMPLE_BLOCK_BITS };
 }

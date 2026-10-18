@@ -1,10 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseQuery, matches } from '../../src/core/search.js';
-import { generatePassword, generatePassphrase, generatePronounceable, CLASSES, LOOKALIKE, SYLLABLE, PRON_SEPARATORS, SYLLABLE_BITS } from '../../src/core/generator.js';
+import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SIMPLE_DIGITS, SYLLABLE_BITS, SIMPLE_BLOCK_BITS } from '../../src/core/generator.js';
 import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
 import { auditEntries } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
+import { WORDS as WORDS_DE } from '../../src/core/wordlist-de.js';
 import { isOutOfMemory, openableUrl } from '../../src/core/util.js';
 
 const NOW = Date.UTC(2026, 9, 11);
@@ -60,28 +61,29 @@ test('Passphrase: Wortanzahl, Trenner, Entropie, Schreibweise', () => {
     assert.ok(Math.abs(bits - 7 * Math.log2(WORDS.length)) < 1e-9); assert.ok(WORDS.length > 7000);
     assert.ok(generatePassphrase({ words: 4, casing: 'upper', separator: '.' }).password.split('.').every((x) => x === x.toUpperCase()));
 });
-test('Aussprechbar: Silbenmuster, Gruppen, Trenner ohne Klammern/Schraegstriche/|, exakte Entropie', () => {
-    const C = `[${SYLLABLE.consonants}]`, V = `[${SYLLABLE.vowels}]`, syl = C + V + C;
-    const { digits: D, symbols: S } = PRON_SEPARATORS;
-    assert.ok(![...D + S].some((c) => '()[]{}<>/\\|01'.includes(c)));
-    for (let i = 0; i < 300; i++) {
-        const { password: p, bits } = generatePronounceable({ syllables: 8, group: 2, separators: 'mixed' });
-        assert.match(p, /^[A-Z][a-z]/);
-        const parts = p.toLowerCase().split(/[^a-z]/);
-        assert.equal(parts.length, 4, p); assert.ok(parts.every((g) => new RegExp(`^(${syl}){2}$`).test(g)), p);
-        assert.equal(p.slice(1), p.slice(1).toLowerCase());
-        const seps = p.replace(/[a-zA-Z]/g, '');
-        assert.ok([...seps].some((c) => D.includes(c)) && [...seps].some((c) => S.includes(c)), 'Ziffer und Zeichen in ' + p);
-        assert.ok(Math.abs(bits - (8 * SYLLABLE_BITS + Math.log2(19 ** 3 - 8 ** 3 - 11 ** 3))) < 1e-9);
+test('Passphrase: deutsche Wortliste (7776 eindeutige Woerter, nur a-z), Englisch als Vorgabe', () => {
+    assert.equal(WORDS_DE.length, 7776); assert.equal(new Set(WORDS_DE).size, 7776); assert.ok(WORDS_DE.every((w) => /^[a-z]{3,}$/.test(w)));
+    const de = new Set(WORDS_DE);
+    const { password, bits } = generatePassphrase({ words: 5, separator: ' ', list: 'de' });
+    assert.ok(password.split(' ').every((w) => de.has(w)), password); assert.ok(Math.abs(bits - 5 * Math.log2(7776)) < 1e-9);
+    const en = new Set(WORDS);
+    assert.ok(generatePassphrase({ words: 5, separator: ' ' }).password.split(' ').every((w) => en.has(w)));
+});
+test('Simpel: Bloecke aus drei Silben und zwei Ziffern, nur a-z und 2-9, exakte Entropie', () => {
+    const C = `[${SYLLABLE.consonants}]`, V = `[${SYLLABLE.vowels}]`, syl = C + V + C, D = `[${SIMPLE_DIGITS}]`;
+    assert.ok(![...SIMPLE_DIGITS].some((c) => '01'.includes(c)));
+    for (const blocks of [1, 2, 3, 6]) {
+        for (let i = 0; i < 100; i++) {
+            const { password: p, bits } = generateSimple({ blocks });
+            assert.match(p, new RegExp(`^((${syl}){3}${D}{2}){${blocks}}$`)); assert.equal(p.length, 11 * blocks);
+            assert.ok(Math.abs(bits - blocks * (3 * SYLLABLE_BITS + 2 * Math.log2(8))) < 1e-9); assert.ok(Math.abs(SIMPLE_BLOCK_BITS - 35.8) < 0.1);
+        }
     }
-    const dash = generatePronounceable({ syllables: 6, group: 3, separators: 'dash', casing: 'title' });
-    assert.match(dash.password, new RegExp(`^[A-Z]${V}${C}(${syl}){2}-[A-Z]${V}${C}(${syl}){2}$`)); assert.ok(Math.abs(dash.bits - 6 * SYLLABLE_BITS) < 1e-9);
-    const dig = generatePronounceable({ syllables: 5, group: 2, separators: 'digits', casing: 'lower' });
-    assert.match(dig.password, /^[a-z]{6}[2-9][a-z]{6}[2-9][a-z]{3}$/); assert.ok(Math.abs(dig.bits - (5 * SYLLABLE_BITS + 2 * Math.log2(8))) < 1e-9);
-    assert.ok(/^[A-Z][a-z]+$/.test(generatePronounceable({ syllables: 4, group: 9 }).password));
+    assert.match(generateSimple({ blocks: 2, capital: true }).password, /^[A-Z][a-z]{8}[2-9]{2}[a-z]{9}[2-9]{2}$/);
+    assert.match(generateSimple().password, /^[a-z]{9}[2-9]{2}[a-z]{9}[2-9]{2}$/);
     const seen = new Set();
-    for (let i = 0; i < 400; i++) for (const c of generatePronounceable({ syllables: 2, group: 1, separators: 'symbols' }).password.replace(/[a-zA-Z]/g, '')) seen.add(c);
-    assert.equal(seen.size, S.length);
+    for (let i = 0; i < 400; i++) for (const c of generateSimple({ blocks: 1 }).password.replace(/[a-z]/g, '')) seen.add(c);
+    assert.equal(seen.size, SIMPLE_DIGITS.length);
 });
 test('Staerke-Schaetzung: Reihenfolge sinnvoll', () => {
     const b = (p) => estimateBits(p);

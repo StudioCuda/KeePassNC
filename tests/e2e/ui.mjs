@@ -234,18 +234,18 @@ async function main() {
 
     await step('Generator: Laenge/Klassen, Passphrase (Woerter/Trenner), Verwenden im Editor', async () => {
         await page.click('#tool-gen');
-        await page.fill('#gen-length', '40'); await page.locator('#gen-length').press('Tab');
+        expect(await page.locator('#gen-tab-ph.active').count() === 1 && await page.inputValue('#gen-list') === 'de', 'Passphrase mit deutscher Wortliste vorne');
+        await page.click('#gen-tab-pw'); await page.fill('#gen-length', '40'); await page.locator('#gen-length').press('Tab');
         await page.uncheck('#gen-digits');
         let pw = (await page.locator('#gen-preview').innerText()).trim();
         expect([...pw].length === 40 && !/[0-9]/.test(pw), `Passwort ${pw}`);
         await page.click('#gen-tab-ph'); await page.fill('#gen-words', '5'); await page.locator('#gen-words').press('Tab'); await page.fill('#gen-sep', '.');
         pw = (await page.locator('#gen-preview').innerText()).trim();
         expect(/^[a-z-]+(\.[a-z-]+){4}$/.test(pw), 'Passphrase ' + pw);
-        await page.click('#gen-tab-pr'); await page.fill('#gen-syllables', '6'); await page.locator('#gen-syllables').press('Tab');
-        await page.fill('#gen-group', '3'); await page.locator('#gen-group').press('Tab'); await page.selectOption('#gen-pr-sep', 'dash');
+        await page.click('#gen-tab-si'); await page.fill('#gen-blocks', '3'); await page.locator('#gen-blocks').press('Tab'); await page.check('#gen-capital');
         pw = (await page.locator('#gen-preview').innerText()).trim();
-        expect(/^[BDFGHKLMNPRSTZ][aeiou][bdfghklmnprstz]([bdfghklmnprstz][aeiou][bdfghklmnprstz]){2}-([bdfghklmnprstz][aeiou][bdfghklmnprstz]){3}$/.test(pw), 'Aussprechbar ' + pw);
-        expect(/· 60 bit/.test(await page.locator('.gen .strength-label').innerText()), 'exakte Bitzahl statt Schaetzung');
+        expect(/^[BDFGHKLMNPRSTZ][aeiou][bdfghklmnprstz]([bdfghklmnprstz][aeiou][bdfghklmnprstz]){2}[2-9]{2}(([bdfghklmnprstz][aeiou][bdfghklmnprstz]){3}[2-9]{2}){2}$/.test(pw), 'Simpel ' + pw);
+        expect(/· 107 bit/.test(await page.locator('.gen .strength-label').innerText()), 'exakte Bitzahl statt Schaetzung');
         await page.keyboard.press('Escape');
         await pick(page, 'UI Ablauf-TOTP'); await page.click('#edit-btn'); await page.click('#gen-btn');
         await page.click('#gen-tab-pw'); await page.click('#gen-use'); await page.click('#e-show');
