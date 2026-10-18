@@ -1,14 +1,14 @@
 // Passwort-/Passphrasen-Generator als Dialog (aus dem Editor mit "Verwenden", sonst nur Kopieren).
-import { generatePassword, generatePassphrase, generateSimple, DEFAULT_PASSWORD_OPTIONS, DEFAULT_PASSPHRASE_OPTIONS, DEFAULT_SIMPLE_OPTIONS, SIMPLE_SEPARATORS, CLASSES } from '../core/generator.js';
+import { generatePassword, generatePassphrase, generateSimple, DEFAULT_PASSWORD_OPTIONS, DEFAULT_PASSPHRASE_OPTIONS, DEFAULT_SIMPLE_OPTIONS, SEPARATORS, CLASSES, migratePasswordOptions } from '../core/generator.js';
 import { t, getLang } from '../i18n.js';
 import { ctx, pref, copy } from './ctx.js';
 import { h, icon, iconBtn, modal } from './dom.js';
 import { colorizedPassword, strengthBar } from './detail.js';
 
-const CLASS_KEYS = ['lower', 'upper', 'digits', 'dashes', 'math', 'logograms'];
+const CLASS_KEYS = ['lower', 'upper', 'digits', 'special1', 'special2'];
 // Selten gebraucht, deshalb unter "Mehr"
-const MORE_CLASS_KEYS = ['braces', 'punct', 'quotes', 'extended'];
-const SEP_KEYS = { '.': 'dot', ',': 'comma', ' ': 'space', '@': 'at' };
+const MORE_CLASS_KEYS = ['extended'];
+const SEP_KEYS = { ' ': 'space', '.': 'dot', '-': 'dash', ',': 'comma', '_': 'underscore', '@': 'at', '!': 'excl' };
 
 function loadOpts() {
     try { return JSON.parse(pref('gen') || '{}'); } catch { return {}; }
@@ -16,10 +16,12 @@ function loadOpts() {
 
 export function openGenerator({ onUse } = {}) {
     const saved = loadOpts();
-    const pwOpts = { ...DEFAULT_PASSWORD_OPTIONS, ...(saved.pw || {}) };
+    const pwOpts = { ...DEFAULT_PASSWORD_OPTIONS, ...migratePasswordOptions(saved.pw) };
     // Ohne gespeicherte Wahl passt die Wortliste zur Oberflaechensprache
     const phOpts = { ...DEFAULT_PASSPHRASE_OPTIONS, list: getLang() === 'de' ? 'de' : 'en', ...(saved.ph || {}) };
     const siOpts = { ...DEFAULT_SIMPLE_OPTIONS, ...(saved.si || {}) };
+    // Frei eingegebene Trennzeichen von frueher, die nicht mehr zur Auswahl stehen
+    for (const o of [phOpts, siOpts]) if (!SEPARATORS.includes(o.separator)) o.separator = SEPARATORS[0];
     // 'pr' war bis 0.9 "Aussprechbar", daraus wurde "Simpel"
     let mode = saved.mode === 'pr' ? 'si' : ['pw', 'si'].includes(saved.mode) ? saved.mode : 'ph';
     let current = '';
@@ -50,6 +52,7 @@ export function openGenerator({ onUse } = {}) {
         range.addEventListener('input', () => set(range.value)); number.addEventListener('change', () => set(number.value));
         return h('div', { class: 'slider-row' }, h('span', { class: 'slider-label', text: label }), range, number);
     };
+    const sepSelect = (id, o) => h('select', { id, onchange: (e) => { o.separator = e.target.value; generate(); } }, ...SEPARATORS.map((c) => h('option', { value: c, selected: o.separator === c, text: t('gen.sep.' + SEP_KEYS[c]) })));
     const chk = (id, label, o, key) => h('label', { class: 'check' }, h('input', { type: 'checkbox', id, checked: !!o[key], onchange: (e) => { o[key] = e.target.checked; generate(); } }), h('span', { text: label }));
 
     const tab = (m, label) => h('button', { type: 'button', role: 'tab', class: 'seg-btn' + (mode === m ? ' active' : ''), id: 'gen-tab-' + m, onclick: () => { mode = m; renderOpts(); generate(); }, text: label });
@@ -57,12 +60,17 @@ export function openGenerator({ onUse } = {}) {
     function renderOpts() {
         tabs.replaceChildren(tab('ph', t('gen.passphrase')), tab('pw', t('gen.password')), tab('si', t('gen.simple')));
         if (mode === 'pw') {
-            const classChk = (k) => chk('gen-' + k, t('gen.class.' + k) + (k === 'extended' ? '' : ` ${previewChars(k)}`), pwOpts, k);
+            const classChk = (k) => {
+                const c = chk('gen-' + k, t('gen.class.' + k), pwOpts, k);
+                // Sonderzeichen mit Abstand, damit man sie einzeln erkennt; die beiden Gruppen bekommen je eine eigene Zeile
+                if (k.startsWith('special')) { c.classList.add('wide'); c.append(h('span', { class: 'gen-chars', text: [...CLASSES[k]].join(' ') })); }
+                return c;
+            };
             // Offen, sobald dort etwas eingestellt ist, damit nichts unsichtbar mitwirkt
             const moreUsed = MORE_CLASS_KEYS.some((k) => pwOpts[k]) || pwOpts.custom || pwOpts.exclude;
             optsBox.replaceChildren(
                 num('gen-length', t('gen.length'), 4, 128, pwOpts, 'length'),
-                h('div', { class: 'check-grid' }, ...CLASS_KEYS.map(classChk)),
+                h('div', { class: 'check-grid gen-cls' }, ...CLASS_KEYS.map(classChk)),
                 h('div', { class: 'check-grid' }, chk('gen-lookalike', t('gen.lookalike'), pwOpts, 'lookalike'), chk('gen-every', t('gen.every'), pwOpts, 'everyGroup')),
                 h('details', { class: 'gen-more', id: 'gen-more', open: !!moreUsed }, h('summary', { text: t('gen.more') }),
                     h('div', { class: 'stack' },
@@ -71,12 +79,12 @@ export function openGenerator({ onUse } = {}) {
                             h('label', {}, h('span', { text: t('gen.custom') }), h('input', { id: 'gen-custom', value: pwOpts.custom, oninput: (e) => { pwOpts.custom = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' })),
                             h('label', {}, h('span', { text: t('gen.exclude') }), h('input', { id: 'gen-exclude', value: pwOpts.exclude, oninput: (e) => { pwOpts.exclude = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' }))))));
         } else if (mode === 'si') {
-            const sep = h('select', { id: 'gen-si-sep', onchange: (e) => { siOpts.separator = e.target.value; generate(); } }, ...SIMPLE_SEPARATORS.map((c) => h('option', { value: c, selected: siOpts.separator === c, text: t('gen.sep.' + SEP_KEYS[c]) })));
+            const sep = sepSelect('gen-si-sep', siOpts);
             optsBox.replaceChildren(num('gen-blocks', t('gen.blocks'), 1, 6, siOpts, 'blocks'),
                 h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('div', { class: 'gen-side' }, chk('gen-capital', t('gen.capital'), siOpts, 'capital'))),
                 h('p', { class: 'hint', text: t('gen.simple.hint') }));
         } else {
-            const sep = h('input', { id: 'gen-sep', value: phOpts.separator, maxlength: 4, oninput: (e) => { phOpts.separator = e.target.value; generate(); }, autocomplete: 'off' });
+            const sep = sepSelect('gen-sep', phOpts);
             const casing = h('select', { id: 'gen-casing', onchange: (e) => { phOpts.casing = e.target.value; generate(); } }, ...['lower', 'upper', 'title', 'mixed'].map((c) => h('option', { value: c, selected: phOpts.casing === c, text: t('gen.case.' + c) })));
             const hint = h('p', { class: 'hint', text: t('gen.wordlist.' + phOpts.list) });
             const list = h('select', { id: 'gen-list', onchange: (e) => { phOpts.list = e.target.value; hint.textContent = t('gen.wordlist.' + phOpts.list); generate(); } }, ...['de', 'en'].map((l) => h('option', { value: l, selected: phOpts.list === l, text: t('gen.list.' + l) })));
@@ -86,7 +94,6 @@ export function openGenerator({ onUse } = {}) {
                 hint);
         }
     }
-    const previewChars = (k) => (CLASSES[k].length <= 12 ? `(${CLASSES[k]})` : '');
     const useBtn = h('button', { type: 'button', class: 'primary', id: 'gen-use', onclick: () => { onUse?.(current, currentBits); m.close(); }, text: t('gen.use') });
     const copyBtn = h('button', { type: 'button', id: 'gen-copy', onclick: () => copy(current, t('f.password')) }, icon('copy'), h('span', { text: t('copy') }));
     const regen = h('button', { type: 'button', id: 'gen-regen', class: 'icon-btn', title: t('gen.regenerate'), 'aria-label': t('gen.regenerate'), onclick: generate }, icon('refresh'));

@@ -9,12 +9,9 @@ export const CLASSES = {
     lower: 'abcdefghijklmnopqrstuvwxyz',
     upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
     digits: '0123456789',
-    braces: '()[]{}',
-    punct: '.,:;',
-    quotes: '"\'',
-    dashes: '-/\\_|',
-    math: '!*+<=>?',
-    logograms: '#$%&@^`~',
+    // Sonderzeichen 1: auf Handy- und TV-Tastaturen meist schnell erreichbar; Sonderzeichen 2: der Rest der ASCII-Zeichen
+    special1: '!?.:;-=*\'"$%&@',
+    special2: ',_+/\\|()[]{}<>#^~`',
     extended: [...Array(0xff - 0xa1 + 1).keys()].map((i) => String.fromCharCode(0xa1 + i)).filter((c) => c !== '­').join('')
 };
 export const LOOKALIKE = new Set('lBGIO0168|ù'.split(''));
@@ -31,7 +28,15 @@ function shuffle(a) {
     return a;
 }
 
-export const DEFAULT_PASSWORD_OPTIONS = { length: 24, lower: true, upper: true, digits: true, braces: false, punct: false, quotes: false, dashes: true, math: true, logograms: true, extended: false, lookalike: true, everyGroup: true, custom: '', exclude: '' };
+export const DEFAULT_PASSWORD_OPTIONS = { length: 24, lower: true, upper: true, digits: true, special1: true, special2: false, extended: false, lookalike: true, everyGroup: true, custom: '', exclude: '' };
+
+// Bis 0.9 gab es sechs kleinere Zeichengruppen. Klammern lagen nur in der heutigen Gruppe 2, alle anderen zum Teil in Gruppe 1.
+const OLD_CLASSES = ['braces', 'punct', 'quotes', 'dashes', 'math', 'logograms'];
+export function migratePasswordOptions(o = {}) {
+    if (!OLD_CLASSES.some((k) => k in o) || 'special1' in o) return o;
+    const { braces, punct, quotes, dashes, math, logograms, ...rest } = o;
+    return { ...rest, special1: !!(punct || quotes || dashes || math || logograms), special2: !!braces };
+}
 
 /** Liefert {password, bits}. Wirft Error('empty'), wenn keine Zeichen zur Verfuegung stehen. */
 export function generatePassword(opts = {}) {
@@ -50,7 +55,10 @@ export function generatePassword(opts = {}) {
     return { password: shuffle(out).join(''), bits: len * Math.log2(pool.length) };
 }
 
-export const DEFAULT_PASSPHRASE_OPTIONS = { words: 6, separator: '-', casing: 'lower', list: 'en', digit: false };
+// Trennzeichen fuer Passphrase und Simpel, das erste ist die Vorgabe. Leerzeichen, Punkt, Komma und @ liegen bei Fire TV auf der
+// ersten Tastaturseite.
+export const SEPARATORS = [' ', '.', '-', ',', '_', '@', '!'];
+export const DEFAULT_PASSPHRASE_OPTIONS = { words: 6, separator: ' ', casing: 'lower', list: 'en', digit: false };
 /** list: 'en' (EFF Large Wordlist) oder 'de' (dys2p de-7776); beide 7776 Woerter, also ca. 12,9 Bit je Wort. digit: eine Ziffer
  * 0-9 hinter einem zufaelligen Wort, fuer Dienste, die eine Zahl verlangen (die Woerter enthalten keine Ziffern, die Bits sind exakt). */
 export function generatePassphrase(opts = {}) {
@@ -66,26 +74,25 @@ export function generatePassphrase(opts = {}) {
     return { password: list.join(o.separator), bits };
 }
 
-// Simpel: fuer Geraete mit Bildschirmtastatur (TV-Fernbedienung, Konsole). Nur Kleinbuchstaben, Ziffern und ein Trennzeichen, das
-// auf der ersten Seite der Fire-TV-Tastatur liegt; Grossbuchstaben und andere Zeichen kosten je Taste einen Seitenwechsel.
-// Aufbau: Silben, Ziffern und je weiterem Block noch einmal Silben, z. B. "bodfuspim.47" oder "bodfuspim.47.katnoriz.lupmesgad". Ein Block sind drei
+// Simpel: fuer Geraete mit Bildschirmtastatur (TV-Fernbedienung, Konsole). Nur Kleinbuchstaben, Ziffern und ein Trennzeichen;
+// Grossbuchstaben und die meisten Zeichen kosten je Taste einen Seitenwechsel.
+// Aufbau: Silben, Ziffern und je weiterem Block noch einmal Silben, z. B. "Bodfuspim 47" oder "Bodfuspim 47 katnoriz lupmesgad". Ein Block sind drei
 // Silben Konsonant-Vokal-Konsonant, jede gleichverteilt (anders als FIPS 181/pwgen, deren Silben ungleich haeufig sind und deren
 // Staerke deshalb ueberschaetzt wird). Ohne Buchstaben, die man beim Buchstabieren leicht verwechselt (c/k, v/f/w, j/y, q, x), und
 // ohne 0/1 (sehen aus wie o/l). Das Trennzeichen ist fest gewaehlt und bringt keine Bits.
 export const SYLLABLE = { consonants: 'bdfghklmnprstz', vowels: 'aeiou' };
 export const SIMPLE_DIGITS = '23456789';
-export const SIMPLE_SEPARATORS = ['.', ',', ' ', '@'];
-export const DEFAULT_SIMPLE_OPTIONS = { blocks: 2, separator: '.', capital: true };
+export const DEFAULT_SIMPLE_OPTIONS = { blocks: 2, separator: ' ', capital: true };
 export const SYLLABLE_BITS = Math.log2(SYLLABLE.consonants.length ** 2 * SYLLABLE.vowels.length);
 export const SIMPLE_BLOCK_BITS = 3 * SYLLABLE_BITS;
 export const SIMPLE_DIGITS_BITS = 2 * Math.log2(SIMPLE_DIGITS.length);
 
 /** Liefert {password, bits}. blocks: Silbenbloecke (1-8, die Ziffern stehen immer nach dem ersten). separator: eines aus
- * SIMPLE_SEPARATORS. capital: erster Buchstabe gross (bringt keine Bits, erfuellt aber "mindestens ein Grossbuchstabe"). */
+ * SEPARATORS. capital: erster Buchstabe gross (bringt keine Bits, erfuellt aber "mindestens ein Grossbuchstabe"). */
 export function generateSimple(opts = {}) {
     const o = { ...DEFAULT_SIMPLE_OPTIONS, ...opts };
     const n = Math.max(1, Math.min(8, o.blocks));
-    const sep = SIMPLE_SEPARATORS.includes(o.separator) ? o.separator : DEFAULT_SIMPLE_OPTIONS.separator;
+    const sep = SEPARATORS.includes(o.separator) ? o.separator : DEFAULT_SIMPLE_OPTIONS.separator;
     const { consonants: C, vowels: V } = SYLLABLE;
     const pick = (s) => s[randomInt(s.length)];
     const syl = () => pick(C) + pick(V) + pick(C);

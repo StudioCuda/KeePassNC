@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseQuery, matches } from '../../src/core/search.js';
-import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SIMPLE_DIGITS, SIMPLE_SEPARATORS, SYLLABLE_BITS, SIMPLE_BLOCK_BITS } from '../../src/core/generator.js';
+import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SIMPLE_DIGITS, SEPARATORS, SYLLABLE_BITS, migratePasswordOptions, SIMPLE_BLOCK_BITS } from '../../src/core/generator.js';
 import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
 import { auditEntries } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
@@ -41,18 +41,18 @@ test('Generator: Laenge, Klassen, keine Lookalikes, mindestens ein Zeichen je Kl
     for (let i = 0; i < 200; i++) {
         const { password: p, bits } = generatePassword({ length: 16 });
         assert.equal([...p].length, 16);
-        assert.ok(/[a-z]/.test(p) && /[A-Z]/.test(p) && /[0-9]/.test(p) && /[-/\\_|]/.test(p) && /[!*+<=>?]/.test(p) && /[#$%&@^`~]/.test(p));
+        assert.ok(/[a-z]/.test(p) && /[A-Z]/.test(p) && /[0-9]/.test(p) && [...p].some((c) => CLASSES.special1.includes(c)) && ![...p].some((c) => CLASSES.special2.includes(c)));
         assert.ok(![...p].some((c) => LOOKALIKE.has(c)), 'Lookalike in ' + p);
         assert.ok(bits > 80);
     }
-    assert.throws(() => generatePassword({ lower: false, upper: false, digits: false, dashes: false, math: false, logograms: false }), /empty/);
-    const only = generatePassword({ length: 40, lower: false, upper: false, digits: true, dashes: false, math: false, logograms: false, exclude: '123' }).password;
+    assert.throws(() => generatePassword({ lower: false, upper: false, digits: false, special1: false }), /empty/);
+    const only = generatePassword({ length: 40, lower: false, upper: false, digits: true, special1: false, exclude: '123' }).password;
     assert.ok(/^[04-9]+$/.test(only.replace(/[168]/g, '')) || /^[0-9]+$/.test(only), only);
     assert.ok(![...only].some((c) => '123'.includes(c)));
 });
 test('Generator: Gleichverteilung grob (kein Zeichen fehlt bei 20000 Ziehungen)', () => {
     const seen = new Set();
-    for (let i = 0; i < 2000; i++) for (const c of generatePassword({ length: 10, lower: false, upper: false, dashes: false, math: false, logograms: false, lookalike: false }).password) seen.add(c);
+    for (let i = 0; i < 2000; i++) for (const c of generatePassword({ length: 10, lower: false, upper: false, special1: false, lookalike: false }).password) seen.add(c);
     assert.equal(seen.size, 10);
 });
 test('Passphrase: Wortanzahl, Trenner, Entropie, Schreibweise', () => {
@@ -60,6 +60,18 @@ test('Passphrase: Wortanzahl, Trenner, Entropie, Schreibweise', () => {
     const w = password.split(' '); assert.equal(w.length, 7); assert.ok(w.every((x) => /^[A-Z]/.test(x)));
     assert.ok(Math.abs(bits - 7 * Math.log2(WORDS.length)) < 1e-9); assert.ok(WORDS.length > 7000);
     assert.ok(generatePassphrase({ words: 4, casing: 'upper', separator: '.' }).password.split('.').every((x) => x === x.toUpperCase()));
+});
+test('Generator: Sonderzeichen 1 und 2 decken alle ASCII-Sonderzeichen genau einmal ab, alte Einstellungen werden uebernommen', () => {
+    const all = [...Array(95).keys()].map((i) => String.fromCharCode(32 + i)).filter((c) => !/[ a-zA-Z0-9]/.test(c));
+    const both = [...CLASSES.special1, ...CLASSES.special2];
+    assert.equal(both.length, all.length); assert.deepEqual([...both].sort(), all.sort());
+    assert.deepEqual([...CLASSES.special1].sort(), [...'!*"-=?\'$%&@.:;'].sort());
+    const p = generatePassword({ length: 60 }).password;
+    assert.ok(![...p].some((c) => CLASSES.special2.includes(c)) && [...p].some((c) => CLASSES.special1.includes(c)), p);
+    assert.deepEqual(migratePasswordOptions({ length: 30, braces: false, punct: false, quotes: false, dashes: true, math: true, logograms: true, custom: 'x' }), { length: 30, custom: 'x', special1: true, special2: false });
+    assert.deepEqual(migratePasswordOptions({ braces: true, punct: false, quotes: false, dashes: false, math: false, logograms: false }), { special1: false, special2: true });
+    const fresh = { length: 20, special1: false, special2: true };
+    assert.equal(migratePasswordOptions(fresh), fresh); assert.deepEqual(migratePasswordOptions(undefined), {});
 });
 test('Passphrase: deutsche Wortliste (7776 eindeutige Woerter, nur a-z), Englisch als Vorgabe', () => {
     assert.equal(WORDS_DE.length, 7776); assert.equal(new Set(WORDS_DE).size, 7776); assert.ok(WORDS_DE.every((w) => /^[a-z]{3,}$/.test(w)));
@@ -79,9 +91,9 @@ test('Passphrase: Ziffer hinter einem Wort, exakte Entropie', () => {
 });
 test('Simpel: Silben, Ziffern, Silben (+ weitere Silbenbloecke), Trennzeichen fest, nur a-z und 2-9, exakte Entropie', () => {
     const C = `[${SYLLABLE.consonants}]`, V = `[${SYLLABLE.vowels}]`, B = `(${C}${V}${C}){3}`, D = `[${SIMPLE_DIGITS}]{2}`;
-    assert.ok(![...SIMPLE_DIGITS].some((c) => '01'.includes(c))); assert.deepEqual(SIMPLE_SEPARATORS, ['.', ',', ' ', '@']);
+    assert.ok(![...SIMPLE_DIGITS].some((c) => '01'.includes(c))); assert.deepEqual(SEPARATORS, [' ', '.', '-', ',', '_', '@', '!']);
     const esc = (c) => c.replace(/[.]/g, '\\.');
-    for (const sep of SIMPLE_SEPARATORS) for (const blocks of [1, 2, 3, 6]) {
+    for (const sep of SEPARATORS) for (const blocks of [1, 2, 3, 6]) {
         for (let i = 0; i < 50; i++) {
             const { password: p, bits } = generateSimple({ blocks, separator: sep, capital: false });
             const S = esc(sep);
@@ -89,12 +101,12 @@ test('Simpel: Silben, Ziffern, Silben (+ weitere Silbenbloecke), Trennzeichen fe
             assert.ok(Math.abs(bits - (blocks * 3 * SYLLABLE_BITS + 2 * Math.log2(8))) < 1e-9); assert.ok(Math.abs(SIMPLE_BLOCK_BITS - 29.8) < 0.1);
         }
     }
-    assert.match(generateSimple().password, /^[A-Z][a-z]{8}\.[2-9]{2}\.[a-z]{9}$/, 'Vorgabe: zwei Bloecke, Punkt, erster Buchstabe gross');
+    assert.match(generateSimple().password, /^[A-Z][a-z]{8} [2-9]{2} [a-z]{9}$/, 'Vorgabe: zwei Bloecke, Leerzeichen, erster Buchstabe gross');
     assert.match(generateSimple({ capital: true, separator: '@' }).password, /^[A-Z][a-z]{8}@[2-9]{2}@[a-z]{9}$/);
-    assert.match(generateSimple({ blocks: 1, capital: false }).password, /^[a-z]{9}\.[2-9]{2}$/);
-    assert.match(generateSimple({ blocks: 0, separator: '/' }).password, /^[A-Z][a-z]{8}\.[2-9]{2}$/, 'mindestens ein Block, nur erlaubte Trenner');
+    assert.match(generateSimple({ blocks: 1, capital: false, separator: '.' }).password, /^[a-z]{9}\.[2-9]{2}$/);
+    assert.match(generateSimple({ blocks: 0, separator: '/' }).password, /^[A-Z][a-z]{8} [2-9]{2}$/, 'mindestens ein Block, nur erlaubte Trenner');
     const seen = new Set();
-    for (let i = 0; i < 400; i++) for (const c of generateSimple().password.replace(/[a-zA-Z.]/g, '')) seen.add(c);
+    for (let i = 0; i < 400; i++) for (const c of generateSimple().password.replace(/[a-zA-Z ]/g, '')) seen.add(c);
     assert.equal(seen.size, SIMPLE_DIGITS.length);
 });
 test('Staerke-Schaetzung: Reihenfolge sinnvoll', () => {

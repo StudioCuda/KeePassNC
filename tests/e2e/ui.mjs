@@ -234,12 +234,12 @@ async function main() {
 
     await step('Generator: Laenge/Klassen, Passphrase (Woerter/Trenner), Verwenden im Editor', async () => {
         await page.click('#tool-gen');
-        expect(await page.locator('#gen-tab-ph.active').count() === 1 && await page.inputValue('#gen-list') === 'de', 'Passphrase mit deutscher Wortliste vorne');
+        expect(await page.locator('#gen-tab-ph.active').count() === 1 && await page.inputValue('#gen-list') === 'de' && await page.inputValue('#gen-sep') === ' ', 'Passphrase mit deutscher Wortliste und Leerzeichen vorne');
         await page.click('#gen-tab-pw'); await page.fill('#gen-length', '40'); await page.locator('#gen-length').press('Tab');
         await page.uncheck('#gen-digits');
         let pw = (await page.locator('#gen-preview').innerText()).trim();
         expect([...pw].length === 40 && !/[0-9]/.test(pw), `Passwort ${pw}`);
-        await page.click('#gen-tab-ph'); await page.fill('#gen-words', '5'); await page.locator('#gen-words').press('Tab'); await page.fill('#gen-sep', '.');
+        await page.click('#gen-tab-ph'); await page.fill('#gen-words', '5'); await page.locator('#gen-words').press('Tab'); await page.selectOption('#gen-sep', '.');
         pw = (await page.locator('#gen-preview').innerText()).trim();
         expect(/^[a-z-]+(\.[a-z-]+){4}$/.test(pw), 'Passphrase ' + pw);
         await page.check('#gen-digit');
@@ -247,14 +247,16 @@ async function main() {
         expect(/^[a-z]+(\.[a-z]+){4}$/.test(pw.replace(/[0-9]/, '')) && pw.split('.').filter((w) => /^[a-z]+[0-9]$/.test(w)).length === 1, 'Passphrase mit Ziffer ' + pw);
         await page.uncheck('#gen-digit');
         await page.click('#gen-tab-pw');
-        expect(!(await page.locator('#gen-more').evaluate((d) => d.open)) && !(await page.locator('#gen-braces').isVisible()), 'seltene Optionen unter "Mehr"');
-        await page.click('#gen-more > summary'); await page.check('#gen-braces');
-        expect(/[()[\]{}]/.test((await page.locator('#gen-preview').innerText()).trim()), 'Klammern aus "Mehr"');
-        await page.uncheck('#gen-braces');
+        expect(!(await page.locator('#gen-more').evaluate((d) => d.open)) && !(await page.locator('#gen-extended').isVisible()), 'seltene Optionen unter "Mehr"');
+        expect(await page.locator('#gen-special1').isChecked() && !(await page.locator('#gen-special2').isChecked()), 'Sonderzeichen 1 an, 2 aus');
+        await page.uncheck('#gen-special1'); await page.check('#gen-special2');
+        pw = (await page.locator('#gen-preview').innerText()).trim();
+        expect(/[,_+/()[\]{}<>#^~`]/.test(pw) && !/[!?.:;\-=*'"$%&@]/.test(pw), 'nur Sonderzeichen 2: ' + pw);
+        await page.check('#gen-special1'); await page.uncheck('#gen-special2');
         await page.click('#gen-tab-si'); await page.fill('#gen-blocks', '3'); await page.locator('#gen-blocks').press('Tab');
         expect(await page.locator('#gen-capital').isChecked(), 'Simpel: erster Buchstabe standardmaessig gross');
         pw = (await page.locator('#gen-preview').innerText()).trim();
-        expect(/^[BDFGHKLMNPRSTZ][aeiou][bdfghklmnprstz]([bdfghklmnprstz][aeiou][bdfghklmnprstz]){2}\.[2-9]{2}(\.([bdfghklmnprstz][aeiou][bdfghklmnprstz]){3}){2}$/.test(pw), 'Simpel ' + pw);
+        expect(/^[BDFGHKLMNPRSTZ][aeiou][bdfghklmnprstz]([bdfghklmnprstz][aeiou][bdfghklmnprstz]){2} [2-9]{2}( ([bdfghklmnprstz][aeiou][bdfghklmnprstz]){3}){2}$/.test(pw), 'Simpel ' + pw);
         expect(/· 95 bit/.test(await page.locator('.gen .strength-label').innerText()), 'exakte Bitzahl statt Schaetzung');
         await page.selectOption('#gen-si-sep', '@');
         pw = (await page.locator('#gen-preview').innerText()).trim();
