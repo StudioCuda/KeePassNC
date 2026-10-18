@@ -147,6 +147,23 @@ async function main() {
         expect(davBase === `/remote.php/dav/files/${ADMIN}`, 'data-dav-base ' + davBase);
     });
 
+    await step('Pretty URLs (htaccess.IgnoreFrontController, z. B. YunoHost): Adressen ohne "//", Entsperren klappt (Issue #50)', async () => {
+        // Mit Pretty URLs liefert linkTo('', 'index.php') nur "/"; daraus wurde "//csrftoken", ein Host namens "csrftoken"
+        occ('config:system:set', 'htaccess.IgnoreFrontController', '--value', 'true', '--type', 'boolean');
+        try {
+            await page.goto(`${BASE}/index.php/apps/keepassnc/?open=${encodeURIComponent('/Passwörter privat/vault4.kdbx')}`);
+            const app = page.locator('#app');
+            const urls = { csrf: await app.getAttribute('data-csrf-url'), files: await app.getAttribute('data-files-url'), nav: JSON.parse(await app.getAttribute('data-nc-nav') || '{}').moreApps };
+            expect(urls.csrf === '/csrftoken' && !urls.files.startsWith('//') && urls.nav === '/settings/apps', JSON.stringify(urls));
+            await page.fill('#master', PW); await page.click('#open-btn');
+            await rows(page).first().waitFor({ timeout: 30000 }).catch(async (e) => { throw new Error(`${e.message.split('\n')[0]} | err=${await page.textContent('#login-error')}`); });
+        } finally {
+            occ('config:system:delete', 'htaccess.IgnoreFrontController');
+        }
+        await page.goto(`${BASE}/index.php/apps/keepassnc/?open=${encodeURIComponent('/Passwörter privat/vault4.kdbx')}`);
+        await page.locator('#login-form').waitFor();
+    });
+
     await step('Entsperren ueber Sitzung (kein App-Passwort): falsches Master-Passwort -> Fehlermeldung', async () => {
         await page.fill('#master', 'falsch'); await page.click('#open-btn');
         await page.waitForFunction(() => /Falsches Master-Passwort/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 30000 }).catch(async (e) => { throw new Error(`${e.message.split('\n')[0]} | lang=${await page.getAttribute('html', 'lang')} data-lang=${await page.locator('#app').getAttribute('data-lang')} err=${await page.textContent('#login-error')}`); });
