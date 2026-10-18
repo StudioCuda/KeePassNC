@@ -285,7 +285,7 @@ export default {
     'move': 'Verschieben',
     'n.entries': '{n} Einträge',
     'nav.all': 'Alle Einträge', 'nav.attachment': 'Mit Anhang', 'nav.bin': 'Papierkorb', 'nav.expiring': 'Läuft ab / abgelaufen', 'nav.groups': 'Gruppen', 'nav.passkey': 'Passkeys', 'nav.tags': 'Tags', 'nav.totp': 'Mit TOTP', 'nav.weak': 'Schwache Passwörter',
-    'nch.apps': 'Apps', 'nch.apps.current': 'App-Menü öffnen, aktuell in {app}', 'nch.apps.open': 'App-Menü öffnen', 'nch.home': 'Startseite', 'nch.more': 'Weitere Apps', 'nch.offline': 'Nextcloud nicht erreichbar', 'nch.user': 'Benutzermenü',
+    'nch.apps': 'Apps', 'nch.apps.current': 'App-Menü öffnen, aktuell in {app}', 'nch.apps.open': 'App-Menü öffnen', 'nch.home': 'Startseite', 'nch.more': 'Weitere Apps', 'nch.more.actions': 'Mehr', 'nch.actions': 'Aktionen', 'nch.offline': 'Nextcloud nicht erreichbar', 'nch.user': 'Benutzermenü',
     'notes': 'Notizen',
     'open.merging': '- lokale Änderungen werden abgeglichen …',
     'open.offline': '{name} aus der Offline-Kopie geöffnet ({version}, Stand {date}) - Server nicht erreichbar.{extra}',

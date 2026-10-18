@@ -285,7 +285,7 @@ export default {
     'move': 'Move',
     'n.entries': '{n} entries',
     'nav.all': 'All entries', 'nav.attachment': 'With attachment', 'nav.bin': 'Recycle bin', 'nav.expiring': 'Expiring / expired', 'nav.groups': 'Groups', 'nav.passkey': 'Passkeys', 'nav.tags': 'Tags', 'nav.totp': 'With TOTP', 'nav.weak': 'Weak passwords',
-    'nch.apps': 'Apps', 'nch.apps.current': 'Open apps menu, currently in {app}', 'nch.apps.open': 'Open apps menu', 'nch.home': 'Home', 'nch.more': 'More apps', 'nch.offline': "Can't reach Nextcloud", 'nch.user': 'Account menu',
+    'nch.apps': 'Apps', 'nch.apps.current': 'Open apps menu, currently in {app}', 'nch.apps.open': 'Open apps menu', 'nch.home': 'Home', 'nch.more': 'More apps', 'nch.more.actions': 'More', 'nch.actions': 'Actions', 'nch.offline': "Can't reach Nextcloud", 'nch.user': 'Account menu',
     'notes': 'Notes',
     'open.merging': '- reconciling local changes …',
     'open.offline': '{name} opened from the offline copy ({version}, as of {date}) - server unreachable.{extra}',

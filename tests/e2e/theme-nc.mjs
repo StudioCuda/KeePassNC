@@ -23,6 +23,7 @@ const NAV = {
         { id: 'evil', name: 'Fremd', href: 'javascript:alert(1)', icon: 'https://evil.example/x.svg', active: false }
     ],
     moreApps: '/index.php/settings/apps',
+    actions: [{ id: 'office-document', name: 'Textdokument', href: '/index.php/apps/office/document', icon: '/apps/office/img/document.svg', color: '#2b579a' }],
     settings: [
         { id: 'profile', name: 'Profil anzeigen', href: '/index.php/u/anna', csrf: false },
         { id: 'settings', name: 'Persönliche Einstellungen', href: '/index.php/settings/user', icon: '/core/img/actions/settings-dark.svg', csrf: false },
@@ -167,12 +168,16 @@ async function main() {
         expect(await p.locator('#nch-current').innerText() === 'KeePassNC', 'aktuelle App');
         await p.click('#nch-waffle');
         await p.locator('#nch-apps-pop').waitFor();
-        const tiles = await p.locator('#nch-apps-pop .nch-tile').evaluateAll((as) => as.map((a) => [a.querySelector('.nch-tile-name').textContent, a.getAttribute('href'), a.getAttribute('aria-current')]));
+        const tiles = await p.locator('#nch-apps-pop .nch-grid .nch-tile').evaluateAll((as) => as.map((a) => [a.querySelector('.nch-tile-name').textContent, a.getAttribute('href'), a.getAttribute('aria-current')]));
         expect(JSON.stringify(tiles.map((t) => t[0])) === JSON.stringify(['Dashboard', 'Dateien', 'KeePassNC', 'Weitere Apps']), 'Kacheln ' + JSON.stringify(tiles));
         expect(tiles[2][2] === 'page' && tiles[3][1].endsWith('/index.php/settings/apps'), 'aktiv/Weitere Apps');
         expect(await p.locator('#nch-waffle').getAttribute('aria-expanded') === 'true', 'aria-expanded');
         expect(await p.evaluate(() => document.activeElement?.textContent) === 'KeePassNC', 'Fokus auf aktiver App');
         expect(await p.locator('#nch-apps-pop .nch-glyph.has-icon').count() === 3, 'Symbole als Maske');
+        expect(await p.locator('#nch-apps-pop .nch-actions .nch-action').evaluateAll((as) => as.map((a) => a.textContent + ' ' + new URL(a.href).pathname).join()) === 'Textdokument /index.php/apps/office/document'
+            && await p.locator('#nch-apps-pop .nch-indicator').count() === 1, 'Aktionszeile');
+        await p.keyboard.press('Tab');
+        expect(await p.evaluate(() => document.activeElement?.textContent) === 'Textdokument', 'Tab springt in die Aktionszeile');
         await p.keyboard.press('Escape');
         expect(await p.locator('#nch-apps-pop').isHidden(), 'Escape schliesst nicht');
         await p.click('#nch-current');

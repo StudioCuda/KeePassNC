@@ -124,6 +124,23 @@ test('Navigation: fremde Herkunft, javascript:-Links und kaputtes JSON werden ve
     assert.equal(parseNcNav(nav({ name: 'A\u0000\nB' }), ORIGIN).name, 'AB');
 });
 
+test('Navigation: Aktionen (Nextcloud 35) nur mit Link, Symbol als eigener Pfad oder Base64-data:, Farbe nur als Hex', () => {
+    const svg = 'data:image/svg+xml;base64,' + Buffer.from('<svg/>').toString('base64');
+    const n = parseNcNav(nav({ actions: [
+        { id: 'office-document', name: 'Textdokument', href: '/index.php/apps/office/document', icon: svg, color: '#2B579A' },
+        { id: 'b', name: 'B', href: '/b', icon: '/apps/b/img/b.svg', color: 'red;}' },
+        { id: 'c', name: 'C', href: '/c', icon: 'data:image/svg+xml;utf8,<svg onload=x>' },
+        { id: 'js', name: 'Nur JS', href: '#' }, { id: 'x', name: 'X', href: 'javascript:alert(1)' }
+    ] }), ORIGIN);
+    assert.deepEqual(n.actions.map((a) => a.id), ['office-document', 'b', 'c']);
+    assert.equal(n.actions[0].icon, svg);
+    assert.equal(n.actions[0].color, '#2B579A');
+    assert.equal(n.actions[1].icon, '/apps/b/img/b.svg');
+    assert.equal(n.actions[1].color, '', 'Farbe kein Hex');
+    assert.equal(n.actions[2].icon, '', 'data: ohne Base64');
+    assert.deepEqual(parseNcNav(nav(), ORIGIN).actions, [], 'Nextcloud 34: keine Aktionen');
+});
+
 test('Einstellungen: altes, automatisch gespeichertes "auto" wird einmalig zu "wie Nextcloud"', async () => {
     const store = {};
     globalThis.localStorage = { getItem: (k) => store[k] ?? null, setItem: (k, v) => { store[k] = String(v); } };
