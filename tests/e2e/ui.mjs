@@ -1,5 +1,5 @@
 // UI-Funktionstest mit der synthetischen Alltags-Datei (hartes Passwort + Schluesseldatei + Argon2 256 MiB):
-// Gruppen, Duplizieren/Verschieben/Loeschen/Rueckgaengig, Anhaenge, Verlauf, Suche (KeePassXC-Syntax), Generator, Berichte, Befehlspalette,
+// Gruppen, Duplizieren/Verschieben/Loeschen/Rueckgaengig, Anhaenge, Verlauf, Suche (KeePassXC-Syntax), Generator, Datenbank-Dialog, Befehlspalette,
 // Papierkorb, Ablauf, TOTP, Passkey-Erhalt, Zwischenablage, Mobil-Layout, Sprache/Theme. Ergebnis wird per KeePassXC-XML-Export geprueft.
 import fs from 'node:fs';
 import os from 'node:os';
@@ -78,6 +78,10 @@ async function main() {
         expect(await count(page, 'nav-all') === meta.entries, `Eintragszahl ${await count(page, 'nav-all')} != ${meta.entries}`);
         const c = { weak: await count(page, 'nav-weak'), exp: await count(page, 'nav-expiring'), totp: await count(page, 'nav-totp'), pk: await count(page, 'nav-passkey') };
         expect(c.weak >= 5 && c.exp === 2 && c.totp === 2 && c.pk === 1, JSON.stringify(c));
+        // Reihenfolge: Alle Eintraege, Gruppen, (Tags), Filter; die Werkzeuge gibt es auf breitem Fenster nur oben rechts
+        const order = await page.evaluate(() => [...document.querySelectorAll('#groups > .nav-section')].map((s) => s.querySelector('#nav-all') ? 'all' : s.querySelector('.tree') ? 'groups' : s.id === 'nav-filters' ? 'filters' : s.classList.contains('nav-tools') ? 'tools' : s.querySelector('#nav-bin') ? 'bin' : 'tags'));
+        expect(order.indexOf('all') === 0 && order.indexOf('groups') === 1 && order.indexOf('filters') > order.indexOf('groups') && order.indexOf('filters') < order.indexOf('bin'), 'Reihenfolge ' + order);
+        expect(!(await page.locator('#nav-reports').isVisible()) && await page.locator('#reports-btn').isVisible(), 'Werkzeuge in der Seitenleiste nur bei schmalem Fenster');
         return JSON.stringify(c);
     });
 
@@ -276,7 +280,7 @@ async function main() {
         await page.click('#cancel-btn');
     });
 
-    await step('Berichte: Gesundheit stimmt mit Seitenleiste ueberein, Treffer oeffnet den Eintrag; Statistik; Datenbank-Info (Argon2d, 256 MiB)', async () => {
+    await step('Datenbank-Dialog: Gesundheit stimmt mit Seitenleiste ueberein, Treffer oeffnet den Eintrag; Statistik; Einstellungen-Tab mit Infos (Argon2d, 256 MiB)', async () => {
         await page.click('#reports-btn');
         const weak = await page.locator('.stat', { hasText: 'Schwach' }).first().locator('b').innerText();
         expect(Number(weak) === await count(page, 'nav-weak'), `weak ${weak}`);
@@ -451,12 +455,17 @@ async function main() {
 
     await step('Sprache und Theme: Englisch/Dunkel in den Einstellungen, bleibt nach dem Sperren (Anmeldeseite) erhalten', async () => {
         await page.click('#settings-btn');
+        const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
+        expect(await page.locator('#app-version').innerText() === 'KeePassNC ' + version, 'Version in den Einstellungen');
         await page.selectOption('#s-lang', 'en');
         await page.locator('#s-theme').waitFor();
         await page.selectOption('#s-theme', 'dark');
         expect(await page.locator('html').getAttribute('data-theme') === 'dark', 'Theme');
         await page.click('#settings-close');
         expect(/Save/.test(await page.locator('#save-btn').innerText()) && await page.locator('html').getAttribute('lang') === 'en', 'Englisch');
+        await page.click('#reports-btn');
+        expect(/Database/.test(await page.locator('.modal .modal-title').innerText()) && await page.locator('#rep-tab-info').innerText() === 'Settings', 'Dialog "Database" mit Tab "Settings"');
+        await page.keyboard.press('Escape');
         await page.click('#lock-btn');
         await page.locator('#login-form').waitFor();
         expect(/Open vault/.test(await page.locator('.login-top h2').innerText()), 'Login englisch');

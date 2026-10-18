@@ -280,7 +280,7 @@ body.has-nch .topbar .brand { display: none; } /* der Name steht schon in der Ko
 .searchbox kbd { position: absolute; right: 10px; pointer-events: none; }
 .spacer { flex: 1 1 0; }
 .topbar .btn.save[data-pending="1"] { border-color: var(--warn); color: var(--warn); }
-.menu-btn, .nav-tools { display: none; }
+.menu-btn, .nav-section.nav-tools { display: none; }
 .menu-btn.in-list { display: none; }
 .panes { flex: 1 1 auto; display: grid; grid-template-columns: var(--sidebar-w) var(--list-w) minmax(0, 1fr); min-height: 0; position: relative; }
 .scrim { display: none; }
@@ -400,7 +400,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
     :root { --sidebar-w: 0px; --list-w: 340px; }
     .panes { grid-template-columns: var(--list-w) minmax(0, 1fr); }
     .topbar > .menu-btn { display: inline-grid; }
-    .nav-tools { display: flex; }
+    .nav-section.nav-tools { display: flex; }
     .sidebar { position: absolute; z-index: 20; left: 0; top: 0; bottom: 0; width: 290px; transform: translateX(-102%); transition: transform .2s ease; box-shadow: var(--shadow-2); }
     .shell[data-drawer="1"] .sidebar { transform: none; }
     .shell[data-drawer="1"] .scrim { display: block; position: absolute; inset: 0; z-index: 15; background: rgb(8 15 28 / .45); }

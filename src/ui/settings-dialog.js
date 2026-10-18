@@ -62,7 +62,8 @@ export function openSettings({ loginMode = false } = {}) {
                         toast(t('set.kf.revoked')); fillKf();
                     } catch (e) { toast(t('set.kf.revoke.failed', { msg: errText(e) }), { kind: 'error' }); }
                 } })),
-                h('small', { class: 'hint', text: t('set.kf.revoke.hint') })) : null));
+                h('small', { class: 'hint', text: t('set.kf.revoke.hint') })) : null),
+        h('p', { class: 'hint', id: 'app-version', text: 'KeePassNC ' + __VERSION__ }));
     const m = modal({ title: t('settings'), body, size: 'md', cls: 'settings-modal', actions: [h('button', { type: 'button', class: 'primary', id: 'settings-close', text: t('done'), onclick: () => m.close() })] });
     return m;
 }
