@@ -50,7 +50,9 @@ class PageController extends Controller {
 		$uid = $user?->getUID() ?? '';
 		$version = $this->appManager->getAppVersion(Application::APP_ID);
 
-		$indexPhp = $this->urlGenerator->linkTo('', 'index.php');
+		// Ohne abschliessenden "/": Mit Pretty URLs (htaccess.IgnoreFrontController, z. B. YunoHost) liefert linkTo() nur "/" bzw.
+		// "/unterordner/", und aus "/" . "/csrftoken" wurde "//csrftoken", fuer den Browser ein Host namens "csrftoken" (Issue #50).
+		$indexPhp = rtrim($this->urlGenerator->linkTo('', 'index.php'), '/');
 		// Relativ wie alle anderen Adressen der Seite: linkToRemote() baut eine absolute URL aus Protokoll und Host, wie PHP sie sieht.
 		// Hinter einem Reverse-Proxy ohne overwriteprotocol wird daraus http://, und Browser (Mixed Content) wie CSP (connect-src 'self')
 		// blockieren den Abruf, bevor er den Server erreicht (Issue #50).
