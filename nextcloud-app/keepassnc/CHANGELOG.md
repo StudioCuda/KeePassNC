@@ -2,6 +2,10 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+### Fixed
+- Long passphrases in the password generator no longer get chopped mid-word at the end of a line. A word that doesn't fit simply moves to the next line, like words do.
+
 ## [0.11.0] - 2026-10-18
 ### Changed
 - The sidebar puts your groups first now. "Expiring", "Weak passwords", TOTP and passkeys moved below them, under a new "Filters" heading.

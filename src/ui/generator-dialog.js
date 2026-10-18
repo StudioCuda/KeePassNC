@@ -35,12 +35,20 @@ export function openGenerator({ onUse } = {}) {
     const optsBox = h('div', { class: 'stack' });
     const tabs = h('div', { class: 'seg-group', role: 'tablist' });
 
+    // Passphrasen brechen nur zwischen den Woertern um (CSS .gen-preview.phrase). Nach Leerzeichen und "-" darf der Browser das
+    // ohnehin, nach den anderen Trennzeichen nicht, also bekommen die eine Bruchstelle.
+    function phraseNode(pw, sep) {
+        const node = colorizedPassword(pw);
+        if (sep !== ' ') for (const c of [...node.children]) if (c.textContent === sep) c.after(h('wbr'));
+        return node;
+    }
     function persist() { pref('gen', JSON.stringify({ v: PREFS_VERSION, mode, pw: pwOpts, ph: phOpts, si: siOpts })); }
     function generate() {
         try {
             const r = mode === 'pw' ? generatePassword(pwOpts) : mode === 'ph' ? generatePassphrase(phOpts) : generateSimple(siOpts);
             current = r.password; currentBits = r.bits;
-            preview.replaceChildren(colorizedPassword(current));
+            preview.replaceChildren(mode === 'ph' ? phraseNode(current, phOpts.separator) : colorizedPassword(current));
+            preview.classList.toggle('phrase', mode === 'ph');
             meter.replaceChildren(strengthBar(current, currentBits));
             preview.classList.remove('error');
         } catch (e) {
