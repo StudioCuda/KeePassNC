@@ -214,7 +214,7 @@ async function main() {
         await login(p, 'passkey.kdbx'); await rows(p).first().waitFor();
         const original = () => p.locator('[data-testid=entry-row]', { hasText: /Passkey example\.org(?! - Kopie)/ });
         await original().click();
-        await p.click('#entry-more'); await p.getByText('Duplizieren', { exact: true }).click();
+        await p.click('#entry-more'); await p.getByText('Duplizieren', { exact: true }).click(); await p.click('#dup-ok');
         await p.waitForFunction(() => /- Kopie/.test(document.querySelector('#detail h2')?.textContent || ''));
         expect(await p.locator('[data-testid=passkey-card]').count() === 0, 'Kopie zeigt noch einen Passkey');
         await original().click();
