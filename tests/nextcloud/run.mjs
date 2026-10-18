@@ -162,7 +162,7 @@ async function main() {
     let newPassword;
     await step('Bearbeiten + Speichern ueber Nextcloud-Sitzung -> KeePassXC liest Ergebnis, Sicherung vorhanden', async () => {
         await page.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
-        await page.click('#edit-btn'); await page.click('#gen-btn'); await page.click('#gen-use'); await page.click('#e-show');
+        await page.click('#edit-btn'); await page.click('#gen-btn'); await page.click('#gen-tab-pw'); await page.click('#gen-use'); await page.click('#e-show');
         newPassword = await page.inputValue('#e-pass');
         await page.fill('#e-user', 'alice-nc'); await page.click('#apply-btn'); await page.click('#save-btn');
         await waitStatus(page, /^Gespeichert\./);

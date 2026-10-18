@@ -30,7 +30,7 @@ No lock-in, no special format, no drama.
 - **Database settings:** name, recycle bin, history, encryption and key derivation, with browser-safe values and a test run first.
 - **Two-factor codes:** TOTP codes right next to the password, Steam Guard included.
 - **Passkeys:** passkeys saved by KeePassXC are shown and kept intact.
-- **Better passwords:** a generator for passwords, passphrases and pronounceable ones, and a health report that finds weak, reused and expired ones.
+- **Better passwords:** a generator for passphrases (English or German), passwords and simple ones you can type on a TV remote, and a health report that finds weak, reused and expired ones.
 - **Shared files:** databases someone shared with you open fine; read-only shares say so.
 - **Feels at home:** picks up your instance's color and your light or dark choice, and keeps the Nextcloud header with the app menu
   on top. Search, notifications and the contacts menu sit this one out, [here's why](SECURITY.md#model-in-short).

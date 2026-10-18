@@ -12,6 +12,7 @@ export function detectLang(pref, htmlLang = '', navLang = '') {
     return l.startsWith('de') ? 'de' : l ? 'en' : 'de';
 }
 export function setLang(l) { lang = DICTS[l] ? l : 'de'; if (typeof document !== 'undefined') document.documentElement.lang = lang; }
+export const getLang = () => lang;
 export const locale = () => (lang === 'de' ? 'de-AT' : 'en-GB');
 
 export function t(key, vars) {

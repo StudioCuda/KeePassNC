@@ -233,19 +233,41 @@ async function main() {
     });
 
     await step('Generator: Laenge/Klassen, Passphrase (Woerter/Trenner), Verwenden im Editor', async () => {
+        // Gespeicherte Einstellungen von 0.9: "-" war nur die alte Vorgabe und wird einmalig zum Leerzeichen
+        await page.evaluate(() => localStorage.setItem('kpnc.gen', JSON.stringify({ mode: 'ph', ph: { words: 6, separator: '-', casing: 'lower' } })));
         await page.click('#tool-gen');
-        await page.fill('#gen-length', '40'); await page.locator('#gen-length').press('Tab');
+        expect(await page.locator('#gen-tab-ph.active').count() === 1 && await page.inputValue('#gen-list') === 'de' && await page.inputValue('#gen-sep') === ' ', 'Passphrase mit deutscher Wortliste und Leerzeichen vorne');
+        await page.click('#gen-tab-pw'); await page.fill('#gen-length', '40'); await page.locator('#gen-length').press('Tab');
         await page.uncheck('#gen-digits');
         let pw = (await page.locator('#gen-preview').innerText()).trim();
         expect([...pw].length === 40 && !/[0-9]/.test(pw), `Passwort ${pw}`);
-        await page.click('#gen-tab-ph'); await page.fill('#gen-words', '5'); await page.locator('#gen-words').press('Tab'); await page.fill('#gen-sep', '.');
+        await page.click('#gen-tab-ph'); await page.fill('#gen-words', '5'); await page.locator('#gen-words').press('Tab'); await page.selectOption('#gen-sep', '.');
         pw = (await page.locator('#gen-preview').innerText()).trim();
         expect(/^[a-z-]+(\.[a-z-]+){4}$/.test(pw), 'Passphrase ' + pw);
-        await page.click('#gen-tab-pr'); await page.fill('#gen-syllables', '6'); await page.locator('#gen-syllables').press('Tab');
-        await page.fill('#gen-group', '3'); await page.locator('#gen-group').press('Tab'); await page.selectOption('#gen-pr-sep', 'dash');
+        await page.check('#gen-digit');
         pw = (await page.locator('#gen-preview').innerText()).trim();
-        expect(/^[BDFGHKLMNPRSTZ][aeiou][bdfghklmnprstz]([bdfghklmnprstz][aeiou][bdfghklmnprstz]){2}-([bdfghklmnprstz][aeiou][bdfghklmnprstz]){3}$/.test(pw), 'Aussprechbar ' + pw);
-        expect(/· 60 bit/.test(await page.locator('.gen .strength-label').innerText()), 'exakte Bitzahl statt Schaetzung');
+        expect(/^[a-z]+(\.[a-z]+){4}$/.test(pw.replace(/[0-9]/, '')) && pw.split('.').filter((w) => /^[a-z]+[0-9]$/.test(w)).length === 1, 'Passphrase mit Ziffer ' + pw);
+        await page.uncheck('#gen-digit');
+        await page.selectOption('#gen-sep', '-'); await page.keyboard.press('Escape'); await page.click('#tool-gen');
+        expect(await page.inputValue('#gen-sep') === '-', 'bewusst gewaehltes "-" bleibt');
+        await page.click('#gen-tab-pw');
+        expect(!(await page.locator('#gen-more').evaluate((d) => d.open)) && !(await page.locator('#gen-extended').isVisible()), 'seltene Optionen unter "Mehr"');
+        expect(await page.locator('#gen-special1').isChecked() && !(await page.locator('#gen-special2').isChecked()), 'Sonderzeichen 1 an, 2 aus');
+        await page.uncheck('#gen-special1'); await page.check('#gen-special2');
+        pw = (await page.locator('#gen-preview').innerText()).trim();
+        expect(/['/()[\]{}<>#^~`]/.test(pw) && !/[!?.,:;\-_+=*"$%&@]/.test(pw), 'nur Sonderzeichen 2: ' + pw);
+        await page.check('#gen-special1'); await page.uncheck('#gen-special2');
+        await page.click('#gen-tab-si'); await page.fill('#gen-blocks', '3'); await page.locator('#gen-blocks').press('Tab');
+        expect(await page.locator('#gen-capital').isChecked(), 'Simpel: erster Buchstabe standardmaessig gross');
+        pw = (await page.locator('#gen-preview').innerText()).trim();
+        expect(/^[BDFGHKLMNPRSTZ][a-z]{5,11} [2-9]{2}( [a-z]{6,12}){2}$/.test(pw) && !/[cjqvwxy]|hh|(.)\1\1/i.test(pw), 'Simpel ' + pw);
+        expect(/· 102 bit/.test(await page.locator('.gen .strength-label').innerText()), 'exakte Bitzahl statt Schaetzung');
+        await page.selectOption('#gen-si-sep', '@');
+        pw = (await page.locator('#gen-preview').innerText()).trim();
+        expect(/^[A-Z][a-z]{5,11}@[2-9]{2}@[a-z]{6,12}@[a-z]{6,12}$/.test(pw), 'Simpel mit @ ' + pw);
+        await page.fill('#gen-blocks', '1'); await page.locator('#gen-blocks').press('Tab');
+        pw = (await page.locator('#gen-preview').innerText()).trim();
+        expect(/^[A-Z][a-z]{5,11}@[2-9]{2}$/.test(pw), 'Simpel mit einem Block ' + pw);
         await page.keyboard.press('Escape');
         await pick(page, 'UI Ablauf-TOTP'); await page.click('#edit-btn'); await page.click('#gen-btn');
         await page.click('#gen-tab-pw'); await page.click('#gen-use'); await page.click('#e-show');

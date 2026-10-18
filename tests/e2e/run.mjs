@@ -243,7 +243,7 @@ async function main() {
     await step('Bearbeiten + Passwort erzeugen + Speichern -> KeePassXC liest Ergebnis; Sicherungskopie liegt auf dem Server', async () => {
         await page.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
         await page.click('#edit-btn');
-        await page.click('#gen-btn');
+        await page.click('#gen-btn'); await page.click('#gen-tab-pw');
         await page.click('#gen-use');
         await page.click('#e-show');
         newPassword = await page.inputValue('#e-pass');
