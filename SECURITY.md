@@ -47,6 +47,9 @@ Things we know about and can't fix from inside the app. Reports that find a way 
   CSP as an HTTP header from your web server. Argon2 runs in a worker loaded from `keepassnc-argon2.js` next to `keepassnc.js`, so
   a `worker-src` (if you set one) needs `'self'`, and a CSP on that file itself needs `'wasm-unsafe-eval'`. Otherwise the page falls
   back to doing the math itself, which works but freezes the page while it unlocks.
+- **Some hosting setups replace the CSP.** YunoHost, for example, swaps every page's `Content-Security-Policy` for a bare
+  `upgrade-insecure-requests`. Everything still works and decrypts only in your browser, but without the strict CSP. Admins can
+  restore it for `/apps/keepassnc/` in their web server.
 - **The server delivers the code.** Like every web app, KeePassNC trusts the server that ships its JavaScript. A malicious server admin
   is out of scope.
 
