@@ -3,8 +3,14 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Changed
+- The sidebar puts your groups first now. "Expiring", "Weak passwords", TOTP and passkeys moved below them, under a new "Filters" heading.
+- "Reports" is now called "Database": everything about the open file lives there, from password health and statistics to the database settings, which got their own "Settings" tab. Things that only concern the app on this device stay in the regular settings.
+- The settings show which KeePassNC version you're running. Their gear icon got redrawn, too: six even teeth instead of a slightly wonky cog.
+
 ### Fixed
 - Behind a reverse proxy that doesn't tell Nextcloud about HTTPS, opening a file from Files could fail with "The server is unreachable" while the server was sitting right there. The app built its WebDAV address from what PHP saw (`http://…`), and the browser blocked that on an `https://` page before it ever left. It now simply uses the page's own address. And if the server really is out of reach, the browser console now says why.
+- The "Tools" block at the bottom of the sidebar is meant for narrow windows only, where the buttons in the top right go missing. A CSS mix-up showed it on wide screens too, right next to the very same buttons.
 - Picking a menu item really quickly (say, on a busy laptop) could leave a stray listener behind, after which every later menu closed itself the moment you clicked one of its items. Menus now tidy up after themselves even when you're faster than they are.
 
 ## [0.10.0] - 2026-10-18

@@ -35,7 +35,7 @@ export function showMain() {
         h('button', { id: 'new-btn', type: 'button', class: 'btn primary', onclick: () => startEdit(null) }, icon('plus'), h('span', { class: 'label', text: t('entry.new.short') })),
         saveBtn,
         iconBtn('dice', t('generator'), () => openGenerator(), { id: 'tool-gen', class: 'hide-narrow' }),
-        iconBtn('chart', t('reports'), () => openReports(), { id: 'reports-btn', class: 'hide-narrow' }),
+        iconBtn('database', t('database'), () => openReports(), { id: 'reports-btn', class: 'hide-narrow' }),
         iconBtn('settings', t('settings'), () => openSettings(), { id: 'settings-btn' }),
         NC?.filesUrl && !NC.nav ? h('a', { href: NC.filesUrl, id: 'files-link', class: 'icon-btn hide-narrow', title: t('files'), 'aria-label': t('files') }, icon('folderOpen')) : null,
         iconBtn('lock', t('lock'), () => lock(t('locked')), { id: 'lock-btn' }));
@@ -135,7 +135,7 @@ export function openPalette() {
     const list = h('div', { class: 'palette-list', role: 'listbox' });
     const cmds = [
         ['plus', t('entry.new'), 'Ctrl+N', () => startEdit(null)], ['folder', t('group.new'), '', () => newGroup(null)], ['save', t('save'), 'Ctrl+S', () => doSave()],
-        ['dice', t('generator'), '', () => openGenerator()], ['chart', t('reports'), '', () => openReports()], ['settings', t('settings'), '', () => openSettings()],
+        ['dice', t('generator'), '', () => openGenerator()], ['database', t('database'), '', () => openReports()], ['settings', t('settings'), '', () => openSettings()],
         ['refresh', t('sync.now'), '', () => syncNow({ announce: true })],
         ['moon', t('palette.theme'), '', () => { const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; ctx.settings.theme = next; saveSettings(ctx.settings); applyTheme(); }],
         ['alert', t('nav.weak'), '', () => setFilter({ type: 'weak' })], ['clock', t('nav.expiring'), '', () => setFilter({ type: 'expiring' })], ['trash', t('nav.bin'), '', () => setFilter({ type: 'bin' })],
