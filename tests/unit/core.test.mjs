@@ -109,7 +109,7 @@ test('Simpel: Silbenvorrat, eindeutige Zerlegung, Uebergaenge, exakte Entropie',
     assert.ok(Math.abs(simpleBlockEntropy(2) - (Math.log2(z) - b / z)) < 1e-9);
     assert.ok(Math.abs(simpleBlockEntropy(1) + SYLLABLES.reduce((a, { p }) => a + p * Math.log2(p), 0)) < 1e-9);
     // Gleichverteilt waeren es log2(1960) = 10,94 Bit je Silbe; die Gewichtung kostet nur wenig
-    assert.ok(Math.abs(SIMPLE_BLOCK_BITS - simpleBlockEntropy(3)) < 1e-12 && SIMPLE_BLOCK_BITS > 32 && SIMPLE_BLOCK_BITS < 3 * Math.log2(1960));
+    assert.ok(Math.abs(SIMPLE_BLOCK_BITS - simpleBlockEntropy(3)) < 1e-12 && SIMPLE_BLOCK_BITS > 31.5 && SIMPLE_BLOCK_BITS < 3 * Math.log2(1960));
 });
 test('Simpel: Silben, Ziffern, Silben (+ weitere Silbenbloecke), Trennzeichen fest, nur a-z und 2-9, exakte Entropie', () => {
     const syl = new Set(SYLLABLES.map(({ s }) => s));
@@ -129,9 +129,9 @@ test('Simpel: Silben, Ziffern, Silben (+ weitere Silbenbloecke), Trennzeichen fe
             assert.ok(Math.abs(bits - (blocks * SIMPLE_BLOCK_BITS + 2 * Math.log2(8))) < 1e-9);
         }
     }
-    // Anteile: 15 % offen, 50 % geschlossen, 35 % verdoppelt (etwas weniger, weil Bloecke mit dreifachem Buchstaben neu gezogen werden)
+    // Anteile: 15 % offen, 60 % geschlossen, 25 % verdoppelt (etwas weniger, weil Bloecke mit dreifachem Buchstaben neu gezogen werden)
     const share = (k) => shapes[k] / shapes.n;
-    assert.ok(Math.abs(share(2) - 0.15) < 0.02 && Math.abs(share(3) - 0.5) < 0.025 && share(4) < 0.36 && share(4) > 0.31, JSON.stringify(shapes));
+    assert.ok(Math.abs(share(2) - 0.15) < 0.02 && Math.abs(share(3) - 0.6) < 0.025 && share(4) < 0.26 && share(4) > 0.22, JSON.stringify(shapes));
     assert.match(generateSimple().password, /^[A-Z][a-z]{5,11} [2-9]{2} [a-z]{6,12}$/, 'Vorgabe: zwei Bloecke, Leerzeichen, erster Buchstabe gross');
     assert.match(generateSimple({ capital: true, separator: '@' }).password, /^[A-Z][a-z]+@[2-9]{2}@[a-z]+$/);
     assert.match(generateSimple({ blocks: 1, capital: false, separator: '.' }).password, /^[a-z]{6,12}\.[2-9]{2}$/);

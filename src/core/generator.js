@@ -83,14 +83,14 @@ export function generatePassphrase(opts = {}) {
 // ohne hh und ohne 0/1 (sehen aus wie o/l). Das Trennzeichen ist fest gewaehlt und bringt keine Bits.
 //
 // Gleichverteilt waeren fast die Haelfte der Silben verdoppelt und nur 4 % offen. Deshalb wird erst die Form gezogen (Gewichte in
-// Zwanzigsteln: 3 offen, 10 geschlossen, 7 verdoppelt), dann die Silbe gleichverteilt innerhalb der Form. Ein Block mit dreifachem
+// Zwanzigsteln: 3 offen, 12 geschlossen, 5 verdoppelt), dann die Silbe gleichverteilt innerhalb der Form. Ein Block mit dreifachem
 // Buchstaben ("tupp" + "pup") oder hh ("huh" + "hak") an einer Silbengrenze wird neu gezogen. Weil die Bloecke damit nicht mehr
 // gleich wahrscheinlich sind, zaehlen wir nicht, sondern rechnen die Entropie der tatsaechlichen Verteilung exakt aus (anders als
 // FIPS 181/pwgen, deren ungleich haeufige Silben die Staerke ueberschaetzen lassen).
 export const SYLLABLE = { consonants: 'bdfghklmnprstz', vowels: 'aeiou', doubled: 'bdfgklmnprstz' };
 export const SYLLABLE_SHAPES = (() => {
     const { consonants: C, vowels: V, doubled: D } = SYLLABLE;
-    const shapes = { open: { weight: 3, list: [] }, closed: { weight: 10, list: [] }, doubled: { weight: 7, list: [] } };
+    const shapes = { open: { weight: 3, list: [] }, closed: { weight: 12, list: [] }, doubled: { weight: 5, list: [] } };
     for (const c of C) for (const v of V) {
         shapes.open.list.push(c + v);
         for (const e of C) shapes.closed.list.push(c + v + e);
