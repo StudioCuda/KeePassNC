@@ -70,6 +70,8 @@ export class DavFile {
             try {
                 res = await fetch(url, { ...init, headers, cache: 'no-store', credentials: this.auth.credentials });
             } catch (e) {
+                // Die Oberflaeche sagt nur "nicht erreichbar"; die eigentliche Ursache (Mixed Content, CSP, DNS ...) steht hier
+                console.warn('WebDAV-Abruf fehlgeschlagen', init.method || 'GET', url, e);
                 throw new NetworkError(e);
             }
             // Abgelaufenes Sitzungs-Token (Nextcloud): einmal erneuern und wiederholen

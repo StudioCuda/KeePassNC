@@ -4,6 +4,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Fixed
+- Behind a reverse proxy that doesn't tell Nextcloud about HTTPS, opening a file from Files could fail with "The server is unreachable" while the server was sitting right there. The app built its WebDAV address from what PHP saw (`http://…`), and the browser blocked that on an `https://` page before it ever left. It now simply uses the page's own address. And if the server really is out of reach, the browser console now says why.
 - Picking a menu item really quickly (say, on a busy laptop) could leave a stray listener behind, after which every later menu closed itself the moment you clicked one of its items. Menus now tidy up after themselves even when you're faster than they are.
 
 ## [0.10.0] - 2026-10-18
