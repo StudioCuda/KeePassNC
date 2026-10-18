@@ -1,6 +1,6 @@
 {
   "name": "keepassnc",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "private": true,
   "description": "KeePass (KDBX) files in the browser, for Nextcloud and WebDAV. Decrypted only in the browser.",
   "scripts": {

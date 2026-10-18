@@ -2,7 +2,7 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [Unreleased]
+## [0.12.0] - 2026-10-18
 ### Added
 - Duplicating an entry now asks whether to link username and password to the original. A linked copy simply points there (`{REF:…}`, the same thing KeePassXC's "Clone" does), so a new password on the original shows up in every copy. Great for one account behind several URLs. Your choice is remembered for next time.
 
