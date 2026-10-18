@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseQuery, matches } from '../../src/core/search.js';
-import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SYLLABLES, SIMPLE_DIGITS, SEPARATORS, SYLLABLE_BITS, migratePasswordOptions, SIMPLE_BLOCK_BITS, countSimpleBlocks, badJunction, randomInt } from '../../src/core/generator.js';
+import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SYLLABLES, SYLLABLE_SHAPES, SIMPLE_DIGITS, SEPARATORS, migratePasswordOptions, SIMPLE_BLOCK_BITS, simpleBlockEntropy, badJunction, randomInt } from '../../src/core/generator.js';
 import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
 import { auditEntries } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
@@ -91,25 +91,30 @@ test('Passphrase: Ziffer hinter einem Wort, exakte Entropie', () => {
 });
 // Zerlegt einen Silbenblock: vor jedem Vokal beginnt mit dem Konsonanten davor eine neue Silbe
 const splitSyllables = (w) => w.replace(/([^aeiou])(?=[aeiou])/g, ' $1').trim().split(' ');
-test('Simpel: Silbenvorrat, eindeutige Zerlegung, Uebergaenge, exakt gezaehlte Bloecke', () => {
+test('Simpel: Silbenvorrat, eindeutige Zerlegung, Uebergaenge, exakte Entropie', () => {
     const { consonants: C, vowels: V } = SYLLABLE;
-    assert.equal(SYLLABLES.length, 14 * 5 * (1 + 14 + 13)); assert.equal(new Set(SYLLABLES).size, SYLLABLES.length);
-    assert.ok(SYLLABLES.every((s) => C.includes(s[0]) && V.includes(s[1]) && (s.length < 4 || (s[2] === s[3] && s[3] !== 'h'))));
-    assert.ok(!SYLLABLES.some((s) => /[cjqvwxy]/.test(s)));
+    const { open, closed, doubled } = SYLLABLE_SHAPES;
+    assert.deepEqual([open.list.length, closed.list.length, doubled.list.length], [70, 980, 910]);
+    const all = SYLLABLES.map(({ s }) => s);
+    assert.equal(new Set(all).size, all.length); assert.ok(Math.abs(SYLLABLES.reduce((a, { p }) => a + p, 0) - 1) < 1e-12);
+    assert.ok(all.every((s) => C.includes(s[0]) && V.includes(s[1]) && (s.length < 4 || (s[2] === s[3] && s[3] !== 'h'))));
+    assert.ok(!all.some((s) => /[cjqvwxy]/.test(s)));
     for (let i = 0; i < 20000; i++) {
-        const seq = [0, 1, 2].map(() => SYLLABLES[randomInt(SYLLABLES.length)]);
+        const seq = [0, 1, 2].map(() => all[randomInt(all.length)]);
         assert.deepEqual(splitSyllables(seq.join('')), seq);
     }
-    // Zaehlung gegen Durchprobieren aller Paare
-    let pairs = 0;
-    for (const a of SYLLABLES) for (const b of SYLLABLES) if (!badJunction(a, b)) pairs++;
-    assert.equal(countSimpleBlocks(2), pairs); assert.equal(countSimpleBlocks(1), SYLLABLES.length);
-    assert.ok(Math.abs(SIMPLE_BLOCK_BITS - Math.log2(countSimpleBlocks(3))) < 1e-12 && SIMPLE_BLOCK_BITS > 32.6 && SIMPLE_BLOCK_BITS < 3 * SYLLABLE_BITS);
+    // Entropie fuer zwei Silben gegen Durchrechnen aller Paare
+    let z = 0, b = 0;
+    for (const x of SYLLABLES) for (const y of SYLLABLES) if (!badJunction(x.s, y.s)) { const p = x.p * y.p; z += p; b += p * Math.log2(p); }
+    assert.ok(Math.abs(simpleBlockEntropy(2) - (Math.log2(z) - b / z)) < 1e-9);
+    assert.ok(Math.abs(simpleBlockEntropy(1) + SYLLABLES.reduce((a, { p }) => a + p * Math.log2(p), 0)) < 1e-9);
+    // Gleichverteilt waeren es log2(1960) = 10,94 Bit je Silbe; die Gewichtung kostet nur wenig
+    assert.ok(Math.abs(SIMPLE_BLOCK_BITS - simpleBlockEntropy(3)) < 1e-12 && SIMPLE_BLOCK_BITS > 32 && SIMPLE_BLOCK_BITS < 3 * Math.log2(1960));
 });
 test('Simpel: Silben, Ziffern, Silben (+ weitere Silbenbloecke), Trennzeichen fest, nur a-z und 2-9, exakte Entropie', () => {
-    const syl = new Set(SYLLABLES);
+    const syl = new Set(SYLLABLES.map(({ s }) => s));
     assert.ok(![...SIMPLE_DIGITS].some((c) => '01'.includes(c))); assert.deepEqual(SEPARATORS, [' ', '.', '-', ',', '_', '@', '!']);
-    const shapes = new Set();
+    const shapes = { 2: 0, 3: 0, 4: 0, n: 0 };
     for (const sep of SEPARATORS) for (const blocks of [1, 2, 3, 6]) {
         for (let i = 0; i < 50; i++) {
             const { password: p, bits } = generateSimple({ blocks, separator: sep, capital: false });
@@ -119,12 +124,14 @@ test('Simpel: Silben, Ziffern, Silben (+ weitere Silbenbloecke), Trennzeichen fe
                 const s = splitSyllables(w);
                 assert.equal(s.length, 3, p); assert.ok(s.every((x) => syl.has(x)), p);
                 assert.ok(!/(.)\1\1|hh/.test(w), 'dreifach oder hh in ' + p);
-                s.forEach((x) => shapes.add(x.length));
+                s.forEach((x) => { shapes[x.length]++; shapes.n++; });
             }
             assert.ok(Math.abs(bits - (blocks * SIMPLE_BLOCK_BITS + 2 * Math.log2(8))) < 1e-9);
         }
     }
-    assert.deepEqual([...shapes].sort(), [2, 3, 4]);
+    // Anteile: 15 % offen, 50 % geschlossen, 35 % verdoppelt (etwas weniger, weil Bloecke mit dreifachem Buchstaben neu gezogen werden)
+    const share = (k) => shapes[k] / shapes.n;
+    assert.ok(Math.abs(share(2) - 0.15) < 0.02 && Math.abs(share(3) - 0.5) < 0.025 && share(4) < 0.36 && share(4) > 0.31, JSON.stringify(shapes));
     assert.match(generateSimple().password, /^[A-Z][a-z]{5,11} [2-9]{2} [a-z]{6,12}$/, 'Vorgabe: zwei Bloecke, Leerzeichen, erster Buchstabe gross');
     assert.match(generateSimple({ capital: true, separator: '@' }).password, /^[A-Z][a-z]+@[2-9]{2}@[a-z]+$/);
     assert.match(generateSimple({ blocks: 1, capital: false, separator: '.' }).password, /^[a-z]{6,12}\.[2-9]{2}$/);

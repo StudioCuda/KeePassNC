@@ -77,44 +77,59 @@ export function generatePassphrase(opts = {}) {
 // Simpel: fuer Geraete mit Bildschirmtastatur (TV-Fernbedienung, Konsole). Nur Kleinbuchstaben, Ziffern und ein Trennzeichen;
 // Grossbuchstaben und die meisten Zeichen kosten je Taste einen Seitenwechsel.
 // Aufbau: Silben, Ziffern und je weiterem Block noch einmal Silben, z. B. "Bodfussim 47" oder "Bodfussim 47 katnoriz lupmesgad".
-// Ein Block sind drei Silben: Konsonant-Vokal (ba), Konsonant-Vokal-Konsonant (bal) oder mit verdoppeltem Endkonsonanten (ball).
-// Jede Silbe beginnt mit genau einem Konsonanten und einem Vokal, deshalb laesst sich jedes Ergebnis nur auf eine Weise in Silben
-// zerlegen (vor jedem Vokal beginnt mit dem Konsonanten davor eine neue Silbe). Gezogen wird gleichverteilt aus allen Silben (anders
-// als FIPS 181/pwgen, deren Silben ungleich haeufig sind und deren Staerke deshalb ueberschaetzt wird), so stimmen die Bits genau.
-// Ohne Buchstaben, die man beim Buchstabieren leicht verwechselt (c/k, v/f/w, j/y, q, x), ohne hh (sieht ungewohnt aus) und ohne
-// 0/1 (sehen aus wie o/l). Auch an Silbengrenzen kein dreifacher Buchstabe ("tupp" + "pup") und kein hh ("huh" + "hak"): ein Block
-// mit so einem Uebergang wird neu gezogen, das haelt die Verteilung gleich, und die Bits ergeben sich aus der Zahl der erlaubten Bloecke. Das Trennzeichen ist fest gewaehlt und
-// bringt keine Bits.
+// Ein Block sind drei Silben: offen (ba), geschlossen (bal) oder mit verdoppeltem Endkonsonanten (ball). Jede Silbe beginnt mit genau
+// einem Konsonanten und einem Vokal, deshalb laesst sich jedes Ergebnis nur auf eine Weise in Silben zerlegen (vor jedem Vokal beginnt
+// mit dem Konsonanten davor eine neue Silbe). Ohne Buchstaben, die man beim Buchstabieren leicht verwechselt (c/k, v/f/w, j/y, q, x),
+// ohne hh und ohne 0/1 (sehen aus wie o/l). Das Trennzeichen ist fest gewaehlt und bringt keine Bits.
+//
+// Gleichverteilt waeren fast die Haelfte der Silben verdoppelt und nur 4 % offen. Deshalb wird erst die Form gezogen (Gewichte in
+// Zwanzigsteln: 3 offen, 10 geschlossen, 7 verdoppelt), dann die Silbe gleichverteilt innerhalb der Form. Ein Block mit dreifachem
+// Buchstaben ("tupp" + "pup") oder hh ("huh" + "hak") an einer Silbengrenze wird neu gezogen. Weil die Bloecke damit nicht mehr
+// gleich wahrscheinlich sind, zaehlen wir nicht, sondern rechnen die Entropie der tatsaechlichen Verteilung exakt aus (anders als
+// FIPS 181/pwgen, deren ungleich haeufige Silben die Staerke ueberschaetzen lassen).
 export const SYLLABLE = { consonants: 'bdfghklmnprstz', vowels: 'aeiou', doubled: 'bdfgklmnprstz' };
-export const SYLLABLES = (() => {
+export const SYLLABLE_SHAPES = (() => {
     const { consonants: C, vowels: V, doubled: D } = SYLLABLE;
-    const out = [];
+    const shapes = { open: { weight: 3, list: [] }, closed: { weight: 10, list: [] }, doubled: { weight: 7, list: [] } };
     for (const c of C) for (const v of V) {
-        out.push(c + v);
-        for (const e of C) out.push(c + v + e);
-        for (const e of D) out.push(c + v + e + e);
+        shapes.open.list.push(c + v);
+        for (const e of C) shapes.closed.list.push(c + v + e);
+        for (const e of D) shapes.doubled.list.push(c + v + e + e);
     }
-    return out;
+    return shapes;
 })();
+const SHAPE_TOTAL = Object.values(SYLLABLE_SHAPES).reduce((a, { weight }) => a + weight, 0);
+/** Alle Silben mit ihrer Wahrscheinlichkeit. */
+export const SYLLABLES = Object.values(SYLLABLE_SHAPES).flatMap(({ weight, list }) => list.map((s) => ({ s, p: weight / SHAPE_TOTAL / list.length })));
 export const SIMPLE_DIGITS = '23456789';
 export const DEFAULT_SIMPLE_OPTIONS = { blocks: 2, separator: ' ', capital: true };
-export const SYLLABLE_BITS = Math.log2(SYLLABLES.length);
 export const badJunction = (a, b) => (a.length === 4 && a[3] === b[0]) || (a.endsWith('h') && b[0] === 'h');
-// Erlaubte Bloecke zaehlen. badJunction haengt nur von den letzten zwei Buchstaben der ersten Silbe ab; je Endung zaehlen wir,
-// wie viele Silbenfolgen darauf enden, und merken uns eine Silbe mit dieser Endung fuer die Pruefung.
-export function countSimpleBlocks(syllables = 3) {
+// Entropie eines Blocks aus `syllables` Silben, ohne verbotene Uebergaenge. Mit P = Produkt der Silben-Wahrscheinlichkeiten und
+// Z = Summe aller P der erlaubten Bloecke ist H = log2(Z) - Summe(P * log2 P) / Z. badJunction haengt nur von den letzten zwei
+// Buchstaben der vorderen Silbe ab, also fuehren wir Z und Summe(P * log2 P) je Endung mit.
+export function simpleBlockEntropy(syllables = 3) {
     const end = (s) => s.slice(-2);
+    const add = (m, s, z, b) => { const e = m.get(end(s)) || { z: 0, b: 0, s }; e.z += z; e.b += b; m.set(end(s), e); };
     let f = new Map();
-    for (const s of SYLLABLES) f.set(end(s), { n: (f.get(end(s))?.n || 0) + 1, s });
+    for (const { s, p } of SYLLABLES) add(f, s, p, p * Math.log2(p));
     for (let i = 1; i < syllables; i++) {
         const g = new Map();
-        for (const { n, s: prev } of f.values()) for (const s of SYLLABLES) if (!badJunction(prev, s)) g.set(end(s), { n: (g.get(end(s))?.n || 0) + n, s });
+        for (const { z, b, s: prev } of f.values()) for (const { s, p } of SYLLABLES) if (!badJunction(prev, s)) add(g, s, z * p, b * p + z * p * Math.log2(p));
         f = g;
     }
-    return [...f.values()].reduce((a, { n }) => a + n, 0);
+    const all = [...f.values()].reduce((a, { z, b }) => ({ z: a.z + z, b: a.b + b }), { z: 0, b: 0 });
+    return Math.log2(all.z) - all.b / all.z;
 }
-export const SIMPLE_BLOCK_BITS = Math.log2(countSimpleBlocks(3));
+export const SIMPLE_BLOCK_BITS = simpleBlockEntropy(3);
 export const SIMPLE_DIGITS_BITS = 2 * Math.log2(SIMPLE_DIGITS.length);
+
+function pickSyllable() {
+    let r = randomInt(SHAPE_TOTAL);
+    for (const { weight, list } of Object.values(SYLLABLE_SHAPES)) {
+        if (r < weight) return list[randomInt(list.length)];
+        r -= weight;
+    }
+}
 
 /** Liefert {password, bits}. blocks: Silbenbloecke (1-8, die Ziffern stehen immer nach dem ersten). separator: eines aus
  * SEPARATORS. capital: erster Buchstabe gross (bringt keine Bits, erfuellt aber "mindestens ein Grossbuchstabe"). */
@@ -125,7 +140,7 @@ export function generateSimple(opts = {}) {
     const pick = (s) => s[randomInt(s.length)];
     const block = () => {
         let a, b, c;
-        do { a = pick(SYLLABLES); b = pick(SYLLABLES); c = pick(SYLLABLES); } while (badJunction(a, b) || badJunction(b, c));
+        do { a = pickSyllable(); b = pickSyllable(); c = pickSyllable(); } while (badJunction(a, b) || badJunction(b, c));
         return a + b + c;
     };
     const parts = [block(), pick(SIMPLE_DIGITS) + pick(SIMPLE_DIGITS)];

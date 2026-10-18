@@ -166,7 +166,7 @@ export default {
     'gen.sep.underscore': 'Unterstrich (_)',
     'gen.separator': 'Trennzeichen',
     'gen.simple': 'Simpel',
-    'gen.simple.hint': 'Jeder Block aus drei Silben bringt ca. 33 Bit, die Ziffern noch 6 dazu.',
+    'gen.simple.hint': 'Jeder Block aus drei Silben bringt ca. 32 Bit, die Ziffern noch 6 dazu.',
     'gen.use': 'Verwenden',
     'gen.wordlist.de': 'Wortliste: dys2p de-7776 (7776 Wörter, CC0). Jedes Wort bringt ca. 12,9 Bit.',
     'gen.wordlist.en': 'Wortliste: EFF Large Wordlist (7776 Wörter, CC BY 3.0 US). Jedes Wort bringt ca. 12,9 Bit.',

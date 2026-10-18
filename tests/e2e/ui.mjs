@@ -261,7 +261,7 @@ async function main() {
         expect(await page.locator('#gen-capital').isChecked(), 'Simpel: erster Buchstabe standardmaessig gross');
         pw = (await page.locator('#gen-preview').innerText()).trim();
         expect(/^[BDFGHKLMNPRSTZ][a-z]{5,11} [2-9]{2}( [a-z]{6,12}){2}$/.test(pw) && !/[cjqvwxy]|hh|(.)\1\1/i.test(pw), 'Simpel ' + pw);
-        expect(/· 104 bit/.test(await page.locator('.gen .strength-label').innerText()), 'exakte Bitzahl statt Schaetzung');
+        expect(/· 103 bit/.test(await page.locator('.gen .strength-label').innerText()), 'exakte Bitzahl statt Schaetzung');
         await page.selectOption('#gen-si-sep', '@');
         pw = (await page.locator('#gen-preview').innerText()).trim();
         expect(/^[A-Z][a-z]{5,11}@[2-9]{2}@[a-z]{6,12}@[a-z]{6,12}$/.test(pw), 'Simpel mit @ ' + pw);
