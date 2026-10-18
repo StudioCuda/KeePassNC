@@ -251,7 +251,8 @@ async function main() {
         await page.click('#gen-more > summary'); await page.check('#gen-braces');
         expect(/[()[\]{}]/.test((await page.locator('#gen-preview').innerText()).trim()), 'Klammern aus "Mehr"');
         await page.uncheck('#gen-braces');
-        await page.click('#gen-tab-si'); await page.fill('#gen-blocks', '3'); await page.locator('#gen-blocks').press('Tab'); await page.check('#gen-capital');
+        await page.click('#gen-tab-si'); await page.fill('#gen-blocks', '3'); await page.locator('#gen-blocks').press('Tab');
+        expect(await page.locator('#gen-capital').isChecked(), 'Simpel: erster Buchstabe standardmaessig gross');
         pw = (await page.locator('#gen-preview').innerText()).trim();
         expect(/^[BDFGHKLMNPRSTZ][aeiou][bdfghklmnprstz]([bdfghklmnprstz][aeiou][bdfghklmnprstz]){2}\.[2-9]{2}(\.([bdfghklmnprstz][aeiou][bdfghklmnprstz]){3}){2}$/.test(pw), 'Simpel ' + pw);
         expect(/· 95 bit/.test(await page.locator('.gen .strength-label').innerText()), 'exakte Bitzahl statt Schaetzung');

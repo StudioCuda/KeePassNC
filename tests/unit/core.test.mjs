@@ -83,18 +83,18 @@ test('Simpel: Silben, Ziffern, Silben (+ weitere Silbenbloecke), Trennzeichen fe
     const esc = (c) => c.replace(/[.]/g, '\\.');
     for (const sep of SIMPLE_SEPARATORS) for (const blocks of [1, 2, 3, 6]) {
         for (let i = 0; i < 50; i++) {
-            const { password: p, bits } = generateSimple({ blocks, separator: sep });
+            const { password: p, bits } = generateSimple({ blocks, separator: sep, capital: false });
             const S = esc(sep);
             assert.match(p, new RegExp(`^${B}${S}${D}(${S}${B}){${blocks - 1}}$`), p);
             assert.ok(Math.abs(bits - (blocks * 3 * SYLLABLE_BITS + 2 * Math.log2(8))) < 1e-9); assert.ok(Math.abs(SIMPLE_BLOCK_BITS - 29.8) < 0.1);
         }
     }
-    assert.match(generateSimple().password, /^[a-z]{9}\.[2-9]{2}\.[a-z]{9}$/);
+    assert.match(generateSimple().password, /^[A-Z][a-z]{8}\.[2-9]{2}\.[a-z]{9}$/, 'Vorgabe: zwei Bloecke, Punkt, erster Buchstabe gross');
     assert.match(generateSimple({ capital: true, separator: '@' }).password, /^[A-Z][a-z]{8}@[2-9]{2}@[a-z]{9}$/);
-    assert.match(generateSimple({ blocks: 1 }).password, /^[a-z]{9}\.[2-9]{2}$/);
-    assert.match(generateSimple({ blocks: 0, separator: '/' }).password, /^[a-z]{9}\.[2-9]{2}$/, 'mindestens ein Block, nur erlaubte Trenner');
+    assert.match(generateSimple({ blocks: 1, capital: false }).password, /^[a-z]{9}\.[2-9]{2}$/);
+    assert.match(generateSimple({ blocks: 0, separator: '/' }).password, /^[A-Z][a-z]{8}\.[2-9]{2}$/, 'mindestens ein Block, nur erlaubte Trenner');
     const seen = new Set();
-    for (let i = 0; i < 400; i++) for (const c of generateSimple().password.replace(/[a-z.]/g, '')) seen.add(c);
+    for (let i = 0; i < 400; i++) for (const c of generateSimple().password.replace(/[a-zA-Z.]/g, '')) seen.add(c);
     assert.equal(seen.size, SIMPLE_DIGITS.length);
 });
 test('Staerke-Schaetzung: Reihenfolge sinnvoll', () => {
