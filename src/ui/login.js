@@ -1,6 +1,6 @@
 // Anmeldung: Quelle waehlen (Nextcloud/WebDAV oder lokale Datei), Master-Passwort + optionale Schluesseldatei, Entschluesseln im Browser.
 import { Vault, VaultError, KDF_LABEL } from '../vault.js';
-import { DavFile, DavError, NetworkError, isOffline } from '../webdav.js';
+import { DavFile, DavError, NetworkError, isOffline, offlineFailKey } from '../webdav.js';
 import { cacheGet, wipeLocalData } from '../cache.js';
 import { loadSettings, saveSettings } from '../settings.js';
 import { nextcloudAuth, davUrlFor, normalizeUserPath, fetchPepper } from '../nextcloud.js';
@@ -127,7 +127,7 @@ export function showLogin(message) {
                     got = await dav.get();
                 } catch (e) {
                     if (!isOffline(e)) throw e;
-                    if (!cached) throw new VaultError(cacheInfo ? t('err.offline.nocopy') : t('err.offline.nooption'));
+                    if (!cached) throw new VaultError(t(offlineFailKey(e, !!cacheInfo), { status: e.status }));
                 }
                 if (!got) { buf = cached.bytes; etag = cached.etag; unsynced = !!cached.modified; fromCache = true; offlineOpen = true; cachedAt = cached.syncDate; }
                 else if (cached?.modified) { buf = cached.bytes; etag = cached.etag; unsynced = true; fromCache = true; remoteBuf = got.buf; }

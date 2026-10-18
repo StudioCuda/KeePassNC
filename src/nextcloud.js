@@ -92,8 +92,10 @@ export function nextcloudAuth(ctx) {
         try {
             res = await fetch(ctx.csrfUrl, { credentials: 'same-origin', headers: { 'OCS-APIREQUEST': 'true' }, cache: 'no-store' });
         } catch (e) {
+            console.warn('CSRF-Token-Abruf fehlgeschlagen', ctx.csrfUrl, e); // wie in webdav.js: die Oberflaeche sagt nur "nicht erreichbar"
             throw new NetworkError(e);
         }
+        if (!res.ok) console.warn('CSRF-Token-Abruf: Status', res.status, ctx.csrfUrl);
         if (res.status >= 500) throw new DavError(res.status, `Server antwortete mit Status ${res.status}.`, 'e.dav.status', { status: res.status });
         if (!res.ok) throw new DavError(res.status, 'Sitzung abgelaufen - bitte die Seite neu laden und erneut anmelden.', 'e.nc.session');
         token = (await res.json()).token;
@@ -119,7 +121,9 @@ export async function fetchPepper(ctx, auth, { rotate = false } = {}) {
         try {
             return await fetch(url, { method: rotate ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', headers: { ...(await auth.headers()), Accept: 'application/json' } });
         } catch (e) {
-            throw e instanceof DavError || e instanceof NetworkError ? e : new NetworkError(e);
+            if (e instanceof DavError || e instanceof NetworkError) throw e; // aus auth.headers(), dort schon gemeldet
+            console.warn('Server-Geheimwert-Abruf fehlgeschlagen', url, e);
+            throw new NetworkError(e);
         }
     };
     let res = await send();

@@ -35,6 +35,16 @@ export function isOffline(e) {
     return e instanceof NetworkError || (e instanceof DavError && (e.status >= 500 || e.status === 0));
 }
 
+/**
+ * Meldung, wenn der Server ausfaellt und keine Offline-Kopie einspringt. Ein 5xx nennt seinen Status: Wartungsmodus, Gateway-Fehler
+ * und eine haengende Speicherquelle (503) sind etwas anderes als ein Server, den der Browser gar nicht erreicht (Issue #50).
+ * cacheOn: Offline-Kopie eingeschaltet (aber fuer diese Datei noch keine vorhanden).
+ */
+export function offlineFailKey(e, cacheOn) {
+    if (e instanceof DavError && e.status >= 500) return cacheOn ? 'err.offline.status.nocopy' : 'err.offline.status.nooption';
+    return cacheOn ? 'err.offline.nocopy' : 'err.offline.nooption';
+}
+
 function etagOf(res) {
     return res.headers.get('etag') || res.headers.get('oc-etag') || null;
 }

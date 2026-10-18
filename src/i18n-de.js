@@ -122,6 +122,8 @@ export default {
     'err.nc.path': 'Bitte den Pfad der KDBX-Datei eintragen.',
     'err.offline.nocopy': 'Der Server ist nicht erreichbar und auf diesem Gerät liegt noch keine Offline-Kopie dieser Datei.',
     'err.offline.nooption': 'Der Server ist nicht erreichbar. (Mit aktivierter Offline-Kopie wäre die Datei lokal verfügbar.)',
+    'err.offline.status.nocopy': 'Der Server antwortete mit Status {status} und auf diesem Gerät liegt noch keine Offline-Kopie dieser Datei.',
+    'err.offline.status.nooption': 'Der Server antwortete mit Status {status}. (Mit aktivierter Offline-Kopie wäre die Datei lokal verfügbar.)',
     'expand': 'Aufklappen',
     'expired': 'Abgelaufen',
     'expires': 'Läuft ab am',
