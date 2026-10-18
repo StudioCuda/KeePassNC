@@ -319,7 +319,7 @@ export default {
     'remove': 'Entfernen',
     'rep.attachments': 'Einträge mit Anhang', 'rep.avglen': 'Ø Passwortlänge', 'rep.entries': 'Einträge', 'rep.expired': 'seit {n} Tagen abgelaufen', 'rep.expired.n': 'Abgelaufen', 'rep.expiring': 'läuft in {n} Tagen ab', 'rep.expiring.n': 'Läuft bald ab',
     'rep.groups': 'Gruppen', 'rep.health': 'Passwort-Gesundheit', 'rep.none': 'Keine Auffälligkeiten gefunden.',
-    'rep.nopw': 'Ohne Passwort', 'rep.note': 'Die Bewertung erfolgt lokal im Browser (Schätzung der Entropie, Wiederverwendung, Ablauf). Passwörter werden nirgends hin gesendet.',
+    'rep.nopw': 'Ohne Passwort', 'rep.note': 'Die Bewertung erfolgt lokal im Browser (Schätzung der Entropie, Wiederverwendung, Ablauf).', 'rep.note.private': 'Passwörter werden nirgends hin gesendet.',
     'rep.passkeys': 'Passkeys', 'rep.reused': '{n}× verwendet', 'rep.reused.n': 'Wiederverwendet', 'rep.settings': 'Einstellungen', 'rep.score': 'Gesundheit', 'rep.short': 'nur {n} Zeichen', 'rep.short.n': 'Sehr kurz', 'rep.stats': 'Statistik', 'rep.totp': 'Mit TOTP', 'rep.unique': 'Verschiedene Passwörter',
     'rep.weak': 'schwach ({bits} Bit)', 'rep.weak.n': 'Schwach',
     'restore': 'Wiederherstellen',

@@ -8,6 +8,7 @@ const excluded = (e) => e.qualityCheck === false || (e.customData && e.customDat
  * entries: nur "echte" Eintraege (ohne Papierkorb). Liefert {items, stats}; items sind nach Score aufsteigend sortiert.
  * Ein Passwort mit Feldreferenz ({REF:P@I:…}) wird wie das Passwort bewertet, auf das es zeigt (wie KeePassXC 2.8), zaehlt aber nicht
  * als Wiederverwendung: es ist ja dasselbe Konto. Laesst sich die Referenz nicht aufloesen, gibt es keine Aussage zur Staerke.
+ * stats.health: Durchschnitt der Eintrags-Scores in Prozent (unauffaellige Eintraege zaehlen 100).
  */
 export function auditEntries(entries, now = Date.now()) {
     const byPw = new Map();
@@ -18,8 +19,8 @@ export function auditEntries(entries, now = Date.now()) {
         byPw.get(pw).push(e);
     }
     const items = [];
-    const stats = { entries: entries.length, expired: 0, expiring: 0, weak: 0, short: 0, reused: 0, unique: 0, noPassword: 0, excluded: 0, totp: 0, passkeys: 0, attachments: 0, avgLength: 0 };
-    let lenSum = 0, lenCount = 0;
+    const stats = { entries: entries.length, expired: 0, expiring: 0, weak: 0, short: 0, reused: 0, unique: 0, noPassword: 0, excluded: 0, totp: 0, passkeys: 0, attachments: 0, avgLength: 0, health: 100 };
+    let lenSum = 0, lenCount = 0, checked = 0, scoreSum = 0;
     for (const e of entries) {
         if (hasTotp(e)) stats.totp++;
         if (isPasskey(e)) stats.passkeys++;
@@ -31,6 +32,7 @@ export function auditEntries(entries, now = Date.now()) {
         const exp = entryExpiry(e);
         const d = exp ? daysUntil(exp, now) : null;
         if (!pw) { stats.noPassword++; continue; }
+        checked++;
         if (!pw.includes('{REF:')) {
             lenSum += [...pw].length; lenCount++;
             const bits = estimateBits(pw);
@@ -43,9 +45,12 @@ export function auditEntries(entries, now = Date.now()) {
         if (d !== null && d <= 0) { reasons.push({ code: 'expired', days: -d }); score = 0; stats.expired++; }
         else if (d !== null && d <= 30) { reasons.push({ code: 'expiring', days: d }); score = Math.min(score, 70 - 2 * (30 - d)); stats.expiring++; }
         if (reasons.length) items.push({ entry: e, score: Math.max(0, score), reasons, path: groupPath(e.parentGroup) });
+        scoreSum += reasons.length ? Math.max(0, score) : 100;
     }
     stats.unique = byPw.size;
     stats.avgLength = lenCount ? Math.round((lenSum / lenCount) * 10) / 10 : 0;
+    // Gerundet, aber nie 0 % solange etwas Punkte hat und nie 100 % solange es Treffer gibt
+    if (checked) stats.health = Math.min(items.length ? 99 : 100, Math.max(scoreSum ? 1 : 0, Math.round(scoreSum / checked)));
     items.sort((a, b) => a.score - b.score || fieldOf(a.entry, 'Title').localeCompare(fieldOf(b.entry, 'Title')));
     return { items, stats };
 }
