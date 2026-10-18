@@ -183,8 +183,11 @@ export function popupMenu(anchor, items, { align = 'start', x, y } = {}) {
     menu.dataset.placed = '1';
     const off = (e) => { if (!menu.contains(e.target)) closeMenus(); };
     const key = (e) => { if (e.key === 'Escape') closeMenus(); };
-    setTimeout(() => { document.addEventListener('mousedown', off, true); document.addEventListener('keydown', key, true); }, 0);
-    menu._cleanup = () => { document.removeEventListener('mousedown', off, true); document.removeEventListener('keydown', key, true); };
+    // Erst nach dem oeffnenden Ereignis lauschen. Wird das Menue vorher geschlossen (Klick auf einen Punkt, waehrend der Timer
+    // noch wartet), darf der Timer nicht mehr feuern: sonst bleibt ein "off" fuer ein geloestes Menue haengen, das bei jedem
+    // spaeteren mousedown alle Menues schliesst, auch das gerade angeklickte, bevor dessen click ankommt.
+    const arm = setTimeout(() => { document.addEventListener('mousedown', off, true); document.addEventListener('keydown', key, true); }, 0);
+    menu._cleanup = () => { clearTimeout(arm); document.removeEventListener('mousedown', off, true); document.removeEventListener('keydown', key, true); };
     menu.querySelector('.menu-item:not(:disabled)')?.focus();
     return menu;
 }

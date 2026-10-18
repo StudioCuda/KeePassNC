@@ -125,6 +125,20 @@ async function main() {
         expect(await count(page, 'nav-bin') >= 1 || /\d+/.test(await page.locator('#nav-bin .count').innerText()), 'Papierkorb-Zaehler');
     });
 
+    await step('Menue: Punkt gewaehlt, bevor das Menue fertig ist -> das naechste Menue reagiert trotzdem auf Klicks', async () => {
+        const row = page.locator('.tree-row', { hasText: 'UI-Gruppe-neu' }).first();
+        // Oeffnen und Waehlen in einem Task, also vor dem setTimeout(0) in popupMenu (so wie auf einem ueberlasteten CI-Runner)
+        await row.evaluate((r) => {
+            r.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }));
+            [...document.querySelectorAll('.menu-item')].find((b) => /Gruppe bearbeiten/.test(b.textContent)).click();
+        });
+        await page.locator('#g-name').waitFor(); await page.keyboard.press('Escape');
+        await row.hover(); await row.locator('.row-more').click();
+        await menuItem(page, 'Gruppe bearbeiten').click();
+        await page.locator('#g-name').waitFor({ timeout: 5000 });
+        await page.keyboard.press('Escape');
+    });
+
     await step('Eintrag: duplizieren, verschieben (Dialog), loeschen + Rueckgaengig; Loeschen in den Papierkorb', async () => {
         const total = await count(page, 'nav-all');
         await pick(page, 'Gmail');

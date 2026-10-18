@@ -10,6 +10,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - The "Tools" block at the bottom of the sidebar is meant for narrow windows only, where the buttons in the top right go missing. A CSS mix-up showed it on wide screens too, right next to the very same buttons.
+- Picking a menu item really quickly (say, on a busy laptop) could leave a stray listener behind, after which every later menu closed itself the moment you clicked one of its items. Menus now tidy up after themselves even when you're faster than they are.
 
 ## [0.10.0] - 2026-10-18
 ### Changed
