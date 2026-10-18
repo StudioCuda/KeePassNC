@@ -8,17 +8,7 @@ import { ctx } from './ctx.js';
 import { $$, h, toast } from './dom.js';
 
 const NS = 'http://www.w3.org/2000/svg';
-function dots() {
-    const svg = document.createElementNS(NS, 'svg');
-    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'currentColor'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('class', 'icon');
-    for (const y of [5, 12, 19]) for (const x of [5, 12, 19]) {
-        const c = document.createElementNS(NS, 'circle');
-        c.setAttribute('cx', x); c.setAttribute('cy', y); c.setAttribute('r', '1.9');
-        svg.append(c);
-    }
-    return svg;
-}
-/** Material-Design-Symbol als Pfad (Plus fuer "Weitere Apps" und den Aktions-Hinweis, drei Punkte fuer "Mehr"). */
+/** Material-Design-Symbol als Pfad (9 Punkte, Plus fuer "Weitere Apps" und den Aktions-Hinweis, drei Punkte fuer "Mehr"). */
 function mdi(d, cls = 'icon') {
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'currentColor'); svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('class', cls);
@@ -27,6 +17,9 @@ function mdi(d, cls = 'icon') {
     svg.append(p);
     return svg;
 }
+// DotsGrid aus vue-material-design-icons, wie der 9-Punkte-Knopf von Nextcloud: Punkte mit Radius 2 bei 6/12/18.
+const DOTS_GRID = 'M12 16C13.1 16 14 16.9 14 18S13.1 20 12 20 10 19.1 10 18 10.9 16 12 16M12 10C13.1 10 14 10.9 14 12S13.1 14 12 14 10 13.1 10 12 10.9 10 12 10M12 4C13.1 4 14 4.9 14 6S13.1 8 12 8 10 7.1 10 6 10.9 4 12 4M6 16C7.1 16 8 16.9 8 18S7.1 20 6 20 4 19.1 4 18 4.9 16 6 16M6 10C7.1 10 8 10.9 8 12S7.1 14 6 14 4 13.1 4 12 4.9 10 6 10M6 4C7.1 4 8 4.9 8 6S7.1 8 6 8 4 7.1 4 6 4.9 4 6 4M18 16C19.1 16 20 16.9 20 18S19.1 20 18 20 16 19.1 16 18 16.9 16 18 16M18 10C19.1 10 20 10.9 20 12S19.1 14 18 14 16 13.1 16 12 16.9 10 18 10M18 4C19.1 4 20 4.9 20 6S19.1 8 18 8 16 7.1 16 6 16.9 4 18 4Z';
+const dots = () => mdi(DOTS_GRID);
 const PLUS = 'M19,13H13V19H11V13H5V11H11V5H13V11H19V13Z';
 const DOTS_H = 'M16,12A2,2 0 0,1 18,10A2,2 0 0,1 20,12A2,2 0 0,1 18,14A2,2 0 0,1 16,12M10,12A2,2 0 0,1 12,10A2,2 0 0,1 14,12A2,2 0 0,1 12,14A2,2 0 0,1 10,12M4,12A2,2 0 0,1 6,10A2,2 0 0,1 8,12A2,2 0 0,1 6,14A2,2 0 0,1 4,12Z';
 

@@ -4,7 +4,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Changed
-- The header now looks like the one in Nextcloud 35 instead of its older sibling from 34: it's a bit slimmer (44 px) and uses Nextcloud's font. The app menu got pale round icons in your instance color that grow a little when you point at them, one shared highlight behind the 9-dot button and the app name, no arrow, and it opens when you hover there for a moment. Below the apps sits Nextcloud 35's new row of quick actions, like "Text document" from Office. Actions that need Nextcloud's own JavaScript stay out, since that doesn't run on this page.
+- The header now looks like the one in Nextcloud 35 instead of its older sibling from 34: it's a bit slimmer (44 px), uses Nextcloud's font and the very same 9-dot icon. The app menu got pale round icons in your instance color that grow a little when you point at them, one shared highlight behind the 9-dot button and the app name, no arrow, and it opens when you hover there for a moment. Below the apps sits Nextcloud 35's new row of quick actions, like "Text document" from Office. Actions that need Nextcloud's own JavaScript stay out, since that doesn't run on this page.
 
 ## [0.9.1] - 2026-10-17
 ### Changed
