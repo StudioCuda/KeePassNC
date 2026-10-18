@@ -197,6 +197,39 @@ async function main() {
         return 'v4.1';
     });
 
+    // 4c) CustomData und QualityCheck gehoeren zum Stand eines Eintrags: Verlaufseintraege und Zusammenfuehren muessen sie mitnehmen
+    // (upstream liess sie in KdbxEntry.copyFrom weg; KeePassXC 2.8 behob dasselbe fuer seinen eigenen Verlauf, #13573).
+    await t('KDBX 4.1: CustomData + QualityCheck landen im Verlauf (KeePassXC liest sie) und kommen beim Zusammenfuehren mit', async () => {
+        const file = path.join(TMP, 'k41-history-customdata.kdbx');
+        const { db, cred } = await makeDb({ version: 4, minor: 1, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2d });
+        await populate(db);
+        const mail = (d: any) => [...d.getDefaultGroup().allEntries()].find((x: any) => x.fields.get('Title') === 'Mail');
+        const e = mail(db);
+        e.customData = new Map([['KeePassXC-Browser Settings', { value: '{"Allow":["example.org"]}' }]]);
+        e.qualityCheck = false;
+        e.pushHistory(); e.fields.set('Password', ProtectedValue.fromString('pw-eins-v3')); e.times.update();
+        await save(db, file);
+        const xml = xc(['export', '-f', 'xml', file], file) as string;
+        const doc = new (require('@xmldom/xmldom').DOMParser)().parseFromString(xml, 'text/xml');
+        const text = (n: Element, tag: string) => Array.from(n.childNodes).find((c: any) => c.tagName === tag)?.textContent;
+        const snaps = Array.from(doc.getElementsByTagName('History')).flatMap((hst) => Array.from(hst.getElementsByTagName('Entry')))
+            .filter((x) => Array.from(x.getElementsByTagName('String')).some((st) => text(st, 'Key') === 'Password' && text(st, 'Value') === 'pw-eins-v2'));
+        if (snaps.length !== 1) throw new Error('Verlaufsstand pw-eins-v2 fehlt im KeePassXC-Export');
+        const items = Array.from(snaps[0].getElementsByTagName('Item')).map((it) => `${text(it, 'Key')}=${text(it, 'Value')}`);
+        if (!items.includes('KeePassXC-Browser Settings={"Allow":["example.org"]}')) throw new Error('CustomData fehlt im Verlauf: ' + items);
+        if (text(snaps[0], 'QualityCheck') !== 'False') throw new Error('QualityCheck im Verlauf: ' + text(snaps[0], 'QualityCheck'));
+        // Zusammenfuehren: ist die andere Kopie neuer, uebernimmt der Eintrag auch deren CustomData und QualityCheck
+        const local = await Kdbx.load(ab(fs.readFileSync(file)), cred), remote = await Kdbx.load(ab(fs.readFileSync(file)), cred);
+        const r = mail(remote);
+        r.customData.set('KeePassXC-Browser Settings', { value: '{"Allow":["example.com"]}' }); r.qualityCheck = true;
+        r.times.lastModTime = new Date(Date.now() + 60000);
+        local.merge(remote);
+        const m = mail(local);
+        if (m.customData?.get('KeePassXC-Browser Settings')?.value !== '{"Allow":["example.com"]}' || m.qualityCheck !== true)
+            throw new Error('Nach dem Zusammenfuehren: ' + m.customData?.get('KeePassXC-Browser Settings')?.value + ' / ' + m.qualityCheck);
+        return 'v4.1';
+    });
+
     // 5) Wechselseitiges Bearbeiten: kdbxweb -> KeePassXC (edit) -> kdbxweb
     await t('Wechselseitig: kdbxweb schreibt, KeePassXC bearbeitet+speichert, kdbxweb liest und speichert erneut', async () => {
         const file = path.join(TMP, 'cross.kdbx');

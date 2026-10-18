@@ -364,6 +364,11 @@ export class KdbxEntry {
         }
 
         this.autoType = <KdbxEntryAutoType>JSON.parse(JSON.stringify(entry.autoType));
+        // CustomData und QualityCheck gehoeren zum Stand des Eintrags (Verlauf, Zusammenfuehren), Upstream liess sie weg
+        this.customData = entry.customData
+            ? new Map([...entry.customData].map(([key, item]) => [key, { ...item }]))
+            : undefined;
+        this.qualityCheck = entry.qualityCheck;
     }
 
     merge(objectMap: MergeObjectMap): void {
