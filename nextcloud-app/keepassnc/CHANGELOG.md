@@ -13,6 +13,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A password that just points to another entry's password (`{REF:P@I:…}`) is now judged by what it points to. Password health, the "Weak passwords" filter and the strength meter used to either skip it or rate the reference text itself, which looks a lot sturdier than "Summer2020". It doesn't count as reuse, though: that's the whole point of a reference.
 - The password health in the "Database" dialog could read 0 % for a database that was far from hopeless. It subtracted entries with findings from the number of different passwords, so a few weak passwords shared by many entries pushed it right to the floor. It's now the average score of your entries, where an entry without findings counts as 100.
 - The privacy note under the health list sits a bit lower now, with its second sentence on a line of its own.
+- When the server answers an open request with an error (say, 503 because a storage behind the folder is having a moment), the login screen now shows that status instead of claiming the server is unreachable. Fetching the session token or the key file secret now leaves a note in the browser console when it fails, too, just like WebDAV requests already do.
 
 ## [0.11.0] - 2026-10-18
 ### Changed

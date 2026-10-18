@@ -21,7 +21,7 @@ const DB = fs.readFileSync(path.join(tmp, 'fix/daily.kdbx'));
 const FILE = '/Passwörter/daily.kdbx';
 
 // ---------- Nachbildung der Nextcloud-Schnittstellen ----------
-const srv = { peppers: {}, pepperDown: false, log: [] };
+const srv = { peppers: {}, pepperDown: false, davDown: false, log: [] };
 const newPepper = () => ({ v: 1, id: crypto.randomBytes(16).toString('hex'), pepper: crypto.randomBytes(32).toString('base64') });
 const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 function startNc() {
@@ -63,6 +63,7 @@ function startNc() {
             return;
         }
         if (p.startsWith('/remote.php/dav/files/')) {
+            if (srv.davDown) { res.writeHead(503).end(); return; }
             const [, , , , owner, ...rest] = p.split('/');
             if (!user || owner !== user) { res.writeHead(401).end(); return; }
             if ('/' + rest.join('/') !== FILE) { res.writeHead(404).end(); return; }
@@ -155,6 +156,15 @@ async function main() {
 
     await step('Falsches Master-Passwort mit Server -> "Falsches Master-Passwort"', async () => {
         await login(pA, { master: meta.password + 'x' }); await failedWith(pA, /Falsches Master-Passwort/);
+    });
+
+    await step('WebDAV antwortet 503: Meldung nennt den Status statt "nicht erreichbar" (Issue #50)', async () => {
+        srv.davDown = true;
+        try {
+            await login(pA); await failedWith(pA, /Status 503/);
+            const msg = await pA.locator('#login-error').textContent();
+            expect(!/nicht erreichbar/.test(msg), 'Meldung: ' + msg);
+        } finally { srv.davDown = false; }
     });
 
     await step('Gestohlener Datensatz ohne Server-Geheimwert: richtiges Passwort genuegt nicht (Profilkopie-Szenario, im Modul geprueft)', async () => {

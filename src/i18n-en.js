@@ -122,6 +122,8 @@ export default {
     'err.nc.path': 'Please enter the path of the KDBX file.',
     'err.offline.nocopy': 'The server is unreachable and this device has no offline copy of this file yet.',
     'err.offline.nooption': 'The server is unreachable. (With the offline copy enabled the file would be available locally.)',
+    'err.offline.status.nocopy': 'The server answered with status {status} and this device has no offline copy of this file yet.',
+    'err.offline.status.nooption': 'The server answered with status {status}. (With the offline copy enabled the file would be available locally.)',
     'expand': 'Expand',
     'expired': 'Expired',
     'expires': 'Expires on',
