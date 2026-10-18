@@ -1,0 +1,17 @@
+{
+  "matched": "v35.0.2",
+  "branch": "stable35",
+  "files": {
+    "core/css/header.scss": "b91a91040d972a71ee4ce58ddb45baaf147cfdf227178cb139ee6e1827277db2",
+    "core/src/components/AppMenu.vue": "dc7379a7a228c23d42ff2888664cc25548a004b3a241310fcc4e22875d8513d1",
+    "core/src/components/AppMenuItem.vue": "c8f43be679eeb1f498eb9c770b208c39cc75c5b91dd8bb38eea4fef53046229b",
+    "core/src/components/AppIcon.vue": "9d689fd29bf27c97b76f5ced9e6b231bd6adf233eb9737ed098c8abebe8a56f7",
+    "core/src/components/AppMenuActions.vue": "c5719e27ce1c80137ead82faca7577f645d92c013f6884c56c6436174157ab9d",
+    "core/src/components/AppMenuAction.vue": "f1af54e075688d94627f447185c444bfb6a410d6d6d49f4995f80414133d3460",
+    "core/src/components/AppActionIcon.vue": "9d2130ae1d25915f24689a34e709d0865de7aaa2a32714bc61f320e2a35579c6",
+    "core/src/views/AccountMenu.vue": "57442446f4d4af0db788280136795a868045627a172deac00db64329a30347a9",
+    "core/src/components/AccountMenu/AccountMenuEntry.vue": "2dbf0d095ed1b2da9067e1d7f025802756eec6b1b3de42ea98fa20ef142be7aa",
+    "core/src/components/AccountMenu/AccountMenuProfileEntry.vue": "44b4c90ee763a6209a431c17fe2e4eb4167e7b875c91edcfaaf9a0bcd0709a9b"
+  },
+  "vue": "^9.13.1"
+}
