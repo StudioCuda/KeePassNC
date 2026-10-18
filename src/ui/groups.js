@@ -128,8 +128,9 @@ export function renderSidebar(host) {
     const f = state.filter;
     const entries = allRealEntries();
     const exp = entries.filter((e) => { const x = entryExpiry(e); return x && daysUntil(x) <= 30; }).length;
-    const lib = h('div', { class: 'nav-section' },
-        navItem('all', 'list', t('nav.all'), entries.length, { type: 'all' }, f.type === 'all' && !state.query),
+    const lib = h('div', { class: 'nav-section' }, navItem('all', 'list', t('nav.all'), entries.length, { type: 'all' }, f.type === 'all' && !state.query));
+    // Filter unter Gruppen und Tags: die Gruppen sind der Hauptweg, die Filter ein Nebenweg (auch ueber "Datenbank" und Strg+K erreichbar)
+    const filters = h('div', { class: 'nav-section', id: 'nav-filters' }, h('div', { class: 'nav-head' }, h('span', { text: t('nav.filters') })),
         navItem('expiring', 'clock', t('nav.expiring'), exp, { type: 'expiring' }, f.type === 'expiring'),
         navItem('weak', 'alert', t('nav.weak'), entries.filter(isWeak).length, { type: 'weak' }, f.type === 'weak'),
         navItem('totp', 'totp', t('nav.totp'), entries.filter(hasTotp).length, { type: 'totp' }, f.type === 'totp'),
@@ -185,7 +186,7 @@ export function renderSidebar(host) {
     }
 
     const tools = h('div', { class: 'nav-section nav-tools' }, h('div', { class: 'nav-head' }, h('span', { text: t('tools') })),
-        h('button', { type: 'button', class: 'nav-item', id: 'nav-reports', onclick: () => { document.querySelector('.shell').dataset.drawer = '0'; openReports(); } }, icon('chart'), h('span', { class: 'grow', text: t('reports') })),
+        h('button', { type: 'button', class: 'nav-item', id: 'nav-reports', onclick: () => { document.querySelector('.shell').dataset.drawer = '0'; openReports(); } }, icon('database'), h('span', { class: 'grow', text: t('database') })),
         h('button', { type: 'button', class: 'nav-item', id: 'nav-gen', onclick: () => { document.querySelector('.shell').dataset.drawer = '0'; openGenerator(); } }, icon('dice'), h('span', { class: 'grow', text: t('generator') })),
         h('button', { type: 'button', class: 'nav-item', id: 'nav-settings', onclick: () => { document.querySelector('.shell').dataset.drawer = '0'; openSettings(); } }, icon('settings'), h('span', { class: 'grow', text: t('settings') })),
         ctx.NC?.filesUrl ? h('a', { class: 'nav-item', href: ctx.NC.filesUrl }, icon('folderOpen'), h('span', { class: 'grow', text: t('files') })) : null);
@@ -193,5 +194,5 @@ export function renderSidebar(host) {
     host.replaceChildren();
     append(host, [lib,
         h('div', { class: 'nav-section grow-section' }, h('div', { class: 'nav-head' }, h('span', { text: t('nav.groups') }), iconBtn('plus', t('group.new'), () => newGroup(null), { id: 'new-group-btn', class: 'small' })), tree),
-        tagBox, bin, tools]);
+        tagBox, filters, bin, tools]);
 }

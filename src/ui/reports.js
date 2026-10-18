@@ -1,4 +1,5 @@
-// Berichte: Passwort-Gesundheit (angelehnt an KeePassXC), Statistik, Datenbank-Info (mit Zugang zu den Datenbank-Einstellungen).
+// Dialog "Datenbank": alles, was in der Datei steht. Passwort-Gesundheit (angelehnt an KeePassXC), Statistik, Infos mit Zugang zu den
+// Datenbank-Einstellungen. Was nur die App auf diesem Geraet betrifft, steht in den Einstellungen (settings-dialog.js).
 import { auditEntries } from '../core/audit.js';
 import { fieldOf } from '../core/util.js';
 import { t, fmtDate } from '../i18n.js';
@@ -23,7 +24,7 @@ export function openReports(initialTab = 'health') {
     const stat = (label, value, cls = '', onclick) => h(onclick ? 'button' : 'div', { type: onclick ? 'button' : null, class: 'stat ' + cls, onclick }, h('b', { text: String(value) }), h('span', { text: label }));
 
     function render() {
-        tabs.replaceChildren(...[['health', t('rep.health')], ['stats', t('rep.stats')], ['info', t('rep.info')]].map(([k, l]) =>
+        tabs.replaceChildren(...[['health', t('rep.health')], ['stats', t('rep.stats')], ['info', t('rep.settings')]].map(([k, l]) =>
             h('button', { type: 'button', role: 'tab', class: 'seg-btn' + (tab === k ? ' active' : ''), id: 'rep-tab-' + k, onclick: () => { tab = k; render(); }, text: l })));
         if (tab === 'health') {
             const problems = items.length;
@@ -48,6 +49,6 @@ export function openReports(initialTab = 'health') {
                 h('div', {}, h('button', { type: 'button', class: 'small', id: 'db-settings-btn', text: t('dbset.edit'), onclick: () => openDbSettings({ onApplied: render }) }))));
         }
     }
-    const m = modal({ title: t('reports'), body: h('div', { class: 'stack' }, tabs, content), size: 'lg', cls: 'reports-modal' });
+    const m = modal({ title: t('database'), body: h('div', { class: 'stack' }, tabs, content), size: 'lg', cls: 'reports-modal' });
     render();
 }
