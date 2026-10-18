@@ -6,7 +6,7 @@ import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
 import { auditEntries } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
 import { WORDS as WORDS_DE } from '../../src/core/wordlist-de.js';
-import { isOutOfMemory, openableUrl } from '../../src/core/util.js';
+import { isOutOfMemory, openableUrl, resolveRefs, uuidHex } from '../../src/core/util.js';
 
 const NOW = Date.UTC(2026, 9, 11);
 function entry(fields, extra = {}) {
@@ -191,6 +191,35 @@ test('Bericht: Gesundheit ist ein Durchschnitt pro Eintrag, nicht Treffer minus 
     assert.equal(auditEntries(almost, NOW).stats.health, 99);
     const gone = entry({ Title: 'g', Password: generatePassword().password }, { times: { expires: true, expiryTime: new Date(NOW - 86400000) } });
     assert.equal(auditEntries([gone], NOW).stats.health, 0, 'alles abgelaufen bleibt ehrlich 0 %');
+});
+
+const withUuid = (e, hex) => Object.assign(e, { uuid: { toString: () => Buffer.from(hex, 'hex').toString('base64') } });
+test('Feldreferenzen: {REF:…} wie KeePass aufloesen, geschachtelt, Zyklen und Unbekanntes bleiben stehen', () => {
+    const A = 'B2D4F6A8C0E1F3A5B7C9D1E3F5A7B9C1', B = '00112233445566778899AABBCCDDEEFF';
+    const a = withUuid(entry({ Title: 'Bank', UserName: 'alice', Password: 'Kl4r-und-l4ng!', URL: 'https://bank.example', Konto: 'AT12' }), A);
+    const b = withUuid(entry({ Title: 'Bank Zweitlogin', Password: `{REF:P@I:${A}}` }), B);
+    const all = [a, b];
+    assert.equal(uuidHex(a.uuid), A);
+    assert.equal(resolveRefs(`{REF:P@I:${A}}`, all), 'Kl4r-und-l4ng!');
+    assert.equal(resolveRefs(`{REF:U@I:${A.toLowerCase()}}`, all), 'alice', 'UUID auch in Kleinbuchstaben');
+    assert.equal(resolveRefs('{REF:A@T:bank}/{REF:I@O:at12}', all), `https://bank.example/${A}`, 'Suche im Titel bzw. in eigenen Feldern');
+    assert.equal(resolveRefs(`{REF:P@I:${B}}`, all), 'Kl4r-und-l4ng!', 'Referenz auf eine Referenz');
+    const loop = withUuid(entry({ Password: `{REF:P@I:${B}}` }), B);
+    assert.match(resolveRefs(`{REF:P@I:${B}}`, [loop]), /^\{REF:/, 'Zyklus endet als {REF:…}');
+    assert.equal(resolveRefs('{REF:P@I:FFFF}', all), '{REF:P@I:FFFF}');
+    assert.equal(resolveRefs('kein Verweis', all), 'kein Verweis');
+});
+test('Bericht: Referenz-Passwoerter zaehlen mit dem Ziel, aber nicht als Wiederverwendung', () => {
+    const A = 'B2D4F6A8C0E1F3A5B7C9D1E3F5A7B9C1';
+    const weak = withUuid(entry({ Title: 'alt', Password: 'Sommer2020' }), A);
+    const ref = withUuid(entry({ Title: 'ref', Password: `{REF:P@I:${A}}` }), '00112233445566778899AABBCCDDEEFF');
+    const dangling = withUuid(entry({ Title: 'weg', Password: '{REF:P@I:0000}' }), '0123456789ABCDEF0123456789ABCDEF');
+    const r = auditEntries([weak, ref, dangling], NOW);
+    const of = (e) => r.items.find((i) => i.entry === e)?.reasons.map((x) => x.code) || [];
+    assert.deepEqual(of(ref), ['weak'], 'schwach wie das Ziel, keine Wiederverwendung');
+    assert.deepEqual(of(weak), ['weak']);
+    assert.deepEqual(of(dangling), [], 'nicht aufloesbar: keine Aussage');
+    assert.equal(r.stats.weak, 2); assert.equal(r.stats.reused, 0);
 });
 
 test('Argon2-Speicherfehler werden erkannt (RangeError, WebAssembly-Trap, Textmeldungen), andere Fehler nicht', () => {

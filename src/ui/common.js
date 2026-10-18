@@ -1,7 +1,7 @@
 // Gemeinsame Hilfen der Oberflaeche: Avatare, Filter/Sortierung der Eintragsliste, Staerke-Cache.
 import { estimateBits, strengthLabel } from '../core/entropy.js';
 import { parseQuery, matches } from '../core/search.js';
-import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath } from '../core/util.js';
+import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolveRefs } from '../core/util.js';
 import { t } from '../i18n.js';
 import { ctx } from './ctx.js';
 import { h, icon, pathIcon } from './dom.js';
@@ -13,7 +13,9 @@ export function bitsOf(pw) {
     if (b === undefined) { b = estimateBits(pw); if (bitsCache.size > 5000) bitsCache.clear(); bitsCache.set(pw, b); }
     return b;
 }
-export const isWeak = (e) => { const pw = fieldOf(e, 'Password'); return !!pw && !pw.startsWith('{REF:') && bitsOf(pw) < 75; };
+/** Passwort eines Eintrags mit aufgeloesten Feldreferenzen ({REF:P@I:…}); nicht aufloesbare bleiben als {REF:…} stehen. */
+export const passwordOf = (e) => { const pw = fieldOf(e, 'Password'); return pw.includes('{REF:') ? resolveRefs(pw, allRealEntries()) : pw; };
+export const isWeak = (e) => { const pw = passwordOf(e); return !!pw && !pw.includes('{REF:') && bitsOf(pw) < 75; };
 export { strengthLabel };
 
 const hueOf = (s) => { let x = 0; for (const c of s) x = (x * 31 + c.codePointAt(0)) >>> 0; return x % 12; };

@@ -4,6 +4,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Fixed
+- Long passphrases in the password generator no longer get chopped mid-word at the end of a line. A word that doesn't fit simply moves to the next line, like words do.
+- Entry history now remembers an entry's custom data and its "exclude from reports" flag, too. Before, each saved state lost them, so KeePassXC showed old versions without their browser integration settings, and synced changes to that data could get dropped when merging. (KeePassXC fixed the very same thing for its own history in 2.8.)
+- A password that just points to another entry's password (`{REF:P@I:…}`) is now judged by what it points to. Password health, the "Weak passwords" filter and the strength meter used to either skip it or rate the reference text itself, which looks a lot sturdier than "Summer2020". It doesn't count as reuse, though: that's the whole point of a reference.
 - The password health in the "Database" dialog could read 0 % for a database that was far from hopeless. It subtracted entries with findings from the number of different passwords, so a few weak passwords shared by many entries pushed it right to the floor. It's now the average score of your entries, where an entry without findings counts as 100.
 - The privacy note under the health list sits a bit lower now, with its second sentence on a line of its own.
 

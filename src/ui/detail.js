@@ -5,7 +5,7 @@ import { entryExpiry, daysUntil, domainOf, openableUrl, isSystemField, isPasskey
 import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, copy, download, setStatus } from './ctx.js';
 import { h, icon, iconBtn, modal, toast, confirmDialog, popupMenu } from './dom.js';
-import { avatar, bitsOf, strengthLabel, expiryBadge } from './common.js';
+import { avatar, bitsOf, strengthLabel, expiryBadge, passwordOf } from './common.js';
 import { changed } from './session.js';
 import { setFilter, groupSelect, selectedGroup } from './groups.js';
 import { startEdit } from './editor.js';
@@ -50,7 +50,7 @@ export function renderDetail(host) {
     }
     const v = state.vault;
     const inBin = v.isInRecycleBin(e), forever = v.deletesForever(e);
-    const pwText = fieldText(e.fields.get('Password'));
+    const pwText = fieldText(e.fields.get('Password')), pwReal = passwordOf(e); // pwReal: Referenzen aufgeloest, fuer die Staerke
     const title = fieldText(e.fields.get('Title')) || t('entry.untitled');
 
     // --- Kopf
@@ -78,7 +78,7 @@ export function renderDetail(host) {
         pwSpan.replaceChildren(...(shown ? [colorizedPassword(pwText)] : [DOTS]));
         toggle.replaceChildren(icon(shown ? 'eyeOff' : 'eye')); toggle.title = toggle.ariaLabel = shown ? t('hide') : t('show');
     }, { 'data-testid': 'pw-toggle' });
-    main.push(field(t('f.password'), h('div', {}, pwSpan, pwText ? strengthBar(pwText) : null), [toggle,
+    main.push(field(t('f.password'), h('div', {}, pwSpan, pwReal && !pwReal.includes('{REF:') ? strengthBar(pwReal) : null), [toggle,
         iconBtn('search', t('pw.large'), () => largeType(pwText, title)), copyBtn(pwText, t('f.password'), { 'data-testid': 'pw-copy' })], 'pw'));
 
     if (url) {

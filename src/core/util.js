@@ -39,4 +39,31 @@ export const hasTotp = (entry) => entry.fields.has('otp') || entry.fields.has('T
 export const isOutOfMemory = (e) => !!e && (e instanceof RangeError
     || (typeof WebAssembly !== 'undefined' && e instanceof WebAssembly.RuntimeError)
     || /out of memory|could not allocate|allocation failed|maximum memory|memory.*(grow|alloc)/i.test(String(e.message || e)));
+const REF_FIELDS = { T: 'Title', U: 'UserName', P: 'Password', A: 'URL', N: 'Notes' };
+const STANDARD_FIELDS = new Set(Object.values(REF_FIELDS));
+/** UUID eines Eintrags als Hex in Grossbuchstaben, wie sie in Feldreferenzen steht. */
+export const uuidHex = (uuid) => [...atob(String(uuid))].map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('').toUpperCase();
+/**
+ * Loest Feldreferenzen {REF:<Feld>@<Suchfeld>:<Text>} auf wie KeePass, auch geschachtelt (bis Tiefe 10, Zyklen enden dort).
+ * Feld: T U P A N oder I (UUID); Suchfeld zusaetzlich O (eigene Felder). @I sucht die UUID, sonst gilt der erste Eintrag, dessen
+ * Feld den Text enthaelt (ohne Gross-/Kleinschreibung). Was sich nicht aufloesen laesst, bleibt als {REF:…} stehen.
+ */
+export function resolveRefs(text, entries, depth = 0) {
+    if (!text.includes('{REF:') || depth >= 10) return text;
+    return text.replace(/\{REF:([TUPANI])@([TUPANIO]):([^}]*)\}/g, (ref, want, by, needle) => {
+        const hit = findRefTarget(entries, by, needle);
+        if (!hit) return ref;
+        return want === 'I' ? uuidHex(hit.uuid) : resolveRefs(fieldOf(hit, REF_FIELDS[want]), entries, depth + 1);
+    });
+}
+function findRefTarget(entries, by, needle) {
+    if (by === 'I' && !/^[0-9a-f]{32}$/i.test(needle)) return null;
+    const id = by === 'I' ? btoa(needle.match(/../g).map((x) => String.fromCharCode(parseInt(x, 16))).join('')) : null; // KdbxUuid.id ist Base64
+    const n = needle.toLowerCase(), has = (v) => valueText(v).toLowerCase().includes(n);
+    for (const e of entries) {
+        if (id ? String(e.uuid) === id
+            : by === 'O' ? [...e.fields].some(([k, v]) => !STANDARD_FIELDS.has(k) && has(v)) : has(e.fields.get(REF_FIELDS[by]))) return e;
+    }
+    return null;
+}
 export const isSystemField =(name) => /^(KPEX_PASSKEY_|KPXC_PASSKEY_|KPH: |TimeOtp-)/.test(name) || ['otp', 'TOTP Seed', 'TOTP Settings'].includes(name);
