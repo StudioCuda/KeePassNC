@@ -83,6 +83,8 @@ export default {
     'download': 'Download',
     'duplicate': 'Duplicate',
     'duplicate.suffix': ' - Copy',
+    'duplicate.link': 'Link username and password to the original',
+    'duplicate.link.hint': 'The copy then follows every change to the original, like a new password. Handy for one account that\'s used in several places.',
     'duplicated': 'Entry duplicated.',
     'duplicated.nopasskey': 'Entry duplicated - without the passkey, that one stays with the original.',
     'e.argonmem': 'This database needs {mb} MB of memory to process your password (Argon2) - more than this device or browser can give. Open it on a computer and lower the memory usage in KeePassXC under Database Settings → Encryption (less memory means slightly less protection against guessing attacks).',

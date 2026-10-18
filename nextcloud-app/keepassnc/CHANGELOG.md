@@ -3,6 +3,9 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Added
+- Duplicating an entry now asks whether to link username and password to the original. A linked copy simply points there (`{REF:…}`, the same thing KeePassXC's "Clone" does), so a new password on the original shows up in every copy. Great for one account behind several URLs. Your choice is remembered for next time.
+
 ### Fixed
 - Entries whose username, password or URL point to another entry (`{REF:P@I:…}`) now show and copy the real thing: the detail view, the list, the copy buttons and Ctrl+B / Ctrl+C / Ctrl+Shift+U all use what the reference points to instead of handing you `{REF:…}` to paste into a login form. The editor still shows the reference itself, so saving keeps it a reference.
 - Long passphrases in the password generator no longer get chopped mid-word at the end of a line. A word that doesn't fit simply moves to the next line, like words do.
