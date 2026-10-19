@@ -6,7 +6,7 @@ import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
 import { auditEntries } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
 import { WORDS as WORDS_DE } from '../../src/core/wordlist-de.js';
-import { isOutOfMemory, openableUrl, resolveRefs, resolvePlaceholders, uuidHex } from '../../src/core/util.js';
+import { isOutOfMemory, openableUrl, resolveRefs, resolvePlaceholders, uuidHex, previewKind, previewOf, entryColor } from '../../src/core/util.js';
 
 const NOW = Date.UTC(2026, 9, 11);
 function entry(fields, extra = {}) {
@@ -259,4 +259,28 @@ test('openableUrl: http(s) und nackte Hostnamen werden Links, alles andere bleib
         assert.equal(openableUrl(bad), null, bad);
     assert.equal(openableUrl('example.com', { bare: false }), null);
     assert.equal(openableUrl('https://example.com', { bare: false }), 'https://example.com');
+});
+
+test('Anhang-Vorschau: Bild nach Endung (auch SVG), Text nur als gueltiges UTF-8 ohne Nullbytes, Grenzen fuer die Groesse', () => {
+    assert.equal(previewKind('foto.JPG', 1000), 'image');
+    assert.equal(previewKind('logo.svg', 10), 'image');
+    assert.equal(previewKind('riesig.png', 9 * 1024 * 1024), null);
+    assert.equal(previewKind('id_ed25519.pub', 100), 'text');
+    assert.equal(previewKind('README', 100), 'text', 'ohne Endung: als Text versuchen');
+    assert.equal(previewKind('archiv.zip', 100), null);
+    assert.equal(previewKind('log.txt', 2 * 1024 * 1024), null);
+    const enc = (x) => new TextEncoder().encode(x);
+    assert.deepEqual(previewOf('notiz.txt', enc('Grüße\nzweite Zeile')), { text: 'Grüße\nzweite Zeile' });
+    assert.equal(previewOf('kaputt.txt', new Uint8Array([0xff, 0xfe, 0x41])), null);
+    assert.equal(previewOf('binaer', new Uint8Array([0x41, 0, 0x42])), null);
+    assert.equal(previewOf('a.png', new Uint8Array([0x89, 0x50, 0x4e, 0x47])).image, 'data:image/png;base64,iVBORw==');
+    assert.match(previewOf('b.svg', enc('<svg/>')).image, /^data:image\/svg\+xml;base64,/);
+});
+
+test('Eintragsfarbe: nur gueltiges #RRGGBB, in Kleinbuchstaben', () => {
+    assert.equal(entryColor({ bgColor: '#FF8000' }), '#ff8000');
+    assert.equal(entryColor({ bgColor: '' }), null);
+    assert.equal(entryColor({ bgColor: 'red' }), null);
+    assert.equal(entryColor({ bgColor: '#fff' }), null);
+    assert.equal(entryColor(null), null);
 });

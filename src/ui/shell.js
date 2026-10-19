@@ -1,6 +1,6 @@
 // Hauptansicht: Kopfzeile, drei Spalten (Seitenleiste | Liste | Details), Mobil-Navigation, Tastenkuerzel, Befehlspalette.
 import { t } from '../i18n.js';
-import { fieldOf, domainOf, openableUrl, hasTotp, isPasskey } from '../core/util.js';
+import { fieldOf, domainOf, openableUrl, hasTotp, isPasskey, entryColor } from '../core/util.js';
 import { SORTS } from './common.js';
 import { ctx, copy, setStatus, applyTheme } from './ctx.js';
 import { $, h, icon, iconBtn, modal, popupMenu, toast } from './dom.js';
@@ -111,6 +111,8 @@ export function renderList(entries = visibleEntries()) {
             onkeydown: (ev) => listKeys(ev) },
             avatar(e), h('span', { class: 'et' }, h('span', { class: 'title', text: fieldOf(e, 'Title') || t('entry.untitled') }), h('span', { class: 'sub', text: [user, dom].filter(Boolean).join(' · ') })),
             h('span', { class: 'badges' }, expiryBadge(e), hasTotp(e) ? h('span', { class: 'mini', title: 'TOTP' }, icon('totp')) : null, isPasskey(e) ? h('span', { class: 'mini', title: t('passkey') }, icon('passkey')) : null, e.binaries?.size ? h('span', { class: 'mini', title: t('attachments') }, icon('clip')) : null));
+        const color = entryColor(e);
+        if (color) { main.classList.add('tinted'); main.style.setProperty('--entry-color', color); } // CSSOM, kein style-Attribut (CSP)
         const wrap = h('div', { class: 'entry-wrap', draggable: 'true' }, main,
             h('div', { class: 'row-actions' }, iconBtn('user', t('copy') + ': ' + t('f.user'), () => copy(user, t('f.user')), { tabindex: '-1' }), iconBtn('key', t('copy') + ': ' + t('f.password'), () => copy(resolvedField(e, 'Password'), t('f.password')), { tabindex: '-1' })));
         wrap.addEventListener('dragstart', (ev) => startEntryDrag(ev, e));

@@ -101,3 +101,36 @@ function findRefTarget(entries, by, needle) {
     return null;
 }
 export const isSystemField =(name) => /^(KPEX_PASSKEY_|KPXC_PASSKEY_|KPH: |TimeOtp-)/.test(name) || ['otp', 'TOTP Seed', 'TOTP Settings'].includes(name);
+
+const IMAGE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', ico: 'image/x-icon', svg: 'image/svg+xml' };
+const TEXT_FILE = /\.(txt|md|log|csv|tsv|json|xml|ya?ml|ini|conf|cfg|toml|pem|crt|cer|key|pub|asc|ovpn|env|sh)$/i;
+/** Welche Vorschau ein Anhang bekommt: 'image', 'text' oder null (zu gross oder unbekannte Art). Nur nach Name und Groesse. */
+export function previewKind(name, size) {
+    const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+    if (IMAGE_TYPES[ext]) return size <= 8 * 1024 * 1024 ? 'image' : null;
+    return (TEXT_FILE.test(name) || !ext) && size <= 1024 * 1024 ? 'text' : null;
+}
+/**
+ * Inhalt fuer die Vorschau: {image: data:-URL} oder {text}; null, wenn ein "Text" doch keiner ist (kein gueltiges UTF-8, Nullbytes).
+ * SVG landet nur in einem <img>, wo es keine Skripte ausfuehrt.
+ */
+export function previewOf(name, bytes) {
+    const kind = previewKind(name, bytes.byteLength);
+    if (kind === 'image') {
+        let bin = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+        return { image: `data:${IMAGE_TYPES[name.split('.').pop().toLowerCase()]};base64,${btoa(bin)}` };
+    }
+    if (kind === 'text') {
+        try {
+            const text = new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+            return text.includes('\0') ? null : { text };
+        } catch { return null; }
+    }
+    return null;
+}
+
+/** Hintergrundfarbe eines Eintrags (KeePass: "#RRGGBB" in BackgroundColor) in Kleinbuchstaben, sonst null. */
+export const entryColor = (entry) => (/^#[0-9a-f]{6}$/i.test(entry?.bgColor || '') ? entry.bgColor.toLowerCase() : null);
+/** Farben zur Auswahl im Editor; eine andere, schon gesetzte Farbe bleibt zusaetzlich waehlbar. */
+export const ENTRY_COLORS = ['#e53935', '#fb8c00', '#fdd835', '#43a047', '#1e88e5', '#8e24aa'];

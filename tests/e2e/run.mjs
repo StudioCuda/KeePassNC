@@ -570,6 +570,37 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Kleinigkeiten: Vorschau fuer Text- und Bild-Anhang, Farbe des Eintrags (KeePassXC sieht sie), TOTP aus einem QR-Code-Bild', async () => {
+        const fX = path.join(davRoot, 'extras.kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fX);
+        const p = await newPage();
+        await login(p, 'extras.kdbx'); await rows(p).first().waitFor();
+        await rows(p).filter({ hasText: 'Konto' }).click();
+        const png = fs.readFileSync(path.join(root, 'tests/fixtures/totp-qr.png'));
+        await p.setInputFiles('#att-input', { name: 'bild.png', mimeType: 'image/png', buffer: png });
+        await p.locator('.att-row', { hasText: 'anhang.txt' }).locator('[data-testid=attachment-preview]').click();
+        expect(/anhang-inhalt/.test(await p.locator('.att-preview-text').innerText()), 'Text-Vorschau');
+        await p.keyboard.press('Escape');
+        await p.locator('.att-row', { hasText: 'bild.png' }).locator('[data-testid=attachment-preview]').click();
+        expect((await p.locator('img.att-preview').getAttribute('src')).startsWith('data:image/png;base64,'), 'Bild-Vorschau');
+        expect(await p.locator('img.att-preview').evaluate((img) => img.decode().then(() => img.naturalWidth)) === 270, 'Bild wird angezeigt');
+        await p.keyboard.press('Escape');
+
+        await p.click('#edit-btn');
+        await p.locator('#e-color input[value="#43a047"]').check();
+        await p.setInputFiles('#e-qr', { name: 'qr.png', mimeType: 'image/png', buffer: png });
+        await p.waitForFunction(() => /^otpauth:/.test(document.querySelector('#e-otp')?.value || ''));
+        expect(await p.inputValue('#e-otp') === 'otpauth://totp/Beispiel:carol?secret=JBSWY3DPEHPK3PXP&issuer=Beispiel', 'QR: ' + await p.inputValue('#e-otp'));
+        await p.click('#apply-btn');
+        expect(/\btinted\b/.test(await rows(p).filter({ hasText: 'Konto' }).getAttribute('class')), 'Liste zeigt die Farbe nicht');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        await p.context().close();
+        expect(/<BackgroundColor>#43a047<\/BackgroundColor>/i.test(xc(['export', '-f', 'xml', fX])), 'KeePassXC sieht die Farbe nicht');
+        expect(/^\d{6}$/.test(xc(['show', '-t', fX, 'Bank/Konto']).trim().split('\n').pop()), 'TOTP aus dem QR-Code');
+        const att = path.join(tmp, 'bild.png'); xc(['attachment-export', fX, 'Bank/Konto', 'bild.png', att]);
+        expect(fs.readFileSync(att).equals(png), 'Bild-Anhang');
+    });
+
     await step('CSV: Bitwarden-Export landet in eigener Gruppe (KeePassXC sieht ihn), Export entspricht dem von KeePassXC und laesst sich wieder einlesen', async () => {
         const fCsv = path.join(davRoot, 'csv.kdbx');
         fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fCsv);

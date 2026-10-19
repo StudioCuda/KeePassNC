@@ -17,9 +17,9 @@ export function argon2Here(p) {
     });
 }
 
-/** Adresse des Workers neben dem App-Skript; behaelt dessen Query (?v= der Nextcloud-App), damit Cache und Version zusammenpassen. */
-export function workerUrl(scriptSrc) {
-    const u = new URL(WORKER_FILE, scriptSrc);
+/** Adresse eines Workers neben dem App-Skript; behaelt dessen Query (?v= der Nextcloud-App), damit Cache und Version zusammenpassen. */
+export function workerUrl(scriptSrc, file = WORKER_FILE) {
+    const u = new URL(file, scriptSrc);
     u.search = new URL(scriptSrc).search;
     return u.href;
 }

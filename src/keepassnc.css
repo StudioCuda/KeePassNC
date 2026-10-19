@@ -340,6 +340,14 @@ body.has-nch .topbar .brand { display: none; } /* der Name steht schon in der Ko
 .ring-bg { stroke: var(--surface-3); } .ring-fg { stroke: var(--ring); transition: stroke-dashoffset .9s linear; } .ring.low .ring-fg { stroke: var(--bad); }
 .ring-num { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .att-row, .hist-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; } .att-row + .att-row, .hist-row + .hist-row { border-top: 1px solid var(--border); }
+.entry.tinted { box-shadow: inset 4px 0 0 var(--entry-color); }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+input[type=radio].swatch { appearance: none; width: 26px; height: 26px; margin: 0; border-radius: 50%; border: 2px solid var(--border-strong); background: var(--swatch); cursor: pointer; }
+input[type=radio].swatch.none { background: linear-gradient(135deg, transparent 45%, var(--border-strong) 45% 55%, transparent 55%), var(--surface); }
+.swatch:checked { outline: 2px solid var(--accent); outline-offset: 2px; }
+.swatch:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.att-preview { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; border-radius: var(--radius-sm); background: var(--surface-2); }
+.att-preview-text { max-height: 70vh; overflow: auto; margin: 0; padding: 12px; border-radius: var(--radius-sm); background: var(--surface-2); font-family: var(--mono); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .hist-row { font-size: 13.5px; flex-wrap: wrap; } .row-end { display: flex; justify-content: flex-end; padding-top: 8px; }
 .meta { display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: 12.5px; color: var(--muted); box-shadow: none; background: transparent; border-style: dashed; }
 .passkey-card { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }

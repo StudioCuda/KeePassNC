@@ -12,6 +12,7 @@ fs.mkdirSync(path.join(app, 'css'), { recursive: true });
 // Hauptanwendung: identisch zur eigenstaendigen Seite (web/), laeuft im Nextcloud-Modus per data-Attribut.
 fs.copyFileSync(path.join(root, 'web/keepassnc.js'), path.join(app, 'js/keepassnc.js'));
 fs.copyFileSync(path.join(root, 'web/keepassnc-argon2.js'), path.join(app, 'js/keepassnc-argon2.js'));
+fs.copyFileSync(path.join(root, 'web/keepassnc-qr.js'), path.join(app, 'js/keepassnc-qr.js'));
 fs.copyFileSync(path.join(root, 'web/sw.js'), path.join(app, 'js/sw.js'));
 fs.copyFileSync(path.join(root, 'web/keepassnc.css'), path.join(app, 'css/keepassnc.css'));
 fs.copyFileSync(path.join(root, 'LICENSE'), path.join(app, 'COPYING')); // der App Store erwartet die Lizenz im App-Ordner
