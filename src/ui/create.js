@@ -15,6 +15,7 @@ import { newPasswordFields, newKeyfileFlow, readFile } from './new-credentials.j
 import { trialRun } from './db-settings.js';
 import { pickFolder, folderLabel, joinPath, splitPath } from './folder-picker.js';
 import { loginHero } from './login.js';
+import { remoteFields } from './remote.js';
 import { openSettings } from './settings-dialog.js';
 
 const { state } = ctx;
@@ -35,36 +36,43 @@ export function showCreate() {
     if (NC?.newFile) { const x = splitPath(normalizeUserPath(NC.newFile)); folder = x.folder; startName = baseName(x.name) || defBase; touched = true; }
     else if (NC && pref('ncfile')) folder = splitPath(normalizeUserPath(pref('ncfile'))).folder;
     const auth = NC ? nextcloudAuth(NC) : null;
-    const urlInput = h('input', { id: 'new-url', type: 'url', placeholder: `https://cloud.example.org/remote.php/dav/files/NAME/${defName}`, value: '', autocomplete: 'off' });
-    const userInput = h('input', { id: 'new-user', type: 'text', value: pref('user'), autocomplete: 'username' });
-    const passInput = h('input', { id: 'new-pass', type: 'password', autocomplete: 'current-password' });
+    // Ohne Nextcloud-App: Nextcloud-Adresse + Name und Ordner wie in der App, oder ueber den Link die WebDAV-Adresse wie bisher
+    const remote = NC ? null : remoteFields('new', { urlPlaceholder: `https://cloud.example.org/remote.php/dav/files/NAME/${defName}`, urlLabel: 'new.dav.url', onMode: () => show() });
+    if (remote?.legacy) folder = splitPath(remote.legacy.path).folder; // neben der zuletzt geoeffneten Datenbank
+    const urlInput = remote?.url || h('input'), userInput = remote?.user || h('input'), passInput = remote?.pass || h('input');
+    /** Name + Ordner statt einer Adresse: in Nextcloud und mit Nextcloud-Adresse. */
+    const ncLike = () => !!NC || remote.mode() === 'nc';
+    /** Wo der Ordner-Browser und die Namenspruefung lesen: { loc, auth }; null, solange Zugangsdaten fehlen. */
+    const davLoc = async () => (NC ? { loc: NC, auth } : remote.ready() ? { loc: { davBase: await remote.davBase() }, auth: remote.auth() } : null);
     const nameInput = h('input', { id: 'new-name', type: 'text', value: startName, autocomplete: 'off', spellcheck: 'false' });
     const nameNote = h('p', { class: 'level-note warn', id: 'new-name-note', 'aria-live': 'polite', hidden: true });
     const folderText = h('span', { class: 'grow', id: 'new-folder', text: folderLabel(folder) });
     const folderRow = h('div', { class: 'folder-row' }, h('span', { class: 'muted', text: t('new.folder') }), icon('folder'), folderText,
         h('button', { type: 'button', class: 'link', id: 'new-folder-btn', text: t('new.folder.change'), onclick: async () => {
-            const picked = await pickFolder({ NC, auth, start: folder });
+            err.textContent = '';
+            let at;
+            try { at = await davLoc(); } catch (e) { err.textContent = errText(e); return; }
+            if (!at) { err.textContent = t('err.nc.creds'); return; }
+            const picked = await pickFolder({ NC: at.loc, auth: at.auth, start: folder });
             if (picked === null) return;
             folder = picked; folderText.textContent = folderLabel(folder); check();
         } }));
     const nameBox = h('div', { class: 'stack tight' },
         h('label', {}, h('span', { text: t('new.name') }), h('div', { class: 'input-group' }, nameInput, h('span', { class: 'input-suffix', text: '.kdbx' }))),
         folderRow, nameNote);
-    const urlBox = h('div', { class: 'stack' },
-        h('label', {}, h('span', { text: t('new.dav.url') }), urlInput),
-        h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('login.dav.user') }), userInput), h('label', {}, h('span', { text: t('login.dav.pass') }), passInput)),
-        h('p', { class: 'hint', text: t('login.dav.hint') }));
+    const urlBox = h('div', { class: 'stack' }, remote?.serverBox, remote?.urlBox, remote?.creds);
+    const urlFoot = remote?.foot || h('div');
     const fileHint = h('p', { class: 'hint', text: t('new.file.hint') });
     let where = mode === 'file' ? 'file' : 'dav';
     const show = () => {
-        nameBox.hidden = !NC && where === 'dav'; folderRow.hidden = !NC || where !== 'dav';
-        urlBox.hidden = !!NC || where !== 'dav'; fileHint.hidden = where !== 'file';
+        nameBox.hidden = !ncLike() && where === 'dav'; folderRow.hidden = !ncLike() || where !== 'dav';
+        urlBox.hidden = urlFoot.hidden = !!NC || where !== 'dav'; fileHint.hidden = where !== 'file';
         kf.relabel(); check();
     };
     /** Eingegebener Name ohne .kdbx; '' wenn leer oder ungueltig (Schraegstriche, "." und ".."). */
     const nameValue = () => { const n = nameInput.value.trim().replace(/\.kdbx$/i, ''); return !n || /[/\\]/.test(n) || n === '.' || n === '..' ? '' : n; };
     /** Wo die Datei hinkommt, fuer Datenbank- und Schluesseldatei-Namen. */
-    const target = () => (NC || where === 'file' ? nameValue() : urlInput.value.split(/[?#]/)[0].trim());
+    const target = () => (ncLike() || where === 'file' ? nameValue() : urlInput.value.split(/[?#]/)[0].trim());
     const seg = (value, label, ic) => h('label', { class: 'seg' }, h('input', { type: 'radio', name: 'new-src', value, checked: value === where, onchange: () => { where = value; show(); } }), h('span', {}, icon(ic), label));
 
     // --- Name schon vergeben? Ordnerinhalt einmal je Ordner holen; Fehler beim Listen stoeren nicht, das Anlegen prueft ohnehin.
@@ -72,11 +80,14 @@ export function showCreate() {
     let checkTimer = null;
     function check() {
         clearTimeout(checkTimer);
-        if (!NC || where !== 'dav') { nameNote.hidden = true; return; }
+        if (!ncLike() || where !== 'dav') { nameNote.hidden = true; return; }
         checkTimer = setTimeout(async () => {
             const f = folder;
-            if (!listings.has(f)) listings.set(f, new DavFile({ url: davUrlFor(NC, f), auth }).list().then((l) => new Set(l.map((x) => x.name.toLowerCase())), () => null));
-            const names = await listings.get(f);
+            const at = await davLoc().catch(() => null); // ohne Zugangsdaten keine Pruefung (und keine Anfrage beim Tippen des Passworts)
+            if (!at) { nameNote.hidden = true; return; }
+            const k = at.loc.davBase + '\n' + f;
+            if (!listings.has(k)) listings.set(k, new DavFile({ url: davUrlFor(at.loc, f), auth: at.auth }).list().then((l) => new Set(l.map((x) => x.name.toLowerCase())), () => null));
+            const names = await listings.get(k);
             if (f !== folder || !names) return;
             const taken = (n) => names.has((n + '.kdbx').toLowerCase());
             if (!touched && taken(nameValue())) {
@@ -105,7 +116,7 @@ export function showCreate() {
     const btn = h('button', { type: 'submit', id: 'new-btn', class: 'primary big' }, icon('plus'), h('span', { class: 'label', text: t('new.create') }));
     const form = h('form', { class: 'login-form stack', id: 'new-form' },
         h('div', { class: 'seg-group', role: 'radiogroup' }, seg('dav', NC ? t('login.src.nc') : t('login.src.dav'), 'cloud'), seg('file', t('login.src.file'), 'file')),
-        nameBox, urlBox, fileHint,
+        urlBox, nameBox, urlFoot, fileHint,
         h('label', {}, h('span', { text: t('login.master') }), pwf.row), pwf.meter,
         h('label', {}, h('span', { text: t('new.repeat') }), pwf.repeat),
         h('div', { class: 'stack tight', role: 'radiogroup', 'aria-label': t('login.keyfile') },
@@ -138,7 +149,7 @@ export function showCreate() {
             }
             if (!password && !keyfile) throw new VaultError(t('new.pw.none'));
             let dav = null, name, userPath = '', url = '';
-            if (src === 'file' || NC) {
+            if (src === 'file' || (src === 'dav' && ncLike())) {
                 const n = nameValue();
                 if (!n) throw new VaultError(t('new.file.bad'));
                 name = n + '.kdbx';
@@ -146,6 +157,12 @@ export function showCreate() {
             if (src === 'dav' && NC) {
                 userPath = joinPath(folder, name);
                 dav = new DavFile({ url: davUrlFor(NC, userPath), auth });
+            } else if (src === 'dav' && remote.mode() === 'nc') {
+                if (!remote.root()) throw new VaultError(t('err.nc.server'));
+                const user = userInput.value, pass = passInput.value;
+                userPath = joinPath(folder, name);
+                url = remote.fileUrl(await remote.davBase(), userPath);
+                dav = new DavFile({ url, user, pass });
             } else if (src === 'dav') {
                 url = urlInput.value.trim();
                 if (!url) throw new VaultError(t('err.dav.url'));
@@ -163,7 +180,7 @@ export function showCreate() {
             try { ms = await trialRun(NEW_DB, 1); } catch (e) { if (isOutOfMemory(e)) throw new VaultError(t('new.oom', { mb: NEW_DB.memoryKiB / 1024 })); throw e; }
             const security = { ...NEW_DB, iterations: newDbIterations(ms) };
             const cache = dav && ctx.settings.offline ? { key: NC ? `nc:${NC.user}:${userPath}` : `dav:${url}`, name } : null;
-            listings.delete(folder);
+            listings.clear();
             const { vault, bytes } = await Vault.create({ name: name.replace(/\.kdbx$/i, ''), password, keyfile: keyfile || undefined, security, dav, cache });
             vault.backupKeep = ctx.settings.backupKeep;
             pwf.next.value = pwf.repeat.value = ''; passInput.value = '';
@@ -174,7 +191,7 @@ export function showCreate() {
                 // Wie nach einem Klick in "Dateien": Neu laden und Sperren zeigen genau diese Datei
                 pref('ncfile', userPath); NC.file = userPath; NC.newFile = '';
                 history.replaceState(null, '', `${location.pathname}?open=${encodeURIComponent(userPath)}`);
-            } else { pref('url', url); pref('user', userInput.value); }
+            } else { pref('url', url); pref('user', userInput.value); pref('davmode', remote.mode()); }
             state.vault = vault;
             state.source = { type: src, name, kfId: src === 'file' ? kfFileId(name) : NC ? `nc:${NC.user}:${userPath}` : `dav:${url}`, readOnly: false };
             state.filter = { type: 'all' }; state.lastActivity = Date.now(); state.offlineMode = false; state.lastSyncFailed = false;
@@ -206,6 +223,6 @@ export function showCreate() {
         if (NC?.newFile) { NC.newFile = ''; history.replaceState(null, '', location.pathname + (NC.file ? `?open=${encodeURIComponent(NC.file)}` : '')); }
         ctx.ui.showLogin();
     }
-    show();
-    (NC || where === 'file' ? nameInput : urlInput).focus();
+    if (remote) remote.setMode(remote.mode()); else show();
+    (NC || where === 'file' ? nameInput : remote.mode() === 'url' ? urlInput : remote.server.value ? nameInput : remote.server).focus();
 }

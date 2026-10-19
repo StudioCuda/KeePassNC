@@ -20,14 +20,24 @@ export class DavError extends Error {
     }
 }
 
-/** Server nicht erreichbar (Netz, DNS, Verbindung abgelehnt, Zeitueberschreitung). */
+/**
+ * Server nicht erreichbar (Netz, DNS, Verbindung abgelehnt, Zeitueberschreitung). host: Ziel auf einer anderen Herkunft als die
+ * Seite. Dann kann es genauso gut CORS sein (der Browser sagt nicht, welches von beiden), und die Meldung nennt beides.
+ */
 export class NetworkError extends Error {
-    constructor(cause) {
+    constructor(cause, host = '') {
         super('Server nicht erreichbar.');
         this.name = 'NetworkError';
-        this.key = 'e.network';
+        this.key = host ? 'e.network.cors' : 'e.network';
+        this.vars = host ? { host } : undefined;
         this.cause = cause;
     }
+}
+
+/** Host der Adresse, wenn sie auf einer anderen Herkunft liegt als die Seite; sonst ''. */
+function foreignHost(url) {
+    if (typeof location === 'undefined') return '';
+    try { const u = new URL(url, location.href); return u.origin !== location.origin ? u.host : ''; } catch { return ''; }
 }
 
 /** true, wenn der Fehler "Server gerade nicht verfuegbar" bedeutet (Ausfall, Wartungsmodus, Gateway-Fehler) - dann darf der lokale Cache einspringen. */
@@ -42,6 +52,7 @@ export function isOffline(e) {
  */
 export function offlineFailKey(e, cacheOn) {
     if (e instanceof DavError && e.status >= 500) return cacheOn ? 'err.offline.status.nocopy' : 'err.offline.status.nooption';
+    if (e instanceof NetworkError && e.vars?.host) return e.key; // fremde Herkunft: CORS ist genauso wahrscheinlich wie ein Ausfall
     return cacheOn ? 'err.offline.nocopy' : 'err.offline.nooption';
 }
 
@@ -82,7 +93,7 @@ export class DavFile {
             } catch (e) {
                 // Die Oberflaeche sagt nur "nicht erreichbar"; die eigentliche Ursache (Mixed Content, CSP, DNS ...) steht hier
                 console.warn('WebDAV-Abruf fehlgeschlagen', init.method || 'GET', url, e);
-                throw new NetworkError(e);
+                throw new NetworkError(e, foreignHost(url));
             }
             // Abgelaufenes Sitzungs-Token (Nextcloud): einmal erneuern und wiederholen
             if (res.status === 401 && this.auth.refresh && attempt === 0) {
@@ -145,6 +156,19 @@ export class DavFile {
         } catch {
             return null;
         }
+    }
+
+    /**
+     * Konto hinter den Zugangsdaten (current-user-principal), z. B. "/remote.php/dav/principals/users/anna/"; null, wenn der Server
+     * keines nennt. Antwortet unter der Adresse kein WebDAV: e.dav.nodav.
+     */
+    async principal() {
+        const res = await this._fetch(this.url, { method: 'PROPFIND', headers: { Depth: '0', 'Content-Type': 'application/xml' }, body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>' });
+        if (res.status === 401 || res.status === 403) throw new DavError(res.status, 'Zugriff verweigert - Anmeldung bzw. Zugangsdaten pruefen.', 'e.dav.denied');
+        if (res.status >= 500) throw new DavError(res.status, `Server antwortete mit Status ${res.status}.`, 'e.dav.status', { status: res.status });
+        if (res.status !== 207) throw new DavError(res.status, 'Unter dieser Adresse antwortet keine Nextcloud - Adresse pruefen.', 'e.dav.nodav');
+        const el = new DOMParser().parseFromString(await res.text(), 'application/xml').getElementsByTagNameNS('DAV:', 'current-user-principal')[0];
+        return el?.getElementsByTagNameNS('DAV:', 'href')[0]?.textContent.trim() || null;
     }
 
     /** Legt eine Sicherungskopie unter neuem Namen an (schlaegt nicht fehl, falls der Name schon existiert). */

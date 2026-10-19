@@ -6,7 +6,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser, browserName, knownEngineNoise, webkitCspWatch } from '../browser.mjs';
+import { launchBrowser, browserName, knownEngineNoise, webkitCspWatch, plainWebdav } from '../browser.mjs';
 import { startServer } from './davserver.mjs';
 import { parseCsv } from '../../src/core/csv.js';
 
@@ -53,6 +53,7 @@ async function main() {
 
     async function newPage(query = '') {
         const ctx = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport: { width: 1280, height: 800 } });
+        await ctx.addInitScript(plainWebdav);
         const page = await ctx.newPage();
         page.on('request', (r) => { if (!r.url().startsWith(base) && !r.url().startsWith('data:') && !r.url().startsWith('blob:')) problems.external.push(r.url()); });
         page.on('pageerror', (e) => problems.pageErrors.push(String(e)));

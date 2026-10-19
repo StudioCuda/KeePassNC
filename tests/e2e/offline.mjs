@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser, knownFetchNoise, uncaughtWatch } from '../browser.mjs';
+import { launchBrowser, knownFetchNoise, uncaughtWatch, plainWebdav } from '../browser.mjs';
 import { startServer } from './davserver.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -36,6 +36,7 @@ async function main() {
     const pageErrors = [];
 
     const ctx = await browser.newContext({ locale: 'de-DE', viewport: { width: 1280, height: 800 } });
+    await ctx.addInitScript(plainWebdav);
     await ctx.addInitScript(uncaughtWatch);
     await ctx.addInitScript(() => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'change', offline: true })); } catch {} });
     const page = await ctx.newPage();
@@ -115,6 +116,7 @@ async function main() {
 
     await step('Ohne Offline-Option: Ausfall beim Speichern -> Fehlermeldung, Aenderung bleibt ungespeichert (nichts geht still verloren); Anmeldung bei Ausfall -> klare Meldung', async () => {
         const ctx2 = await browser.newContext({ locale: 'de-DE' });
+        await ctx2.addInitScript(plainWebdav);
         await ctx2.addInitScript(() => { try { localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'change', offline: false })); } catch {} });
         const p2 = await ctx2.newPage();
         await p2.goto(url());
@@ -128,11 +130,13 @@ async function main() {
         await p2.click('#lock-btn').catch(() => {});
         await ctx2.close();
         const ctx3 = await browser.newContext({ locale: 'de-DE' });
+        await ctx3.addInitScript(plainWebdav);
         const p3 = await ctx3.newPage();
         await p3.goto(url()).catch(() => {});
         await ctx3.close();
         await recover();
         const ctx4 = await browser.newContext({ locale: 'de-DE' });
+        await ctx4.addInitScript(plainWebdav);
         await ctx4.addInitScript(() => { try { localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'off', offline: false })); } catch {} });
         const p4 = await ctx4.newPage();
         await p4.goto(url());

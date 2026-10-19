@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser, waitOpened } from '../browser.mjs';
+import { launchBrowser, waitOpened, plainWebdav } from '../browser.mjs';
 import { startServer } from './davserver.mjs';
 import { createKeyfileStore, limits as kfLimits } from '../../src/keyfile-store.js';
 
@@ -30,7 +30,7 @@ async function main() {
     const base = `http://127.0.0.1:${port}`;
     const browser = await launchBrowser();
     const errors = [];
-    const mkCtx = async () => { const c = await browser.newContext({ locale: 'de-DE' }); await c.addInitScript(() => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'off' })); } catch {} }); return c; };
+    const mkCtx = async () => { const c = await browser.newContext({ locale: 'de-DE' }); await c.addInitScript(plainWebdav); await c.addInitScript(() => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'off' })); } catch {} }); return c; };
     const fillLogin = async (p, { master = meta.password, withKey = false, remember = false } = {}) => {
         await p.goto(base);
         await p.locator('input[value=dav]').check({ force: true });

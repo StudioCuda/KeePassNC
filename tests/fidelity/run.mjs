@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser } from '../browser.mjs';
+import { launchBrowser, plainWebdav } from '../browser.mjs';
 import { startServer } from '../e2e/davserver.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -40,6 +40,7 @@ async function main() {
     const base = `http://127.0.0.1:${port}`;
     const browser = await launchBrowser();
     const ctx = await browser.newContext({ locale: 'de-DE', viewport: { width: 1400, height: 900 } });
+    await ctx.addInitScript(plainWebdav);
     await ctx.addInitScript(() => { try { localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'off' })); } catch {} });
     const page = await ctx.newPage();
     const errors = []; page.on('pageerror', (e) => errors.push(String(e)));
