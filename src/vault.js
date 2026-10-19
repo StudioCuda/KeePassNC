@@ -113,6 +113,32 @@ export function generatePassword(length = 24) {
     return out.join('');
 }
 
+/**
+ * Laedt buf mit Passwort und Schluesseldatei. Leeres Feld mit Schluesseldatei: wie KeePassXC erst ganz ohne Passwort (Datenbank nur mit
+ * Schluesseldatei), dann mit leerem. Das sind zwei verschiedene Schluessel: "kein Passwort" laesst den Passwort-Anteil weg, "" steuert
+ * den Hash von "" bei. Liefert {db, pw} (pw: das passende ProtectedValue oder null); Fehler als VaultError (e.badkey, e.badfile).
+ */
+async function loadWith(buf, password, kf) {
+    const tries = password === '' && kf ? [null, ProtectedValue.fromString('')] : [ProtectedValue.fromString(password)];
+    try {
+        for (const [n, pw] of tries.entries()) {
+            try {
+                return { db: await Kdbx.load(buf, new Credentials(pw, kf)), pw };
+            } catch (e) {
+                if (!(e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) || n === tries.length - 1) throw e;
+            }
+        }
+    } catch (e) {
+        if (e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) {
+            throw new VaultError('Falsches Master-Passwort oder falsche Schluesseldatei.', 'e.badkey');
+        }
+        if (e instanceof KdbxError && [Consts.ErrorCodes.BadSignature, Consts.ErrorCodes.InvalidVersion, Consts.ErrorCodes.Unsupported].includes(e.code)) {
+            throw new VaultError('Das ist keine gueltige KDBX-Datei (oder eine nicht unterstuetzte Version).', 'e.badfile');
+        }
+        throw e;
+    }
+}
+
 export class Vault {
     /**
      * @param {{buf: ArrayBuffer, password: string, keyfile?: Uint8Array|ArrayBuffer, dav?: import('./webdav.js').DavFile, etag?: string|null,
@@ -122,29 +148,7 @@ export class Vault {
      */
     static async open({ buf, password, keyfile, dav, etag, cache, unsynced, remoteBuf, fromCache }) {
         const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile : toArrayBuffer(keyfile)) : undefined;
-        // Leeres Feld mit Schluesseldatei: wie KeePassXC erst ganz ohne Passwort (Datenbank nur mit Schluesseldatei), dann mit leerem.
-        // Das sind zwei verschiedene Schluessel: "kein Passwort" laesst den Passwort-Anteil weg, "" steuert den Hash von "" bei.
-        const tries = password === '' && kf ? [null, ProtectedValue.fromString('')] : [ProtectedValue.fromString(password)];
-        let db, pw;
-        try {
-            for (const [n, p] of tries.entries()) {
-                try {
-                    db = await Kdbx.load(buf, new Credentials(p, kf));
-                    pw = p;
-                    break;
-                } catch (e) {
-                    if (!(e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) || n === tries.length - 1) throw e;
-                }
-            }
-        } catch (e) {
-            if (e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) {
-                throw new VaultError('Falsches Master-Passwort oder falsche Schluesseldatei.', 'e.badkey');
-            }
-            if (e instanceof KdbxError && [Consts.ErrorCodes.BadSignature, Consts.ErrorCodes.InvalidVersion, Consts.ErrorCodes.Unsupported].includes(e.code)) {
-                throw new VaultError('Das ist keine gueltige KDBX-Datei (oder eine nicht unterstuetzte Version).', 'e.badfile');
-            }
-            throw e;
-        }
+        const { db, pw } = await loadWith(buf, password, kf);
         const v = new Vault(db, pw, kf, dav, etag ?? null, remoteBuf || buf, cache);
         if (unsynced) { v.unsynced = true; v._pending = buf; }
         else if (cache && !fromCache) await v._cacheWrite(buf, false);
@@ -235,6 +239,29 @@ export class Vault {
                 } else this.dirty = true;
                 throw e;
             }
+        });
+    }
+
+    /**
+     * Der Server-Stand oeffnet nicht mehr mit den bekannten Zugangsdaten, weil sie auf einem anderen Geraet geaendert wurden
+     * (e.merge.pw, e.pull.pw): mit den neuen pruefen, sie uebernehmen und gleich abgleichen. Lokale Aenderungen werden dabei wie
+     * sonst zusammengefuehrt und mit den neuen Zugangsdaten gespeichert. Passen sie nicht: VaultError e.badkey, nichts geaendert.
+     * Ergebnis wie save() bzw. sync().
+     */
+    adoptCredentials({ password, keyfile }) {
+        return this._exclusive(async () => {
+            const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
+            const remote = await this.dav.get();
+            const { db: remoteDb, pw } = await loadWith(remote.buf, password, kf);
+            this._pw = pw; this._kf = kf; this._base = { pw, kf };
+            this.db.credentials = new Credentials(pw, kf);
+            if (this.dirty) return this._save();
+            if (this.unsynced) return this._push();
+            this.db = remoteDb; // nichts Lokales: der Server-Stand gilt (wie _pull)
+            this.etag = remote.etag;
+            this._remoteBytes = remote.buf;
+            await this._cacheWrite(remote.buf, false);
+            return { pulled: true };
         });
     }
 
@@ -759,7 +786,7 @@ export class Vault {
                 await this._prune();
                 const remoteDb = await Kdbx.load(remote.buf, this._baseCredentials()).catch((err) => {
                     if (err instanceof KdbxError && err.code === Consts.ErrorCodes.InvalidKey) {
-                        throw new VaultError('Das Master-Passwort wurde auf einem anderen Geraet geaendert - zusammenfuehren nicht moeglich. Ihre Aenderungen sind lokal gesichert; bitte mit dem neuen Passwort neu anmelden.', 'e.merge.pw');
+                        throw new VaultError('Die Zugangsdaten wurden auf einem anderen Geraet geaendert. Die Aenderungen sind noch da: mit den neuen Zugangsdaten werden sie zusammengefuehrt.', 'e.merge.pw');
                     }
                     throw err;
                 });
@@ -803,7 +830,7 @@ export class Vault {
             remoteDb = await Kdbx.load(remote.buf, this._baseCredentials());
         } catch (e) {
             if (e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) {
-                throw new VaultError('Das Master-Passwort wurde auf einem anderen Geraet geaendert - bitte neu anmelden.', 'e.pull.pw');
+                throw new VaultError('Die Zugangsdaten wurden auf einem anderen Geraet geaendert.', 'e.pull.pw');
             }
             throw e;
         }

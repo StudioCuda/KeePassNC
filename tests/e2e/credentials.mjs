@@ -20,6 +20,12 @@ function mkDb(file, keyfile) {
     execFileSync('keepassxc-cli', ['add', '-q', ...(keyfile ? ['-k', keyfile] : []), '-u', 'alice', file, 'Mail'], { input: OLD + '\n' });
 }
 mkDb(dav('pw.kdbx')); mkDb(dav('kf.kdbx'), KEY_A); mkDb(path.join(tmp, 'local.kdbx'));
+mkDb(dav('remote.kdbx')); mkDb(dav('remote2.kdbx'));
+/** Wie ein anderes Geraet: neues Passwort setzen und einen Eintrag anlegen (KeePassXC). */
+const elsewhere = (file, from, to, title) => {
+    execFileSync('keepassxc-cli', ['db-edit', '-q', '-p', file], { input: `${from}\n${to}\n${to}\n`, stdio: 'pipe' });
+    execFileSync('keepassxc-cli', ['add', '-q', '-u', 'eve', file, title], { input: to + '\n', stdio: 'pipe' });
+};
 // nur Schluesseldatei, ganz ohne Passwort-Anteil (KeePassXC: --no-password)
 const KEY_ONLY = path.join(tmp, 'only.keyx');
 execFileSync('keepassxc-cli', ['db-create', '-q', '--set-key-file', KEY_ONLY, '-t', '100', dav('only.kdbx')], { stdio: 'pipe' });
@@ -56,8 +62,8 @@ async function main() {
         p.on('pageerror', (e) => errors.push(String(e)));
         return p;
     };
-    const login = async (p, file, pw, { key, remember = false } = {}) => {
-        await p.goto(base);
+    const login = async (p, file, pw, { key, remember = false, query = '' } = {}) => {
+        await p.goto(base + query);
         await p.locator('input[value=dav]').check({ force: true });
         await p.fill('#dav-url', `${base}/dav/${file}`); await p.fill('#dav-user', 'tester'); await p.fill('#dav-pass', 'app-secret');
         await p.fill('#master', pw);
@@ -248,6 +254,56 @@ async function main() {
         await waitStatus(p4, /Zugangsdaten geändert und gespeichert/);
         expect(xcLs(dav('only.kdbx'), N1, KEY_ONLY)?.includes('Mail') && !xcLsNoPw(dav('only.kdbx'), KEY_ONLY), 'jetzt Passwort + Schluesseldatei');
         await p4.context().close();
+    });
+
+    const rcredSubmit = async (p, pw) => { await p.locator('#rcred-form').waitFor({ timeout: 30000 }); await p.fill('#rcred-pw', pw); await p.click('#rcred-ok'); };
+    await step('Anderswo geaendert, hier ungespeichert: Dialog fragt nach den neuen Zugangsdaten und fuehrt zusammen', async () => {
+        const p5 = await newPage();
+        await login(p5, 'remote.kdbx', OLD);
+        elsewhere(dav('remote.kdbx'), OLD, N1, 'Extern');
+        await p5.click('#new-group-btn'); await p5.fill('#prompt-input', 'Lokal'); await p5.keyboard.press('Enter');
+        await p5.click('#save-btn');
+        await rcredSubmit(p5, OLD);
+        await p5.waitForFunction(() => /Falsch/.test(document.querySelector('#rcred-error')?.textContent || ''), null, { timeout: 30000 });
+        await p5.fill('#rcred-pw', N1); await p5.click('#rcred-ok');
+        await waitStatus(p5, /zusammengeführt und gespeichert/);
+        const ls = xcLs(dav('remote.kdbx'), N1);
+        expect(ls?.includes('Extern') && ls.includes('Lokal/') && ls.includes('Mail'), 'zusammengefuehrt mit N1: ' + ls);
+        await p5.click('#nav-all');
+        expect(await p5.locator('[data-testid=entry-row]', { hasText: 'Extern' }).count() === 1, 'fremder Eintrag sichtbar');
+        await p5.context().close();
+    });
+
+    await step('Anderswo geaendert, hier nichts offen: der Abgleich fragt, "Spaeter" fragt beim naechsten Mal wieder, dann neuer Stand', async () => {
+        const p6 = await newPage({ autosync: '1' });
+        await login(p6, 'remote.kdbx', N1, { query: '?syncinterval=1' });
+        elsewhere(dav('remote.kdbx'), N1, N2, 'Extern2');
+        await p6.locator('#rcred-form').waitFor({ timeout: 30000 });
+        await p6.click('#rcred-later');
+        await rcredSubmit(p6, N2); // naechster Abgleich fragt wieder
+        await waitStatus(p6, /aktueller Stand geholt/);
+        expect(await p6.locator('[data-testid=entry-row]', { hasText: 'Extern2' }).count() === 1, 'neuer Stand sichtbar');
+        expect(await p6.locator('#rcred-form').count() === 0, 'Dialog zu');
+        await p6.context().close();
+    });
+
+    await step('Ungesyncte Offline-Kopie mit alten Zugangsdaten: Anmelden mit den neuen erklaert den Weg, mit den alten wird zusammengefuehrt', async () => {
+        const p7 = await newPage({ autosync: 'off', offline: true });
+        await login(p7, 'remote2.kdbx', OLD);
+        await p7.route((u) => u.pathname === '/dav/remote2.kdbx', (r) => (r.request().method() === 'PUT' ? r.fulfill({ status: 503 }) : r.continue()));
+        await p7.click('#new-group-btn'); await p7.fill('#prompt-input', 'Offline-Gruppe'); await p7.keyboard.press('Enter');
+        await p7.click('#save-btn'); await waitStatus(p7, /lokal|Offline|offline/);
+        await p7.unrouteAll();
+        await lock(p7);
+        elsewhere(dav('remote2.kdbx'), OLD, N1, 'Extern');
+        await p7.fill('#dav-pass', 'app-secret'); await p7.fill('#master', N1); await p7.click('#open-btn');
+        await p7.waitForFunction(() => /öffnen mit den alten Zugangsdaten/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 30000 });
+        await p7.fill('#master', OLD); await p7.click('#open-btn'); await waitOpened(p7, 60000);
+        await rcredSubmit(p7, N1);
+        await waitStatus(p7, /zusammengeführt und gespeichert/);
+        const ls = xcLs(dav('remote2.kdbx'), N1);
+        expect(ls?.includes('Extern') && ls.includes('Offline-Gruppe/'), 'zusammengefuehrt mit N1: ' + ls);
+        await p7.context().close();
     });
 
     await step('Keine JS-Fehler', async () => { expect(errors.length === 0, errors.join(' | ')); });
