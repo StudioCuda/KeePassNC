@@ -356,7 +356,7 @@ export class Vault {
             if (this.isInRecycleBin(e)) continue;
             if (!q) { out.push(e); continue; }
             const hay = [fieldText(e.fields.get('Title')), fieldText(e.fields.get('UserName')), fieldText(e.fields.get('URL')),
-                fieldText(e.fields.get('Notes')), (e.tags || []).join(' ')].join('\n').toLowerCase();
+                fieldText(e.fields.get('Notes')), (e.tags || []).join(' '), groupPath(e.parentGroup)].join('\n').toLowerCase();
             if (q.split(/\s+/).every((t) => hay.includes(t))) out.push(e);
         }
         return out.sort((a, b) => fieldText(a.fields.get('Title')).localeCompare(fieldText(b.fields.get('Title')), 'de'));
