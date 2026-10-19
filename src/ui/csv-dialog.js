@@ -42,7 +42,8 @@ export function openCsv() {
     const exportBtn = h('button', { type: 'button', id: 'csv-export', disabled: true }, icon('download'), h('span', { text: t('csv.export') }));
     sure.addEventListener('change', () => { exportBtn.disabled = !sure.checked; });
     exportBtn.addEventListener('click', () => {
-        download(state.source.name.replace(/\.kdbx$/i, '') + '.csv', toCsv(v.csvRows()), 'text/csv;charset=utf-8');
+        // Bewusst application/octet-stream wie alle Downloads der App: Text-Typen zeigt WebKit selbst an, statt sie nur zu speichern
+        download(state.source.name.replace(/\.kdbx$/i, '') + '.csv', toCsv(v.csvRows()));
         m.close();
     });
 
