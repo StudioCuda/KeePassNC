@@ -175,11 +175,11 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .login-form { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: var(--shadow-2); }
 .login-alt { text-align: center; font-size: 13px; }
 .login.solo { position: relative; isolation: isolate; overflow: hidden; grid-template-columns: 1fr;
-    background: --solo-spot: 16%; --solo-spot2: 10%; --solo-glow: 24%; --solo-mark: .11;
+    background: --solo-spot: 16%; --solo-spot2: 10%; --solo-glow: 24%; --solo-mark: .11; --solo-noise: .05;
     background: radial-gradient(760px 560px at 50% 36%, color-mix(in srgb, var(--accent) var(--solo-spot), transparent), transparent 72%), radial-gradient(980px 640px at 105% -8%, color-mix(in srgb, var(--accent) var(--solo-spot2), transparent), transparent 66%); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .login.solo { --solo-spot: 8%; --solo-spot2: 7%; --solo-glow: 9%; --solo-mark: .1; } }
-:root[data-theme="dark"] .login.solo { --solo-spot: 8%; --solo-spot2: 7%; --solo-glow: 9%; --solo-mark: .1; }
-.login.solo::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .05;
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .login.solo { --solo-spot: 8%; --solo-spot2: 7%; --solo-glow: 9%; --solo-mark: .1; --solo-noise: .025; } }
+:root[data-theme="dark"] .login.solo { --solo-spot: 8%; --solo-spot2: 7%; --solo-glow: 9%; --solo-mark: .1; --solo-noise: .025; }
+.login.solo::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: var(--solo-noise);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
 .login-mark { position: absolute; z-index: -1; right: -22vh; bottom: -24vh; width: 124vh; height: 124vh; color: var(--accent); opacity: var(--solo-mark); pointer-events: none;
     -webkit-mask-image: linear-gradient(150deg, rgb(0 0 0 / .2) 8%, #000 38%, rgb(0 0 0 / .24) 58%, #000 82%); mask-image: linear-gradient(150deg, rgb(0 0 0 / .2) 8%, #000 38%, rgb(0 0 0 / .24) 58%, #000 82%); } /* Mattglanz: eine helle Bahn quer ueber dem Strich */
