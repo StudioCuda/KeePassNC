@@ -4,6 +4,7 @@ import * as kdbxweb from '../vendor/kdbxweb/lib/index';
 import { argon2 } from './argon2.js';
 import { ConflictError, DavError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
+import { excluded } from './core/audit.js';
 import { isOutOfMemory, isPasskeyField, isSystemField, uuidHex, valueText } from './core/util.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
@@ -192,7 +193,7 @@ export class Vault {
     /**
      * Wendet Formularwerte auf einen Eintrag an (neuer Eintrag: entry === null -> in group anlegen).
      * data: {Title, UserName, Password, URL, Notes, tags: string[], custom: [{name, value, protect}], expires?: boolean, expiryTime?: Date|null, otp?: string,
-     *   icon?: number, customIcon?: string|null} (Symbol: siehe _setIcon)
+     *   icon?: number, customIcon?: string|null, excludeReports?: boolean} (Symbol: siehe _setIcon)
      * Unveraendert bleibt alles, was der Editor nicht anzeigt (Passkey-Felder, Browser-Daten, Farben, Auto-Type ...). Ohne tatsaechliche Aenderung
      * entsteht kein Verlaufseintrag (wie in KeePassXC).
      */
@@ -227,6 +228,11 @@ export class Vault {
             if (data.expires) entry.times.expiryTime = data.expiryTime || new Date(Date.now() + 365 * 86400000);
         }
         this._setIcon(entry, data);
+        if (data.excludeReports !== undefined && data.excludeReports !== excluded(entry)) { // beide Schreibweisen, damit KeePass 2 und KeePassXC es sehen
+            entry.qualityCheck = data.excludeReports ? false : undefined;
+            if (data.excludeReports) (entry.customData ??= new Map()).set('KnownBad', { value: 'True' });
+            else entry.customData?.delete('KnownBad');
+        }
         entry.times.update();
         this.dirty = true;
         return entry;
@@ -247,7 +253,7 @@ export class Vault {
             if (!!data.expires !== !!entry.times.expires) return true;
             if (data.expires && (data.expiryTime?.getTime() ?? 0) !== (entry.times.expiryTime?.getTime() ?? 0)) return true;
         }
-        return this._iconDiffers(entry, data);
+        return this._iconDiffers(entry, data) || (data.excludeReports !== undefined && data.excludeReports !== excluded(entry));
     }
 
     /** Verlaufseintrag anlegen und gemaess Datenbank-Einstellungen kuerzen (Standard 10 Staende / 6 MiB, aelteste zuerst). */

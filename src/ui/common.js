@@ -2,6 +2,7 @@
 import { estimateBits, strengthLabel } from '../core/entropy.js';
 import { parseQuery, matches } from '../core/search.js';
 import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolveRefs } from '../core/util.js';
+import { excluded } from '../core/audit.js';
 import { t } from '../i18n.js';
 import { ctx } from './ctx.js';
 import { h, icon, pathIcon } from './dom.js';
@@ -18,7 +19,7 @@ export function bitsOf(pw) {
  * nicht aufloesbare bleiben als {REF:…} stehen. Der Editor arbeitet weiter mit dem Rohwert, damit die Referenz erhalten bleibt.
  */
 export const resolvedField = (e, name) => { const v = fieldOf(e, name); return v.includes('{REF:') ? resolveRefs(v, allRealEntries()) : v; };
-export const isWeak = (e) => { const pw = resolvedField(e, 'Password'); return !!pw && !pw.includes('{REF:') && bitsOf(pw) < 75; };
+export const isWeak = (e) => { const pw = resolvedField(e, 'Password'); return !!pw && !pw.includes('{REF:') && !excluded(e) && bitsOf(pw) < 75; };
 export { strengthLabel };
 
 const hueOf = (s) => { let x = 0; for (const c of s) x = (x * 31 + c.codePointAt(0)) >>> 0; return x % 12; };
