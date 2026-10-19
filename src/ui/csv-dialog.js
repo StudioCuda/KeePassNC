@@ -33,8 +33,8 @@ export function openCsv() {
     importBtn.addEventListener('click', () => {
         const group = v.importEntries(found.entries, t('csv.group', { name: found.name }));
         m.close();
-        setFilter({ type: 'group', group });
-        changed();
+        setFilter({ type: 'group', group }, { refresh: false });
+        changed(); // zeichnet einmal neu, mit dem neuen Filter
         toast(t('csv.imported', { n: found.entries.length, group: group.name }));
     });
 
@@ -42,7 +42,6 @@ export function openCsv() {
     const exportBtn = h('button', { type: 'button', id: 'csv-export', disabled: true }, icon('download'), h('span', { text: t('csv.export') }));
     sure.addEventListener('change', () => { exportBtn.disabled = !sure.checked; });
     exportBtn.addEventListener('click', () => {
-        // Bewusst application/octet-stream wie alle Downloads der App: Text-Typen zeigt WebKit selbst an, statt sie nur zu speichern
         download(state.source.name.replace(/\.kdbx$/i, '') + '.csv', toCsv(v.csvRows()));
         m.close();
     });
