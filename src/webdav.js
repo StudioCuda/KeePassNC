@@ -154,26 +154,43 @@ export class DavFile {
     /** Loescht alle Sicherungskopien dieser Datei (gleiches Muster wie pruneBackups). Liefert die Namen der geloeschten Dateien. */
     deleteBackups() { return this._deleteBackups(0); }
 
-    async _deleteBackups(keep) {
+    /** Der Ordner der Datei: Adresse (mit "/" am Ende), eigener Dateiname und alle Eintraege [{name, modified}] (leer, wenn der Server nicht listet). */
+    async _listDir() {
         const u = new URL(this.url, typeof location !== 'undefined' ? location.href : undefined);
         const slash = u.pathname.lastIndexOf('/');
-        const dirPath = u.pathname.slice(0, slash + 1);
+        const dir = u.origin + u.pathname.slice(0, slash + 1);
         const base = decodeURIComponent(u.pathname.slice(slash + 1));
-        const res = await this._fetch(u.origin + dirPath, { method: 'PROPFIND', headers: { Depth: '1', 'Content-Type': 'application/xml' }, body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:getlastmodified/></d:prop></d:propfind>' });
-        if (res.status !== 207) return [];
+        const res = await this._fetch(dir, { method: 'PROPFIND', headers: { Depth: '1', 'Content-Type': 'application/xml' }, body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:getlastmodified/></d:prop></d:propfind>' });
+        if (res.status !== 207) return { dir, base, files: [] };
         const doc = new DOMParser().parseFromString(await res.text(), 'application/xml');
+        const files = Array.from(doc.getElementsByTagNameNS('DAV:', 'response')).map((r) => ({
+            name: decodeURIComponent((r.getElementsByTagNameNS('DAV:', 'href')[0]?.textContent || '').replace(/\/+$/, '').split('/').pop() || ''),
+            modified: new Date(r.getElementsByTagNameNS('DAV:', 'getlastmodified')[0]?.textContent || NaN)
+        }));
+        return { dir, base, files };
+    }
+
+    /** Andere .kdbx-Dateien im selben Ordner (z. B. "(conflicted copy)" der Nextcloud-Clients), neueste zuerst, je als DavFile. */
+    async siblings() {
+        const { dir, base, files } = await this._listDir();
+        return files.filter((f) => /\.kdbx$/i.test(f.name) && f.name !== base)
+            .sort((a, b) => (b.modified.getTime() || 0) - (a.modified.getTime() || 0))
+            .map((f) => ({ name: f.name, modified: f.modified, file: new DavFile({ url: dir + encodeURIComponent(f.name), auth: this.auth }) }));
+    }
+
+    async _deleteBackups(keep) {
+        const { dir, base, files } = await this._listDir();
         const re = new RegExp('^' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\.(conflict-)?(\\d{8}-\\d{6})\\.bak$');
         const groups = { normal: [], conflict: [] };
-        for (const el of Array.from(doc.getElementsByTagNameNS('DAV:', 'href'))) {
-            const last = decodeURIComponent((el.textContent || '').replace(/\/+$/, '').split('/').pop() || '');
-            const m = re.exec(last);
-            if (m) groups[m[1] ? 'conflict' : 'normal'].push({ name: last, stamp: m[2] });
+        for (const { name } of files) {
+            const m = re.exec(name);
+            if (m) groups[m[1] ? 'conflict' : 'normal'].push({ name, stamp: m[2] });
         }
         const removed = [];
         for (const list of Object.values(groups)) {
             list.sort((a, b) => b.stamp.localeCompare(a.stamp) || b.name.localeCompare(a.name));
             for (const f of list.slice(keep)) {
-                const r = await this._fetch(u.origin + dirPath + encodeURIComponent(f.name), { method: 'DELETE' });
+                const r = await this._fetch(dir + encodeURIComponent(f.name), { method: 'DELETE' });
                 if (r.ok || r.status === 404) removed.push(f.name);
             }
         }
