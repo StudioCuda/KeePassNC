@@ -94,7 +94,8 @@ async function main() {
         return {
             accent: cs('#open-btn').backgroundColor, onAccent: cs('#open-btn').color, theme: document.documentElement.dataset.theme || '',
             accentMode: document.documentElement.dataset.accent || '', contrast: document.documentElement.dataset.contrast || '',
-            header: hdr ? { bg: getComputedStyle(hdr).backgroundColor, fg: getComputedStyle(hdr).color } : null
+            header: hdr ? { bg: getComputedStyle(hdr).backgroundColor, fg: getComputedStyle(hdr).color } : null,
+            frame: { bg: getComputedStyle(document.body).backgroundColor, image: getComputedStyle(document.body).backgroundImage }
         };
     });
 
@@ -106,6 +107,7 @@ async function main() {
         expect(l.accent === rgb(want.accent), `Akzent ${l.accent}, erwartet ${rgb(want.accent)}`);
         expect(contrast(toHex(l.onAccent), toHex(l.accent)) >= 4.5, `Text auf Akzent ${l.onAccent} / ${l.accent}`);
         expect(l.header?.bg === rgb('#2e7d4f') && l.header.fg === rgb('#ffffff'), 'Kopfleiste ' + JSON.stringify(l.header));
+        expect(l.frame.bg === l.header.bg && l.frame.image === 'none', 'Rahmen hinter dem Panel einfarbig wie die Kopfleiste (keine Naht) ' + JSON.stringify(l.frame));
         expect(await p.locator('.login.solo').count() === 1 && await p.locator('.login-hero').count() === 0, 'in Nextcloud keine Hero-Flaeche (kein Nachtblau)');
         await close();
         return `${want.accent} / ${toHex(l.onAccent)}`;
