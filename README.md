@@ -96,7 +96,8 @@ KeeWeb, the KeePass app many people used inside Nextcloud, stopped getting updat
 with the same idea: your passwords stay in a normal KeePass file on your own server, and you open them in the browser.
 
 What it doesn't do: fill in passwords on websites, or create new passkeys for websites. Both need a browser extension,
-which is a different project.
+which is a different project. Databases locked with a hardware key (YubiKey challenge-response in KeePassXC) don't open
+either: browsers can't talk to the key that way.
 
 ## Contributing
 

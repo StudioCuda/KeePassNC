@@ -4,6 +4,7 @@ import * as kdbxweb from '../vendor/kdbxweb/lib/index';
 import { argon2 } from './argon2.js';
 import { ConflictError, DavError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
+import { excluded } from './core/audit.js';
 import { isOutOfMemory, isPasskeyField, isSystemField, uuidHex, valueText } from './core/util.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
@@ -43,7 +44,8 @@ export function cryptoSettings(header) {
 
 /** Anzeigenamen zu Vault.securitySettings(); KDF_LABEL ist auch das Format, das keyfile-store.js erwartet. */
 export const KDF_LABEL = { argon2d: 'Argon2d', argon2id: 'Argon2id', aes: 'AES-KDF' };
-const CIPHER_LABEL = { aes: 'AES-256', chacha20: 'ChaCha20' };
+export const CIPHER_LABEL = { aes: 'AES-256', chacha20: 'ChaCha20', twofish: 'Twofish' };
+const CIPHER_ID = { aes: Consts.CipherId.Aes, chacha20: Consts.CipherId.ChaCha20, twofish: Consts.CipherId.Twofish };
 
 /** Neue Schluesseldatei im XML-Format 2.0 (wie KeePassXC, .keyx), Schluessel: 256 Bit aus crypto.getRandomValues. */
 export async function createKeyfile() {
@@ -128,7 +130,7 @@ export class Vault {
             if (e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) {
                 throw new VaultError('Falsches Master-Passwort oder falsche Schluesseldatei.', 'e.badkey');
             }
-            if (e instanceof KdbxError && (e.code === Consts.ErrorCodes.BadSignature || e.code === Consts.ErrorCodes.InvalidVersion)) {
+            if (e instanceof KdbxError && [Consts.ErrorCodes.BadSignature, Consts.ErrorCodes.InvalidVersion, Consts.ErrorCodes.Unsupported].includes(e.code)) {
                 throw new VaultError('Das ist keine gueltige KDBX-Datei (oder eine nicht unterstuetzte Version).', 'e.badfile');
             }
             throw e;
@@ -260,7 +262,7 @@ export class Vault {
     /**
      * Wendet Formularwerte auf einen Eintrag an (neuer Eintrag: entry === null -> in group anlegen).
      * data: {Title, UserName, Password, URL, Notes, tags: string[], custom: [{name, value, protect}], expires?: boolean, expiryTime?: Date|null, otp?: string,
-     *   icon?: number, customIcon?: string|null} (Symbol: siehe _setIcon)
+     *   icon?: number, customIcon?: string|null, excludeReports?: boolean} (Symbol: siehe _setIcon)
      * Unveraendert bleibt alles, was der Editor nicht anzeigt (Passkey-Felder, Browser-Daten, Farben, Auto-Type ...). Ohne tatsaechliche Aenderung
      * entsteht kein Verlaufseintrag (wie in KeePassXC).
      */
@@ -295,6 +297,11 @@ export class Vault {
             if (data.expires) entry.times.expiryTime = data.expiryTime || new Date(Date.now() + 365 * 86400000);
         }
         this._setIcon(entry, data);
+        if (data.excludeReports !== undefined && data.excludeReports !== excluded(entry)) { // beide Schreibweisen, damit KeePass 2 und KeePassXC es sehen
+            entry.qualityCheck = data.excludeReports ? false : undefined;
+            if (data.excludeReports) (entry.customData ??= new Map()).set('KnownBad', { value: 'True' });
+            else entry.customData?.delete('KnownBad');
+        }
         entry.times.update();
         this.dirty = true;
         return entry;
@@ -315,7 +322,7 @@ export class Vault {
             if (!!data.expires !== !!entry.times.expires) return true;
             if (data.expires && (data.expiryTime?.getTime() ?? 0) !== (entry.times.expiryTime?.getTime() ?? 0)) return true;
         }
-        return this._iconDiffers(entry, data);
+        return this._iconDiffers(entry, data) || (data.excludeReports !== undefined && data.excludeReports !== excluded(entry));
     }
 
     /** Verlaufseintrag anlegen und gemaess Datenbank-Einstellungen kuerzen (Standard 10 Staende / 6 MiB, aelteste zuerst). */
@@ -348,10 +355,10 @@ export class Vault {
     }
 
     // ---------------------------------------------------------------- Sicherheits-Einstellungen (Dateikopf)
-    /** {version, cipher: 'aes'|'chacha20'|null, kdf: 'argon2d'|'argon2id'|'aes', memoryKiB, iterations, parallelism, rounds} */
+    /** {version, cipher: 'aes'|'chacha20'|'twofish'|null, kdf: 'argon2d'|'argon2id'|'aes', memoryKiB, iterations, parallelism, rounds} */
     securitySettings() {
         const h = this.db.header, kp = h.kdfParameters;
-        const cipher = { [Consts.CipherId.Aes]: 'aes', [Consts.CipherId.ChaCha20]: 'chacha20' }[h.dataCipherUuid?.toString()] ?? null;
+        const cipher = Object.keys(CIPHER_ID).find((c) => CIPHER_ID[c] === h.dataCipherUuid?.toString()) ?? null;
         const out = { version: h.versionMajor, cipher, kdf: 'aes', memoryKiB: null, iterations: null, parallelism: null, rounds: null };
         if (!kp) { out.rounds = Number(h.keyEncryptionRounds ?? 0); return out; }
         const id = kp.get('$UUID'), b64 = id ? btoa(String.fromCharCode(...new Uint8Array(id))) : '';
@@ -380,7 +387,7 @@ export class Vault {
         const needs4 = upgrade || kdf !== 'aes' || cipher === 'chacha20';
         if (needs4 && cur.version < 4) this.db.upgrade();
         const h = this.db.header;
-        if (cipher && cipher !== cur.cipher) h.dataCipherUuid = new KdbxUuid(cipher === 'chacha20' ? Consts.CipherId.ChaCha20 : Consts.CipherId.Aes);
+        if (cipher && cipher !== cur.cipher) h.dataCipherUuid = new KdbxUuid(CIPHER_ID[cipher]);
         if (h.versionMajor >= 4) {
             const want = kdf === 'argon2id' ? Consts.KdfId.Argon2id : kdf === 'argon2d' ? Consts.KdfId.Argon2d : Consts.KdfId.Aes;
             if (kdf !== this.securitySettings().kdf) this.db.setKdf(want);

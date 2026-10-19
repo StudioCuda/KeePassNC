@@ -278,6 +278,29 @@ async function main() {
         expect(fs.readdirSync(davRoot).filter((n) => /^vault4\.kdbx\..*\.bak$/.test(n)).length === 1, 'es darf nur eine Kopie pro Sitzung entstehen');
     });
 
+    await step('"Nicht in der Passwort-Gesundheit pruefen": KnownBad landet in der Datei, is:weak laesst den Eintrag weg, Abwaehlen nimmt es zurueck', async () => {
+        const weakRows = async () => { await page.fill('#search', 'is:weak'); await page.waitForTimeout(300); return page.locator('[data-testid=entry-row]', { hasText: 'Neu E2E' }).count(); };
+        // KeePassXC liest KnownBad, gibt es im XML-Export aber nicht aus: deshalb pykeepass als zweite Meinung
+        const knownBad = () => execFileSync('python3', ['-I', '-c', ['from pykeepass import PyKeePass', `kp = PyKeePass(${JSON.stringify(f4)}, password=${JSON.stringify(PW)})`,
+            "cd = kp.find_entries(title='Neu E2E', first=True)._element.find('CustomData')",
+            "print(any(i.findtext('Key') == 'KnownBad' and i.findtext('Value') == 'True' for i in ([] if cd is None else cd)))"].join('\n')]).toString().trim() === 'True';
+        expect(await weakRows() === 1, '"pw-neu" sollte als schwach gelten');
+        const toggle = async (on) => {
+            await page.fill('#search', ''); await page.locator('[data-testid=entry-row]', { hasText: 'Neu E2E' }).click();
+            await page.click('#edit-btn');
+            expect(await page.isChecked('#e-noreport') === !on, 'Haken stimmt vor dem Umschalten nicht');
+            await page.setChecked('#e-noreport', on);
+            await page.click('#apply-btn'); await page.click('#save-btn'); await waitStatus(page, /^Gespeichert\./);
+        };
+        await toggle(true);
+        expect(knownBad(), 'KnownBad fehlt in der Datei');
+        expect(await weakRows() === 0, 'ausgeschlossener Eintrag steht noch unter is:weak');
+        await toggle(false);
+        expect(!knownBad(), 'KnownBad nach dem Abwaehlen noch da');
+        expect(await weakRows() === 1, 'nach dem Abwaehlen wieder schwach');
+        await page.fill('#search', '');
+    });
+
     await step('Mehrzeilige Zusatzfelder (offen und geschuetzt): Anzeige mit Umbruechen, Bearbeiten behaelt sie, KeePassXC liest sie', async () => {
         const plain = 'Zeile 1\nZeile 2\n\nZeile 4', secret = 'geheim A\ngeheim B';
         await page.fill('#search', ''); await page.locator('[data-testid=entry-row]', { hasText: 'Neu E2E' }).click();
@@ -424,6 +447,31 @@ async function main() {
         expect(/KDBX 4/.test(info) && /ChaCha20/.test(info) && /Argon2id/.test(info) && /64 MiB/.test(info), 'Info nach dem Neuladen: ' + info);
         await q.context().close();
         return dbi.split('\n').filter((l) => /^(Cipher|KDF)/.test(l)).join(', ');
+    });
+
+    await step('Sicherheit: Twofish (bleibt KDBX 3.1), KeePassXC liest und bearbeitet, die App oeffnet das Ergebnis', async () => {
+        const fTf = path.join(davRoot, 'twofish.kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault3.kdbx'), fTf);
+        const p = await newPage();
+        await login(p, 'twofish.kdbx'); await rows(p).first().waitFor();
+        await openDbSettings(p);
+        await p.selectOption('#db-cipher', 'twofish');
+        expect(!(await p.isChecked('#db-upgrade')), 'Twofish braucht kein KDBX 4');
+        await p.click('#db-apply');
+        await p.waitForFunction(() => !document.querySelector('#db-settings'), null, { timeout: 30000 });
+        await p.keyboard.press('Escape');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./, 30000);
+        await p.context().close();
+        expect(kdbxVersion(fTf) === '3.1', 'Version: ' + kdbxVersion(fTf));
+        expect(/Cipher: Twofish/i.test(xc(['db-info', fTf])), 'KeePassXC db-info:\n' + xc(['db-info', fTf]));
+        await new Promise((r) => setTimeout(r, 1100)); // KeePassXC nicht in der Sekunde der letzten Aenderung bearbeiten lassen
+        xc(['edit', fTf, 'Konto', '-u', 'von-keepassxc']);
+        const q = await newPage();
+        await login(q, 'twofish.kdbx'); await rows(q).first().waitFor();
+        expect(/von-keepassxc/.test(await q.locator('[data-testid=entry-row]', { hasText: 'Konto' }).innerText()), 'Aenderung von KeePassXC fehlt');
+        await q.click('#reports-btn'); await q.click('#rep-tab-info');
+        expect(/Twofish/.test(await q.locator('.report-body').innerText()), 'Info zeigt kein Twofish');
+        await q.context().close();
     });
 
     await step('Sicherheit: Rueckfrage bei "schwaecher" und bei 1 GiB, Abbrechen aendert nichts; "≈ 1 s" schlaegt nie weniger Arbeit vor', async () => {

@@ -1,6 +1,7 @@
 // Eintrag anlegen/bearbeiten. Ungezeigte Felder (Passkeys, Browser-Daten, Auto-Type ...) bleiben im Vault unveraendert (siehe Vault.applyEntry).
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
 import { isSystemField, entryExpiry } from '../core/util.js';
+import { excluded } from '../core/audit.js';
 import { t } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
 import { h, icon, iconBtn } from './dom.js';
@@ -34,7 +35,8 @@ export function renderEditor(host) {
         tags: h('input', { id: 'e-tags', value: (entry?.tags || []).join(', '), autocomplete: 'off', list: 'tag-suggestions' }),
         otp: h('input', { id: 'e-otp', value: val('otp'), placeholder: 'otpauth://totp/…  /  Base32', autocomplete: 'off', spellcheck: 'false', class: 'mono' }),
         expires: h('input', { id: 'e-expires', type: 'checkbox', checked: !!entry?.times.expires }),
-        expiry: h('input', { id: 'e-expiry', type: 'date' })
+        expiry: h('input', { id: 'e-expiry', type: 'date' }),
+        excludeReports: h('input', { id: 'e-noreport', type: 'checkbox', checked: !!entry && excluded(entry) })
     };
     i.Notes.value = val('Notes');
     const exp = entryExpiry(entry || {});
@@ -102,6 +104,7 @@ export function renderEditor(host) {
                 h('div', { class: 'title-row' }, iconBtnEl, h('label', { class: 'grow' }, h('span', { text: t('f.title') }), i.Title)),
                 h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('f.user') }), i.UserName), h('label', {}, h('span', { text: t('group') }), groupSel)),
                 h('label', {}, h('span', { text: t('f.password') }), h('div', { class: 'input-group' }, i.Password, showBtn, genBtn)), meter,
+                h('label', { class: 'check' }, i.excludeReports, h('span', { text: t('f.reports') })),
                 h('label', {}, h('span', { text: t('f.url') }), i.URL)),
             h('section', { class: 'card stack' },
                 h('label', {}, h('span', { text: t('notes') }), i.Notes),
@@ -117,7 +120,8 @@ export function renderEditor(host) {
             Title: i.Title.value, UserName: i.UserName.value, Password: i.Password.value, URL: i.URL.value, Notes: i.Notes.value,
             tags: i.tags.value.split(/[,;]/).map((x) => x.trim()).filter(Boolean), custom,
             expires: i.expires.checked, expiryTime: i.expires.checked && i.expiry.value ? new Date(i.expiry.value + 'T23:59:59') : null,
-            ...commitIconSel(iconSel)
+            ...commitIconSel(iconSel),
+            excludeReports: i.excludeReports.checked
         };
         if (i.expires.checked && entry?.times.expires && i.expiry.value === dateStr(entry.times.expiryTime)) data.expiryTime = entry.times.expiryTime; // Uhrzeit unveraendert lassen
         if (i.otp.value.trim() !== val('otp')) {
