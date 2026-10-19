@@ -9,6 +9,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - "Leave out of password health" in the entry editor. KeePassNC already respected the flag when KeePass 2 or KeePassXC had set it, you just couldn't set it here. Handy for that four-digit PIN that's weak on purpose. It's written in both dialects, `QualityCheck` for KeePass 2 (KDBX 4.1) and `KnownBad` for KeePassXC, and the "Weak passwords" filter skips such entries too.
 
 ### Changed
+- Small wording polish: the German texts speak to you with "du" everywhere (one error message still said "Ihre"), a few messages read a bit smoother in both languages, and the English texts use the same quotes and apostrophes throughout.
 - A wrong master password now also mentions the other usual suspect: a KeePassXC database that needs a hardware key like a YubiKey. Browsers can't talk to it, so such files don't open here.
 
 ### Fixed
