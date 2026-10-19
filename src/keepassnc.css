@@ -511,3 +511,10 @@ button.primary.big.done .icon { animation: unlock-pop .26s ease-out; }
 :root[data-contrast="more"] .login.solo { background: none; } :root[data-contrast="more"] .login.solo::after, :root[data-contrast="more"] .login-mark { display: none; }
 :root[data-contrast="more"] .login.solo .login-form, :root[data-contrast="more"] .login.solo .login-form:focus-within { box-shadow: none; }
 @media (forced-colors: active) { .login.solo { background: none; } .login.solo::after, .login-mark { display: none; } .login.solo .login-form, .login.solo .login-form:focus-within { box-shadow: none; } }
+/* Nextcloud-Rahmen: der Inhalt sitzt wie bei den nativen Apps in einem abgerundeten Panel vor dem Instanzfarben-Hintergrund
+   (stable35, core/css/apps.scss: #content mit Rand 8px und Radius 16px; unter 1024px randlos, oben mit 8px Rundung) */
+body.has-nch { --nch-gap: 8px; --nch-radius: 16px; background: linear-gradient(160deg, color-mix(in srgb, var(--nch-bg, #0b1f3b) 88%, #fff) 0%, var(--nch-bg, #0b1f3b) 42%, color-mix(in srgb, var(--nch-bg, #0b1f3b) 72%, #000) 100%) fixed; }
+body.has-nch .login, body.has-nch .shell { margin: 0 var(--nch-gap) var(--nch-gap); border-radius: var(--nch-radius); overflow: hidden; background-color: var(--bg); }
+body.has-nch .login { min-height: calc(100vh - var(--nch-h) - var(--nch-gap)); }
+body.has-nch .shell { height: calc(100vh - var(--nch-h) - var(--nch-gap)); height: calc(100dvh - var(--nch-h) - var(--nch-gap)); }
+@media (max-width: 1023px) { body.has-nch { --nch-gap: 0px; --nch-radius: 8px 8px 0 0; } }
