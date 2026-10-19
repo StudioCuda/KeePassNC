@@ -108,6 +108,9 @@ on purpose: browsers can't talk to the key that way.
 Bug reports, odd KDBX files and patches are welcome.
 Building from source, running the tests and the standalone page (without Nextcloud) are described in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
+Not a coder? KeePassNC is free and stays that way. If it saves you some nerves, you're welcome to
+[sponsor the project on GitHub](https://github.com/sponsors/StudioCuda). Totally optional, a bug report helps just as much.
+
 Made with AI help: KeePassNC is built with [Claude Code](https://claude.com/claude-code), and the commits say so. Every change
 goes through the same test suite against KeePassXC, three browsers and real Nextcloud installs.
 That's a safety net, not an audit, which is why [`SECURITY.md`](SECURITY.md) still asks you to keep a KeePassXC copy around.
