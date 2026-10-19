@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Added
+- The search also matches the group path, so typing a folder name finds what's inside it (as in KeePass 2.60).
 ### Fixed
 - On phones the last entry in the list scrolls clear of the + button instead of hiding behind it.
 
