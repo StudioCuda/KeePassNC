@@ -38,9 +38,10 @@ async function main() {
         await c.addInitScript(uncaughtWatch);
         await c.addInitScript(() => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'off' })); } catch {} });
         const p = await c.newPage();
-        // Blockiert CORS eine Anfrage, meldet WebKit das teils als Seitenfehler, obwohl die App ihn abfaengt (knownFetchNoise);
-        // nicht abgefangene Fehler kommen ueber uncaughtWatch trotzdem an
-        p.on('pageerror', (e) => { if (!knownFetchNoise(e.message)) errors.push(String(e)); });
+        // Blockiert CORS eine Anfrage, meldet WebKit das als Seitenfehler, obwohl die App ihn abfaengt (knownFetchNoise); nicht
+        // abgefangene Fehler kommen ueber uncaughtWatch trotzdem an. Playwright teilt diese Meldung am ersten ":" ("http:") in name
+        // und message, deshalb zaehlt der ganze Text.
+        p.on('pageerror', (e) => { if (!knownFetchNoise(String(e)) && !knownFetchNoise(e.message)) errors.push(String(e)); });
         p.on('console', (m) => { if (m.type() === 'error' && m.text().startsWith('UNCAUGHT: ')) errors.push(m.text()); });
         return p;
     };
