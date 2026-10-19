@@ -1,5 +1,6 @@
 // Test "Neue Datenbank": Pruefungen in der Maske, nie eine vorhandene Datei ueberschreiben, Anlegen ueber WebDAV, nur mit neuer
-// Schluesseldatei und als lokale Datei. Ergebnis jeweils mit keepassxc-cli gegengeprueft (oeffnet, AES-256, Argon2id mit 64 MiB).
+// Schluesseldatei und als lokale Datei; im Nextcloud-Modus (Nachbildung der App-Seite) nur Name und Ordner, mit Ordner-Browser.
+// Ergebnis jeweils mit keepassxc-cli gegengeprueft (oeffnet, AES-256, Argon2id mit 64 MiB).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -45,7 +46,7 @@ async function step(name, fn) {
 const expect = (c, m) => { if (!c) throw new Error(m); };
 
 async function main() {
-    const { stop, port } = await startServer({ webRoot: path.join(root, 'web'), davRoot });
+    const { stop, port } = await startServer({ webRoot: path.join(root, 'web'), davRoot, nc: { template: path.join(root, 'nextcloud-app/keepassnc/templates/page.html') } });
     const base = `http://127.0.0.1:${port}`;
     const browser = await launchBrowser();
     const errors = [];
@@ -158,7 +159,7 @@ async function main() {
     await step('Lokale Datei: wird heruntergeladen und geht in KeePassXC auf; Speichern laedt sie neu herunter', async () => {
         await openNew(p5);
         await p5.locator('input[name=new-src][value=file]').check({ force: true });
-        await p5.fill('#new-filename', 'lokal'); await fillPw(p5, PW);
+        await p5.fill('#new-name', 'lokal'); await fillPw(p5, PW);
         const [dl] = await Promise.all([p5.waitForEvent('download'), p5.click('#new-btn')]);
         expect(dl.suggestedFilename() === 'lokal.kdbx', 'Dateiname ' + dl.suggestedFilename());
         const out = path.join(tmp, 'lokal.kdbx'); await dl.saveAs(out);
@@ -171,6 +172,59 @@ async function main() {
         const out2 = path.join(tmp, 'lokal2.kdbx'); await dl2.saveAs(out2);
         expect(xcLs(out2, PW)?.includes('Lokal-Gruppe/'), 'gespeicherte Datei ohne neue Gruppe');
         await p5.context().close();
+    });
+
+    // ---------- Nextcloud-Modus: Name + Ordner statt Pfad
+    const ncApp = `${base}/index.php/apps/keepassnc/`;
+    fs.mkdirSync(dav('Privat/Alt'), { recursive: true });
+    fs.copyFileSync(dav('da.kdbx'), dav('Privat/Passwörter.kdbx'));
+    const ncWait = async (p, re) => {
+        try { await p.waitForFunction((src) => new RegExp(src).test(document.querySelector('#new-name-note')?.hidden === false ? document.querySelector('#new-name-note').textContent : ''), re.source, { timeout: 15000 }); }
+        catch { throw new Error(`Hinweis ${re}: "${await p.locator('#new-name-note').innerText().catch(() => '?')}"`); }
+    };
+    const p6 = await newPage();
+    await step('Nextcloud, aus "+ Neu": Name und Ordner vorbelegt, kein Pfadfeld; vergebener Name wird sofort gemeldet', async () => {
+        await p6.goto(`${ncApp}?new=${encodeURIComponent('/Privat/Tresor.kdbx')}`);
+        await p6.locator('#new-form').waitFor();
+        expect(await p6.inputValue('#new-name') === 'Tresor', 'Name: ' + await p6.inputValue('#new-name'));
+        expect(await p6.locator('#new-folder').innerText() === 'Privat', 'Ordner: ' + await p6.locator('#new-folder').innerText());
+        expect(await p6.locator('#new-path, #new-url').count() === 0 || !(await p6.locator('#new-url').isVisible()), 'kein Pfad- oder Adressfeld');
+        await p6.fill('#new-name', 'Passwörter.kdbx');
+        await ncWait(p6, /gibt es in diesem Ordner schon/);
+        await p6.fill('#new-name', 'Tresor');
+        await p6.waitForFunction(() => document.querySelector('#new-name-note').hidden);
+    });
+
+    await step('Ordner-Browser: Brotkrumen, Unterordner, neuer Ordner, "Hier speichern"; angelegt dort, Adresse wird ?open=', async () => {
+        await p6.click('#new-folder-btn');
+        await p6.locator('#folder-picker').waitFor();
+        await p6.locator('.folder-item[data-name="Alt"]').waitFor();
+        expect(await p6.locator('.folder-item[data-name="Passwörter.kdbx"]').isDisabled(), '.kdbx soll ausgegraut dabeistehen');
+        await p6.locator('#folder-crumbs button', { hasText: 'Alle Dateien' }).click();
+        await p6.locator('.folder-item[data-name="Privat"]').waitFor();
+        await p6.locator('.folder-item[data-name="Privat"]').click();
+        await p6.click('#folder-new'); await p6.fill('#prompt-input', 'Neu 2026'); await p6.click('#prompt-ok');
+        await p6.waitForFunction(() => /Neu 2026/.test(document.querySelector('#folder-crumbs')?.textContent || ''));
+        expect(fs.statSync(dav('Privat/Neu 2026')).isDirectory(), 'Ordner nicht angelegt');
+        await p6.click('#folder-ok');
+        expect(await p6.locator('#new-folder').innerText() === 'Privat › Neu 2026', 'Ordner: ' + await p6.locator('#new-folder').innerText());
+        await fillPw(p6, PW);
+        await p6.click('#new-btn'); await waitOpened(p6, 60000);
+        expect(xcLs(dav('Privat/Neu 2026/Tresor.kdbx'), PW) !== null, 'KeePassXC oeffnet die neue Datei nicht');
+        expect(new URL(p6.url()).searchParams.get('open') === '/Privat/Neu 2026/Tresor.kdbx', 'Adresse: ' + p6.url());
+        await p6.context().close();
+    });
+
+    const p7 = await newPage();
+    await step('Nextcloud, von der Anmeldung: Ordner der zuletzt geoeffneten Datei, freier Name statt eines vergebenen', async () => {
+        await p7.goto(ncApp);
+        await p7.evaluate(() => localStorage.setItem('kpnc.ncfile', '/Privat/Passwörter.kdbx'));
+        await p7.goto(ncApp);
+        await p7.click('#new-db-link'); await p7.locator('#new-form').waitFor();
+        expect(await p7.locator('#new-folder').innerText() === 'Privat', 'Ordner: ' + await p7.locator('#new-folder').innerText());
+        await p7.waitForFunction(() => document.querySelector('#new-name')?.value === 'Passwörter (2)', null, { timeout: 15000 })
+            .catch(async () => { throw new Error('Name: ' + await p7.inputValue('#new-name')); });
+        await p7.context().close();
     });
 
     await step('Keine JS-Fehler', async () => { expect(errors.length === 0, errors.join(' | ')); });

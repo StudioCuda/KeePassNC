@@ -13,6 +13,7 @@ import { h, icon, iconBtn, confirmDialog } from './dom.js';
 import { startTimers, ensureOfflineApp, refreshDirtyIndicator } from './session.js';
 import { newPasswordFields, newKeyfileFlow, readFile } from './new-credentials.js';
 import { trialRun } from './db-settings.js';
+import { pickFolder, folderLabel, joinPath } from './folder-picker.js';
 import { loginHero } from './login.js';
 import { openSettings } from './settings-dialog.js';
 
@@ -20,28 +21,75 @@ const { state } = ctx;
 const withExt = (s) => (/\.kdbx$/i.test(s) ? s : s + '.kdbx');
 const baseName = (p) => p.split('/').pop().replace(/\.kdbx$/i, '');
 
-/** Ohne Ordner (bzw. in Nextcloud ohne ?new=) landet die Datei im Benutzerverzeichnis. */
+const splitPath = (p) => { const i = p.lastIndexOf('/'); return { folder: p.slice(0, i) || '/', name: p.slice(i + 1) }; };
+
+/**
+ * In Nextcloud nur Name und Ordner: der Ordner kommt aus "+ Neu" in Dateien (?new=), sonst aus der zuletzt geoeffneten Datenbank,
+ * sonst das Hauptverzeichnis; [Aendern] oeffnet den Ordner-Browser. Ist der Name dort schon vergeben, sagt die Maske das gleich
+ * (und schlaegt selbst einen freien vor, solange niemand etwas eingetippt hat). Ohne Nextcloud-App: die WebDAV-Adresse der Datei.
+ */
 export function showCreate() {
     const NC = ctx.NC;
     const mode = pref('mode');
     const defName = t('new.file.default');
-    const pathInput = h('input', { id: 'new-path', type: 'text', value: NC?.newFile || `/${defName}`, autocomplete: 'off', spellcheck: 'false' });
+    const defBase = baseName(defName);
+    let folder = '/', startName = defBase, touched = false;
+    if (NC?.newFile) { const x = splitPath(normalizeUserPath(NC.newFile)); folder = x.folder; startName = baseName(x.name) || defBase; touched = true; }
+    else if (NC && pref('ncfile')) folder = splitPath(normalizeUserPath(pref('ncfile'))).folder;
+    const auth = NC ? nextcloudAuth(NC) : null;
     const urlInput = h('input', { id: 'new-url', type: 'url', placeholder: `https://cloud.example.org/remote.php/dav/files/NAME/${defName}`, value: '', autocomplete: 'off' });
     const userInput = h('input', { id: 'new-user', type: 'text', value: pref('user'), autocomplete: 'username' });
     const passInput = h('input', { id: 'new-pass', type: 'password', autocomplete: 'current-password' });
-    const nameInput = h('input', { id: 'new-filename', type: 'text', value: defName, autocomplete: 'off', spellcheck: 'false' });
-    const davBox = NC
-        ? h('div', { class: 'stack' }, h('label', {}, h('span', { text: t('new.nc.path') }), pathInput))
-        : h('div', { class: 'stack' },
-            h('label', {}, h('span', { text: t('new.dav.url') }), urlInput),
-            h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('login.dav.user') }), userInput), h('label', {}, h('span', { text: t('login.dav.pass') }), passInput)),
-            h('p', { class: 'hint', text: t('login.dav.hint') }));
-    const fileBox = h('div', { class: 'stack' }, h('label', {}, h('span', { text: t('new.file.name') }), nameInput), h('p', { class: 'hint', text: t('new.file.hint') }));
+    const nameInput = h('input', { id: 'new-name', type: 'text', value: startName, autocomplete: 'off', spellcheck: 'false' });
+    const nameNote = h('p', { class: 'level-note warn', id: 'new-name-note', 'aria-live': 'polite', hidden: true });
+    const folderText = h('span', { class: 'grow', id: 'new-folder', text: folderLabel(folder) });
+    const folderRow = h('div', { class: 'folder-row' }, h('span', { class: 'muted', text: t('new.folder') }), icon('folder'), folderText,
+        h('button', { type: 'button', class: 'link', id: 'new-folder-btn', text: t('new.folder.change'), onclick: async () => {
+            const picked = await pickFolder({ NC, auth, start: folder });
+            if (picked === null) return;
+            folder = picked; folderText.textContent = folderLabel(folder); check();
+        } }));
+    const nameBox = h('div', { class: 'stack tight' },
+        h('label', {}, h('span', { text: t('new.name') }), h('div', { class: 'input-group' }, nameInput, h('span', { class: 'input-suffix', text: '.kdbx' }))),
+        folderRow, nameNote);
+    const urlBox = h('div', { class: 'stack' },
+        h('label', {}, h('span', { text: t('new.dav.url') }), urlInput),
+        h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('login.dav.user') }), userInput), h('label', {}, h('span', { text: t('login.dav.pass') }), passInput)),
+        h('p', { class: 'hint', text: t('login.dav.hint') }));
+    const fileHint = h('p', { class: 'hint', text: t('new.file.hint') });
     let where = mode === 'file' ? 'file' : 'dav';
-    /** Wo die Datei hinkommt (Pfad, Adresse oder Dateiname), fuer Datenbank- und Schluesseldatei-Namen. */
-    const target = () => (where === 'file' ? nameInput.value : NC ? pathInput.value : urlInput.value.split(/[?#]/)[0]).trim();
-    const seg = (value, label, ic) => h('label', { class: 'seg' }, h('input', { type: 'radio', name: 'new-src', value, checked: value === where, onchange: () => { where = value; davBox.hidden = value !== 'dav'; fileBox.hidden = value !== 'file'; kf.relabel(); } }), h('span', {}, icon(ic), label));
-    davBox.hidden = where !== 'dav'; fileBox.hidden = where !== 'file';
+    const show = () => {
+        nameBox.hidden = !NC && where === 'dav'; folderRow.hidden = !NC || where !== 'dav';
+        urlBox.hidden = !!NC || where !== 'dav'; fileHint.hidden = where !== 'file';
+        kf.relabel(); check();
+    };
+    /** Eingegebener Name ohne .kdbx; '' wenn leer oder ungueltig (Schraegstriche, "." und ".."). */
+    const nameValue = () => { const n = nameInput.value.trim().replace(/\.kdbx$/i, ''); return !n || /[/\\]/.test(n) || n === '.' || n === '..' ? '' : n; };
+    /** Wo die Datei hinkommt, fuer Datenbank- und Schluesseldatei-Namen. */
+    const target = () => (NC || where === 'file' ? nameValue() : urlInput.value.split(/[?#]/)[0].trim());
+    const seg = (value, label, ic) => h('label', { class: 'seg' }, h('input', { type: 'radio', name: 'new-src', value, checked: value === where, onchange: () => { where = value; show(); } }), h('span', {}, icon(ic), label));
+
+    // --- Name schon vergeben? Ordnerinhalt einmal je Ordner holen; Fehler beim Listen stoeren nicht, das Anlegen prueft ohnehin.
+    const listings = new Map();
+    let checkTimer = null;
+    function check() {
+        clearTimeout(checkTimer);
+        if (!NC || where !== 'dav') { nameNote.hidden = true; return; }
+        checkTimer = setTimeout(async () => {
+            const f = folder;
+            if (!listings.has(f)) listings.set(f, new DavFile({ url: davUrlFor(NC, f), auth }).list().then((l) => new Set(l.map((x) => x.name.toLowerCase())), () => null));
+            const names = await listings.get(f);
+            if (f !== folder || !names) return;
+            const taken = (n) => names.has((n + '.kdbx').toLowerCase());
+            if (!touched && taken(nameValue())) {
+                let i = 2; while (taken(`${defBase} (${i})`)) i++;
+                nameInput.value = `${defBase} (${i})`; kf.relabel();
+            }
+            nameNote.hidden = !taken(nameValue());
+            nameNote.textContent = t('new.name.taken', { name: nameValue() + '.kdbx' });
+        }, 250);
+    }
+    nameInput.addEventListener('input', () => { touched = true; check(); });
 
     const pwf = newPasswordFields('new');
     const kfPick = h('input', { id: 'new-kf-pick', type: 'file' });
@@ -49,7 +97,7 @@ export function showCreate() {
     kfPick.addEventListener('change', () => { kfPickName.textContent = kfPick.files[0]?.name || t('login.keyfile.none'); });
     const pickBox = h('div', { class: 'filepick cred-sub', hidden: true }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), kfPickName, kfPick);
     const kf = newKeyfileFlow('new', () => (baseName(target()) || baseName(defName)) + '.keyx');
-    for (const el of [pathInput, urlInput, nameInput]) el.addEventListener('input', () => kf.relabel());
+    for (const el of [urlInput, nameInput]) el.addEventListener('input', () => kf.relabel());
     let kfMode = 'none';
     const option = (value, label) => h('label', { class: 'check' }, h('input', { type: 'radio', name: 'new-kf', value, checked: value === 'none', onchange: () => {
         kfMode = value; pickBox.hidden = value !== 'pick'; kf.box.hidden = value !== 'new';
@@ -59,7 +107,7 @@ export function showCreate() {
     const btn = h('button', { type: 'submit', id: 'new-btn', class: 'primary big' }, icon('plus'), h('span', { class: 'label', text: t('new.create') }));
     const form = h('form', { class: 'login-form stack', id: 'new-form' },
         h('div', { class: 'seg-group', role: 'radiogroup' }, seg('dav', NC ? t('login.src.nc') : t('login.src.dav'), 'cloud'), seg('file', t('login.src.file'), 'file')),
-        davBox, fileBox,
+        nameBox, urlBox, fileHint,
         h('label', {}, h('span', { text: t('login.master') }), pwf.row), pwf.meter,
         h('label', {}, h('span', { text: t('new.repeat') }), pwf.repeat),
         h('div', { class: 'stack tight', role: 'radiogroup', 'aria-label': t('login.keyfile') },
@@ -92,16 +140,15 @@ export function showCreate() {
             }
             if (!password && !keyfile) throw new VaultError(t('new.pw.none'));
             let dav = null, name, userPath = '', url = '';
-            if (src === 'file') {
-                name = withExt(nameInput.value.trim());
-                if (!nameInput.value.trim() || /[/\\]/.test(name)) throw new VaultError(t('new.file.bad'));
-            } else if (NC) {
-                userPath = normalizeUserPath(pathInput.value);
-                if (!userPath || userPath.endsWith('/')) throw new VaultError(t('err.nc.path'));
-                userPath = withExt(userPath);
-                dav = new DavFile({ url: davUrlFor(NC, userPath), auth: nextcloudAuth(NC) });
-                name = userPath.split('/').pop();
-            } else {
+            if (src === 'file' || NC) {
+                const n = nameValue();
+                if (!n) throw new VaultError(t('new.file.bad'));
+                name = n + '.kdbx';
+            }
+            if (src === 'dav' && NC) {
+                userPath = joinPath(folder, name);
+                dav = new DavFile({ url: davUrlFor(NC, userPath), auth });
+            } else if (src === 'dav') {
                 url = urlInput.value.trim();
                 if (!url) throw new VaultError(t('err.dav.url'));
                 url = withExt(url);
@@ -118,6 +165,7 @@ export function showCreate() {
             try { ms = await trialRun(NEW_DB, 1); } catch (e) { if (isOutOfMemory(e)) throw new VaultError(t('new.oom', { mb: NEW_DB.memoryKiB / 1024 })); throw e; }
             const security = { ...NEW_DB, iterations: newDbIterations(ms) };
             const cache = dav && ctx.settings.offline ? { key: NC ? `nc:${NC.user}:${userPath}` : `dav:${url}`, name } : null;
+            listings.delete(folder);
             const { vault, bytes } = await Vault.create({ name: name.replace(/\.kdbx$/i, ''), password, keyfile: keyfile || undefined, security, dav, cache });
             vault.backupKeep = ctx.settings.backupKeep;
             pwf.next.value = pwf.repeat.value = ''; passInput.value = '';
@@ -160,5 +208,6 @@ export function showCreate() {
         if (NC?.newFile) { NC.newFile = ''; history.replaceState(null, '', location.pathname + (NC.file ? `?open=${encodeURIComponent(NC.file)}` : '')); }
         ctx.ui.showLogin();
     }
-    (where === 'file' ? nameInput : NC ? pathInput : urlInput).focus();
+    show();
+    (NC || where === 'file' ? nameInput : urlInput).focus();
 }

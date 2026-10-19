@@ -225,14 +225,18 @@ async function main() {
         expect(await page.inputValue('#nc-path') === '/Passwörter privat/vault4.kdbx', 'Pfad: ' + await page.inputValue('#nc-path'));
     });
 
-    await step('Files "+ Neu" -> KeePass-Datenbank: freier Name im Ordner, angelegt, KeePassXC oeffnet; Neuladen zeigt die neue Datei', async () => {
+    await step('Files "+ Neu" -> KeePass-Datenbank: Name und Ordner vorbelegt, Ordner-Browser listet, angelegt, KeePassXC oeffnet; Neuladen zeigt die neue Datei', async () => {
         await page.goto(`${BASE}/index.php/apps/files/files?dir=${encodeURIComponent('/Passwörter privat')}`);
         await page.locator('[data-cy-files-list-row-name="vault4.kdbx"]').waitFor({ timeout: 60000 });
         await page.locator('[data-cy-upload-picker] .action-item__menutoggle, [data-cy-upload-picker] button').first().click();
         await page.locator('[data-cy-upload-picker-menu-entry="keepassnc-new"]').click();
         await page.waitForURL(/apps\/keepassnc\/\?new=/, { timeout: 30000 });
-        const suggested = await page.inputValue('#new-path');
-        expect(/^\/Passwörter privat\/(Passwörter|Passwords)\.kdbx$/.test(suggested), 'Vorschlag: ' + suggested);
+        const name = await page.inputValue('#new-name'), folder = await page.locator('#new-folder').innerText();
+        expect(/^(Passwörter|Passwords)$/.test(name) && folder === 'Passwörter privat', `Vorschlag: ${name} in ${folder}`);
+        const suggested = `/Passwörter privat/${name}.kdbx`;
+        await page.click('#new-folder-btn'); // Ordner-Browser gegen echtes Sabre: listet den Ordner samt vorhandener .kdbx
+        await page.locator('.folder-item[data-name="vault4.kdbx"]').waitFor({ timeout: 15000 });
+        await page.click('#folder-ok');
         await page.fill('#new-new', PW + '-neu'); await page.fill('#new-repeat', PW + '-neu');
         await page.click('#new-btn');
         await page.locator('.shell').waitFor({ timeout: 60000 });
