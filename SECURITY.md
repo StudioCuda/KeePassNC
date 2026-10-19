@@ -50,7 +50,8 @@ Things we know about and can't fix from inside the app. Reports that find a way 
 - **The standalone page (`web/`) sets its CSP via `<meta>`.** `frame-ancestors` doesn't work there. If you host it yourself, send the
   CSP as an HTTP header from your web server. Argon2 runs in a worker loaded from `keepassnc-argon2.js` next to `keepassnc.js`, so
   a `worker-src` (if you set one) needs `'self'`, and a CSP on that file itself needs `'wasm-unsafe-eval'`. Otherwise the page falls
-  back to doing the math itself, which works but freezes the page while it unlocks.
+  back to doing the math itself, which works but freezes the page while it unlocks. Reading a TOTP QR code from a picture uses a
+  second worker, `keepassnc-qr.js`, under the same `worker-src` rule.
 - **Some hosting setups replace the CSP.** YunoHost, for example, swaps every page's `Content-Security-Policy` for a bare
   `upgrade-insecure-requests`. Everything still works and decrypts only in your browser, but without the strict CSP. Admins can
   restore it for `/apps/keepassnc/` in their web server.
