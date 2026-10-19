@@ -175,17 +175,17 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .login-form { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: var(--shadow-2); }
 .login-alt { text-align: center; font-size: 13px; }
 .login.solo { position: relative; isolation: isolate; overflow: hidden; grid-template-columns: 1fr;
-    background: --solo-spot: 16%; --solo-spot2: 10%; --solo-glow: 24%; --solo-mark: .11; --solo-noise: .05;
+    --solo-spot: 16%; --solo-spot2: 10%; --solo-glow: 24%; --solo-mark: .11; --solo-noise: .05; --solo-edge: rgb(255 255 255 / .8);
     background: radial-gradient(760px 560px at 50% 36%, color-mix(in srgb, var(--accent) var(--solo-spot), transparent), transparent 72%), radial-gradient(980px 640px at 105% -8%, color-mix(in srgb, var(--accent) var(--solo-spot2), transparent), transparent 66%); }
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .login.solo { --solo-spot: 8%; --solo-spot2: 7%; --solo-glow: 9%; --solo-mark: .1; --solo-noise: .025; } }
-:root[data-theme="dark"] .login.solo { --solo-spot: 8%; --solo-spot2: 7%; --solo-glow: 9%; --solo-mark: .1; --solo-noise: .025; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .login.solo { --solo-spot: 8%; --solo-spot2: 7%; --solo-glow: 9%; --solo-mark: .1; --solo-noise: .025; --solo-edge: rgb(255 255 255 / .08); } }
+:root[data-theme="dark"] .login.solo { --solo-spot: 8%; --solo-spot2: 7%; --solo-glow: 9%; --solo-mark: .1; --solo-noise: .025; --solo-edge: rgb(255 255 255 / .08); }
 .login.solo::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: var(--solo-noise);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
 .login-mark { position: absolute; z-index: -1; right: -22vh; bottom: -24vh; width: 124vh; height: 124vh; color: var(--accent); opacity: var(--solo-mark); pointer-events: none;
     -webkit-mask-image: linear-gradient(150deg, rgb(0 0 0 / .2) 8%, #000 38%, rgb(0 0 0 / .24) 58%, #000 82%); mask-image: linear-gradient(150deg, rgb(0 0 0 / .2) 8%, #000 38%, rgb(0 0 0 / .24) 58%, #000 82%); } /* Mattglanz: eine helle Bahn quer ueber dem Strich */
 .login-mark .icon { width: 100%; height: 100%; stroke-width: 1.3; stroke-linejoin: round; }
 .login.solo > .login-card { position: relative; background: transparent; }
-.login.solo .login-form { box-shadow: inset 0 2px 0 var(--accent), 0 1px 2px rgb(0 0 0 / .04), 0 14px 34px -10px color-mix(in srgb, var(--accent) var(--solo-glow), transparent); }
+.login.solo .login-form { box-shadow: inset 0 1px 0 var(--solo-edge), 0 1px 2px rgb(0 0 0 / .04), 0 14px 34px -10px color-mix(in srgb, var(--accent) var(--solo-glow), transparent); }
 .login-seal { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--accent-soft); color: var(--accent); } .login-seal .icon { width: 22px; height: 22px; }
 .login-trust { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 2px 0 0; font-size: 12.5px; color: var(--muted); } .login-trust .icon { width: 14px; height: 14px; } .login.solo .login-card { padding-top: clamp(24px, 8vh, 72px); justify-content: flex-start; }
 .pw-field { position: relative; display: flex; } .pw-field > input { padding-right: 44px; }
@@ -496,7 +496,7 @@ button.primary.big .icon, .login-trust .icon { position: relative; top: -1px; } 
 .back-line { margin-bottom: -12px; } .back-line .link { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 550; } .back-line .link:hover { color: var(--text); text-decoration: underline; }
 .login.solo .login-form { padding: 28px 26px 24px; gap: 18px; transition: box-shadow .25s ease; }
 .login.solo .login-form > label > span:first-child, .login.solo .login-form .login-more label > span:first-child { font-size: 11.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
-.login.solo .login-form:focus-within { box-shadow: inset 0 2px 0 var(--accent), 0 1px 2px rgb(0 0 0 / .04), 0 20px 46px -12px color-mix(in srgb, var(--accent) calc(var(--solo-glow) + 8%), transparent); }
+.login.solo .login-form:focus-within { box-shadow: inset 0 1px 0 var(--solo-edge), 0 1px 2px rgb(0 0 0 / .04), 0 20px 46px -12px color-mix(in srgb, var(--accent) calc(var(--solo-glow) + 8%), transparent); }
 .login.solo button.primary.big { letter-spacing: .01em; font-weight: 600; }
 .login-trust { transition: color .25s ease; } .login-form:has(#master:focus) .login-trust { color: var(--accent); }
 .login-foot .muted { font-variant-numeric: tabular-nums; letter-spacing: .02em; }
@@ -509,5 +509,5 @@ button.primary.big.done .icon { animation: unlock-pop .26s ease-out; }
 @media (prefers-reduced-motion: reduce) { button.primary.big.busy::after { animation: none; transform: none; opacity: .5; } }
 /* Hochkontrast (Nextcloud-Theme) und erzwungene Farben: Dekor weg, nur Rand und Inhalt bleiben */
 :root[data-contrast="more"] .login.solo { background: none; } :root[data-contrast="more"] .login.solo::after, :root[data-contrast="more"] .login-mark { display: none; }
-:root[data-contrast="more"] .login.solo .login-form, :root[data-contrast="more"] .login.solo .login-form:focus-within { box-shadow: inset 0 2px 0 var(--accent); }
+:root[data-contrast="more"] .login.solo .login-form, :root[data-contrast="more"] .login.solo .login-form:focus-within { box-shadow: none; }
 @media (forced-colors: active) { .login.solo { background: none; } .login.solo::after, .login-mark { display: none; } .login.solo .login-form, .login.solo .login-form:focus-within { box-shadow: none; } }
