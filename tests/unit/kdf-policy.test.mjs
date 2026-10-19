@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { memoryLevel, isWeaker, minIterations, suggestIterations, MAX_ITERATIONS } from '../../src/core/kdf-policy.js';
+import { memoryLevel, isWeaker, minIterations, suggestIterations, newDbIterations, NEW_DB, MAX_ITERATIONS } from '../../src/core/kdf-policy.js';
 
 const a = (memoryMiB, iterations, kdf = 'argon2id') => ({ kdf, memoryKiB: memoryMiB * 1024, iterations, parallelism: 2 });
 const aes = (rounds) => ({ kdf: 'aes', rounds });
@@ -36,4 +36,12 @@ test('Vorschlag "etwa 1 s": aus dem Probelauf, nie unter der Untergrenze, gedeck
     assert.equal(suggestIterations(400, a(64, 10), 64 * 1024), 10, 'langsames Geraet senkt nicht');
     assert.equal(suggestIterations(5000, aes(6e6), 1024 * 1024), 1);
     assert.equal(suggestIterations(0.01, a(64, 2), 64 * 1024), MAX_ITERATIONS);
+});
+
+test('Neue Datenbank: AES-256, Argon2id mit 64 MiB, Durchlaeufe aus dem Probelauf, nie unter 2', () => {
+    assert.deepEqual({ ...NEW_DB }, { cipher: 'aes', kdf: 'argon2id', memoryKiB: 64 * 1024, iterations: 2, parallelism: 2 });
+    assert.equal(newDbIterations(100), 10);
+    assert.equal(newDbIterations(250), 4);
+    assert.equal(newDbIterations(2000), 2, 'langsames Geraet: Untergrenze');
+    assert.equal(newDbIterations(0.01), MAX_ITERATIONS);
 });

@@ -225,6 +225,26 @@ async function main() {
         expect(await page.inputValue('#nc-path') === '/Passwörter privat/vault4.kdbx', 'Pfad: ' + await page.inputValue('#nc-path'));
     });
 
+    await step('Files "+ Neu" -> KeePass-Datenbank: freier Name im Ordner, angelegt, KeePassXC oeffnet; Neuladen zeigt die neue Datei', async () => {
+        await page.goto(`${BASE}/index.php/apps/files/files?dir=${encodeURIComponent('/Passwörter privat')}`);
+        await page.locator('[data-cy-files-list-row-name="vault4.kdbx"]').waitFor({ timeout: 60000 });
+        await page.locator('[data-cy-upload-picker] .action-item__menutoggle, [data-cy-upload-picker] button').first().click();
+        await page.locator('[data-cy-upload-picker-menu-entry="keepassnc-new"]').click();
+        await page.waitForURL(/apps\/keepassnc\/\?new=/, { timeout: 30000 });
+        const suggested = await page.inputValue('#new-path');
+        expect(/^\/Passwörter privat\/(Passwörter|Passwords)\.kdbx$/.test(suggested), 'Vorschlag: ' + suggested);
+        await page.fill('#new-new', PW + '-neu'); await page.fill('#new-repeat', PW + '-neu');
+        await page.click('#new-btn');
+        await page.locator('.shell').waitFor({ timeout: 60000 });
+        const created = path.join(dataDir, ADMIN, 'files', suggested.slice(1));
+        expect(fs.existsSync(created), 'Datei fehlt im Datenverzeichnis: ' + created);
+        expect(xc(['ls', '-q', created], PW + '-neu\n') !== null, 'KeePassXC oeffnet die neue Datei nicht');
+        expect(/\?open=/.test(page.url()), 'Adresse nach dem Anlegen: ' + page.url());
+        await page.reload();
+        expect(await page.inputValue('#nc-path') === suggested, 'nach dem Neuladen: ' + await page.inputValue('#nc-path'));
+        return suggested;
+    });
+
     await step('Navigationseintrag der App in der Kopfleiste vorhanden', async () => {
         await page.goto(`${BASE}/index.php/apps/files/`);
         await page.locator('#header, header').first().waitFor();

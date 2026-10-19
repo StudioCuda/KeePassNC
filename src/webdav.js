@@ -119,6 +119,20 @@ export class DavFile {
     }
 
     /**
+     * Legt die Datei neu an (neue Datenbank), ueberschreibt aber nie eine vorhandene: PUT mit If-None-Match: *. Liefert den ETag.
+     * 412: gibt es schon; 403: im Ordner darf man nichts anlegen; 404/409: den Ordner gibt es nicht.
+     */
+    async create(buf) {
+        const res = await this._fetch(this.url, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'If-None-Match': '*' }, body: buf });
+        if (res.status === 412) throw new DavError(412, 'Diese Datei gibt es schon - bitte einen anderen Namen waehlen.', 'e.dav.exists');
+        if (res.status === 401) throw new DavError(401, 'Zugriff verweigert - Anmeldung bzw. Zugangsdaten pruefen.', 'e.dav.denied');
+        if (res.status === 403) throw new DavError(403, 'Keine Berechtigung, hier eine Datei anzulegen.', 'e.dav.nocreate');
+        if (res.status === 404 || res.status === 409) throw new DavError(res.status, 'Diesen Ordner gibt es nicht - Pfad pruefen.', 'e.dav.nofolder');
+        if (!res.ok) throw new DavError(res.status, `Anlegen fehlgeschlagen (Status ${res.status}).`, 'e.dav.save', { status: res.status });
+        return etagOf(res) || (await this.head());
+    }
+
+    /**
      * Nextcloud-Rechte der Datei (oc:permissions, z. B. "SRGDNVW"; "W" = Inhalt aendern). null, wenn der Server sie nicht nennt
      * (andere WebDAV-Server) oder die Abfrage scheitert - dann gilt die Datei als beschreibbar und erst das Speichern entscheidet.
      */

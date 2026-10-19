@@ -13,7 +13,7 @@ import { MEMORY_PRESETS_MIB, PARALLELISM_OPTIONS, MAX_ITERATIONS, SLOW_MS, memor
 const MiB = 1024 * 1024;
 
 /** Eine Argon2-Ableitung mit Zufallswerten und diesen Parametern, wie beim Entsperren (im Worker); liefert die Dauer in ms. */
-async function trialRun(s, iterations = s.iterations) {
+export async function trialRun(s, iterations = s.iterations) {
     const rnd = () => crypto.getRandomValues(new Uint8Array(32));
     const t0 = performance.now();
     await argon2({ type: s.kdf === 'argon2id' ? 'id' : 'd', password: rnd(), salt: rnd(), parallelism: s.parallelism, iterations, memoryKiB: s.memoryKiB, hashLength: 32 });

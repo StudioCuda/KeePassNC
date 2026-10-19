@@ -173,6 +173,7 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .login-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; } .login-top h2 { font-size: 24px; letter-spacing: -.01em; }
 .row-gap { display: flex; gap: 10px; align-items: center; }
 .login-form { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: var(--shadow-2); }
+.login-alt { text-align: center; font-size: 13px; }
 .login-foot { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
 
 /* ---------- Nextcloud-Kopfleiste (ui/ncheader.js) ---------- */

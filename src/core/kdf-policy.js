@@ -36,3 +36,16 @@ export function suggestIterations(msPerIteration, cur, memoryKiB, targetMs = 100
     const bench = Math.floor(targetMs / Math.max(1, msPerIteration));
     return Math.min(MAX_ITERATIONS, Math.max(1, bench, minIterations(cur, memoryKiB)));
 }
+
+/**
+ * Vorgaben fuer eine neue Datenbank: KDBX 4, AES-256 (wie KeePass 2 und KeePassXC; im Browser nativ ueber WebCrypto) und Argon2id
+ * mit 64 MiB wie KeePassXC. Zwei Threads statt so vieler wie Kerne: hash-wasm rechnet sie nacheinander, mehr kostet hier nur Zeit.
+ * Die Durchlaeufe bestimmt ein Probelauf (newDbIterations); iterations ist die Untergrenze. Die Werte von kdbxweb (Argon2d mit
+ * 1 MiB) sind fuer eine echte Datenbank viel zu schwach.
+ */
+export const NEW_DB = Object.freeze({ cipher: 'aes', kdf: 'argon2id', memoryKiB: 64 * 1024, iterations: 2, parallelism: 2 });
+
+/** Durchlaeufe fuer eine neue Datenbank: etwa targetMs auf diesem Geraet, nie unter NEW_DB.iterations. */
+export function newDbIterations(msPerIteration, targetMs = 1000) {
+    return suggestIterations(msPerIteration, NEW_DB, NEW_DB.memoryKiB, targetMs);
+}

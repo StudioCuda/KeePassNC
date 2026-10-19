@@ -38,7 +38,7 @@ function start() {
         srv.log.push(`${req.method} ${req.url}`);
         if (p === '/index.php/apps/keepassnc/') {
             const vars = { __SW_URL__: '', __PEPPER_URL__: '', __DAV_BASE__: '/remote.php/dav/files/anna', __CSRF_URL__: '/index.php/csrftoken', __FILES_URL__: '/index.php/apps/files/',
-                __USER__: 'anna', __FILE__: '', __CSS__: '/apps/keepassnc/css/keepassnc.css', __JS__: '/apps/keepassnc/js/keepassnc.js', __LANG__: 'de',
+                __USER__: 'anna', __FILE__: '', __NEW__: '', __CSS__: '/apps/keepassnc/css/keepassnc.css', __JS__: '/apps/keepassnc/js/keepassnc.js', __LANG__: 'de',
                 __NC_COLOR__: srv.color, __NC_THEMES__: srv.themes, __NC_NAV__: srv.nav ? JSON.stringify(srv.nav) : '' };
             let html = fs.readFileSync(path.join(app, 'templates/page.html'), 'utf8');
             for (const [k, v] of Object.entries(vars)) html = html.split(k).join(esc(v));

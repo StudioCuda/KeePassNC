@@ -4,34 +4,23 @@
 // geloescht (die oeffnen weiter mit den alten Zugangsdaten).
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus, download, kfStore } from './ctx.js';
-import { h, icon, iconBtn, modal, confirmDialog, toast } from './dom.js';
+import { h, icon, modal, confirmDialog, toast } from './dom.js';
 import { rebind, refreshDirtyIndicator } from './session.js';
-import { strengthBar } from './detail.js';
-import { openGenerator } from './generator-dialog.js';
+import { newPasswordFields, newKeyfileFlow, readFile } from './new-credentials.js';
 import { estimateBits, strengthLabel } from '../core/entropy.js';
-import { createKeyfile, sameKeyfile } from '../vault.js';
+import { sameKeyfile } from '../vault.js';
 import { nextcloudAuth, fetchPepper } from '../nextcloud.js';
 
 const { state } = ctx;
-const readFile = async (input) => (input.files[0] ? new Uint8Array(await input.files[0].arrayBuffer()) : null);
 
 export function openCredentials() {
     const v = state.vault, isDav = state.source.type === 'dav';
     if (isDav && state.source.readOnly) { toast(t('cred.readonly'), { kind: 'warn' }); return; }
     // Ein noch nicht hochgeladener Stand liegt mit den alten Zugangsdaten auf dem Server: erst abgleichen
     if (isDav && (state.offlineMode || v.unsynced)) { toast(t('cred.unsynced'), { kind: 'warn' }); return; }
-    const pw = (id, autocomplete = 'new-password') => h('input', { id, type: 'password', autocomplete, spellcheck: 'false', autocapitalize: 'off' });
-    const i = { current: pw('cred-current', 'current-password'), next: pw('cred-new'), repeat: pw('cred-repeat') };
-    const meter = h('div', { class: 'meter' }, strengthBar(''));
-    let generated = null;
-    const updateMeter = () => meter.replaceChildren(strengthBar(i.next.value, generated?.pw === i.next.value ? generated.bits : undefined));
-    i.next.addEventListener('input', updateMeter);
-    const showBtn = iconBtn('eye', t('show'), () => {
-        const on = i.next.type === 'password';
-        i.next.type = i.repeat.type = on ? 'text' : 'password';
-        showBtn.replaceChildren(icon(on ? 'eyeOff' : 'eye'));
-    }, { id: 'cred-show', type: 'button' });
-    const genBtn = h('button', { type: 'button', id: 'cred-gen', class: 'btn', onclick: () => openGenerator({ onUse: (p, bits) => { generated = { pw: p, bits }; i.next.value = i.repeat.value = p; updateMeter(); } }) }, icon('dice'), h('span', { text: t('generator') }));
+    const current = h('input', { id: 'cred-current', type: 'password', autocomplete: 'current-password', spellcheck: 'false', autocapitalize: 'off' });
+    const pwf = newPasswordFields('cred');
+    const i = { current, next: pwf.next, repeat: pwf.repeat };
 
     // --- Schluesseldatei: beibehalten (bzw. keine), andere waehlen, neue erzeugen, entfernen
     const had = v.hasKeyfile;
@@ -42,29 +31,8 @@ export function openCredentials() {
     const pickBox = h('div', { class: 'filepick cred-sub', hidden: true }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), pickName, pickInput);
 
     const freshName = state.source.name.replace(/\.kdbx$/i, '') + '.keyx';
-    let fresh = null, verified = false;
-    const verifyInput = h('input', { id: 'cred-kf-verify', type: 'file' });
-    const verifyName = h('span', { class: 'muted', text: t('login.keyfile.none') });
-    const verifyNote = h('p', { class: 'level-note', id: 'cred-kf-check', 'aria-live': 'polite', hidden: true });
-    const verifyBox = h('div', { class: 'stack tight', hidden: true },
-        h('span', { class: 'group-title', text: t('cred.kf.verify') }),
-        h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), verifyName, verifyInput), verifyNote);
-    const downloadBtn = h('button', { type: 'button', class: 'small', id: 'cred-kf-download' }, icon('download'), h('span', { text: t('cred.kf.download', { name: freshName }) }));
-    downloadBtn.addEventListener('click', async () => {
-        fresh ||= await createKeyfile();
-        download(freshName, fresh);
-        verifyBox.hidden = false;
-    });
-    verifyInput.addEventListener('change', async () => {
-        verifyName.textContent = verifyInput.files[0]?.name || t('login.keyfile.none');
-        const bytes = await readFile(verifyInput);
-        verified = !!(bytes && fresh) && await sameKeyfile(bytes, fresh).catch(() => false);
-        bytes?.fill(0);
-        verifyNote.hidden = !bytes;
-        verifyNote.className = 'level-note ' + (verified ? 'ok' : 'bad');
-        verifyNote.textContent = t(verified ? 'cred.kf.verify.ok' : 'cred.kf.verify.bad');
-    });
-    const newBox = h('div', { class: 'stack tight cred-sub', hidden: true }, h('small', { class: 'hint', text: t('cred.kf.new.hint') }), h('div', {}, downloadBtn), verifyBox);
+    const fresh = newKeyfileFlow('cred', () => freshName);
+    const newBox = fresh.box;
 
     const option = (value, label) => h('label', { class: 'check' }, h('input', { type: 'radio', name: 'cred-kf', value, checked: value === 'keep', onchange: () => {
         mode = value; pickBox.hidden = mode !== 'pick'; newBox.hidden = mode !== 'new';
@@ -95,9 +63,10 @@ export function openCredentials() {
             if (cur && await sameKeyfile(keyfile, cur).catch(() => false)) { keyfile.fill(0); keyfile = undefined; }
             cur?.fill(0);
         } else if (mode === 'new') {
-            if (!fresh) return fail('cred.kf.download.none');
-            if (!verified) return fail('cred.kf.verify.none');
-            keyfile = fresh.slice(); name = freshName;
+            keyfile = fresh.keyfile();
+            if (keyfile === 'download') return fail('cred.kf.download.none');
+            if (keyfile === 'verify') return fail('cred.kf.verify.none');
+            name = freshName;
         } else if (mode === 'none') keyfile = null;
         if (password === undefined && keyfile === undefined) return fail('cred.nothing');
         if (keyfile === null && password === undefined && !v.hasPassword) return fail('e.cred.empty');
@@ -149,7 +118,7 @@ export function openCredentials() {
     const body = h('form', { class: 'stack', id: 'cred-form', onsubmit: apply },
         v.hasPassword ? h('label', {}, h('span', { text: t('cred.current') }), i.current) : h('p', { class: 'hint', text: t('cred.current.nopw') }),
         h('section', { class: 'card stack' }, h('h3', { text: t('login.master') }),
-            h('label', {}, h('span', { text: t('cred.new') }), h('div', { class: 'input-group' }, i.next, showBtn, genBtn)), meter,
+            h('label', {}, h('span', { text: t('cred.new') }), pwf.row), pwf.meter,
             h('label', {}, h('span', { text: t('cred.repeat') }), i.repeat),
             h('small', { class: 'hint', text: t(v.hasPassword ? 'cred.new.hint' : 'cred.new.hint.nopw') })),
         h('section', { class: 'card stack' }, h('h3', { text: t('login.keyfile') }), kfGroup),
@@ -159,7 +128,7 @@ export function openCredentials() {
         isFile ? h('p', { class: 'hint', text: t('cred.file.note') }) : null,
         error,
         h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), applyBtn));
-    const m = modal({ title: t('cred.title'), body, size: 'md', onClose: () => { fresh?.fill(0); } });
+    const m = modal({ title: t('cred.title'), body, size: 'md', onClose: () => fresh.wipe() });
     (v.hasPassword ? i.current : i.next).focus();
     return m;
 }

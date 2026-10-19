@@ -45,7 +45,7 @@ class PageController extends Controller {
 
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function index(?string $open = null): Response {
+	public function index(?string $open = null, ?string $new = null): Response {
 		$user = $this->userSession->getUser();
 		$uid = $user?->getUID() ?? '';
 		$version = $this->appManager->getAppVersion(Application::APP_ID);
@@ -63,12 +63,11 @@ class PageController extends Controller {
 			$filesUrl = $indexPhp . '/apps/files/';
 		}
 
-		$file = '';
-		if ($open !== null) {
-			// Nur der Pfad innerhalb des eigenen Benutzerverzeichnisses; Steuerzeichen entfernen. Weitere Pruefung im Browser
-			// und durch WebDAV selbst (Berechtigungen).
-			$file = (string)preg_replace('/[\x00-\x1F\x7F]/', '', $open);
-		}
+		// Nur Pfade innerhalb des eigenen Benutzerverzeichnisses; Steuerzeichen entfernen. Weitere Pruefung im Browser und durch
+		// WebDAV selbst (Berechtigungen). $new: Vorschlag fuer eine neue Datenbank aus "+ Neu" in Dateien (die Datei gibt es noch nicht).
+		$clean = static fn (?string $p): string => $p === null ? '' : (string)preg_replace('/[\x00-\x1F\x7F]/', '', $p);
+		$file = $clean($open);
+		$newFile = $clean($new);
 
 		try {
 			$swUrl = $this->urlGenerator->linkToRoute('keepassnc.page.sw');
@@ -99,6 +98,7 @@ class PageController extends Controller {
 			'__FILES_URL__' => $filesUrl,
 			'__USER__' => $uid,
 			'__FILE__' => $file,
+			'__NEW__' => $newFile,
 			'__CSS__' => $this->urlGenerator->linkTo(Application::APP_ID, 'css/keepassnc.css') . '?v=' . $version,
 			'__JS__' => $this->urlGenerator->linkTo(Application::APP_ID, 'js/keepassnc.js') . '?v=' . $version,
 			'__LANG__' => $lang,

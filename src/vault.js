@@ -155,6 +155,30 @@ export class Vault {
         return v;
     }
 
+    /**
+     * Neue Datenbank: name (Datenbank-Name und Wurzelgruppe), password (leer mit keyfile: nur Schluesseldatei, wie KeePassXC),
+     * security wie updateSecuritySettings (siehe NEW_DB in core/kdf-policy.js). Mit dav wird die Datei angelegt, aber nie eine
+     * vorhandene ueberschrieben (DavFile.create); sonst liegen die Bytes nur in bytes (lokale Datei: herunterladen).
+     * Danach ist die Datenbank offen wie nach open(). Liefert {vault, bytes}.
+     */
+    static async create({ name, password, keyfile, security, dav, cache }) {
+        const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
+        const pw = password ? ProtectedValue.fromString(password) : null;
+        if (!pw && !kf) throw new VaultError('Ohne Passwort und Schluesseldatei liesse sich die Datenbank von jedem oeffnen.', 'e.cred.empty');
+        const creds = new Credentials(pw, kf);
+        try { await creds.ready; } catch { throw new VaultError('Diese Schluesseldatei ist unlesbar.', 'e.keyfile.bad'); }
+        const db = Kdbx.create(creds, name);
+        const v = new Vault(db, pw, kf, dav, null, null, cache);
+        v.updateSecuritySettings({ ...security, upgrade: true });
+        const bytes = await db.save();
+        v.dirty = false;
+        v._remoteBytes = bytes;
+        v._backedUp = true; // eine Sicherungskopie der leeren Datenbank braucht niemand
+        if (dav) v.etag = await dav.create(bytes);
+        await v._cacheWrite(bytes, false);
+        return { vault: v, bytes };
+    }
+
     constructor(db, pw, kf, dav, etag, remoteBytes, cache) {
         this.db = db;
         this._pw = pw;
