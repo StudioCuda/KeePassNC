@@ -472,6 +472,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
     .topbar #new-btn { display: none; }
     .fab { position: fixed; z-index: 10; right: 18px; bottom: 44px; width: 56px; height: 56px; border-radius: 18px; border: 0; background: var(--accent); color: var(--on-accent); box-shadow: var(--shadow-2); display: grid; place-items: center; }
     .shell[data-view="detail"] .fab { display: none; } .fab .icon { width: 26px; height: 26px; }
+    .entries { padding-bottom: 90px; }
     .detail-head { padding: 12px 14px 4px; gap: 10px; } .detail-body { padding: 8px 14px 90px; } .avatar.lg { width: 44px; height: 44px; }
     .dh-text h2 { font-size: 18px; }
     .grid2, .custom-row { grid-template-columns: 1fr; }
@@ -507,6 +508,6 @@ button.primary.big.done .icon { animation: unlock-pop .26s ease-out; }
 @media (prefers-reduced-motion: reduce) { button.primary.big.busy::after { animation: none; transform: none; opacity: .5; } }
 /* Nextcloud-Rahmen: der Inhalt sitzt wie bei den nativen Apps in einem abgerundeten Panel vor dem Instanzfarben-Hintergrund
    (stable35, core/css/apps.scss: #content mit Rand 8px und Radius 16px; unter 1024px randlos, oben mit 8px Rundung) */
-body.has-nch { --nch-gap: 8px; --nch-radius: 16px; --nch-c: var(--nch-bg, #0b1f3b); background: linear-gradient(160deg, color-mix(in srgb, var(--nch-c) 88%, #fff), var(--nch-c) 42%, color-mix(in srgb, var(--nch-c) 72%, #000)) fixed; }
+body.has-nch { --nch-gap: 8px; --nch-radius: 16px; --nch-c: var(--nch-bg, #0b1f3b); background: var(--nch-c); }
 body.has-nch .login, body.has-nch .shell { margin: 0 var(--nch-gap) var(--nch-gap); border-radius: var(--nch-radius); overflow: hidden; background-color: var(--bg); }
 @media (max-width: 1023px) { body.has-nch { --nch-gap: 0px; --nch-radius: 8px 8px 0 0; } }
