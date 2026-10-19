@@ -268,10 +268,10 @@ async function main() {
         pw = (await page.locator('#gen-preview').innerText()).trim();
         expect(/^[a-z]+(\.[a-z]+){4}$/.test(pw.replace(/[0-9]/, '')) && pw.split('.').filter((w) => /^[a-z]+[0-9]$/.test(w)).length === 1, 'Passphrase mit Ziffer ' + pw);
         await page.uncheck('#gen-digit');
-        await page.check('#gen-capital');
+        await page.check('#gen-ph-capital');
         pw = (await page.locator('#gen-preview').innerText()).trim();
         expect(/^[A-Z][a-z-]*(\.[A-Z][a-z-]*){4}$/.test(pw), 'Passphrase mit grossen Anfangsbuchstaben ' + pw);
-        await page.uncheck('#gen-capital');
+        await page.uncheck('#gen-ph-capital');
         const dlgH = () => page.locator('.gen-modal').evaluate((d) => Math.round(d.getBoundingClientRect().height));
         const phH = await dlgH(); await page.fill('#gen-words', '3'); await page.locator('#gen-words').press('Tab');
         expect(await dlgH() === phH, 'Passphrase: Dialoghoehe bleibt beim Aendern der Wortzahl');

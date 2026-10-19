@@ -75,25 +75,28 @@ export function openGenerator({ onUse } = {}) {
         const sep = sepSelect('gen-sep', phOpts);
         const hint = h('p', { class: 'hint', text: t('gen.wordlist.' + phOpts.list) });
         const list = h('select', { id: 'gen-list', onchange: (e) => { phOpts.list = e.target.value; hint.textContent = t('gen.wordlist.' + phOpts.list); generate(); } }, ...['de', 'en'].map((l) => h('option', { value: l, selected: phOpts.list === l, text: t('gen.list.' + l) })));
-        const capital = h('label', { class: 'check' }, h('input', { type: 'checkbox', id: 'gen-capital', checked: phOpts.casing === 'title', onchange: (e) => { phOpts.casing = e.target.checked ? 'title' : 'lower'; generate(); } }), h('span', { text: t('gen.capital') }));
+        const capital = h('label', { class: 'check' }, h('input', { type: 'checkbox', id: 'gen-ph-capital', checked: phOpts.casing === 'title', onchange: (e) => { phOpts.casing = e.target.checked ? 'title' : 'lower'; generate(); } }), h('span', { text: t('gen.capital') }));
         return [num('gen-words', t('gen.words'), 3, 20, phOpts, 'words'),
             h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('label', {}, h('span', { text: t('gen.list') }), list)),
             h('div', { class: 'grid2' }, h('div', { class: 'gen-side' }, chk('gen-digit', t('gen.digit'), phOpts, 'digit')), h('div', { class: 'gen-side' }, capital)),
             hint];
     }
+    // Die Passphrasen-Optionen entstehen nur einmal und werden ausgeblendet: so laesst sich die Passwort-Vorschau messen, ohne
+    // <select>-Elemente neu zu bauen (WebKit meldet dabei CSP-Verstoesse, siehe tests/browser.mjs).
+    const phBox = h('div', { class: 'stack' }, ...phraseOpts());
     // Im Passwort-Modus ist die Vorschau so hoch, dass der Dialog genau so hoch ist wie im Passphrasen-Modus: dafuer kurz die
-    // Passphrasen-Optionen einsetzen und messen (synchron, also ohne sichtbares Flackern).
+    // Passphrasen-Optionen einblenden und messen (synchron, also ohne sichtbares Flackern).
     function fitPasswordPreview() {
         if (mode !== 'pw' || !body.isConnected) return;
-        const pwNodes = [...optsBox.childNodes];
-        preview.classList.replace('pw', 'ph'); optsBox.replaceChildren(...phraseOpts());
+        preview.classList.replace('pw', 'ph'); phBox.hidden = false; optsBox.hidden = true;
         const target = body.offsetHeight;
-        preview.classList.replace('ph', 'pw'); optsBox.replaceChildren(...pwNodes);
+        preview.classList.replace('ph', 'pw'); phBox.hidden = true; optsBox.hidden = false;
         preview.style.setProperty('--gen-pw-h', Math.max(0, target - (body.offsetHeight - preview.offsetHeight)) + 'px'); // CSSOM, kein style-Attribut (CSP)
     }
 
     function renderOpts() {
         preview.classList.remove('pw', 'ph', 'si'); preview.classList.add(mode);
+        phBox.hidden = mode !== 'ph'; optsBox.hidden = mode === 'ph';
         tabs.replaceChildren(tab('ph', t('gen.passphrase')), tab('pw', t('gen.password')), tab('si', t('gen.simple')));
         if (mode === 'pw') {
             const classChk = (k) => {
@@ -120,13 +123,13 @@ export function openGenerator({ onUse } = {}) {
                 h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('div', { class: 'gen-side' }, chk('gen-capital', t('gen.capital'), siOpts, 'capital'))),
                 h('p', { class: 'hint', text: t('gen.simple.hint') }));
         } else {
-            optsBox.replaceChildren(...phraseOpts());
+            optsBox.replaceChildren();
         }
     }
     const useBtn = h('button', { type: 'button', class: 'primary', id: 'gen-use', onclick: () => { onUse?.(current, currentBits); m.close(); }, text: t('gen.use') });
     const copyBtn = h('button', { type: 'button', id: 'gen-copy', onclick: () => copy(current, t('f.password')) }, icon('copy'), h('span', { text: t('copy') }));
     const regen = h('button', { type: 'button', id: 'gen-regen', class: 'icon-btn', title: t('gen.regenerate'), 'aria-label': t('gen.regenerate'), onclick: generate }, icon('refresh'));
-    const body = h('div', { class: 'stack gen' }, h('div', { class: 'gen-top' }, preview, regen), meter, tabs, optsBox);
+    const body = h('div', { class: 'stack gen' }, h('div', { class: 'gen-top' }, preview, regen), meter, tabs, phBox, optsBox);
     const m = modal({ title: t('generator'), body, size: 'md', cls: 'gen-modal', actions: onUse ? [h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), copyBtn, useBtn] : [copyBtn, h('button', { type: 'button', class: 'primary', text: t('close'), onclick: () => m.close() })] });
     renderOpts(); generate(); requestAnimationFrame(fitPasswordPreview);
     if (!onUse) useBtn.hidden = true;
