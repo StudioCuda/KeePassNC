@@ -178,7 +178,9 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
     background: radial-gradient(760px 560px at 50% 36%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 72%), radial-gradient(980px 640px at 105% -8%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 66%); }
 .login.solo::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .05;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
-.login-mark { position: absolute; z-index: -1; right: -14vh; bottom: -16vh; width: 96vh; height: 96vh; color: var(--accent); opacity: .07; pointer-events: none; } .login-mark .icon { width: 100%; height: 100%; stroke-width: .5; }
+.login-mark { position: absolute; z-index: -1; right: -22vh; bottom: -24vh; width: 124vh; height: 124vh; color: var(--accent); opacity: .1; pointer-events: none;
+    -webkit-mask-image: linear-gradient(150deg, rgb(0 0 0 / .25) 8%, #000 38%, rgb(0 0 0 / .3) 58%, #000 82%); mask-image: linear-gradient(150deg, rgb(0 0 0 / .25) 8%, #000 38%, rgb(0 0 0 / .3) 58%, #000 82%); } /* Mattglanz: eine helle Bahn quer ueber dem Strich */
+.login-mark .icon { width: 100%; height: 100%; stroke-width: 1.1; stroke-linejoin: round; }
 .login.solo > .login-card { position: relative; background: transparent; }
 .login.solo .login-form { box-shadow: inset 0 2px 0 var(--accent), 0 1px 2px rgb(0 0 0 / .04), 0 14px 34px -10px color-mix(in srgb, var(--accent) 24%, transparent); }
 .login-seal { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--accent-soft); color: var(--accent); } .login-seal .icon { width: 22px; height: 22px; }
