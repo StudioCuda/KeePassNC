@@ -20,6 +20,8 @@ export function openGenerator({ onUse } = {}) {
     const pwOpts = { ...DEFAULT_PASSWORD_OPTIONS, ...migratePasswordOptions(saved.pw) };
     // Ohne gespeicherte Wahl passt die Wortliste zur Oberflaechensprache
     const phOpts = { ...DEFAULT_PASSPHRASE_OPTIONS, list: getLang() === 'de' ? 'de' : 'en', ...(saved.ph || {}) };
+    // Die Schreibweise ist ab 0.15 nur noch "Erster Buchstabe gross" an oder aus
+    if (phOpts.casing !== 'title') phOpts.casing = 'lower';
     const siOpts = { ...DEFAULT_SIMPLE_OPTIONS, ...(saved.si || {}) };
     // Frei eingegebene Trennzeichen von frueher, die nicht mehr zur Auswahl stehen
     for (const o of [phOpts, siOpts]) if (!SEPARATORS.includes(o.separator)) o.separator = SEPARATORS[0];
@@ -67,9 +69,34 @@ export function openGenerator({ onUse } = {}) {
     const sepSelect = (id, o) => h('select', { id, onchange: (e) => { o.separator = e.target.value; generate(); } }, ...SEPARATORS.map((c) => h('option', { value: c, selected: o.separator === c, text: t('gen.sep.' + SEP_KEYS[c]) })));
     const chk = (id, label, o, key) => h('label', { class: 'check' }, h('input', { type: 'checkbox', id, checked: !!o[key], onchange: (e) => { o[key] = e.target.checked; generate(); } }), h('span', { text: label }));
 
-    const tab = (m, label) => h('button', { type: 'button', role: 'tab', class: 'seg-btn' + (mode === m ? ' active' : ''), id: 'gen-tab-' + m, onclick: () => { mode = m; renderOpts(); generate(); }, text: label });
+    const tab = (m, label) => h('button', { type: 'button', role: 'tab', class: 'seg-btn' + (mode === m ? ' active' : ''), id: 'gen-tab-' + m, onclick: () => { mode = m; renderOpts(); generate(); fitPasswordPreview(); }, text: label });
+
+    function phraseOpts() {
+        const sep = sepSelect('gen-sep', phOpts);
+        const hint = h('p', { class: 'hint', text: t('gen.wordlist.' + phOpts.list) });
+        const list = h('select', { id: 'gen-list', onchange: (e) => { phOpts.list = e.target.value; hint.textContent = t('gen.wordlist.' + phOpts.list); generate(); } }, ...['de', 'en'].map((l) => h('option', { value: l, selected: phOpts.list === l, text: t('gen.list.' + l) })));
+        const capital = h('label', { class: 'check' }, h('input', { type: 'checkbox', id: 'gen-ph-capital', checked: phOpts.casing === 'title', onchange: (e) => { phOpts.casing = e.target.checked ? 'title' : 'lower'; generate(); } }), h('span', { text: t('gen.capital') }));
+        return [num('gen-words', t('gen.words'), 3, 20, phOpts, 'words'),
+            h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('label', {}, h('span', { text: t('gen.list') }), list)),
+            h('div', { class: 'grid2' }, h('div', { class: 'gen-side' }, chk('gen-digit', t('gen.digit'), phOpts, 'digit')), h('div', { class: 'gen-side' }, capital)),
+            hint];
+    }
+    // Die Passphrasen-Optionen entstehen nur einmal und werden ausgeblendet: so laesst sich die Passwort-Vorschau messen, ohne
+    // <select>-Elemente neu zu bauen (WebKit meldet dabei CSP-Verstoesse, siehe tests/browser.mjs).
+    const phBox = h('div', { class: 'stack' }, ...phraseOpts());
+    // Im Passwort-Modus ist die Vorschau so hoch, dass der Dialog genau so hoch ist wie im Passphrasen-Modus: dafuer kurz die
+    // Passphrasen-Optionen einblenden und messen (synchron, also ohne sichtbares Flackern).
+    function fitPasswordPreview() {
+        if (mode !== 'pw' || !body.isConnected) return;
+        preview.classList.replace('pw', 'ph'); phBox.hidden = false; optsBox.hidden = true;
+        const target = body.offsetHeight;
+        preview.classList.replace('ph', 'pw'); phBox.hidden = true; optsBox.hidden = false;
+        preview.style.setProperty('--gen-pw-h', Math.max(0, target - (body.offsetHeight - preview.offsetHeight)) + 'px'); // CSSOM, kein style-Attribut (CSP)
+    }
 
     function renderOpts() {
+        preview.classList.remove('pw', 'ph', 'si'); preview.classList.add(mode);
+        phBox.hidden = mode !== 'ph'; optsBox.hidden = mode === 'ph';
         tabs.replaceChildren(tab('ph', t('gen.passphrase')), tab('pw', t('gen.password')), tab('si', t('gen.simple')));
         if (mode === 'pw') {
             const classChk = (k) => {
@@ -84,7 +111,7 @@ export function openGenerator({ onUse } = {}) {
                 num('gen-length', t('gen.length'), 4, 128, pwOpts, 'length'),
                 h('div', { class: 'check-grid gen-cls' }, ...CLASS_KEYS.map(classChk)),
                 h('div', { class: 'check-grid' }, chk('gen-lookalike', t('gen.lookalike'), pwOpts, 'lookalike'), chk('gen-every', t('gen.every'), pwOpts, 'everyGroup')),
-                h('details', { class: 'gen-more', id: 'gen-more', open: !!moreUsed }, h('summary', { text: t('gen.more') }),
+                h('details', { class: 'gen-more', id: 'gen-more', open: !!moreUsed, ontoggle: fitPasswordPreview }, h('summary', { text: t('gen.more') }),
                     h('div', { class: 'stack' },
                         h('div', { class: 'check-grid' }, chk('gen-extended', t('gen.class.extended'), pwOpts, 'extended')),
                         h('div', { class: 'grid2' },
@@ -96,22 +123,15 @@ export function openGenerator({ onUse } = {}) {
                 h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('div', { class: 'gen-side' }, chk('gen-capital', t('gen.capital'), siOpts, 'capital'))),
                 h('p', { class: 'hint', text: t('gen.simple.hint') }));
         } else {
-            const sep = sepSelect('gen-sep', phOpts);
-            const casing = h('select', { id: 'gen-casing', onchange: (e) => { phOpts.casing = e.target.value; generate(); } }, ...['lower', 'upper', 'title', 'mixed'].map((c) => h('option', { value: c, selected: phOpts.casing === c, text: t('gen.case.' + c) })));
-            const hint = h('p', { class: 'hint', text: t('gen.wordlist.' + phOpts.list) });
-            const list = h('select', { id: 'gen-list', onchange: (e) => { phOpts.list = e.target.value; hint.textContent = t('gen.wordlist.' + phOpts.list); generate(); } }, ...['de', 'en'].map((l) => h('option', { value: l, selected: phOpts.list === l, text: t('gen.list.' + l) })));
-            optsBox.replaceChildren(num('gen-words', t('gen.words'), 3, 20, phOpts, 'words'),
-                h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('label', {}, h('span', { text: t('gen.casing') }), casing)),
-                h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.list') }), list), h('div', { class: 'gen-side' }, chk('gen-digit', t('gen.digit'), phOpts, 'digit'))),
-                hint);
+            optsBox.replaceChildren();
         }
     }
     const useBtn = h('button', { type: 'button', class: 'primary', id: 'gen-use', onclick: () => { onUse?.(current, currentBits); m.close(); }, text: t('gen.use') });
     const copyBtn = h('button', { type: 'button', id: 'gen-copy', onclick: () => copy(current, t('f.password')) }, icon('copy'), h('span', { text: t('copy') }));
     const regen = h('button', { type: 'button', id: 'gen-regen', class: 'icon-btn', title: t('gen.regenerate'), 'aria-label': t('gen.regenerate'), onclick: generate }, icon('refresh'));
-    const body = h('div', { class: 'stack gen' }, h('div', { class: 'gen-top' }, preview, regen), meter, tabs, optsBox);
+    const body = h('div', { class: 'stack gen' }, h('div', { class: 'gen-top' }, preview, regen), meter, tabs, phBox, optsBox);
     const m = modal({ title: t('generator'), body, size: 'md', cls: 'gen-modal', actions: onUse ? [h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), copyBtn, useBtn] : [copyBtn, h('button', { type: 'button', class: 'primary', text: t('close'), onclick: () => m.close() })] });
-    renderOpts(); generate();
+    renderOpts(); generate(); requestAnimationFrame(fitPasswordPreview);
     if (!onUse) useBtn.hidden = true;
     return m;
 }
