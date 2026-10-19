@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [0.14.0] - 2026-10-19
 ### Added
 - The search also matches the group path, so typing a folder name finds what's inside it (as in KeePass 2.60).
 ### Fixed
