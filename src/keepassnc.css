@@ -497,7 +497,7 @@ input:disabled, select:disabled { opacity: .5; cursor: not-allowed; }
 /* ---------- Anmeldung: Anmutung (Typografie, Fokus, Entsperr-Moment) ---------- */
 button.primary.big .icon, .login-trust .icon { position: relative; top: -1px; } /* das Schloss ist unten schwer: optisch auf die Texthoehe heben */
 .login.solo .login-top h2 { font-weight: 600; letter-spacing: .01em; }
-.back-line { margin-bottom: -12px; } .back-line .link { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 550; } .back-line .link:hover { color: var(--text); text-decoration: underline; }
+.back-line { margin-bottom: -5px; } .back-line .link { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 550; } .back-line .link:hover { color: var(--text); text-decoration: underline; }
 .login.solo .login-form label > span:first-child { font-size: 11.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
 .login.solo button.primary.big { letter-spacing: .01em; font-weight: 600; }
 .login-foot .muted { font-variant-numeric: tabular-nums; letter-spacing: .02em; }
