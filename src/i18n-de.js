@@ -382,7 +382,7 @@ export default {
     'login.back': 'Zurück zu Dateien',
     'login.dav.custom': 'Anderer WebDAV-Server? Eigene WebDAV-Adresse eintragen',
     'login.dav.hint': 'Nextcloud: Einstellungen › Sicherheit › App-Passwort erstellen.',
-    'login.dav.ncaddr': 'Doch lieber die Nextcloud-Adresse eintragen',
+    'login.dav.ncaddr': 'Doch lieber Nextcloud-Adresse eintragen',
     'login.dav.pass': 'App-Passwort',
     'login.dav.url': 'WebDAV-Adresse der Datei',
     'login.dav.user': 'Benutzername',
