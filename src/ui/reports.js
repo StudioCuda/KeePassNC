@@ -8,6 +8,7 @@ import { h, icon, modal } from './dom.js';
 import { allRealEntries, avatar } from './common.js';
 import { openDbSettings } from './db-settings.js';
 import { openCredentials } from './credentials-dialog.js';
+import { openCsv } from './csv-dialog.js';
 
 const { state } = ctx;
 
@@ -49,7 +50,8 @@ export function openReports(initialTab = 'health') {
                 state.vault.db.meta.keyChanged ? row(t('info.keychanged'), fmtDate(state.vault.db.meta.keyChanged, true)) : null),
                 h('div', { class: 'row-gap' },
                     h('button', { type: 'button', class: 'small', id: 'db-settings-btn', text: t('dbset.edit'), onclick: () => openDbSettings({ onApplied: render }) }),
-                    h('button', { type: 'button', class: 'small', id: 'cred-btn', text: t('cred.edit'), onclick: () => { m.close(); openCredentials(); } }))));
+                    h('button', { type: 'button', class: 'small', id: 'cred-btn', text: t('cred.edit'), onclick: () => { m.close(); openCredentials(); } }),
+                    h('button', { type: 'button', class: 'small', id: 'csv-btn', text: t('csv.title'), onclick: () => { m.close(); openCsv(); } }))));
         }
     }
     const m = modal({ title: t('database'), body: h('div', { class: 'stack' }, tabs, content), size: 'lg', cls: 'reports-modal' });

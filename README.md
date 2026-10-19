@@ -31,6 +31,8 @@ No lock-in, no special format, no drama.
 - **New master password or key file:** change both in place. A new key file only counts once you've shown you saved it.
 - **Two-factor codes:** TOTP codes right next to the password, Steam Guard included.
 - **Passkeys:** passkeys saved by KeePassXC are shown and kept intact.
+- **Moving house:** import CSV exports from KeePassXC, Bitwarden, 1Password, LastPass, Chrome or Firefox, and export to CSV the
+  way KeePassXC does.
 - **Better passwords:** a generator for passphrases (English or German), passwords and simple ones you can type on a TV remote, and a health report that finds weak, reused and expired ones.
 - **Shared files:** databases someone shared with you open fine; read-only shares say so.
 - **Feels at home:** picks up your instance's color and your light or dark choice, and keeps the Nextcloud header with the app menu

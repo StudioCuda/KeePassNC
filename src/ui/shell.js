@@ -10,6 +10,7 @@ import { renderDetail, deleteEntry, stopDetailTimers } from './detail.js';
 import { renderEditor, startEdit, cancelEdit } from './editor.js';
 import { openGenerator } from './generator-dialog.js';
 import { openReports } from './reports.js';
+import { openCsv } from './csv-dialog.js';
 import { openSettings } from './settings-dialog.js';
 import { doSave, lock, refreshDirtyIndicator, syncNow } from './session.js';
 import { saveSettings } from '../settings.js';
@@ -136,7 +137,7 @@ export function openPalette() {
     const cmds = [
         ['plus', t('entry.new'), 'Ctrl+N', () => startEdit(null)], ['folder', t('group.new'), '', () => newGroup(null)], ['save', t('save'), 'Ctrl+S', () => doSave()],
         ['dice', t('generator'), '', () => openGenerator()], ['database', t('database'), '', () => openReports()], ['settings', t('settings'), '', () => openSettings()],
-        ['refresh', t('sync.now'), '', () => syncNow({ announce: true })],
+        ['refresh', t('sync.now'), '', () => syncNow({ announce: true })], ['download', t('csv.title'), '', () => openCsv()],
         ['moon', t('palette.theme'), '', () => { const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; ctx.settings.theme = next; saveSettings(ctx.settings); applyTheme(); }],
         ['alert', t('nav.weak'), '', () => setFilter({ type: 'weak' })], ['clock', t('nav.expiring'), '', () => setFilter({ type: 'expiring' })], ['trash', t('nav.bin'), '', () => setFilter({ type: 'bin' })],
         ['lock', t('lock'), 'Ctrl+L', () => lock(t('locked'))]
