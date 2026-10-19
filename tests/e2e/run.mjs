@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { launchBrowser, browserName, knownEngineNoise, webkitCspWatch } from '../browser.mjs';
 import { startServer } from './davserver.mjs';
+import { parseCsv } from '../../src/core/csv.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PW = 'Test-Passwort-123';
@@ -549,6 +550,92 @@ async function main() {
         expect(ls.includes('Vom Handy') && ls.includes('Vom Laptop'), 'Eintraege fehlen:\n' + ls);
         expect(xc(['show', '-s', fM, 'Bank/Konto']).includes('UserName: bob-handy'), 'Aenderung aus der Konfliktkopie fehlt');
         expect(xc(['show', '-s', fM, 'Web/Vom Laptop']).includes('Password: pw-laptop'), 'Eintrag von der Kopie mit anderem Passwort');
+    });
+
+    await step('Platzhalter: {S:…} und {USERNAME} in Benutzername und URL werden angezeigt und verlinkt, der Editor behaelt sie', async () => {
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), path.join(davRoot, 'platzhalter.kdbx'));
+        const p = await newPage();
+        await login(p, 'platzhalter.kdbx'); await rows(p).first().waitFor();
+        await p.click('#new-btn');
+        await p.fill('#e-title', 'Platzhalter'); await p.fill('#e-user', '{S:Login}'); await p.fill('#e-url', 'https://{S:Host}/{USERNAME}');
+        await p.click('#add-custom'); await p.locator('.c-name').last().fill('Login'); await p.locator('.c-value').last().fill('carol');
+        await p.click('#add-custom'); await p.locator('.c-name').last().fill('Host'); await p.locator('.c-value').last().fill('example.org');
+        await p.click('#apply-btn');
+        expect(await p.locator('[data-testid=f-user]').innerText() === 'carol', 'Benutzername: ' + await p.locator('[data-testid=f-user]').innerText());
+        const link = p.locator('[data-testid=f-url]');
+        expect(await link.innerText() === 'https://example.org/carol' && await link.getAttribute('href') === 'https://example.org/carol', 'URL: ' + await link.innerText());
+        expect(/carol/.test(await rows(p).filter({ hasText: 'Platzhalter' }).innerText()), 'Liste zeigt den Platzhalter statt carol');
+        await p.click('#edit-btn');
+        expect(await p.inputValue('#e-user') === '{S:Login}' && await p.inputValue('#e-url') === 'https://{S:Host}/{USERNAME}', 'Editor muss die Platzhalter zeigen');
+        await p.context().close();
+    });
+
+    await step('Kleinigkeiten: Vorschau fuer Text- und Bild-Anhang, Farbe des Eintrags (KeePassXC sieht sie), TOTP aus einem QR-Code-Bild', async () => {
+        const fX = path.join(davRoot, 'extras.kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fX);
+        const p = await newPage();
+        await login(p, 'extras.kdbx'); await rows(p).first().waitFor();
+        await rows(p).filter({ hasText: 'Konto' }).click();
+        const png = fs.readFileSync(path.join(root, 'tests/fixtures/totp-qr.png'));
+        await p.setInputFiles('#att-input', { name: 'bild.png', mimeType: 'image/png', buffer: png });
+        await p.locator('.att-row', { hasText: 'anhang.txt' }).locator('[data-testid=attachment-preview]').click();
+        expect(/anhang-inhalt/.test(await p.locator('.att-preview-text').innerText()), 'Text-Vorschau');
+        await p.keyboard.press('Escape');
+        await p.locator('.att-row', { hasText: 'bild.png' }).locator('[data-testid=attachment-preview]').click();
+        expect((await p.locator('img.att-preview').getAttribute('src')).startsWith('data:image/png;base64,'), 'Bild-Vorschau');
+        expect(await p.locator('img.att-preview').evaluate((img) => img.decode().then(() => img.naturalWidth)) === 270, 'Bild wird angezeigt');
+        await p.keyboard.press('Escape');
+
+        await p.click('#edit-btn');
+        await p.locator('#e-color input[value="#43a047"]').check();
+        await p.setInputFiles('#e-qr', { name: 'qr.png', mimeType: 'image/png', buffer: png });
+        await p.waitForFunction(() => /^otpauth:/.test(document.querySelector('#e-otp')?.value || ''));
+        expect(await p.inputValue('#e-otp') === 'otpauth://totp/Beispiel:carol?secret=JBSWY3DPEHPK3PXP&issuer=Beispiel', 'QR: ' + await p.inputValue('#e-otp'));
+        await p.click('#apply-btn');
+        expect(/\btinted\b/.test(await rows(p).filter({ hasText: 'Konto' }).getAttribute('class')), 'Liste zeigt die Farbe nicht');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        await p.context().close();
+        expect(/<BackgroundColor>#43a047<\/BackgroundColor>/i.test(xc(['export', '-f', 'xml', fX])), 'KeePassXC sieht die Farbe nicht');
+        expect(/^\d{6}$/.test(xc(['show', '-t', fX, 'Bank/Konto']).trim().split('\n').pop()), 'TOTP aus dem QR-Code');
+        const att = path.join(tmp, 'bild.png'); xc(['attachment-export', fX, 'Bank/Konto', 'bild.png', att]);
+        expect(fs.readFileSync(att).equals(png), 'Bild-Anhang');
+    });
+
+    await step('CSV: Bitwarden-Export landet in eigener Gruppe (KeePassXC sieht ihn), Export entspricht dem von KeePassXC und laesst sich wieder einlesen', async () => {
+        const fCsv = path.join(davRoot, 'csv.kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fCsv);
+        const bitwarden = 'folder,favorite,type,name,notes,fields,reprompt,login_uri,login_username,login_password,login_totp\n'
+            + 'Arbeit/Server,,login,NAS,"zwei\nZeilen",,0,https://nas.local,admin,"ge,heim""1",JBSWY3DPEHPK3PXP\n,,login,Forum,,,0,forum.example,eve,pw-forum,\n';
+        const p = await newPage();
+        await login(p, 'csv.kdbx'); await rows(p).first().waitFor();
+        const openCsv = async () => { await p.click('#reports-btn'); await p.click('#rep-tab-info'); await p.click('#csv-btn'); await p.locator('#csv-file').waitFor({ state: 'attached' }); };
+        await openCsv();
+        await p.setInputFiles('#csv-file', { name: 'bitwarden.csv', mimeType: 'text/csv', buffer: Buffer.from(bitwarden) });
+        await p.waitForFunction(() => /Gefundene Einträge: 2/.test(document.querySelector('#csv-summary')?.textContent || ''));
+        expect(/favorite|type|reprompt/.test(await p.locator('#csv-summary').innerText()) === true, 'ignorierte Spalten fehlen: ' + await p.locator('#csv-summary').innerText());
+        await p.click('#csv-import');
+        expect(await rows(p).count() === 2, 'Liste zeigt nicht die neue Gruppe');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        const nas = xc(['show', '-s', fCsv, 'Import bitwarden/Arbeit/Server/NAS']);
+        expect(nas.includes('UserName: admin') && nas.includes('Password: ge,heim"1') && nas.includes('zwei\nZeilen'), 'NAS in KeePassXC:\n' + nas);
+        expect(/^\d{6}$/.test(xc(['show', '-t', fCsv, 'Import bitwarden/Arbeit/Server/NAS']).trim().split('\n').pop()), 'TOTP aus dem Bitwarden-Export');
+        expect(xc(['show', '-s', fCsv, 'Import bitwarden/Forum']).includes('Password: pw-forum'), 'Forum fehlt');
+
+        await openCsv();
+        expect(await p.isDisabled('#csv-export'), 'Export ohne Bestaetigung moeglich');
+        await p.check('#csv-sure');
+        const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#csv-export')]);
+        const ours = fs.readFileSync(await dl.path(), 'utf8');
+        // Vergleich mit KeePassXC: ohne Icon und Zeiten, TOTP nur das Geheimnis (KeePassXC schreibt die URI neu auf), ohne Papierkorb (lassen wir bewusst weg)
+        const cut = (csv) => parseCsv(csv).filter((r) => !r[0].includes('Recycle Bin'))
+            .map((r) => [...r.slice(0, 6), r[6].match(/secret=([A-Z2-7]+)/)?.[1] || r[6]].join('|')).sort();
+        const theirs = xc(['export', '-f', 'csv', fCsv]);
+        expect(JSON.stringify(cut(ours)) === JSON.stringify(cut(theirs)), 'Export weicht von KeePassXC ab:\n' + ours + '\n---\n' + theirs);
+        await openCsv();
+        await p.setInputFiles('#csv-file', { name: 'zurueck.csv', mimeType: 'text/csv', buffer: Buffer.from(ours) });
+        await p.click('#csv-import');
+        expect(await rows(p).count() === parseCsv(ours).length - 1, 'Wiedereingelesener Export: ' + await rows(p).count());
+        await p.context().close();
     });
 
     await step('Lokale Datei: oeffnen, aendern, "Speichern" liefert Download, der in KeePassXC oeffnet', async () => {

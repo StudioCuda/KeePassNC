@@ -22,7 +22,8 @@
   "dependencies": {
     "@xmldom/xmldom": "^0.8.15",
     "fflate": "^0.7.5",
-    "hash-wasm": "^4.11.0"
+    "hash-wasm": "^4.11.0",
+    "jsqr": "^1.4.0"
   },
   "devDependencies": {
     "@nextcloud/files": "^4.1.0",

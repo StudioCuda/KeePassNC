@@ -5,6 +5,7 @@ node_modules/
 # Build output (npm run build). Sources live in src/, the release archive is built in CI or by tools/sign-release.sh.
 web/keepassnc.js
 web/keepassnc-argon2.js
+web/keepassnc-qr.js
 web/keepassnc.css
 web/sw.js
 nextcloud-app/keepassnc/js/

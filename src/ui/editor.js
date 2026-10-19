@@ -1,16 +1,17 @@
 // Eintrag anlegen/bearbeiten. Ungezeigte Felder (Passkeys, Browser-Daten, Auto-Type ...) bleiben im Vault unveraendert (siehe Vault.applyEntry).
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
-import { isSystemField, entryExpiry } from '../core/util.js';
+import { isSystemField, entryExpiry, entryColor, ENTRY_COLORS } from '../core/util.js';
 import { excluded } from '../core/audit.js';
 import { t } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
-import { h, icon, iconBtn } from './dom.js';
+import { h, icon, iconBtn, toast } from './dom.js';
 import { changed, refreshDirtyIndicator } from './session.js';
 import { strengthBar } from './detail.js';
 import { groupSelect, selectedGroup } from './groups.js';
 import { openGenerator } from './generator-dialog.js';
 import { allRealEntries } from './common.js';
 import { iconSelOf, iconPreview, pickIcon, commitIconSel } from './icon-picker.js';
+import { readQr } from '../qr.js';
 
 const { state } = ctx;
 
@@ -45,6 +46,21 @@ export function renderEditor(host) {
     i.expiry.disabled = !i.expires.checked;
     i.expires.addEventListener('change', () => { i.expiry.disabled = !i.expires.checked; });
     const groupSel = groupSelect({ value: group, id: 'e-group' });
+    // TOTP aus einem QR-Code: Screenshot der Einrichtungsseite waehlen, nur otpauth:// wird uebernommen
+    const qrInput = h('input', { type: 'file', id: 'e-qr', accept: 'image/*', class: 'sr-only', onchange: async () => {
+        const f = qrInput.files[0]; qrInput.value = '';
+        if (!f) return;
+        const text = await readQr(f).catch(() => null);
+        if (text && /^otpauth:\/\//i.test(text)) { i.otp.value = text; toast(t('qr.ok')); } else toast(t(text ? 'qr.other' : 'qr.none'), { kind: 'warn' });
+    } });
+    const qrLabel = h('label', { class: 'btn', for: 'e-qr', title: t('qr.read') }, icon('qr'), h('span', { text: t('qr.read') }));
+    const color = entryColor(entry) || '';
+    const swatch = (c) => {
+        const r = h('input', { type: 'radio', name: 'e-color', value: c, checked: c === color, class: 'swatch' + (c ? '' : ' none'), title: c || t('color.none'), 'aria-label': c || t('color.none') });
+        if (c) r.style.setProperty('--swatch', c); // CSSOM, kein style-Attribut (CSP)
+        return r;
+    };
+    const colorBox = h('div', { class: 'swatches', id: 'e-color', role: 'radiogroup', 'aria-label': t('f.color') }, swatch(''), ...[...new Set([...ENTRY_COLORS, color].filter(Boolean))].map(swatch));
     let generated = null; // {pw, bits} aus dem Generator: exakte Staerke, solange das Feld unveraendert ist
     const meter = h('div', { class: 'meter' }, strengthBar(i.Password.value));
     i.Password.addEventListener('input', () => meter.replaceChildren(strengthBar(i.Password.value, generated?.pw === i.Password.value ? generated.bits : undefined)));
@@ -109,7 +125,8 @@ export function renderEditor(host) {
             h('section', { class: 'card stack' },
                 h('label', {}, h('span', { text: t('notes') }), i.Notes),
                 h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('f.tags') }), i.tags, tagSugg), h('div', { class: 'stack tight' }, h('label', { class: 'check' }, i.expires, h('span', { text: t('expires') })), i.expiry))),
-            h('section', { class: 'card stack' }, h('label', {}, h('span', { text: t('f.totp') }), i.otp), h('p', { class: 'hint', text: t('f.totp.hint') })),
+            h('section', { class: 'card stack' }, h('div', { class: 'stack tight' }, h('span', { class: 'group-title', text: t('f.color') }), colorBox)),
+            h('section', { class: 'card stack' }, h('label', {}, h('span', { text: t('f.totp') }), h('div', { class: 'input-group' }, i.otp, qrLabel, qrInput)), h('p', { class: 'hint', text: t('f.totp.hint') })),
             h('section', { class: 'card stack' }, h('div', { class: 'flabel', text: t('fields.more') }), customBox,
                 h('div', {}, h('button', { type: 'button', class: 'btn small', id: 'add-custom', onclick: () => addCustom().querySelector('.c-name').focus() }, icon('plus'), t('field.add'))))));
 
@@ -121,7 +138,8 @@ export function renderEditor(host) {
             tags: i.tags.value.split(/[,;]/).map((x) => x.trim()).filter(Boolean), custom,
             expires: i.expires.checked, expiryTime: i.expires.checked && i.expiry.value ? new Date(i.expiry.value + 'T23:59:59') : null,
             ...commitIconSel(iconSel),
-            excludeReports: i.excludeReports.checked
+            excludeReports: i.excludeReports.checked,
+            color: colorBox.querySelector(':checked')?.value ?? ''
         };
         if (i.expires.checked && entry?.times.expires && i.expiry.value === dateStr(entry.times.expiryTime)) data.expiryTime = entry.times.expiryTime; // Uhrzeit unveraendert lassen
         if (i.otp.value.trim() !== val('otp')) {

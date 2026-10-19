@@ -22,13 +22,14 @@ export function startEntryDrag(ev, entry) {
     ev.target.addEventListener('dragend', () => { dragging = null; document.body.classList.remove('dragging'); }, { once: true });
 }
 
-export function setFilter(f) {
+/** refresh: false, wenn gleich danach ohnehin neu gezeichnet wird (z. B. changed()). */
+export function setFilter(f, { refresh = true } = {}) {
     state.filter = f;
     state.query = '';
     const s = document.getElementById('search');
     if (s) s.value = '';
     state.view = 'list';
-    ctx.ui.refresh();
+    if (refresh) ctx.ui.refresh();
 }
 
 /** <select> mit allen Gruppen (eingerueckt); exclude: Gruppe samt Nachkommen ausblenden. */

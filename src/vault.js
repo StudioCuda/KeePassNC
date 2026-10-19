@@ -5,7 +5,8 @@ import { argon2 } from './argon2.js';
 import { ConflictError, DavError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
 import { excluded } from './core/audit.js';
-import { isOutOfMemory, isPasskeyField, isSystemField, uuidHex, valueText } from './core/util.js';
+import { entryColor, groupPath, isOutOfMemory, isPasskeyField, isSystemField, resolvePlaceholders, uuidHex, valueText } from './core/util.js';
+import { EXPORT_HEAD, otpUri } from './core/csv.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
 
@@ -364,7 +365,7 @@ export class Vault {
     /**
      * Wendet Formularwerte auf einen Eintrag an (neuer Eintrag: entry === null -> in group anlegen).
      * data: {Title, UserName, Password, URL, Notes, tags: string[], custom: [{name, value, protect}], expires?: boolean, expiryTime?: Date|null, otp?: string,
-     *   icon?: number, customIcon?: string|null, excludeReports?: boolean} (Symbol: siehe _setIcon)
+     *   icon?: number, customIcon?: string|null, excludeReports?: boolean, color?: string} (Symbol: siehe _setIcon; color: "#rrggbb" oder "")
      * Unveraendert bleibt alles, was der Editor nicht anzeigt (Passkey-Felder, Browser-Daten, Farben, Auto-Type ...). Ohne tatsaechliche Aenderung
      * entsteht kein Verlaufseintrag (wie in KeePassXC).
      */
@@ -399,6 +400,7 @@ export class Vault {
             if (data.expires) entry.times.expiryTime = data.expiryTime || new Date(Date.now() + 365 * 86400000);
         }
         this._setIcon(entry, data);
+        if (data.color !== undefined && data.color !== (entryColor(entry) || '')) entry.bgColor = data.color || undefined;
         if (data.excludeReports !== undefined && data.excludeReports !== excluded(entry)) { // beide Schreibweisen, damit KeePass 2 und KeePassXC es sehen
             entry.qualityCheck = data.excludeReports ? false : undefined;
             if (data.excludeReports) (entry.customData ??= new Map()).set('KnownBad', { value: 'True' });
@@ -424,7 +426,8 @@ export class Vault {
             if (!!data.expires !== !!entry.times.expires) return true;
             if (data.expires && (data.expiryTime?.getTime() ?? 0) !== (entry.times.expiryTime?.getTime() ?? 0)) return true;
         }
-        return this._iconDiffers(entry, data) || (data.excludeReports !== undefined && data.excludeReports !== excluded(entry));
+        return this._iconDiffers(entry, data) || (data.excludeReports !== undefined && data.excludeReports !== excluded(entry))
+            || (data.color !== undefined && data.color !== (entryColor(entry) || ''));
     }
 
     /** Verlaufseintrag anlegen und gemaess Datenbank-Einstellungen kuerzen (Standard 10 Staende / 6 MiB, aelteste zuerst). */
@@ -626,6 +629,35 @@ export class Vault {
         this.dirty = true;
         return true;
     }
+    // ---------------------------------------------------------------- CSV
+    /**
+     * Legt Eintraege aus einem CSV-Import (core/csv.js mapRows) in einer neuen Gruppe `name` unter der Wurzel an, Unterordner als
+     * Untergruppen. So bleibt der Import beisammen und laesst sich mit einem Klick wieder loswerden. Liefert die neue Gruppe.
+     */
+    importEntries(entries, name) {
+        const top = this.db.createGroup(this.root, name);
+        const sub = (parent, part) => parent.groups.find((g) => g.name === part) || this.db.createGroup(parent, part);
+        for (const r of entries) {
+            const e = this.db.createEntry(r.path.reduce(sub, top));
+            e.fields.set('Title', r.title); e.fields.set('UserName', r.user); e.fields.set('Password', ProtectedValue.fromString(r.password));
+            e.fields.set('URL', r.url); e.fields.set('Notes', r.notes);
+            if (r.totp) e.fields.set('otp', ProtectedValue.fromString(/^otpauth:\/\//i.test(r.totp) ? r.totp : `otpauth://totp/${encodeURIComponent(r.title || 'KeePass')}?secret=${r.totp.replace(/[\s-]/g, '').toUpperCase()}`));
+            e.tags = r.tags;
+        }
+        this.dirty = true;
+        return top;
+    }
+
+    /** Alle Eintraege ausser dem Papierkorb als CSV-Zeilen im Format von KeePassXC; Platzhalter und Feldreferenzen aufgeloest, damit andere Programme sie verstehen. */
+    csvRows() {
+        const all = [...this.root.allEntries()].filter((e) => !this.isInRecycleBin(e));
+        const val = (e, k) => resolvePlaceholders(fieldText(e.fields.get(k)), e, all);
+        const time = (d) => (d ? d.toISOString().replace(/\.\d{3}Z$/, 'Z') : '');
+        return [EXPORT_HEAD, ...all.map((e) => [[this.root.name, groupPath(e.parentGroup)].filter(Boolean).join('/'),
+            val(e, 'Title'), val(e, 'UserName'), val(e, 'Password'), val(e, 'URL'), val(e, 'Notes'),
+            otpUri(val(e, 'Title'), val(e, 'otp'), val(e, 'TOTP Seed'), val(e, 'TOTP Settings')), String(e.icon ?? 0), time(e.times.lastModTime), time(e.times.creationTime)])];
+    }
+
     emptyRecycleBin() {
         const rb = this.recycleBin;
         if (!rb) return 0;

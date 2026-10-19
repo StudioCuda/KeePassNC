@@ -44,6 +44,19 @@ await build({
     logLevel: 'info'
 });
 
+// Web Worker fuer QR-Codes (src/qr.js): eigene Datei, damit jsQR nur geladen wird, wenn jemand ein Bild liest
+await build({
+    entryPoints: [path.join(root, 'src/qr-worker.js')],
+    outfile: path.join(root, 'web/keepassnc-qr.js'),
+    bundle: true,
+    minify: true,
+    format: 'iife',
+    target: ['es2022'],
+    platform: 'browser',
+    legalComments: 'none',
+    logLevel: 'info'
+});
+
 // Service Worker und Stylesheet unveraendert nach web/ (Nextcloud-App: siehe build-nextcloud.mjs)
 fs.copyFileSync(path.join(root, 'src/sw.js'), path.join(root, 'web/sw.js'));
 fs.copyFileSync(path.join(root, 'src/keepassnc.css'), path.join(root, 'web/keepassnc.css'));

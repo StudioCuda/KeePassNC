@@ -1,6 +1,6 @@
 // Hauptansicht: Kopfzeile, drei Spalten (Seitenleiste | Liste | Details), Mobil-Navigation, Tastenkuerzel, Befehlspalette.
 import { t } from '../i18n.js';
-import { fieldOf, domainOf, openableUrl, hasTotp, isPasskey } from '../core/util.js';
+import { fieldOf, domainOf, openableUrl, hasTotp, isPasskey, entryColor } from '../core/util.js';
 import { SORTS } from './common.js';
 import { ctx, copy, setStatus, applyTheme } from './ctx.js';
 import { $, h, icon, iconBtn, modal, popupMenu, toast } from './dom.js';
@@ -11,6 +11,7 @@ import { renderEditor, startEdit, cancelEdit } from './editor.js';
 import { openGenerator } from './generator-dialog.js';
 import { openReports } from './reports.js';
 import { openMerge } from './merge-dialog.js';
+import { openCsv } from './csv-dialog.js';
 import { openSettings } from './settings-dialog.js';
 import { doSave, lock, refreshDirtyIndicator, syncNow } from './session.js';
 import { saveSettings } from '../settings.js';
@@ -110,6 +111,8 @@ export function renderList(entries = visibleEntries()) {
             onkeydown: (ev) => listKeys(ev) },
             avatar(e), h('span', { class: 'et' }, h('span', { class: 'title', text: fieldOf(e, 'Title') || t('entry.untitled') }), h('span', { class: 'sub', text: [user, dom].filter(Boolean).join(' · ') })),
             h('span', { class: 'badges' }, expiryBadge(e), hasTotp(e) ? h('span', { class: 'mini', title: 'TOTP' }, icon('totp')) : null, isPasskey(e) ? h('span', { class: 'mini', title: t('passkey') }, icon('passkey')) : null, e.binaries?.size ? h('span', { class: 'mini', title: t('attachments') }, icon('clip')) : null));
+        const color = entryColor(e);
+        if (color) { main.classList.add('tinted'); main.style.setProperty('--entry-color', color); } // CSSOM, kein style-Attribut (CSP)
         const wrap = h('div', { class: 'entry-wrap', draggable: 'true' }, main,
             h('div', { class: 'row-actions' }, iconBtn('user', t('copy') + ': ' + t('f.user'), () => copy(user, t('f.user')), { tabindex: '-1' }), iconBtn('key', t('copy') + ': ' + t('f.password'), () => copy(resolvedField(e, 'Password'), t('f.password')), { tabindex: '-1' })));
         wrap.addEventListener('dragstart', (ev) => startEntryDrag(ev, e));
@@ -137,7 +140,7 @@ export function openPalette() {
     const cmds = [
         ['plus', t('entry.new'), 'Ctrl+N', () => startEdit(null)], ['folder', t('group.new'), '', () => newGroup(null)], ['save', t('save'), 'Ctrl+S', () => doSave()],
         ['dice', t('generator'), '', () => openGenerator()], ['database', t('database'), '', () => openReports()], ['settings', t('settings'), '', () => openSettings()],
-        ['refresh', t('sync.now'), '', () => syncNow({ announce: true })], ['upload', t('merge.title'), '', () => openMerge()],
+        ['refresh', t('sync.now'), '', () => syncNow({ announce: true })], ['upload', t('merge.title'), '', () => openMerge()], ['download', t('csv.title'), '', () => openCsv()],
         ['moon', t('palette.theme'), '', () => { const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'; ctx.settings.theme = next; saveSettings(ctx.settings); applyTheme(); }],
         ['alert', t('nav.weak'), '', () => setFilter({ type: 'weak' })], ['clock', t('nav.expiring'), '', () => setFilter({ type: 'expiring' })], ['trash', t('nav.bin'), '', () => setFilter({ type: 'bin' })],
         ['lock', t('lock'), 'Ctrl+L', () => lock(t('locked'))]

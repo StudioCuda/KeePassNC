@@ -30,8 +30,10 @@ No lock-in, no special format, no drama.
 - **Stay organised:** groups with drag and drop, icons (KeePass's own or your pictures), tags, expiry dates, attachments, recycle bin and full entry history.
 - **Database settings:** name, recycle bin, history, encryption and key derivation, with browser-safe values and a test run first.
 - **New master password or key file:** change both in place. A new key file only counts once you've shown you saved it.
-- **Two-factor codes:** TOTP codes right next to the password, Steam Guard included.
+- **Two-factor codes:** TOTP codes right next to the password, Steam Guard included. Setting one up? Pick a screenshot of the QR code.
 - **Passkeys:** passkeys saved by KeePassXC are shown and kept intact.
+- **Moving house:** import CSV exports from KeePassXC, Bitwarden, 1Password, LastPass, Chrome or Firefox, and export to CSV the
+  way KeePassXC does.
 - **Better passwords:** a generator for passphrases (English or German), passwords and simple ones you can type on a TV remote, and a health report that finds weak, reused and expired ones.
 - **Shared files:** databases someone shared with you open fine; read-only shares say so.
 - **Feels at home:** picks up your instance's color and your light or dark choice, and keeps the Nextcloud header with the app menu
@@ -111,5 +113,6 @@ That's a safety net, not an audit, which is why [`SECURITY.md`](SECURITY.md) sti
 
 ## License and credits
 
-AGPL-3.0-or-later. [kdbxweb](https://github.com/keeweb/kdbxweb) (MIT) does the KDBX heavy lifting.
+AGPL-3.0-or-later. [kdbxweb](https://github.com/keeweb/kdbxweb) (MIT) does the KDBX heavy lifting, [jsQR](https://github.com/cozmo/jsQR)
+(Apache-2.0) reads QR codes.
 Behaviour is inspired by KeePassXC (GPL), but no KeePassXC code was copied. The Nextcloud side owes a nod to jhass/nextcloud-keeweb.
