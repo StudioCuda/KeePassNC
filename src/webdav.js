@@ -148,6 +148,13 @@ export class DavFile {
      */
     async pruneBackups(keep) {
         if (!(keep > 0)) return [];
+        return this._deleteBackups(keep);
+    }
+
+    /** Loescht alle Sicherungskopien dieser Datei (gleiches Muster wie pruneBackups). Liefert die Namen der geloeschten Dateien. */
+    deleteBackups() { return this._deleteBackups(0); }
+
+    async _deleteBackups(keep) {
         const u = new URL(this.url, typeof location !== 'undefined' ? location.href : undefined);
         const slash = u.pathname.lastIndexOf('/');
         const dirPath = u.pathname.slice(0, slash + 1);

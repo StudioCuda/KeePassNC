@@ -47,6 +47,22 @@ export const KDF_LABEL = { argon2d: 'Argon2d', argon2id: 'Argon2id', aes: 'AES-K
 export const CIPHER_LABEL = { aes: 'AES-256', chacha20: 'ChaCha20', twofish: 'Twofish' };
 const CIPHER_ID = { aes: Consts.CipherId.Aes, chacha20: Consts.CipherId.ChaCha20, twofish: Consts.CipherId.Twofish };
 
+/** Neue Schluesseldatei im XML-Format 2.0 (wie KeePassXC, .keyx), Schluessel: 256 Bit aus crypto.getRandomValues. */
+export async function createKeyfile() {
+    const key = crypto.getRandomValues(new Uint8Array(32));
+    try { return await Credentials.createKeyFileWithHash(key.buffer, 2); } finally { key.fill(0); }
+}
+
+/**
+ * Dieselbe Schluesseldatei? Verglichen wird der Schluessel, den KeePass aus ihr liest, nicht die Bytes: eine unter Windows
+ * gespeicherte Kopie mit anderen Zeilenenden zaehlt als gleich. Eine unlesbare Datei (XML mit falscher Pruefsumme) wirft.
+ */
+export async function sameKeyfile(a, b) {
+    const hash = async (x) => { const c = new Credentials(null, x); await c.ready; return c.keyFileHash.getBinary(); };
+    const [x, y] = await Promise.all([hash(a), hash(b)]);
+    try { return sameBytes(x, y); } finally { x.fill(0); y.fill(0); }
+}
+
 export const STANDARD_FIELDS = ['Title', 'UserName', 'Password', 'URL', 'Notes'];
 
 /** message: deutscher Ersatztext; key/vars: Schluessel der Uebersetzung (siehe errText in i18n.js). */
@@ -69,6 +85,12 @@ export function imageUrl(data) {
     return `data:${mime};base64,${btoa(bin)}`;
 }
 
+const sameBytes = (a, b) => {
+    const x = new Uint8Array(a), y = new Uint8Array(b);
+    let d = x.length ^ y.length;
+    for (let i = 0; i < Math.min(x.length, y.length); i++) d |= x[i] ^ y[i];
+    return d === 0;
+};
 const toArrayBuffer = (u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
 const stamp = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '-');
 
@@ -123,6 +145,7 @@ export class Vault {
         this.db = db;
         this._pw = pw;
         this._kf = kf;
+        this._base = { pw, kf }; // Zugangsdaten des letzten bekannten Server-Stands (weichen nach changeCredentials bis zum Hochladen ab)
         this.dav = dav || null;
         this.etag = etag;
         this._remoteBytes = remoteBytes;
@@ -157,9 +180,55 @@ export class Vault {
         return `KDBX ${this.db.header.versionMajor}.${this.db.header.versionMinor}`;
     }
 
-    _credentials() {
-        return new Credentials(this._pw, this._kf);
+    /** Zum Lesen des Server-Stands (Zusammenfuehren, Abholen): dessen Zugangsdaten, nicht unbedingt die eigenen. */
+    _baseCredentials() {
+        return new Credentials(this._base.pw, this._base.kf);
     }
+
+    /** Stimmt pw mit dem Master-Passwort dieser Datenbank ueberein? Vergleicht nur Hashes, ohne Schluesselableitung. */
+    async checkPassword(pw) {
+        const [a, b] = await Promise.all([ProtectedValue.fromString(pw).getHash(), this._pw.getHash()]);
+        return sameBytes(a, b);
+    }
+
+    get hasKeyfile() { return !!this._kf; }
+    /** Kopie der Schluesseldatei (zum Neu-Merken nach changeCredentials) oder null; der Aufrufer ueberschreibt sie danach mit Nullen. */
+    keyfileCopy() { return this._kf ? new Uint8Array(this._kf.slice(0)) : null; }
+
+    /**
+     * Neues Master-Passwort und/oder neue Schluesseldatei, und gleich speichern. password: neuer Text oder undefined (bleibt);
+     * keyfile: undefined (bleibt), null (entfaellt) oder die Bytes der neuen Datei. Bis zum ersten erfolgreichen Hochladen liest die
+     * Vault den Server weiter mit den alten Zugangsdaten (Konflikt mit einem anderen Geraet -> Zusammenfuehren klappt).
+     * Scheitert das Speichern, gelten wieder die alten Zugangsdaten; Aenderungen bleiben ungespeichert bzw. werden mit den alten
+     * Zugangsdaten lokal abgelegt. Ergebnis wie save().
+     */
+    changeCredentials({ password, keyfile }) {
+        return this._exclusive(async () => {
+            const pw = password === undefined ? this._pw : ProtectedValue.fromString(password);
+            const kf = keyfile === undefined ? this._kf : keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
+            const creds = new Credentials(pw, kf);
+            // unlesbare Schluesseldatei (z. B. XML mit falscher Pruefsumme) jetzt melden, nicht erst beim Speichern
+            try { await creds.ready; } catch { throw new VaultError('Diese Schluesseldatei ist unlesbar.', 'e.keyfile.bad'); }
+            const prev = { pw: this._pw, kf: this._kf, creds: this.db.credentials, keyChanged: this.db.meta.keyChanged };
+            this._pw = pw; this._kf = kf; this.db.credentials = creds;
+            this.db.meta.keyChanged = new Date();
+            try {
+                return await this._save();
+            } catch (e) {
+                this._pw = prev.pw; this._kf = prev.kf; this.db.credentials = prev.creds; this.db.meta.keyChanged = prev.keyChanged;
+                if (this._pending) { // lokal schon mit den neuen Zugangsdaten abgelegt: mit den alten neu ablegen, Hochladen folgt spaeter
+                    try { this._pending = await this.db.save(); await this._cacheWrite(this._pending, true); } catch { this.dirty = true; }
+                } else this.dirty = true;
+                throw e;
+            }
+        });
+    }
+
+    /**
+     * Loescht alle Sicherungskopien dieser Datei auf dem Server (nach changeCredentials: die oeffnen mit den alten Zugangsdaten).
+     * Nur sinnvoll, wenn der neue Stand hochgeladen ist. Liefert die Namen der geloeschten Dateien.
+     */
+    deleteBackups() { return this._exclusive(() => (this.dav && !this.unsynced ? this.dav.deleteBackups() : [])); }
 
     get root() {
         return this.db.getDefaultGroup();
@@ -300,6 +369,12 @@ export class Vault {
             out.parallelism = Number(kp.get('P'));
         } else out.rounds = Number(kp.get('R'));
         return out;
+    }
+
+    /** Schluesselableitung im Format, das keyfile-store.js erwartet (siehe chooseKdfParams). */
+    kdfParams() {
+        const k = this.securitySettings();
+        return { kdf: KDF_LABEL[k.kdf], memoryKiB: k.memoryKiB ?? 0, iterations: k.iterations ?? k.rounds };
     }
 
     /**
@@ -657,6 +732,7 @@ export class Vault {
             try {
                 this.etag = await this.dav.put(out, this.etag);
                 this._remoteBytes = out;
+                this._base = { pw: this._pw, kf: this._kf };
                 this.unsynced = false;
                 this._pending = null;
                 await this._cacheWrite(out, false);
@@ -667,7 +743,7 @@ export class Vault {
                 const remote = await this.dav.get();
                 await this._backup(remote.buf, `conflict-${stamp()}`);
                 await this._prune();
-                const remoteDb = await Kdbx.load(remote.buf, this._credentials()).catch((err) => {
+                const remoteDb = await Kdbx.load(remote.buf, this._baseCredentials()).catch((err) => {
                     if (err instanceof KdbxError && err.code === Consts.ErrorCodes.InvalidKey) {
                         throw new VaultError('Das Master-Passwort wurde auf einem anderen Geraet geaendert - zusammenfuehren nicht moeglich. Ihre Aenderungen sind lokal gesichert; bitte mit dem neuen Passwort neu anmelden.', 'e.merge.pw');
                     }
@@ -710,7 +786,7 @@ export class Vault {
         if (remote.etag && remote.etag === this.etag) return { pulled: false };
         let remoteDb;
         try {
-            remoteDb = await Kdbx.load(remote.buf, this._credentials());
+            remoteDb = await Kdbx.load(remote.buf, this._baseCredentials());
         } catch (e) {
             if (e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) {
                 throw new VaultError('Das Master-Passwort wurde auf einem anderen Geraet geaendert - bitte neu anmelden.', 'e.pull.pw');

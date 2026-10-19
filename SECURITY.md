@@ -43,6 +43,10 @@ Things we know about and can't fix from inside the app. Reports that find a way 
   carries the whole load there. On Nextcloud the record is also bound to a per-user server secret, so a copied browser profile alone
   isn't enough. A still valid session cookie in that profile is, though. Lost a device? Use "Invalidate on all devices" and sign out
   its Nextcloud sessions.
+- **Old copies keep the old credentials.** After you change the master password or key file, everything written before still
+  opens with the old ones: the backup copies next to the file (the dialog can delete them), Nextcloud's own file versions and trash
+  bin, offline copies on other devices until they sync, and any copy someone already made. If you change them because the old ones
+  leaked, clean up those places too.
 - **The standalone page (`web/`) sets its CSP via `<meta>`.** `frame-ancestors` doesn't work there. If you host it yourself, send the
   CSP as an HTTP header from your web server. Argon2 runs in a worker loaded from `keepassnc-argon2.js` next to `keepassnc.js`, so
   a `worker-src` (if you set one) needs `'self'`, and a CSP on that file itself needs `'wasm-unsafe-eval'`. Otherwise the page falls

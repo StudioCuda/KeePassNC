@@ -1,6 +1,6 @@
 # Remember the key file: security design
 
-Implemented in `src/keyfile-store.js`, wired up in `src/ui/login.js` and `src/ui/settings-dialog.js`. Server side (Nextcloud):
+Implemented in `src/keyfile-store.js`, wired up in `src/ui/login.js`, `src/ui/settings-dialog.js` and `src/ui/credentials-dialog.js`. Server side (Nextcloud):
 `nextcloud-app/keepassnc/lib/Controller/PepperController.php`. Tests: `tests/unit/keyfile-store.test.mjs`, `tests/e2e/keyfile.mjs`,
 `tests/e2e/keyfile-nc.mjs` (Nextcloud mode against a simulation), `tests/nextcloud/run.mjs` (endpoint against a real Nextcloud).
 
@@ -20,6 +20,8 @@ master password anything they wouldn't have with a known key file anyway.
 - A record that is cheaper than what would be chosen for the database today (older version, DB KDF raised since) is re-encrypted in
   the background after a successful open.
 - Next login: "Use remembered key file" is preselected, typing the master password is enough. A key file picked by hand wins.
+- Changing the master password or key file (the "Database" dialog) re-encrypts this device's record with the new ones, or
+  forgets it when the key file is gone. Records on other devices no longer fit: there, pick the key file by hand once.
 - "Forget" (login), "Forget all" (settings) and "Delete local data of this browser" remove records. In Nextcloud the settings only
   show and delete records of the signed-in user; "Delete local data" still removes everything in this browser.
 

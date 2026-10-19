@@ -45,7 +45,7 @@ jobs:
           echo "CHROMIUM=$(node -e "console.log(require('playwright-core').chromium.executablePath())")" >> $GITHUB_ENV
       - run: npm run build && npm run test:unit && npm run test:compat
         if: steps.changes.outputs.docs_only != 'true'
-      - run: npm run test:e2e && npm run test:ui && npm run test:theme && npm run test:keyfile && npm run test:offline && npm run test:fidelity
+      - run: npm run test:e2e && npm run test:ui && npm run test:theme && npm run test:keyfile && npm run test:credentials && npm run test:offline && npm run test:fidelity
         if: matrix.browser && steps.changes.outputs.docs_only != 'true'
       - name: Get the release package
         if: matrix.package && steps.changes.outputs.docs_only != 'true'
@@ -99,6 +99,8 @@ jobs:
       - run: npm run test:theme
         if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
       - run: npm run test:keyfile
+        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
+      - run: npm run test:credentials
         if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
       - run: npm run test:offline
         if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
