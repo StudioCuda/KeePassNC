@@ -4,7 +4,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Changed
-- A calmer sign-in page. Inside Nextcloud it's now just the card under the header, no big blue panel next to it. A file you opened from Files shows up as a small card with its name and folder instead of a read-only path field. The key file and the offline copy tuck away under "Key file & offline options" until you need them (they open by themselves once you pick a key file). The eye for the master password sits inside the field, and "Delete local data" moved from the page footer into the settings. A touch more warmth, too: a small shield next to the title, a soft spotlight in your instance colour behind the card, a huge, barely-there shield in the corner (desktop only), a thin accent edge, and one quiet line saying it's decrypted in your browser only.
+- A calmer sign-in page. Inside Nextcloud it's now just the card under the header, no big blue panel next to it. A file you opened from Files shows up as a small card with its name and folder instead of a read-only path field. The key file and the offline copy tuck away under "Key file & offline options" until you need them (they open by themselves once you pick a key file). The eye for the master password sits inside the field, and "Delete local data" moved from the page footer into the settings. A touch more warmth, too: a small shield next to the title, a soft spotlight in your instance colour behind the card, a huge, barely-there shield in the corner, a thin accent edge, and one quiet line saying it's decrypted in your browser only.
 
 ## [0.13.0] - 2026-10-19
 ### Added
