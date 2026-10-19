@@ -16,10 +16,14 @@
 
 **What's inside**
 
+- No database yet? Make one right in Files with + New
 - KeePassXC-style search and tags
-- TOTP, Steam Guard included
-- Attachments, entry history and icons
+- TOTP, Steam Guard included, set up from a screenshot of the QR code
+- Attachments with a preview, entry colors, history and icons
+- Placeholders and field references like KeePassXC knows them
 - Database settings, encryption and key derivation included, with values a browser can handle
+- A new master password or key file whenever you like
+- Merge a "conflicted copy" back in, and import or export CSV (KeePassXC, Bitwarden, 1Password, browsers …)
 - Password generator and a health report
 - Follows your Nextcloud's accent color and light or dark theme, with a layout that works on phones and big screens alike
 - English and German
@@ -38,10 +42,14 @@ KeePassXC, KeePassDX and Strongbox keep working on it, no lock-in.]]></descripti
 
 **Was drin ist**
 
+- Noch keine Datenbank? In „Dateien“ über + Neu direkt anlegen
 - Suchsyntax wie in KeePassXC und Tags
-- TOTP, auch Steam Guard
-- Anhänge, Eintragsverlauf und Icons
+- TOTP, auch Steam Guard, eingerichtet per Screenshot des QR-Codes
+- Anhänge mit Vorschau, Eintragsfarben, Verlauf und Icons
+- Platzhalter und Feldreferenzen, wie KeePassXC sie kennt
 - Datenbank-Einstellungen inklusive Verschlüsselung und Schlüsselableitung, mit Werten, die ein Browser schafft
+- Master-Passwort und Schlüsseldatei jederzeit ändern
+- Eine „Konfliktkopie“ wieder zusammenführen, CSV importieren und exportieren (KeePassXC, Bitwarden, 1Password, Browser …)
 - Passwortgenerator und Gesundheitsbericht
 - Übernimmt Akzentfarbe und helles oder dunkles Design von Nextcloud, für Smartphone und großen Bildschirm
 - Deutsch und Englisch
@@ -49,7 +57,7 @@ KeePassXC, KeePassDX and Strongbox keep working on it, no lock-in.]]></descripti
 **Bleibt eine normale KeePass-Datei**
 
 KeePassXC, KeePassDX, Strongbox & Co. können sie jederzeit weiterverwenden.]]></description>
-    <version>0.12.0</version>
+    <version>0.13.0</version>
     <licence>AGPL-3.0-or-later</licence>
     <author>KeePassNC</author>
     <namespace>Keepassnc</namespace>
@@ -63,10 +71,10 @@ KeePassXC, KeePassDX, Strongbox & Co. können sie jederzeit weiterverwenden.]]><
     <website>https://github.com/StudioCuda/KeePassNC</website>
     <bugs>https://github.com/StudioCuda/KeePassNC/issues</bugs>
     <repository type="git">https://github.com/StudioCuda/KeePassNC.git</repository>
-    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.12.0/docs/screenshots/desktop-detail.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.12.0/docs/screenshots/dark-detail.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.12.0/docs/screenshots/desktop-reports.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.12.0/docs/screenshots/mobile-list.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.13.0/docs/screenshots/desktop-detail.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.13.0/docs/screenshots/dark-detail.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.13.0/docs/screenshots/desktop-reports.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.13.0/docs/screenshots/mobile-list.png</screenshot>
     <dependencies>
         <php min-version="8.2"/>
         <nextcloud min-version="34" max-version="37"/>
