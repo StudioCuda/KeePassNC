@@ -44,17 +44,51 @@ const STANDARD_FIELDS = new Set(Object.values(REF_FIELDS));
 /** UUID eines Eintrags als Hex in Grossbuchstaben, wie sie in Feldreferenzen steht. */
 export const uuidHex = (uuid) => [...atob(String(uuid))].map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('').toUpperCase();
 /**
- * Loest Feldreferenzen {REF:<Feld>@<Suchfeld>:<Text>} auf wie KeePass, auch geschachtelt (bis Tiefe 10, Zyklen enden dort).
- * Feld: T U P A N oder I (UUID); Suchfeld zusaetzlich O (eigene Felder). @I sucht die UUID, sonst gilt der erste Eintrag, dessen
- * Feld den Text enthaelt (ohne Gross-/Kleinschreibung). Was sich nicht aufloesen laesst, bleibt als {REF:…} stehen.
+ * Loest Platzhalter auf wie KeePass und KeePassXC, auch geschachtelt (bis Tiefe 10, Zyklen enden dort):
+ * - {REF:<Feld>@<Suchfeld>:<Text>}: Feld eines anderen Eintrags. Feld: T U P A N oder I (UUID); Suchfeld zusaetzlich O (eigene Felder).
+ *   @I sucht die UUID, sonst gilt der erste Eintrag, dessen Feld den Text enthaelt (ohne Gross-/Kleinschreibung).
+ * - {TITLE} {USERNAME} {PASSWORD} {URL} {NOTES} und {S:Name} (eigenes Feld): aus `entry` selbst.
+ * - {URL:RMVSCM} {URL:SCM} {URL:HOST} {URL:PORT} {URL:PATH} {URL:QUERY} {URL:USERINFO} {URL:USERNAME} {URL:PASSWORD}: Teile der eigenen URL.
+ * Gross-/Kleinschreibung der Namen egal. Was sich nicht aufloesen laesst, bleibt stehen. Ohne entry gelten nur die {REF:…}.
  */
-export function resolveRefs(text, entries, depth = 0) {
-    if (!text.includes('{REF:') || depth >= 10) return text;
-    return text.replace(/\{REF:([TUPANI])@([TUPANIO]):([^}]*)\}/g, (ref, want, by, needle) => {
-        const hit = findRefTarget(entries, by, needle);
-        if (!hit) return ref;
-        return want === 'I' ? uuidHex(hit.uuid) : resolveRefs(fieldOf(hit, REF_FIELDS[want]), entries, depth + 1);
+export function resolvePlaceholders(text, entry, entries, depth = 0) {
+    if (!text.includes('{') || depth >= 10) return text;
+    const own = (name) => resolvePlaceholders(fieldOf(entry, name), entry, entries, depth + 1);
+    return text.replace(/\{([^{}]+)\}/g, (all, inner) => {
+        const ref = /^REF:([TUPANI])@([TUPANIO]):(.*)$/i.exec(inner);
+        if (ref) {
+            const hit = findRefTarget(entries, ref[2].toUpperCase(), ref[3]);
+            if (!hit) return all;
+            const want = ref[1].toUpperCase();
+            return want === 'I' ? uuidHex(hit.uuid) : resolvePlaceholders(fieldOf(hit, REF_FIELDS[want]), hit, entries, depth + 1);
+        }
+        if (!entry) return all;
+        const key = inner.toUpperCase();
+        if (OWN_FIELDS[key]) return own(OWN_FIELDS[key]);
+        if (key.startsWith('S:')) {
+            const name = inner.slice(2), lower = name.toLowerCase();
+            const hit = entry.fields.has(name) ? name : [...entry.fields.keys()].find((k) => k.toLowerCase() === lower);
+            return hit === undefined ? all : own(hit);
+        }
+        if (key.startsWith('URL:')) {
+            const part = urlPart(own('URL'), key.slice(4));
+            return part === null ? all : part;
+        }
+        return all;
     });
+}
+/** Nur die {REF:…} (wie resolvePlaceholders ohne eigenen Eintrag). */
+export const resolveRefs = (text, entries) => resolvePlaceholders(text, null, entries);
+const OWN_FIELDS = { TITLE: 'Title', USERNAME: 'UserName', PASSWORD: 'Password', URL: 'URL', NOTES: 'Notes' };
+function urlPart(url, part) {
+    let u;
+    try { u = new URL(url); } catch { return part === 'RMVSCM' ? url.replace(/^[a-z][a-z0-9+.-]*:(\/\/)?/i, '') : null; }
+    const user = decodeURIComponent(u.username), pass = decodeURIComponent(u.password);
+    const parts = {
+        RMVSCM: url.replace(/^[a-z][a-z0-9+.-]*:(\/\/)?/i, ''), SCM: u.protocol.replace(/:$/, ''), HOST: u.hostname, PORT: u.port,
+        PATH: u.pathname, QUERY: u.search, USERINFO: user + (pass ? ':' + pass : ''), USERNAME: user, PASSWORD: pass
+    };
+    return parts[part] ?? null;
 }
 function findRefTarget(entries, by, needle) {
     if (by === 'I' && !/^[0-9a-f]{32}$/i.test(needle)) return null;

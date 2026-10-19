@@ -6,7 +6,7 @@ import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
 import { auditEntries } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
 import { WORDS as WORDS_DE } from '../../src/core/wordlist-de.js';
-import { isOutOfMemory, openableUrl, resolveRefs, uuidHex } from '../../src/core/util.js';
+import { isOutOfMemory, openableUrl, resolveRefs, resolvePlaceholders, uuidHex } from '../../src/core/util.js';
 
 const NOW = Date.UTC(2026, 9, 11);
 function entry(fields, extra = {}) {
@@ -208,6 +208,24 @@ test('Feldreferenzen: {REF:…} wie KeePass aufloesen, geschachtelt, Zyklen und 
     assert.match(resolveRefs(`{REF:P@I:${B}}`, [loop]), /^\{REF:/, 'Zyklus endet als {REF:…}');
     assert.equal(resolveRefs('{REF:P@I:FFFF}', all), '{REF:P@I:FFFF}');
     assert.equal(resolveRefs('kein Verweis', all), 'kein Verweis');
+});
+test('Platzhalter: eigene Felder, {S:…}, URL-Teile, gemischt mit {REF:…}, Unbekanntes bleibt stehen', () => {
+    const A = 'B2D4F6A8C0E1F3A5B7C9D1E3F5A7B9C1';
+    const host = withUuid(entry({ Title: 'NAS', UserName: 'admin', Password: 'pw', URL: 'https://bob:geh%20eim@nas.local:5001/login?x=1', Notes: 'n', 'Server Name': 'nas.local' }), A);
+    const all = [host];
+    const r = (text, e = host) => resolvePlaceholders(text, e, all);
+    assert.equal(r('{USERNAME}@{title} {Password} {NOTES}'), 'admin@NAS pw n', 'Gross-/Kleinschreibung egal');
+    assert.equal(r('ssh {S:Server Name} / {s:server name} / {S:Fehlt}'), 'ssh nas.local / nas.local / {S:Fehlt}');
+    assert.equal(r('{URL:RMVSCM}'), 'bob:geh%20eim@nas.local:5001/login?x=1');
+    assert.equal(r('{URL:SCM}|{URL:HOST}|{URL:PORT}|{URL:PATH}|{URL:QUERY}'), 'https|nas.local|5001|/login|?x=1');
+    assert.equal(r('{URL:USERINFO}|{URL:USERNAME}|{URL:PASSWORD}|{URL:WAS}'), 'bob:geh eim|bob|geh eim|{URL:WAS}');
+    const other = entry({ Title: 'Zweit', UserName: `{REF:U@I:${A}}`, URL: 'https://{S:Host}/{USERNAME}', Host: 'example.org' });
+    assert.equal(r('{URL}', other), 'https://example.org/admin', 'URL mit eigenem Feld und Benutzername aus der Referenz');
+    const self = entry({ Title: 'Schleife', Password: '{PASSWORD}' });
+    assert.equal(r('{PASSWORD}', self), '{PASSWORD}', 'Selbstbezug endet');
+    assert.equal(r('a{b}c {UNBEKANNT} {}'), 'a{b}c {UNBEKANNT} {}');
+    assert.equal(resolveRefs('{USERNAME}', all), '{USERNAME}', 'ohne eigenen Eintrag nur {REF:…}');
+    assert.equal(r('{URL:RMVSCM}', entry({ URL: 'nas.local/x' })), 'nas.local/x', 'URL ohne Schema');
 });
 test('Bericht: Referenz-Passwoerter zaehlen mit dem Ziel, aber nicht als Wiederverwendung', () => {
     const A = 'B2D4F6A8C0E1F3A5B7C9D1E3F5A7B9C1';
