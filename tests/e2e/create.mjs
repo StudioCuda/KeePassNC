@@ -1,5 +1,6 @@
 // Test "Neue Datenbank": Pruefungen in der Maske, nie eine vorhandene Datei ueberschreiben, Anlegen ueber WebDAV, nur mit neuer
-// Schluesseldatei und als lokale Datei; im Nextcloud-Modus (Nachbildung der App-Seite) nur Name und Ordner, mit Ordner-Browser.
+// Schluesseldatei und als lokale Datei; im Nextcloud-Modus (Nachbildung der App-Seite) nur Name und Ordner, mit Ordner-Browser,
+// und derselbe Browser beim Oeffnen ([Durchsuchen] neben dem Pfadfeld).
 // Ergebnis jeweils mit keepassxc-cli gegengeprueft (oeffnet, AES-256, Argon2id mit 64 MiB).
 import fs from 'node:fs';
 import os from 'node:os';
@@ -225,6 +226,63 @@ async function main() {
         await p7.waitForFunction(() => document.querySelector('#new-name')?.value === 'Passwörter (2)', null, { timeout: 15000 })
             .catch(async () => { throw new Error('Name: ' + await p7.inputValue('#new-name')); });
         await p7.context().close();
+    });
+
+    // ---------- Nextcloud-Modus, Anmeldung: [Durchsuchen] statt Pfad tippen (derselbe Browser, im Datei-Modus)
+    const p8 = await newPage();
+    const pressed = (p, name) => p.locator(`.folder-item[data-name="${name}"]`).getAttribute('aria-pressed');
+    await step('Anmeldung mit ?open=: Feld schreibgeschuetzt, kein [Durchsuchen]', async () => {
+        await p8.goto(`${ncApp}?open=${encodeURIComponent('/Privat/Passwörter.kdbx')}`);
+        await p8.locator('#login-form').waitFor();
+        expect(await p8.locator('#nc-path').getAttribute('readonly') !== null, 'Feld soll schreibgeschuetzt sein');
+        expect(await p8.locator('#nc-browse').count() === 0, '[Durchsuchen] soll fehlen');
+    });
+
+    await step('[Durchsuchen] mit leerem Feld: startet in "Alle Dateien", .kdbx waehlbar, "Oeffnen" erst nach Auswahl; Pfad landet im Feld, entsperrt', async () => {
+        await p8.goto(ncApp); await p8.locator('#login-form').waitFor();
+        expect(await p8.inputValue('#nc-path') === '', 'Feld soll leer sein');
+        await p8.click('#nc-browse');
+        await p8.locator('#folder-picker').waitFor();
+        expect(await p8.locator('.modal-title').innerText() === 'Datenbank wählen', 'Titel: ' + await p8.locator('.modal-title').innerText());
+        await p8.locator('.folder-item[data-name="Privat"]').waitFor();
+        expect(await p8.locator('#folder-crumbs [aria-current]').innerText() === 'Alle Dateien', 'Startordner');
+        expect(await p8.locator('#folder-new').count() === 0, 'kein "Neuer Ordner" beim Oeffnen');
+        expect(await p8.locator('#folder-ok').isDisabled(), '"Öffnen" ohne Auswahl soll aus sein');
+        await p8.locator('.folder-item[data-name="Privat"]').click();
+        await p8.locator('.folder-item[data-name="Passwörter.kdbx"]').waitFor();
+        expect(!(await p8.locator('.folder-item[data-name="Passwörter.kdbx"]').isDisabled()), '.kdbx soll waehlbar sein');
+        await p8.locator('.folder-item[data-name="Passwörter.kdbx"]').click();
+        expect(await pressed(p8, 'Passwörter.kdbx') === 'true' && !(await p8.locator('#folder-ok').isDisabled()), 'Auswahl');
+        await p8.locator('.folder-item[data-name="Alt"]').click(); // Ordnerwechsel hebt die Auswahl auf
+        await p8.waitForFunction(() => /keine Datenbank/.test(document.querySelector('#folder-list')?.textContent || ''));
+        expect(await p8.locator('#folder-ok').isDisabled(), 'Auswahl soll nach Ordnerwechsel weg sein');
+        await p8.locator('#folder-crumbs button', { hasText: 'Privat' }).click();
+        await p8.locator('.folder-item[data-name="Passwörter.kdbx"]').click();
+        await p8.click('#folder-ok');
+        expect(await p8.locator('#folder-picker').count() === 0, 'Dialog soll zu sein');
+        expect(await p8.inputValue('#nc-path') === '/Privat/Passwörter.kdbx', 'Pfad: ' + await p8.inputValue('#nc-path'));
+        expect(await p8.evaluate(() => document.activeElement?.id) === 'master', 'Fokus soll aufs Master-Passwort');
+        await p8.fill('#master', OTHER); await p8.click('#open-btn'); await waitOpened(p8, 60000);
+    });
+
+    await step('[Durchsuchen] mit Pfad im Feld: startet in dessen Ordner, Datei vormarkiert; Abbrechen laesst das Feld; fehlender Ordner -> "Alle Dateien", Enter oeffnet', async () => {
+        await p8.click('#lock-btn'); await p8.locator('#login-form').waitFor();
+        expect(await p8.inputValue('#nc-path') === '/Privat/Passwörter.kdbx', 'gemerkter Pfad: ' + await p8.inputValue('#nc-path'));
+        await p8.click('#nc-browse');
+        await p8.locator('.folder-item[data-name="Passwörter.kdbx"]').waitFor();
+        expect(await p8.locator('#folder-crumbs [aria-current]').innerText() === 'Privat', 'Startordner: ' + await p8.locator('#folder-crumbs [aria-current]').innerText());
+        expect(await pressed(p8, 'Passwörter.kdbx') === 'true', 'Datei aus dem Feld soll vormarkiert sein');
+        await p8.click('#folder-cancel');
+        expect(await p8.inputValue('#nc-path') === '/Privat/Passwörter.kdbx', 'Abbrechen hat das Feld geaendert');
+        await p8.fill('#nc-path', '/Gibts/nicht.kdbx');
+        await p8.click('#nc-browse');
+        await p8.locator('.folder-item[data-name="Privat"]').waitFor();
+        expect(await p8.locator('#folder-crumbs [aria-current]').innerText() === 'Alle Dateien', 'Rueckfall auf "Alle Dateien"');
+        await p8.locator('.folder-item[data-name="Privat"]').click();
+        await p8.locator('.folder-item[data-name="Passwörter.kdbx"]').focus();
+        await p8.keyboard.press('Enter');
+        expect(await p8.inputValue('#nc-path') === '/Privat/Passwörter.kdbx', 'Enter: ' + await p8.inputValue('#nc-path'));
+        await p8.context().close();
     });
 
     await step('Keine JS-Fehler', async () => { expect(errors.length === 0, errors.join(' | ')); });

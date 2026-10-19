@@ -225,6 +225,20 @@ async function main() {
         expect(await page.inputValue('#nc-path') === '/Passwörter privat/vault4.kdbx', 'Pfad: ' + await page.inputValue('#nc-path'));
     });
 
+    await step('Anmeldung ohne ?open=: [Durchsuchen] gegen echtes Sabre, Ordner mit Leerzeichen/Umlaut, .kdbx waehlen -> Pfad im Feld, entsperrt', async () => {
+        await page.goto(`${BASE}/index.php/apps/keepassnc/`);
+        await page.locator('#login-form').waitFor();
+        await page.fill('#nc-path', '');
+        await page.click('#nc-browse');
+        await page.locator('.folder-item[data-name="Passwörter privat"]').waitFor({ timeout: 15000 });
+        await page.locator('.folder-item[data-name="Passwörter privat"]').click();
+        await page.locator('.folder-item[data-name="vault4.kdbx"]').click({ timeout: 15000 });
+        await page.click('#folder-ok');
+        expect(await page.inputValue('#nc-path') === '/Passwörter privat/vault4.kdbx', 'Pfad: ' + await page.inputValue('#nc-path'));
+        await page.fill('#master', PW); await page.click('#open-btn');
+        await rows(page).first().waitFor({ timeout: 30000 });
+    });
+
     await step('Files "+ Neu" -> KeePass-Datenbank: Name und Ordner vorbelegt, Ordner-Browser listet, angelegt, KeePassXC oeffnet; Neuladen zeigt die neue Datei', async () => {
         await page.goto(`${BASE}/index.php/apps/files/files?dir=${encodeURIComponent('/Passwörter privat')}`);
         await page.locator('[data-cy-files-list-row-name="vault4.kdbx"]').waitFor({ timeout: 60000 });

@@ -13,15 +13,13 @@ import { h, icon, iconBtn, confirmDialog } from './dom.js';
 import { startTimers, ensureOfflineApp, refreshDirtyIndicator } from './session.js';
 import { newPasswordFields, newKeyfileFlow, readFile } from './new-credentials.js';
 import { trialRun } from './db-settings.js';
-import { pickFolder, folderLabel, joinPath } from './folder-picker.js';
+import { pickFolder, folderLabel, joinPath, splitPath } from './folder-picker.js';
 import { loginHero } from './login.js';
 import { openSettings } from './settings-dialog.js';
 
 const { state } = ctx;
 const withExt = (s) => (/\.kdbx$/i.test(s) ? s : s + '.kdbx');
 const baseName = (p) => p.split('/').pop().replace(/\.kdbx$/i, '');
-
-const splitPath = (p) => { const i = p.lastIndexOf('/'); return { folder: p.slice(0, i) || '/', name: p.slice(i + 1) }; };
 
 /**
  * In Nextcloud nur Name und Ordner: der Ordner kommt aus "+ Neu" in Dateien (?new=), sonst aus der zuletzt geoeffneten Datenbank,

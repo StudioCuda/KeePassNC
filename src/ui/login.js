@@ -10,6 +10,7 @@ import { KeyfileStoreError, isWeakerThan } from '../keyfile-store.js';
 import { h, icon, iconBtn, toast } from './dom.js';
 import { stopTimers, startTimers, ensureOfflineApp, syncNow, refreshDirtyIndicator } from './session.js';
 import { openSettings } from './settings-dialog.js';
+import { pickFolder, splitPath } from './folder-picker.js';
 
 const { state } = ctx;
 
@@ -34,9 +35,21 @@ export function showLogin(message) {
     const kfForget = h('button', { type: 'button', class: 'link', id: 'kf-forget', text: t('login.kf.forget') });
     const kfUseRow = h('div', { class: 'kf-used', id: 'kf-remembered', hidden: true }, h('label', { class: 'check small' }, kfUse, kfUseName), kfForget);
     const ncPathInput = h('input', { id: 'nc-path', type: 'text', placeholder: '/Dokumente/Passwoerter.kdbx', value: NC?.file || pref('ncfile'), autocomplete: 'off', readonly: !!NC?.file });
+    // [Durchsuchen]: Datei im eigenen Nextcloud waehlen statt den Pfad zu tippen; startet im Ordner des Pfads im Feld
+    const browseBtn = NC && !NC.file ? h('button', { type: 'button', id: 'nc-browse', class: 'btn' }, icon('folderOpen'), h('span', { text: t('login.nc.browse') })) : null;
+    browseBtn?.addEventListener('click', async () => {
+        const cur = normalizeUserPath(ncPathInput.value);
+        const bad = cur.split('/').some((x) => x === '.' || x === '..');
+        const { folder, name } = !cur || bad ? { folder: '/', name: '' } : cur.endsWith('/') ? { folder: cur.replace(/\/+$/, '') || '/', name: '' } : splitPath(cur);
+        const picked = await pickFolder({ NC, auth: nextcloudAuth(NC), start: folder, mode: 'file', select: name });
+        if (picked === null) return;
+        ncPathInput.value = picked;
+        refreshKf();
+        masterInput.focus();
+    });
     const davBox = NC
         ? h('div', { id: 'dav-box', class: 'stack' },
-            h('label', {}, h('span', { text: NC.file ? t('login.nc.file') : t('login.nc.path') }), ncPathInput),
+            h('label', {}, h('span', { text: NC.file ? t('login.nc.file') : t('login.nc.path') }), browseBtn ? h('div', { class: 'input-group' }, ncPathInput, browseBtn) : ncPathInput),
             NC.file ? null : h('p', { class: 'hint', text: t('login.nc.tip') }))
         : h('div', { id: 'dav-box', class: 'stack' },
             h('label', {}, h('span', { text: t('login.dav.url') }), urlInput),
