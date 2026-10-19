@@ -1,9 +1,10 @@
 // Einstellungen als Dialog (auch schon vor der Anmeldung erreichbar: nur Darstellung/Sprache).
-import { saveSettings, AUTOSYNC_OPTIONS, BACKUPKEEP_OPTIONS, AUTOLOCK_OPTIONS, CLIPBOARD_OPTIONS, THEME_OPTIONS, LANG_OPTIONS } from '../settings.js';
+import { saveSettings, loadSettings, AUTOSYNC_OPTIONS, BACKUPKEEP_OPTIONS, AUTOLOCK_OPTIONS, CLIPBOARD_OPTIONS, THEME_OPTIONS, LANG_OPTIONS } from '../settings.js';
 import { t, setLang, detectLang, fmtDate, errText } from '../i18n.js';
 import { ctx, applyTheme, kfStore, kfScope } from './ctx.js';
 import { h, modal, toast, confirmDialog } from './dom.js';
 import { fetchPepper, nextcloudAuth } from '../nextcloud.js';
+import { wipeLocalData } from '../cache.js';
 import { startTimers, ensureOfflineApp } from './session.js';
 
 export function langNow() { return detectLang(ctx.settings.lang, document.documentElement.dataset.ncLang || ctx.app?.dataset.lang || '', navigator.language); }
@@ -35,6 +36,13 @@ export function openSettings({ loginMode = false } = {}) {
             h('div', {}, h('button', { type: 'button', class: 'small danger-ghost', id: 'kf-forget-all', onclick: async () => { await kfStore.forgetAll(kfScope); fillKf(); }, text: t('set.kf.forget.all') }))] : [h('p', { class: 'hint', text: t('set.kf.none') })]));
     };
     fillKf();
+    let wipeArmed = false;
+    const wipeBtn = h('button', { type: 'button', id: 'wipe-btn', class: 'small danger-ghost', text: t('login.wipe'), onclick: async () => {
+        if (!wipeArmed) { wipeArmed = true; wipeBtn.textContent = t('login.wipe.confirm'); return; }
+        await wipeLocalData();
+        ctx.settings = loadSettings(); applyTheme();
+        m.close(); ctx.ui.showLogin(t('login.wiped'));
+    } });
     const body = h('div', { class: 'stack settings', id: 'settings' },
         sec(t('set.appearance'),
             h('div', { class: 'grid2' },
@@ -63,6 +71,7 @@ export function openSettings({ loginMode = false } = {}) {
                     } catch (e) { toast(t('set.kf.revoke.failed', { msg: errText(e) }), { kind: 'error' }); }
                 } })),
                 h('small', { class: 'hint', text: t('set.kf.revoke.hint') })) : null),
+        loginMode ? sec(t('set.data'), h('p', { class: 'hint', text: t('set.data.hint') }), h('div', {}, wipeBtn)) : null,
         h('p', { class: 'hint', id: 'app-version', text: 'KeePassNC ' + __VERSION__ }));
     const m = modal({ title: t('settings'), body, size: 'md', cls: 'settings-modal', actions: [h('button', { type: 'button', class: 'primary', id: 'settings-close', text: t('done'), onclick: () => m.close() })] });
     return m;

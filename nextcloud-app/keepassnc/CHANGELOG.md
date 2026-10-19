@@ -2,6 +2,10 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+### Changed
+- A calmer sign-in page. Inside Nextcloud it's now just the card under the header, no big blue panel next to it. A file you opened from Files shows up as a small card with its name and folder instead of a read-only path field. The key file and the offline copy tuck away under "Key file & offline options" until you need them (they open by themselves once you pick a key file). The eye for the master password sits inside the field, and "Delete local data" moved from the page footer into the settings.
+
 ## [0.13.0] - 2026-10-19
 ### Added
 - Create a brand-new database. In Files it's **+ New** → **KeePass database**, on the sign-in page it's "Create one" under the form. One screen, no wizard: a name (no `.kdbx` to type), a folder (where you came from in Files, or next to your last database, with a little folder browser to pick another or make a new one), the master password (with the generator, if you like) and an optional key file, either one you have or a fresh `.keyx` that counts once you've downloaded it and picked it again. The encryption needs no decisions: KDBX 4 with AES-256 and Argon2id at 64 MiB, tuned to about a second on your device, so KeePassXC, KeePass 2 and the mobile apps open it straight away. Fiddle with it later under Database → Security if you want. If the name's already taken in that folder you hear about it while typing, an existing file is never overwritten, and the new database opens right away. Works for a local file too, which then simply gets downloaded.

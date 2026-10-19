@@ -106,7 +106,7 @@ async function main() {
         expect(l.accent === rgb(want.accent), `Akzent ${l.accent}, erwartet ${rgb(want.accent)}`);
         expect(contrast(toHex(l.onAccent), toHex(l.accent)) >= 4.5, `Text auf Akzent ${l.onAccent} / ${l.accent}`);
         expect(l.header?.bg === rgb('#2e7d4f') && l.header.fg === rgb('#ffffff'), 'Kopfleiste ' + JSON.stringify(l.header));
-        expect(await p.locator('.login-hero').evaluate((e) => getComputedStyle(e).backgroundColor) !== rgb('#0b1f3b'), 'Anmeldeseite noch Nachtblau');
+        expect(await p.locator('.login.solo').count() === 1 && await p.locator('.login-hero').count() === 0, 'in Nextcloud keine Hero-Flaeche (kein Nachtblau)');
         await close();
         return `${want.accent} / ${toHex(l.onAccent)}`;
     });

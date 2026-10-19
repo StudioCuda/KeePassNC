@@ -14,7 +14,7 @@ import { startTimers, ensureOfflineApp, refreshDirtyIndicator } from './session.
 import { newPasswordFields, newKeyfileFlow, readFile } from './new-credentials.js';
 import { trialRun } from './db-settings.js';
 import { pickFolder, folderLabel, joinPath, splitPath } from './folder-picker.js';
-import { loginHero } from './login.js';
+import { loginShell } from './login.js';
 import { remoteFields } from './remote.js';
 import { openSettings } from './settings-dialog.js';
 
@@ -217,7 +217,7 @@ export function showCreate() {
                 iconBtn('settings', t('settings'), () => openSettings({ loginMode: true }), { id: 'login-settings' }))),
         form,
         h('footer', { class: 'login-foot' }, h('span', {}), h('span', { class: 'muted', text: 'v' + __VERSION__ })));
-    ctx.app.replaceChildren(h('div', { class: 'login' }, loginHero(), card));
+    ctx.app.replaceChildren(loginShell(card));
     /** Zurueck zur Anmeldung; kam die Seite aus "+ Neu" in Dateien, auch ohne ?new= in der Adresse (sonst kaeme beim Neuladen wieder diese Maske). */
     function back() {
         if (NC?.newFile) { NC.newFile = ''; history.replaceState(null, '', location.pathname + (NC.file ? `?open=${encodeURIComponent(NC.file)}` : '')); }

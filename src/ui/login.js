@@ -1,7 +1,7 @@
 // Anmeldung: Quelle waehlen (Nextcloud/WebDAV oder lokale Datei), Master-Passwort + optionale Schluesseldatei, Entschluesseln im Browser.
 import { Vault, VaultError } from '../vault.js';
 import { DavFile, DavError, NetworkError, isOffline, offlineFailKey } from '../webdav.js';
-import { cacheGet, wipeLocalData } from '../cache.js';
+import { cacheGet } from '../cache.js';
 import { loadSettings, saveSettings } from '../settings.js';
 import { nextcloudAuth, davUrlFor, normalizeUserPath, fetchPepper } from '../nextcloud.js';
 import { t, fmtDate, errText } from '../i18n.js';
@@ -29,7 +29,7 @@ export function showLogin(message) {
     const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off' }); // leer: Datenbank nur mit Schluesseldatei
     const keyInput = h('input', { id: 'keyfile', type: 'file' });
     const keyName = h('span', { class: 'muted', text: t('login.keyfile.none') });
-    keyInput.addEventListener('change', () => { keyName.textContent = keyInput.files[0]?.name || t('login.keyfile.none'); });
+    keyInput.addEventListener('change', () => { keyName.textContent = keyInput.files[0]?.name || t('login.keyfile.none'); if (keyInput.files[0]) more.open = true; });
     const kfRemember = h('input', { type: 'checkbox', id: 'kf-remember' });
     const kfRememberRow = h('label', { class: 'check small', hidden: true }, kfRemember, h('span', {}, t('login.kf.remember'), h('small', { class: 'muted', text: ' ' + t(NC?.pepperUrl ? 'login.kf.remember.hint.nc' : 'login.kf.remember.hint') })));
     const kfUse = h('input', { type: 'checkbox', id: 'kf-use', checked: true });
@@ -60,29 +60,28 @@ export function showLogin(message) {
     });
     const pathBox = h('label', {}, h('span', { text: NC?.file ? t('login.nc.file') : t('login.nc.path') }), browseBtn ? h('div', { class: 'input-group' }, ncPathInput, browseBtn) : ncPathInput);
     const davBox = NC
-        ? h('div', { id: 'dav-box', class: 'stack' }, pathBox, NC.file ? null : h('p', { class: 'hint', text: t('login.nc.tip') }))
+        ? h('div', { id: 'dav-box', class: 'stack' }, NC.file ? fileChip(NC.file) : null, pathBox, NC.file ? null : h('p', { class: 'hint', text: t('login.nc.tip') }))
         : h('div', { id: 'dav-box', class: 'stack' }, remote.serverBox, remote.urlBox, remote.creds, pathBox, remote.foot);
+    pathBox.hidden = !!NC?.file; // aus Dateien geoeffnet: die Datei steht als Karte da, das schreibgeschuetzte Feld bleibt nur fuer die Logik
     const fileBox = h('div', { id: 'file-box', class: 'stack', hidden: true }, h('label', {}, h('span', { text: t('login.file') }), fileInput));
     const seg = (value, label, ic) => h('label', { class: 'seg' }, h('input', { type: 'radio', name: 'src', value, checked: mode === value, onchange: () => { davBox.hidden = value !== 'dav'; fileBox.hidden = value !== 'file'; } }), h('span', {}, icon(ic), label));
     davBox.hidden = mode !== 'dav'; fileBox.hidden = mode !== 'file';
     const offlineBox = h('input', { type: 'checkbox', id: 'offline-opt', checked: ctx.settings.offline });
-    let wipeArmed = false;
-    const wipeBtn = h('button', { type: 'button', id: 'wipe-btn', class: 'link danger-text', text: t('login.wipe'), onclick: async () => {
-        if (!wipeArmed) { wipeArmed = true; wipeBtn.textContent = t('login.wipe.confirm'); return; }
-        await wipeLocalData();
-        ctx.settings = loadSettings(); applyTheme();
-        showLogin(t('login.wiped'));
-    } });
     const err = h('p', { class: 'error', id: 'login-error', role: 'alert', text: message || '' });
     const btn = h('button', { type: 'submit', id: 'open-btn', class: 'primary big' }, icon('unlock'), h('span', { class: 'label', text: t('login.open') }));
-    const showPw = iconBtn('eye', t('show'), () => { const on = masterInput.type === 'password'; masterInput.type = on ? 'text' : 'password'; showPw.replaceChildren(icon(on ? 'eyeOff' : 'eye')); }, { type: 'button' });
+    const showPw = iconBtn('eye', t('show'), () => { const on = masterInput.type === 'password'; masterInput.type = on ? 'text' : 'password'; showPw.setAttribute('aria-pressed', String(on)); showPw.replaceChildren(icon(on ? 'eyeOff' : 'eye')); }, { type: 'button', 'aria-pressed': 'false' });
+    // Schluesseldatei und Offline-Kopie braucht nur, wer sie braucht: eingeklappt, bis eine Datei gewaehlt oder die Offline-Kopie schon an ist
+    const more = h('details', { class: 'login-more', id: 'login-more', open: ctx.settings.offline },
+        h('summary', { text: t('login.more') }),
+        h('div', { class: 'stack' },
+            h('label', {}, h('span', { text: t('login.keyfile') }), h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), keyName, keyInput)),
+            kfRememberRow,
+            h('label', { class: 'check' }, offlineBox, h('span', { text: t('login.offline') }))));
     const form = h('form', { class: 'login-form stack', id: 'login-form' },
-        h('div', { class: 'seg-group', role: 'radiogroup' }, seg('dav', NC ? t('login.src.nc') : t('login.src.dav'), 'cloud'), seg('file', t('login.src.file'), 'file')),
+        h('div', { class: 'seg-group', role: 'radiogroup', hidden: !!NC?.file }, seg('dav', NC ? t('login.src.nc') : t('login.src.dav'), 'cloud'), seg('file', t('login.src.file'), 'file')),
         davBox, fileBox,
-        h('label', {}, h('span', { text: t('login.master') }), h('div', { class: 'input-group' }, masterInput, showPw)),
-        h('label', {}, h('span', { text: t('login.keyfile') }), h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), keyName, keyInput)),
-        kfRememberRow, kfUseRow,
-        h('label', { class: 'check' }, offlineBox, h('span', { text: t('login.offline') })),
+        h('label', {}, h('span', { text: t('login.master') }), h('div', { class: 'pw-field' }, masterInput, showPw)),
+        kfUseRow, more,
         err, btn);
     // --- gemerkte Schluesseldatei (siehe keyfile-store.js / docs/KEYFILE-MEMORY.md)
     const currentSrc = () => form.querySelector('input[name=src]:checked').value;
@@ -252,9 +251,21 @@ export function showLogin(message) {
         form,
         h('p', { class: 'login-alt' }, h('span', { class: 'muted', text: t('login.new.q') }), ' ',
             h('button', { type: 'button', id: 'new-db-link', class: 'link', text: t('login.new'), onclick: () => ctx.ui.showCreate() })),
-        h('footer', { class: 'login-foot' }, wipeBtn, h('span', { class: 'muted', text: 'v' + __VERSION__ })));
-    ctx.app.replaceChildren(h('div', { class: 'login' }, loginHero(), card));
+        h('footer', { class: 'login-foot' }, h('span', { class: 'muted', text: 'v' + __VERSION__ })));
+    ctx.app.replaceChildren(loginShell(card));
     (remote?.mode() === 'nc' && !remote.server.value ? remote.server : masterInput).focus();
+}
+
+/** Die Datei, die aus "Dateien" kam: Name gross, Ordner klein darunter. */
+function fileChip(path) {
+    const i = path.lastIndexOf('/');
+    return h('div', { class: 'file-chip', id: 'nc-file-chip' }, icon('file'),
+        h('span', {}, h('strong', { text: path.slice(i + 1) }), h('small', { class: 'muted', text: path.slice(0, i) || '/' })));
+}
+
+/** Rahmen der Anmeldung (auch "Neue Datenbank"): in Nextcloud schlicht die Karte unter der Kopfleiste, eigenstaendig mit der Hero-Flaeche daneben. */
+export function loginShell(card) {
+    return ctx.NC ? h('div', { class: 'login solo' }, card) : h('div', { class: 'login' }, loginHero(), card);
 }
 
 /** Linke Haelfte der Anmeldung (auch beim Anlegen einer neuen Datenbank). */
