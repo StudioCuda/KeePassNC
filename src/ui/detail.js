@@ -1,7 +1,7 @@
 // Detailansicht eines Eintrags: Felder, Passwort (Staerke, Grossansicht), TOTP-Ring, Passkey-Info, Anhaenge, Verlauf.
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
 import { parseOtpConfig, totp } from '../totp.js';
-import { entryExpiry, daysUntil, domainOf, openableUrl, isSystemField, isPasskey, groupPath, fieldOf } from '../core/util.js';
+import { entryExpiry, daysUntil, domainOf, openableUrl, isSystemField, isPasskey, groupPath, fieldOf, previewKind, previewOf } from '../core/util.js';
 import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, copy, download, setStatus, pref } from './ctx.js';
 import { h, icon, iconBtn, modal, toast, confirmDialog, popupMenu } from './dom.js';
@@ -156,6 +156,7 @@ function attachmentsCard(e) {
     for (const [name, bin] of e.binaries || []) {
         const data = binData(bin);
         rows.push(h('div', { class: 'att-row' }, icon('clip'), h('span', { class: 'grow', text: name }), h('span', { class: 'muted', text: sizeLabel(data?.byteLength ?? 0) }),
+            data && previewKind(name, data.byteLength) ? iconBtn('eye', t('preview'), () => showPreview(name, data), { 'data-testid': 'attachment-preview' }) : null,
             h('button', { type: 'button', class: 'small', 'data-testid': 'attachment', onclick: () => download(name, data) }, icon('download'), h('span', { text: t('download') })),
             iconBtn('trash', t('remove'), async () => { if (await confirmDialog({ title: t('attachment.remove'), message: t('attachment.remove.msg', { name }), confirmLabel: t('remove'), cancelLabel: t('cancel'), danger: true })) { v.removeAttachment(e, name); changed(); } }, { 'data-testid': 'attachment-remove' })));
     }
@@ -171,6 +172,11 @@ function attachmentsCard(e) {
     } });
     return h('section', { class: 'card' }, h('div', { class: 'card-title' }, icon('clip'), h('span', { class: 'grow', text: t('attachments') }),
         h('label', { class: 'btn small', for: 'att-input' }, icon('upload'), t('attachment.add')), input), rows.length ? h('div', {}, ...rows) : h('p', { class: 'hint', text: t('attachments.none') }));
+}
+function showPreview(name, data) {
+    const p = previewOf(name, new Uint8Array(data));
+    if (!p) { toast(t('preview.none', { name }), { kind: 'warn' }); return; }
+    modal({ title: name, size: 'lg', body: p.image ? h('img', { class: 'att-preview', src: p.image, alt: name }) : h('pre', { class: 'att-preview-text', text: p.text }) });
 }
 export const sizeLabel = (n) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KiB` : `${(n / 1048576).toFixed(1)} MiB`);
 
