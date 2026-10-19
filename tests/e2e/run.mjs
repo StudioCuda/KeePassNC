@@ -428,6 +428,7 @@ async function main() {
         const rounds = Number(await p.inputValue('#db-rounds'));
         expect(rounds > 0 && (await p.locator('.report-body').innerText()).includes(String(rounds)), 'KDBX 3.1: AES-KDF-Runden in Info und Dialog: ' + rounds);
         expect(!(await p.isChecked('#db-upgrade')) && !(await p.isDisabled('#db-upgrade')), 'Umstellen auf KDBX 4 sollte frei waehlbar und aus sein');
+        expect(await p.locator('#db-cipher option[value=twofish]').count() === 0, 'Twofish steht nur bei Dateien zur Wahl, die es schon nutzen');
         await p.selectOption('#db-kdf', 'argon2id');
         expect(await p.isChecked('#db-upgrade') && await p.isDisabled('#db-upgrade'), 'Argon2 erzwingt KDBX 4');
         await p.selectOption('#db-cipher', 'chacha20');
@@ -451,14 +452,21 @@ async function main() {
         return dbi.split('\n').filter((l) => /^(Cipher|KDF)/.test(l)).join(', ');
     });
 
-    await step('Sicherheit: Twofish (bleibt KDBX 3.1), KeePassXC liest und bearbeitet, die App oeffnet das Ergebnis', async () => {
+    await step('Sicherheit: Twofish-Datei (KDBX 3.1) bleibt Twofish, KeePassXC liest und bearbeitet, die App oeffnet das Ergebnis', async () => {
         const fTf = path.join(davRoot, 'twofish.kdbx');
         fs.copyFileSync(path.join(davRoot, 'vault3.kdbx'), fTf);
+        // Die App stellt nicht mehr auf Twofish um, also verschluesselt kdbxweb die Kopie neu
+        execFileSync(process.execPath, ['-r', 'ts-node/register/transpile-only', '-e', [
+            `const k = require('./vendor/kdbxweb/lib/index'), fs = require('fs'), f = ${JSON.stringify(fTf)};`,
+            `k.Kdbx.load(new Uint8Array(fs.readFileSync(f)).buffer, new k.Credentials(k.ProtectedValue.fromString(${JSON.stringify(PW)})))`,
+            '    .then((db) => { db.header.dataCipherUuid = new k.KdbxUuid(k.Consts.CipherId.Twofish); return db.save(); })',
+            '    .then((b) => fs.writeFileSync(f, Buffer.from(b)), (e) => { console.error(e); process.exit(1); });'].join('\n')], { cwd: root });
+        expect(/Cipher: Twofish/i.test(xc(['db-info', fTf])), 'Testdatei ist kein Twofish');
         const p = await newPage();
         await login(p, 'twofish.kdbx'); await rows(p).first().waitFor();
         await openDbSettings(p);
-        await p.selectOption('#db-cipher', 'twofish');
-        expect(!(await p.isChecked('#db-upgrade')), 'Twofish braucht kein KDBX 4');
+        expect(await p.inputValue('#db-cipher') === 'twofish', 'Twofish sollte vorausgewaehlt sein');
+        await p.fill('#db-name', 'Twofish bleibt');
         await p.click('#db-apply');
         await p.waitForFunction(() => !document.querySelector('#db-settings'), null, { timeout: 30000 });
         await p.keyboard.press('Escape');
@@ -472,7 +480,8 @@ async function main() {
         await login(q, 'twofish.kdbx'); await rows(q).first().waitFor();
         expect(/von-keepassxc/.test(await q.locator('[data-testid=entry-row]', { hasText: 'Konto' }).innerText()), 'Aenderung von KeePassXC fehlt');
         await q.click('#reports-btn'); await q.click('#rep-tab-info');
-        expect(/Twofish/.test(await q.locator('.report-body').innerText()), 'Info zeigt kein Twofish');
+        const info = await q.locator('.report-body').innerText();
+        expect(/Twofish/.test(info) && /Twofish bleibt/.test(info), 'Info nach dem Neuladen: ' + info);
         await q.context().close();
     });
 
