@@ -13,7 +13,7 @@ export const knownEngineNoise = (text) => browserName === 'webkit'
 // Seitenfehler "Fetch API cannot load <URL> due to access control checks", obwohl die App den Fehler abfaengt. Nur fuer WebDAV-URLs
 // ausblenden und nur zusammen mit uncaughtWatch verwenden: das meldet echte, nicht abgefangene Fehler weiterhin.
 export const knownFetchNoise = (text) => browserName === 'webkit'
-    && /^(?:TypeError: )?Fetch API cannot load [^ ]*:? ?\/[^ ]*\/dav\/\S+ due to access control checks\.?$/.test(text);
+    && /^(?:TypeError: )?Fetch API cannot load [^ ]*:? ?\/[^ ]*\/dav\/\S* due to access control checks\.?$/.test(text);
 export const uncaughtWatch = () => {
     addEventListener('unhandledrejection', (e) => console.error(`UNCAUGHT: ${(e.reason && (e.reason.stack || e.reason.message)) || e.reason}`));
     addEventListener('error', (e) => console.error(`UNCAUGHT: ${e.message}`));
@@ -21,6 +21,10 @@ export const uncaughtWatch = () => {
 export const webkitCspWatch = () => document.addEventListener('securitypolicyviolation', (e) => {
     if (!(e.target instanceof HTMLSelectElement)) console.error(`CSP-Verstoss ausserhalb von <select>: ${e.violatedDirective} ${e.blockedURI} ${String((e.target && e.target.outerHTML) || e.target).slice(0, 120)}`);
 }, true);
+
+// Die Testserver bieten WebDAV unter /dav/ an, nicht unter einer Nextcloud-Adresse: Anmeldung und "Neue Datenbank" der eigenstaendigen
+// Seite auf "Eigene WebDAV-Adresse" stellen (wie fuer jemanden, der das schon so benutzt). Als Init-Skript eines Browser-Kontexts.
+export const plainWebdav = () => { try { if (!localStorage.getItem('kpnc.davmode')) localStorage.setItem('kpnc.davmode', 'url'); } catch {} };
 
 // Letzte Konsolenmeldungen je Seite, fuer waitOpened. Wird beim ersten Aufruf angehaengt; was davor kam, fehlt.
 const consoleTails = new WeakMap();

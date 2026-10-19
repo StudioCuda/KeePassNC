@@ -11,6 +11,7 @@ import { h, icon, iconBtn, toast } from './dom.js';
 import { stopTimers, startTimers, ensureOfflineApp, syncNow, refreshDirtyIndicator } from './session.js';
 import { openSettings } from './settings-dialog.js';
 import { pickFolder, splitPath } from './folder-picker.js';
+import { remoteFields } from './remote.js';
 
 const { state } = ctx;
 
@@ -20,9 +21,10 @@ export function showLogin(message) {
     document.body.classList.remove('in-vault');
     const NC = ctx.NC;
     const mode = pref('mode') || 'dav';
-    const urlInput = h('input', { id: 'dav-url', type: 'url', placeholder: 'https://cloud.example.org/remote.php/dav/files/NAME/Passwoerter.kdbx', value: params.get('url') || pref('url'), autocomplete: 'off' });
-    const userInput = h('input', { id: 'dav-user', type: 'text', value: params.get('user') || pref('user'), autocomplete: 'username' });
-    const passInput = h('input', { id: 'dav-pass', type: 'password', autocomplete: 'current-password' });
+    // Ohne Nextcloud-App: Nextcloud-Adresse + Pfad (oder ueber den Link die WebDAV-Adresse wie bisher)
+    const remote = NC ? null : remoteFields('dav', { urlValue: params.get('url') || pref('url'), urlPlaceholder: 'https://cloud.example.org/remote.php/dav/files/NAME/Passwoerter.kdbx',
+        onMode: (m) => { pathBox.hidden = m !== 'nc'; refreshKf(); }, onFound: () => refreshKf() });
+    const urlInput = remote?.url || h('input'), userInput = remote?.user || h('input'), passInput = remote?.pass || h('input');
     const fileInput = h('input', { id: 'local-file', type: 'file', accept: '.kdbx' });
     const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off' }); // leer: Datenbank nur mit Schluesseldatei
     const keyInput = h('input', { id: 'keyfile', type: 'file' });
@@ -34,27 +36,32 @@ export function showLogin(message) {
     const kfUseName = h('span', {});
     const kfForget = h('button', { type: 'button', class: 'link', id: 'kf-forget', text: t('login.kf.forget') });
     const kfUseRow = h('div', { class: 'kf-used', id: 'kf-remembered', hidden: true }, h('label', { class: 'check small' }, kfUse, kfUseName), kfForget);
-    const ncPathInput = h('input', { id: 'nc-path', type: 'text', placeholder: '/Dokumente/Passwoerter.kdbx', value: NC?.file || pref('ncfile'), autocomplete: 'off', readonly: !!NC?.file });
-    // [Durchsuchen]: Datei im eigenen Nextcloud waehlen statt den Pfad zu tippen; startet im Ordner des Pfads im Feld
-    const browseBtn = NC && !NC.file ? h('button', { type: 'button', id: 'nc-browse', class: 'btn' }, icon('folderOpen'), h('span', { text: t('login.nc.browse') })) : null;
+    const ncPathInput = h('input', { id: NC ? 'nc-path' : 'dav-path', type: 'text', placeholder: '/Dokumente/Passwoerter.kdbx', value: NC ? NC.file || pref('ncfile') : remote.legacy?.path || '',
+        autocomplete: 'off', readonly: !!NC?.file });
+    // [Durchsuchen]: Datei in der eigenen Nextcloud waehlen statt den Pfad zu tippen; startet im Ordner des Pfads im Feld
+    const browseBtn = !NC?.file ? h('button', { type: 'button', id: NC ? 'nc-browse' : 'dav-browse', class: 'btn' }, icon('folderOpen'), h('span', { text: t('login.nc.browse') })) : null;
     browseBtn?.addEventListener('click', async () => {
+        err.textContent = '';
+        let loc = NC, auth;
+        if (NC) auth = nextcloudAuth(NC);
+        else {
+            if (!remote.ready()) { err.textContent = t('err.nc.creds'); return; }
+            auth = remote.auth();
+            try { loc = { davBase: await remote.davBase() }; } catch (e) { err.textContent = errText(e); return; }
+        }
         const cur = normalizeUserPath(ncPathInput.value);
         const bad = cur.split('/').some((x) => x === '.' || x === '..');
         const { folder, name } = !cur || bad ? { folder: '/', name: '' } : cur.endsWith('/') ? { folder: cur.replace(/\/+$/, '') || '/', name: '' } : splitPath(cur);
-        const picked = await pickFolder({ NC, auth: nextcloudAuth(NC), start: folder, mode: 'file', select: name });
+        const picked = await pickFolder({ NC: loc, auth, start: folder, mode: 'file', select: name });
         if (picked === null) return;
         ncPathInput.value = picked;
         refreshKf();
         masterInput.focus();
     });
+    const pathBox = h('label', {}, h('span', { text: NC?.file ? t('login.nc.file') : t('login.nc.path') }), browseBtn ? h('div', { class: 'input-group' }, ncPathInput, browseBtn) : ncPathInput);
     const davBox = NC
-        ? h('div', { id: 'dav-box', class: 'stack' },
-            h('label', {}, h('span', { text: NC.file ? t('login.nc.file') : t('login.nc.path') }), browseBtn ? h('div', { class: 'input-group' }, ncPathInput, browseBtn) : ncPathInput),
-            NC.file ? null : h('p', { class: 'hint', text: t('login.nc.tip') }))
-        : h('div', { id: 'dav-box', class: 'stack' },
-            h('label', {}, h('span', { text: t('login.dav.url') }), urlInput),
-            h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('login.dav.user') }), userInput), h('label', {}, h('span', { text: t('login.dav.pass') }), passInput)),
-            h('p', { class: 'hint', text: t('login.dav.hint') }));
+        ? h('div', { id: 'dav-box', class: 'stack' }, pathBox, NC.file ? null : h('p', { class: 'hint', text: t('login.nc.tip') }))
+        : h('div', { id: 'dav-box', class: 'stack' }, remote.serverBox, remote.urlBox, remote.creds, pathBox, remote.foot);
     const fileBox = h('div', { id: 'file-box', class: 'stack', hidden: true }, h('label', {}, h('span', { text: t('login.file') }), fileInput));
     const seg = (value, label, ic) => h('label', { class: 'seg' }, h('input', { type: 'radio', name: 'src', value, checked: mode === value, onchange: () => { davBox.hidden = value !== 'dav'; fileBox.hidden = value !== 'file'; } }), h('span', {}, icon(ic), label));
     davBox.hidden = mode !== 'dav'; fileBox.hidden = mode !== 'file';
@@ -82,6 +89,10 @@ export function showLogin(message) {
     const kfIdNow = () => {
         if (currentSrc() === 'file') return fileInput.files[0] ? kfFileId(fileInput.files[0].name) : null;
         if (NC) { const pth = normalizeUserPath(ncPathInput.value); return pth && !pth.endsWith('/') ? `nc:${NC.user}:${pth}` : null; }
+        if (remote.mode() === 'nc') {
+            const pth = normalizeUserPath(ncPathInput.value), base = remote.guess();
+            try { return base && pth && !pth.endsWith('/') ? `dav:${remote.fileUrl(base, pth)}` : null; } catch { return null; } // ".." im Pfad
+        }
         return urlInput.value.trim() ? `dav:${urlInput.value.trim()}` : null;
     };
     let kfInfo = null;
@@ -95,9 +106,9 @@ export function showLogin(message) {
     };
     kfForget.addEventListener('click', async () => { const id = kfIdNow(); if (id) await kfStore.forget(id); toast(t('login.kf.forgotten')); refreshKf(); });
     for (const el of [keyInput, fileInput]) el.addEventListener('change', refreshKf);
-    for (const el of [urlInput, ncPathInput, userInput]) el.addEventListener('input', () => { clearTimeout(refreshKf.t); refreshKf.t = setTimeout(refreshKf, 200); });
+    for (const el of [urlInput, ncPathInput, userInput, remote?.server].filter(Boolean)) el.addEventListener('input', () => { clearTimeout(refreshKf.t); refreshKf.t = setTimeout(refreshKf, 200); });
     form.addEventListener('change', (e) => { if (e.target.name === 'src') refreshKf(); });
-    refreshKf();
+    if (remote) remote.setMode(remote.mode()); else refreshKf();
     form.addEventListener('submit', async (ev) => {
         ev.preventDefault();
         err.textContent = '';
@@ -130,19 +141,27 @@ export function showLogin(message) {
                     pref('ncfile', userPath); // merken: der Offline-Start der App-Seite kennt den ?open=-Parameter nicht
                     dav = new DavFile({ url: davUrlFor(NC, userPath), auth: ncAuth });
                 } else {
-                    if (!urlInput.value.trim()) throw new VaultError(t('err.dav.url'));
-                    pref('url', urlInput.value.trim()); pref('user', userInput.value);
-                    dav = new DavFile({ url: urlInput.value.trim(), user: userInput.value, pass: passInput.value });
+                    const user = userInput.value, pass = passInput.value, davMode = remote.mode();
+                    let url = urlInput.value.trim();
+                    if (davMode === 'nc') {
+                        const userPath = normalizeUserPath(ncPathInput.value);
+                        if (!remote.root()) throw new VaultError(t('err.nc.server'));
+                        if (!userPath || userPath.endsWith('/')) throw new VaultError(t('err.nc.path'));
+                        url = remote.fileUrl(await remote.davBase({ offline: true }), userPath);
+                        kfId = `dav:${url}`; // dieselbe Kennung wie mit der WebDAV-Adresse; die Basis kann erst jetzt vom Server gekommen sein
+                    } else if (!url) throw new VaultError(t('err.dav.url'));
+                    pref('url', url); pref('user', user); pref('davmode', davMode);
+                    dav = new DavFile({ url, user, pass });
                 }
                 name = decodeURIComponent(new URL(dav.url, location.href).pathname.split('/').pop());
-                if (ctx.settings.offline) cacheInfo = { key: NC ? `nc:${NC.user}:${normalizeUserPath(ncPathInput.value)}` : `dav:${urlInput.value.trim()}`, name };
+                if (ctx.settings.offline) cacheInfo = { key: NC ? `nc:${NC.user}:${normalizeUserPath(ncPathInput.value)}` : `dav:${dav.url}`, name };
                 const cached = cacheInfo ? await cacheGet(cacheInfo.key).catch(() => null) : null;
                 let got = null;
                 try {
                     got = await dav.get();
                 } catch (e) {
                     if (!isOffline(e)) throw e;
-                    if (!cached) throw new VaultError(t(offlineFailKey(e, !!cacheInfo), { status: e.status }));
+                    if (!cached) throw new VaultError(t(offlineFailKey(e, !!cacheInfo), { status: e.status, ...e.vars }));
                 }
                 if (!got) { buf = cached.bytes; etag = cached.etag; unsynced = !!cached.modified; fromCache = true; offlineOpen = true; cachedAt = cached.syncDate; }
                 else if (cached?.modified) { buf = cached.bytes; etag = cached.etag; unsynced = true; fromCache = true; remoteBuf = got.buf; }
@@ -235,7 +254,7 @@ export function showLogin(message) {
             h('button', { type: 'button', id: 'new-db-link', class: 'link', text: t('login.new'), onclick: () => ctx.ui.showCreate() })),
         h('footer', { class: 'login-foot' }, wipeBtn, h('span', { class: 'muted', text: 'v' + __VERSION__ })));
     ctx.app.replaceChildren(h('div', { class: 'login' }, loginHero(), card));
-    masterInput.focus();
+    (remote?.mode() === 'nc' && !remote.server.value ? remote.server : masterInput).focus();
 }
 
 /** Linke Haelfte der Anmeldung (auch beim Anlegen einer neuen Datenbank). */

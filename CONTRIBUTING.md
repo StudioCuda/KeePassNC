@@ -44,8 +44,18 @@ eventually. When a new Nextcloud version joins the CI matrix, raise `max-version
 
 ## Standalone page
 
-KeePassNC also runs without the Nextcloud app, against any WebDAV server. `npm run build`, then serve `web/` over HTTPS
-(WebCrypto wants HTTPS or localhost). Enter the WebDAV URL of your file, your user name and an **app password**, not your account
-password. On a different domain than the Nextcloud you need CORS for WebDAV, so the same domain is easier.
+KeePassNC also runs without the Nextcloud app. `npm run build`, then serve `web/` over HTTPS (WebCrypto wants HTTPS or localhost).
+Sign in with your Nextcloud's address (`cloud.example.org` is enough), your user name and an **app password**, not your account
+password, then pick the file with "Browse" just like in the app. The page asks the server for the account behind the app password, so
+logins by email work too. For any other WebDAV server, "Enter your own WebDAV address" keeps the plain URL field.
+
+Easiest is the same domain as your Nextcloud. On a different domain every WebDAV request is cross-origin and needs CORS, even a
+plain GET, because it carries the app password. Nextcloud doesn't do CORS for WebDAV on its own: the preflight (`OPTIONS`) gets a 401
+without any `Access-Control-*` header, and the page then says the server can't be reached or doesn't allow requests from it. The
+web server in front of Nextcloud has to step in for `/remote.php/dav/`: answer `OPTIONS` with 204 without asking for a login, and
+send `Access-Control-Allow-Origin: <the page's origin>` (also on the other responses), `Access-Control-Allow-Methods: GET, HEAD, PUT,
+DELETE, PROPFIND, MKCOL`, `Access-Control-Allow-Headers: Authorization, Content-Type, Depth, If-Match, If-None-Match` and
+`Access-Control-Expose-Headers: ETag`. Allow only the origin you actually use, never `*`.
+
 `?autolock=SECONDS` overrides the auto-lock (default 300). If you host it yourself, also read the CSP note in
 [`SECURITY.md`](SECURITY.md).

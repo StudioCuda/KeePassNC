@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser, browserName, waitOpened } from '../browser.mjs';
+import { launchBrowser, browserName, waitOpened, plainWebdav } from '../browser.mjs';
 import { DOMParser } from '@xmldom/xmldom';
 import { startServer } from './davserver.mjs';
 
@@ -51,6 +51,7 @@ async function main() {
     const pageErrors = [], external = [];
     async function newPage(viewport = { width: 1500, height: 950 }, settings = { autosync: 'off', clipboard: 10 }) {
         const ctx = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport, permissions: browserName === 'chromium' ? ['clipboard-read', 'clipboard-write'] : [] }); // Firefox/WebKit kennen diese Rechtenamen nicht
+        await ctx.addInitScript(plainWebdav);
         await ctx.addInitScript((s) => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify(s)); } catch {} }, settings);
         const page = await ctx.newPage();
         page.on('pageerror', (e) => pageErrors.push(String(e)));

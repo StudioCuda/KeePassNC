@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser, waitOpened } from '../browser.mjs';
+import { launchBrowser, waitOpened, plainWebdav } from '../browser.mjs';
 import { startServer } from './davserver.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -57,6 +57,7 @@ async function main() {
     const newPage = async (settings = { autosync: 'off' }) => {
         // Ohne Service Worker: Anfragen ueber ihn sieht page.route nicht (WebKit), und die Offline-Kopie liegt ohnehin in IndexedDB
         const c = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport: { width: 1400, height: 950 }, serviceWorkers: 'block' });
+        await c.addInitScript(plainWebdav);
         await c.addInitScript((s) => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify(s)); } catch {} }, settings);
         const p = await c.newPage();
         p.on('pageerror', (e) => errors.push(String(e)));

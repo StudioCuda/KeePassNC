@@ -2,24 +2,47 @@
 // (GET/HEAD/PUT mit ETag, If-Match, If-None-Match, PROPFIND, MKCOL, HTTP-Basic-Auth). Nur fuer Tests, nicht fuer den Betrieb.
 // nc: zusaetzlich eine Nachbildung der App-Seite in Nextcloud unter /index.php/apps/keepassnc/ (templates/page.html, ?open= und ?new=)
 // mit /index.php/csrftoken; WebDAV nimmt dann statt Basic auch das CSRF-Token der Sitzung (wie Nextcloud fuer die eigene Seite).
+// Dieselbe Ablage liegt auch unter /remote.php/dav/files/<ncId>/ wie in einer Nextcloud, und PROPFIND auf /remote.php/dav/ nennt das
+// Konto (current-user-principal). ncId darf vom Anmeldenamen abweichen (Anmeldung per E-Mail). cors: Anfragen von anderen Herkuenften
+// erlauben (Preflight mit 204 beantworten); aus wie bei Nextcloud selbst, deren Preflight 401 ohne CORS-Header bekommt. Laesst sich
+// ueber das zurueckgegebene options-Objekt umschalten.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-secret', port = 0, nc = null }) {
+export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-secret', port = 0, nc = null, ncId = user, cors = false }) {
     const log = [];
+    const options = { cors };
+    const ncFiles = `/remote.php/dav/files/${encodeURIComponent(ncId)}`;
     const etagOf = (buf) => `"${crypto.createHash('sha1').update(buf).digest('hex')}"`;
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
 
     const server = http.createServer((req, res) => {
         const url = new URL(req.url, 'http://x');
         log.push(`${req.method} ${url.pathname}`);
-        if (url.pathname.startsWith('/dav/')) {
+        if (options.cors && req.headers.origin) {
+            res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
+            res.setHeader('Access-Control-Expose-Headers', 'ETag');
+            if (req.method === 'OPTIONS') {
+                res.writeHead(204, { 'Access-Control-Allow-Methods': 'GET, HEAD, PUT, DELETE, PROPFIND, MKCOL',
+                    'Access-Control-Allow-Headers': 'Authorization, Content-Type, Depth, If-Match, If-None-Match', 'Access-Control-Max-Age': '600' }).end();
+                return;
+            }
+        }
+        const davPath = url.pathname.startsWith('/dav/') ? url.pathname.slice(5)
+            : url.pathname === ncFiles || url.pathname.startsWith(ncFiles + '/') ? url.pathname.slice(ncFiles.length + 1) : null;
+        if (url.pathname === '/remote.php/dav' || url.pathname === '/remote.php/dav/') {
+            if (req.headers.authorization !== 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64')) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="t"' }).end(); return; }
+            if (req.method !== 'PROPFIND') { res.writeHead(405).end(); return; }
+            res.writeHead(207, { 'Content-Type': 'application/xml' }).end(`<?xml version="1.0"?><d:multistatus xmlns:d="DAV:"><d:response><d:href>/remote.php/dav/</d:href><d:propstat><d:prop><d:current-user-principal><d:href>/remote.php/dav/principals/users/${encodeURIComponent(ncId)}/</d:href></d:current-user-principal></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>`);
+            return;
+        }
+        if (davPath !== null) {
             const auth = req.headers.authorization || '';
             const expect = 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
             if (auth !== expect && !(nc && req.headers.requesttoken === 'tok-test')) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="t"' }).end(); return; }
-            const rel = decodeURIComponent(url.pathname.slice(5));
+            const rel = decodeURIComponent(davPath);
             const file = path.join(davRoot, path.normalize(rel).replace(/^(\.\.[\\/])+/, ''));
             if (!file.startsWith(davRoot)) { res.writeHead(403).end(); return; }
             if (req.method === 'GET' || req.method === 'HEAD') {
@@ -87,7 +110,7 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
         fs.createReadStream(file).pipe(res);
     });
     return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve({
-        server, port: server.address().port, log, user, pass,
+        server, port: server.address().port, log, user, pass, options,
         stop: () => new Promise((r) => { server.close(() => r()); server.closeAllConnections?.(); }) // simuliert einen Serverausfall
     })));
 }
