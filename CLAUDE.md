@@ -26,12 +26,14 @@ browser only. Start with `README.md`, `CONTRIBUTING.md` (build, tests, layout) a
   After the merge, `.github/workflows/release.yml` tags `vX.Y.Z` and creates the GitHub release once `main` is green. The
   maintainer then runs `tools/publish-release.sh` (or `tools\publish-nextcloud-release.cmd`) on their machine, which signs and
   pushes to the App Store, see `docs/APPSTORE.md`. `SKIP_STORE=1` (or `tools\sign-github-release.cmd`) leaves the App Store out.
-- Before a release PR, compare the whole header with the newest stable Nextcloud, left and right: logo, app menu and account menu
-  (`src/ui/ncheader.js`, the `.nch` block in `src/keepassnc.css`). Read the sources of its newest release tag (`vNN.x.y`), not
-  your memory and not the previous major: the files are listed in `tools/nc-header.json`, plus `NcHeaderMenu`, `NcListItem`,
-  `NcAvatar`, `NcPopover` and `NcButton` in the `@nextcloud/vue` version from its `package.json`. `node tools/nc-header-check.mjs`
-  (also weekly in CI, `nc-header.yml`) says whether any of that moved since the release we matched. If the look changed, adopt it
-  in its own PR first and pin the new state with `--update`.
+- Before a release PR, compare the whole header and the frame around the app with the newest stable Nextcloud, left and right: logo,
+  app menu and account menu (`src/ui/ncheader.js`, the `.nch` block in `src/keepassnc.css`), and the rounded content panel in front of
+  the instance colour (the "Nextcloud-Rahmen" block at the end of `src/keepassnc.css`: margin, radius, the breakpoint where it goes
+  edge to edge, the background). Read the sources of its newest release tag (`vNN.x.y`), not your memory and not the previous major:
+  the files are listed in `tools/nc-header.json` (header, menus, and `core/css/apps.scss` and `DefaultTheme.php` for the frame), plus
+  `NcHeaderMenu`, `NcListItem`, `NcAvatar`, `NcPopover` and `NcButton` in the `@nextcloud/vue` version from its `package.json`.
+  `node tools/nc-header-check.mjs` (also weekly in CI, `nc-header.yml`) says whether any of that moved since the release we matched.
+  If the look changed, adopt it in its own PR first and pin the new state with `--update`.
 - Public texts (README, PRs, commits, changelog, `info.xml`) are in English: relaxed, a little playful, never salesy.
 - Commits are authored as `StudioCuda <341092375+StudioCuda@users.noreply.github.com>` and carry a `Co-Authored-By` trailer
   for the AI.

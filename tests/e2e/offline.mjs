@@ -150,7 +150,7 @@ async function main() {
 
     await step('"Lokale Daten loeschen" entfernt Offline-Kopie, App-Cache und Service Worker', async () => {
         await page.goto(url()); await page.locator('#login-form').waitFor();
-        await page.click('#wipe-btn'); await page.click('#wipe-btn');
+        await page.click('#login-settings'); await page.click('#wipe-btn'); await page.click('#wipe-btn');
         await page.waitForFunction(() => /gelöscht/.test(document.querySelector('#login-error')?.textContent || ''));
         const left = await page.evaluate(async () => {
             const regs = (await navigator.serviceWorker.getRegistrations()).length;

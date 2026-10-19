@@ -140,7 +140,7 @@ async function main() {
         await p2.goto(base); await p2.locator('#login-form').waitFor();
         await p2.click('#dav-davmode');
         await p2.fill('#dav-url', legacyUrl); await p2.fill('#dav-user', 'tester'); await p2.fill('#dav-pass', 'app-secret');
-        await p2.fill('#master', PW); await p2.setInputFiles('#keyfile', KEY); await p2.check('#kf-remember'); await p2.check('#offline-opt');
+        await p2.fill('#master', PW); await p2.setInputFiles('#keyfile', KEY); await p2.check('#kf-remember'); await p2.check('#offline-opt'); // die Datei hat die Optionen schon aufgeklappt
         await p2.click('#open-btn'); await waitOpened(p2, 60000);
         await p2.click('#lock-btn'); await p2.locator('#login-form').waitFor();
         await p2.evaluate(() => localStorage.removeItem('kpnc.davmode')); // wie vor diesem Update: da gab es die Einstellung noch nicht

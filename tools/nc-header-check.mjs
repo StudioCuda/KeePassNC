@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Watches the Nextcloud sources our header copies (src/ui/ncheader.js, the .nch block in src/keepassnc.css).
+// Watches the Nextcloud sources our header and frame copy (src/ui/ncheader.js, the .nch block and the "Nextcloud-Rahmen" block in src/keepassnc.css).
 // tools/nc-header.json pins the release we matched and a SHA-256 per file. The check fails when one of those files changed on the
 // stable branch, when the @nextcloud/vue version moved, or when a newer stableNN branch exists. Then compare and adapt the header,
 // and pin the new state with --update.

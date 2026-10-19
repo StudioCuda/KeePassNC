@@ -123,7 +123,7 @@ async function main() {
         await fillLogin(p1, { withKey: true, remember: true }); await p1.click('#open-btn'); await waitOpened(p1, 120000);
         expect((await kfRecords(p1)).length === 1, 'wieder gemerkt');
         await p1.click('#lock-btn'); await p1.locator('#login-form').waitFor();
-        await p1.click('#wipe-btn'); await p1.click('#wipe-btn');
+        await p1.click('#login-settings'); await p1.click('#wipe-btn'); await p1.click('#wipe-btn');
         await p1.waitForFunction(() => /gelöscht/.test(document.querySelector('#login-error')?.textContent || ''));
         expect((await kfRecords(p1)).length === 0, 'Wipe entfernt Datensatz');
     });
@@ -137,7 +137,7 @@ async function main() {
         const recs = await kfRecords(p1);
         expect(recs.length === 1 && recs[0][0] === `kf:dav:${base}/dav/daily.kdbx` && recs[0][1].name === 'daily.keyx', 'Datensatz: ' + recs.map(([k, r]) => k + '=' + r.name).join(','));
         await p1.click('#lock-btn'); await p1.locator('#login-form').waitFor();
-        await p1.click('#wipe-btn'); await p1.click('#wipe-btn');
+        await p1.click('#login-settings'); await p1.click('#wipe-btn'); await p1.click('#wipe-btn');
         await p1.waitForFunction(() => /gelöscht/.test(document.querySelector('#login-error')?.textContent || ''));
     });
 

@@ -6,6 +6,7 @@
     --ok: #2f7d46; --ok-soft: #e2f0e5; --warn: #9d5a00; --warn-soft: #fbefd9; --bad: #c0362c; --bad-soft: #f9e3e0;
     --shadow-1: 0 1px 2px rgb(11 31 59 / .06), 0 1px 1px rgb(11 31 59 / .04); --shadow-2: 0 8px 28px rgb(11 31 59 / .14), 0 2px 6px rgb(11 31 59 / .08);
     --hero: #0b1f3b; --hero-2: #1a3560; --nch-h: 44px;
+    --solo-lit: #fff; --solo-shade: #000; --solo-spot: 70%; --solo-glow: 10%; --solo-mark: .11; --solo-noise: .05; --solo-edge: rgb(255 255 255 / .8); /* Anmeldung in Nextcloud: Dekor */
     --radius: 12px; --radius-sm: 8px; --row-h: 60px; --topbar-h: 56px; --sidebar-w: 264px; --list-w: 368px;
     --font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
     color-scheme: light;
@@ -16,6 +17,7 @@
         --text: #ece6da; --muted: #a59d8e; --accent: #c4a664; --accent-2: #4f7774; --accent-soft: #2c3135; --on-accent: #0b1422; --on-accent-2: #fff; --ring: #c4a664;
         --ok: #5cc38d; --ok-soft: #14291f; --warn: #e9b04f; --warn-soft: #33290f; --bad: #f07e78; --bad-soft: #3a1c22;
         --shadow-1: 0 1px 2px rgb(0 0 0 / .4); --shadow-2: 0 10px 34px rgb(0 0 0 / .55); color-scheme: dark;
+        --solo-lit: var(--accent); --solo-shade: var(--accent); --solo-spot: 10%; --solo-glow: 9%; --solo-mark: .1; --solo-noise: .025; --solo-edge: rgb(255 255 255 / .08);
     }
 }
 :root[data-theme="dark"] {
@@ -23,6 +25,7 @@
     --text: #ece6da; --muted: #a59d8e; --accent: #c4a664; --accent-2: #4f7774; --accent-soft: #2c3135; --on-accent: #0b1422; --on-accent-2: #fff; --ring: #c4a664;
     --ok: #5cc38d; --ok-soft: #14291f; --warn: #e9b04f; --warn-soft: #33290f; --bad: #f07e78; --bad-soft: #3a1c22;
     --shadow-1: 0 1px 2px rgb(0 0 0 / .4); --shadow-2: 0 10px 34px rgb(0 0 0 / .55); color-scheme: dark;
+    --solo-lit: var(--accent); --solo-shade: var(--accent); --solo-spot: 10%; --solo-glow: 9%; --solo-mark: .1; --solo-noise: .025; --solo-edge: rgb(255 255 255 / .08);
 }
 /* Nextcloud: Akzent aus der Instanzfarbe (ui/ctx.js -> applyTheme setzt die --nc-*-Werte per CSSOM, theme.js prueft die Kontraste).
    Ohne data-accent bleibt alles wie oben. Die Dunkel-Regeln sind spezifischer, damit sie die helle Regel schlagen. */
@@ -32,7 +35,8 @@
 }
 :root[data-accent="nc"][data-theme="dark"] { --accent: var(--nc-accent-d); --accent-soft: var(--nc-accent-soft-d); --on-accent: var(--nc-on-accent-d); --ring: var(--nc-accent-d); }
 /* Hoher Kontrast in Nextcloud: kraeftigere Linien und Nebentexte (der Akzent rechnet dann mit 7:1). */
-:root[data-contrast="more"] { --border: var(--border-strong); --muted: var(--text); }
+:root[data-contrast="more"] { --border: var(--border-strong); --muted: var(--text); --solo-spot: 0%; --solo-glow: 0%; --solo-mark: 0; --solo-noise: 0; --solo-edge: transparent; }
+@media (forced-colors: active) { :root { --solo-spot: 0%; --solo-glow: 0%; --solo-mark: 0; --solo-noise: 0; --solo-edge: transparent; } }
 :root[data-density="compact"] { --row-h: 46px; }
 
 *, *::before, *::after { box-sizing: border-box; }
@@ -170,10 +174,31 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .trust li { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; opacity: .92; } .trust .icon { margin-top: 2px; }
 .login-card { display: flex; flex-direction: column; justify-content: center; gap: 22px; padding: 48px clamp(24px, 5vw, 80px); background: var(--bg); }
 .login-card > * { width: 100%; max-width: 460px; margin-inline: auto; }
-.login-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; } .login-top h2 { font-size: 24px; letter-spacing: -.01em; }
+.login-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; } .login-top h2, .login-top .link { white-space: nowrap; } .login-top h2 { font-size: 24px; letter-spacing: -.01em; }
 .row-gap { display: flex; gap: 10px; align-items: center; }
 .login-form { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: var(--shadow-2); }
 .login-alt { text-align: center; font-size: 13px; }
+.login.solo { position: relative; isolation: isolate; overflow: hidden; grid-template-columns: 1fr;
+    background: radial-gradient(ellipse 900px 640px at 50% 38%, color-mix(in srgb, var(--solo-lit) var(--solo-spot), transparent), color-mix(in srgb, var(--solo-lit) calc(var(--solo-spot) * .4), transparent) 50%, transparent); }
+.login.solo::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: var(--solo-noise);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
+.login-mark { position: absolute; z-index: -1; right: -22vh; bottom: -24vh; width: 124vh; height: 124vh; color: var(--accent); opacity: var(--solo-mark); pointer-events: none;
+    mask-image: linear-gradient(150deg, rgb(0 0 0 / .2) 8%, #000 38%, rgb(0 0 0 / .24) 58%, #000 82%); } /* Mattglanz: eine helle Bahn quer ueber dem Strich */
+.login-mark .icon { width: 100%; height: 100%; stroke-width: 1.3; stroke-linejoin: round; }
+.login.solo > .login-card { position: relative; justify-content: flex-start; padding-top: clamp(24px, 8vh, 72px); background: transparent; }
+.login.solo .login-form { --lift: 14px; --glow: var(--solo-glow); padding: 28px 26px 24px; gap: 18px; transition: box-shadow .25s ease;
+    box-shadow: inset 0 1px 0 var(--solo-edge), 0 1px 2px rgb(0 0 0 / .04), 0 var(--lift) 36px -10px color-mix(in srgb, var(--solo-shade) var(--glow), transparent); }
+.login.solo .login-form:focus-within { --lift: 20px; --glow: calc(var(--solo-glow) * 1.33); }
+.login-seal { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--accent-soft); color: var(--accent); } .login-seal .icon { width: 22px; height: 22px; }
+.login-trust { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 2px 0 0; font-size: 12.5px; color: var(--muted); transition: color .25s ease; } .login-trust .icon { width: 14px; height: 14px; }
+.login-form:has(#master:focus) .login-trust { color: var(--accent); }
+.pw-field { position: relative; display: flex; } .pw-field > input { padding-right: 44px; }
+.pw-field > .icon-btn { position: absolute; inset-block: 0; right: 2px; margin: auto 0; }
+.file-chip { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); min-width: 0; }
+.file-chip > .icon { width: 22px; height: 22px; flex: none; color: var(--accent); }
+.file-chip > span { display: flex; flex-direction: column; min-width: 0; } .file-chip strong, .file-chip small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .file-chip strong { font-size: 15px; }
+.login-more > summary { cursor: pointer; width: fit-content; color: var(--muted); font-size: 13px; font-weight: 600; }
+.login-more[open] > summary { margin-bottom: 14px; }
 /* Neue Datenbank: Name mit fester Endung, Ordnerzeile, Ordner-Browser */
 .input-suffix { align-self: center; color: var(--muted); font-size: 13px; }
 .folder-row { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; } .folder-row .icon { width: 16px; height: 16px; flex: none; }
@@ -185,8 +210,8 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .login-foot { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
 
 /* ---------- Nextcloud-Kopfleiste (ui/ncheader.js) ---------- */
-body.has-nch .login { min-height: calc(100vh - var(--nch-h)); }
-body.has-nch .shell { height: calc(100vh - var(--nch-h)); height: calc(100dvh - var(--nch-h)); }
+body.has-nch .login { min-height: calc(100vh - var(--nch-h) - var(--nch-gap)); }
+body.has-nch .shell { height: calc(100vh - var(--nch-h) - var(--nch-gap)); height: calc(100dvh - var(--nch-h) - var(--nch-gap)); }
 body.has-nch .topbar .brand { display: none; } /* der Name steht schon in der Kopfleiste */
 /* Schrift wie --font-face in Nextcloud, damit Namen im Header und im App-Menue genauso umbrechen */
 .nch { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Oxygen-Sans, Cantarell, Ubuntu, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif; position: relative; z-index: 30; display: flex; align-items: center; height: var(--nch-h); padding: 0 12px 0 0; background: var(--nch-bg, #0b1f3b); color: var(--nch-fg, #fff); --nch-hover: rgb(0 0 0 / .1); --nch-press: rgb(0 0 0 / .15); }
@@ -452,7 +477,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
     .dh-text h2 { font-size: 18px; }
     .grid2, .custom-row { grid-template-columns: 1fr; }
     .login { grid-template-columns: 1fr; } .login-hero { padding: 28px 22px; gap: 10px; } .login-hero .trust { display: none; } .brand-mark { width: 46px; height: 46px; border-radius: 14px; } .brand-mark .icon { width: 24px; height: 24px; }
-    .login-card { padding: 18px 14px 32px; }
+    .login-card { padding: 18px 14px 32px; } .login-seal { display: none; } .login-mark { width: 125vw; height: 125vw; right: -38vw; bottom: -30vw; }
     .modal { max-height: 94vh; } .backdrop { align-items: end; padding: 0; } .modal { border-radius: 18px 18px 0 0; max-width: none !important; }
     .slider-row { grid-template-columns: 1fr 70px; } .slider-row .slider-label { grid-column: 1 / -1; }
     .toasts { bottom: 90px; right: 12px; left: 12px; max-width: none; }
@@ -468,3 +493,23 @@ input:disabled, select:disabled { opacity: .5; cursor: not-allowed; }
 .kf-used { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--accent-soft); }
 .kf-used .check { color: var(--text); }
 .cred-sub { margin-left: 28px; } /* Unterpunkte einer Schluesseldatei-Option im Dialog "Master-Passwort und Schluesseldatei" */
+
+/* ---------- Anmeldung: Anmutung (Typografie, Fokus, Entsperr-Moment) ---------- */
+button.primary.big .icon, .login-trust .icon { position: relative; top: -1px; } /* das Schloss ist unten schwer: optisch auf die Texthoehe heben */
+.login.solo .login-top h2 { font-weight: 600; letter-spacing: .01em; }
+.back-line { margin-bottom: -5px; } .back-line .link { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 550; } .back-line .link:hover { color: var(--text); text-decoration: underline; }
+.login.solo .login-form label > span:first-child { font-size: 11.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
+.login.solo button.primary.big { letter-spacing: .01em; font-weight: 600; }
+.login-foot .muted { font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+button.primary.big.busy { position: relative; overflow: hidden; }
+button.primary.big.busy::after { content: ""; position: absolute; inset: auto 0 0 0; height: 3px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--on-accent) 75%, transparent), transparent); transform: translateX(-100%); animation: unlock-sweep 1.1s ease-in-out infinite; }
+button.primary.big.done .icon { animation: unlock-pop .26s ease-out; }
+@keyframes unlock-sweep { to { transform: translateX(100%); } }
+@keyframes unlock-pop { 40% { transform: translateY(-3px) scale(1.15); } }
+@media (prefers-reduced-motion: no-preference) { .shell.enter { animation: fade .45s ease both; } }
+@media (prefers-reduced-motion: reduce) { button.primary.big.busy::after { animation: none; transform: none; opacity: .5; } }
+/* Nextcloud-Rahmen: der Inhalt sitzt wie bei den nativen Apps in einem abgerundeten Panel vor dem Instanzfarben-Hintergrund
+   (stable35, core/css/apps.scss: #content mit Rand 8px und Radius 16px; unter 1024px randlos, oben mit 8px Rundung) */
+body.has-nch { --nch-gap: 8px; --nch-radius: 16px; --nch-c: var(--nch-bg, #0b1f3b); background: linear-gradient(160deg, color-mix(in srgb, var(--nch-c) 88%, #fff), var(--nch-c) 42%, color-mix(in srgb, var(--nch-c) 72%, #000)) fixed; }
+body.has-nch .login, body.has-nch .shell { margin: 0 var(--nch-gap) var(--nch-gap); border-radius: var(--nch-radius); overflow: hidden; background-color: var(--bg); }
+@media (max-width: 1023px) { body.has-nch { --nch-gap: 0px; --nch-radius: 8px 8px 0 0; } }
