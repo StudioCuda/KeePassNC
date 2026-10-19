@@ -2,6 +2,13 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+### Added
+- "Leave out of password health" in the entry editor. KeePassNC already respected the flag when KeePass 2 or KeePassXC had set it, you just couldn't set it here. Handy for that four-digit PIN that's weak on purpose. It's written in both dialects, `QualityCheck` for KeePass 2 (KDBX 4.1) and `KnownBad` for KeePassXC, and the "Weak passwords" filter skips such entries too.
+
+### Changed
+- A wrong master password now also mentions the other usual suspect: a KeePassXC database that needs a hardware key like a YubiKey. Browsers can't talk to it, so such files don't open here.
+
 ## [0.12.0] - 2026-10-18
 ### Added
 - Duplicating an entry now asks whether to link username and password to the original. A linked copy simply points there (`{REF:…}`, the same thing KeePassXC's "Clone" does), so a new password on the original shows up in every copy. Great for one account behind several URLs. Your choice is remembered for next time.
