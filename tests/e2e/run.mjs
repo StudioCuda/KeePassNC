@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { launchBrowser, browserName, knownEngineNoise, webkitCspWatch } from '../browser.mjs';
 import { startServer } from './davserver.mjs';
+import { parseCsv } from '../../src/core/csv.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const PW = 'Test-Passwort-123';
@@ -598,6 +599,43 @@ async function main() {
         expect(/^\d{6}$/.test(xc(['show', '-t', fX, 'Bank/Konto']).trim().split('\n').pop()), 'TOTP aus dem QR-Code');
         const att = path.join(tmp, 'bild.png'); xc(['attachment-export', fX, 'Bank/Konto', 'bild.png', att]);
         expect(fs.readFileSync(att).equals(png), 'Bild-Anhang');
+    });
+
+    await step('CSV: Bitwarden-Export landet in eigener Gruppe (KeePassXC sieht ihn), Export entspricht dem von KeePassXC und laesst sich wieder einlesen', async () => {
+        const fCsv = path.join(davRoot, 'csv.kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fCsv);
+        const bitwarden = 'folder,favorite,type,name,notes,fields,reprompt,login_uri,login_username,login_password,login_totp\n'
+            + 'Arbeit/Server,,login,NAS,"zwei\nZeilen",,0,https://nas.local,admin,"ge,heim""1",JBSWY3DPEHPK3PXP\n,,login,Forum,,,0,forum.example,eve,pw-forum,\n';
+        const p = await newPage();
+        await login(p, 'csv.kdbx'); await rows(p).first().waitFor();
+        const openCsv = async () => { await p.click('#reports-btn'); await p.click('#rep-tab-info'); await p.click('#csv-btn'); await p.locator('#csv-file').waitFor({ state: 'attached' }); };
+        await openCsv();
+        await p.setInputFiles('#csv-file', { name: 'bitwarden.csv', mimeType: 'text/csv', buffer: Buffer.from(bitwarden) });
+        await p.waitForFunction(() => /Gefundene Einträge: 2/.test(document.querySelector('#csv-summary')?.textContent || ''));
+        expect(/favorite|type|reprompt/.test(await p.locator('#csv-summary').innerText()) === true, 'ignorierte Spalten fehlen: ' + await p.locator('#csv-summary').innerText());
+        await p.click('#csv-import');
+        expect(await rows(p).count() === 2, 'Liste zeigt nicht die neue Gruppe');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        const nas = xc(['show', '-s', fCsv, 'Import bitwarden/Arbeit/Server/NAS']);
+        expect(nas.includes('UserName: admin') && nas.includes('Password: ge,heim"1') && nas.includes('zwei\nZeilen'), 'NAS in KeePassXC:\n' + nas);
+        expect(/^\d{6}$/.test(xc(['show', '-t', fCsv, 'Import bitwarden/Arbeit/Server/NAS']).trim().split('\n').pop()), 'TOTP aus dem Bitwarden-Export');
+        expect(xc(['show', '-s', fCsv, 'Import bitwarden/Forum']).includes('Password: pw-forum'), 'Forum fehlt');
+
+        await openCsv();
+        expect(await p.isDisabled('#csv-export'), 'Export ohne Bestaetigung moeglich');
+        await p.check('#csv-sure');
+        const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#csv-export')]);
+        const ours = fs.readFileSync(await dl.path(), 'utf8');
+        // Vergleich mit KeePassXC: ohne Icon und Zeiten, TOTP nur das Geheimnis (KeePassXC schreibt die URI neu auf), ohne Papierkorb (lassen wir bewusst weg)
+        const cut = (csv) => parseCsv(csv).filter((r) => !r[0].includes('Recycle Bin'))
+            .map((r) => [...r.slice(0, 6), r[6].match(/secret=([A-Z2-7]+)/)?.[1] || r[6]].join('|')).sort();
+        const theirs = xc(['export', '-f', 'csv', fCsv]);
+        expect(JSON.stringify(cut(ours)) === JSON.stringify(cut(theirs)), 'Export weicht von KeePassXC ab:\n' + ours + '\n---\n' + theirs);
+        await openCsv();
+        await p.setInputFiles('#csv-file', { name: 'zurueck.csv', mimeType: 'text/csv', buffer: Buffer.from(ours) });
+        await p.click('#csv-import');
+        expect(await rows(p).count() === parseCsv(ours).length - 1, 'Wiedereingelesener Export: ' + await rows(p).count());
+        await p.context().close();
     });
 
     await step('Lokale Datei: oeffnen, aendern, "Speichern" liefert Download, der in KeePassXC oeffnet', async () => {
