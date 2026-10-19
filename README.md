@@ -19,57 +19,19 @@ No lock-in, no special format, no drama.
 - **Decrypted only in your browser.** Your master password and your passwords never leave it. The server only ever stores the
   encrypted file.
 - **Careful saving.** A backup copy is made before every save. If two devices change the file at once, both changes are kept.
-  Got a "conflicted copy" from the Nextcloud desktop app anyway? Merge it back in from the "Database" dialog.
 - **Works offline.** Turn on the encrypted offline copy and your passwords stay usable even when the server or network is down.
-  Changes sync back later.
 - **Phone or big screen.** Three panes on a desktop, one on a phone. Light and dark, English and German.
 
-## What it can do
+## Highlights
 
-- **Find things fast:** search like in KeePassXC (`user:`, `tag:`, `is:weak`, `has:totp` …) and a command palette (`Ctrl+K`).
-- **Stay organised:** groups with drag and drop, icons (KeePass's own or your pictures), colors, tags, expiry dates, attachments (pictures and text files with a preview), recycle bin and full entry history.
-- **Speaks KeePass:** placeholders like `{S:Host}` or `{URL:HOST}`, `{REF:…}` references, Twofish, and databases locked with a key file alone.
-- **Database settings:** name, recycle bin, history, encryption and key derivation, with browser-safe values and a test run first.
-- **New master password or key file:** change both in place. A new key file only counts once you've shown you saved it.
-- **Two-factor codes:** TOTP codes right next to the password, Steam Guard included. Setting one up? Pick a screenshot of the QR code.
-- **Passkeys:** passkeys saved by KeePassXC are shown and kept intact.
-- **Moving house:** import CSV exports from KeePassXC, Bitwarden, 1Password, LastPass, Chrome or Firefox, and export to CSV the
-  way KeePassXC does.
-- **Better passwords:** a generator for passphrases (English or German), passwords and simple ones you can type on a TV remote, and a health report that finds weak, reused and expired ones.
-- **Shared files:** databases someone shared with you open fine; read-only shares say so.
-- **Feels at home:** picks up your instance's color and your light or dark choice, and keeps the Nextcloud header with the app menu
-  on top. Search, notifications and the contacts menu sit this one out, [here's why](SECURITY.md#model-in-short).
-- **Key file, remembered:** if you use a key file, KeePassNC can remember it on your device, protected by a secret on your
-  server. Optional, and off by default. [How it works](docs/KEYFILE-MEMORY.md).
+- **Find things fast:** search like in KeePassXC and a command palette (`Ctrl+K`).
+- **Codes and passkeys:** TOTP codes right next to the password, and passkeys saved by KeePassXC stay intact.
+- **Better passwords:** a generator for passphrases and passwords, plus a health report for weak, reused and expired ones.
+- **Moving house:** import from KeePassXC, Bitwarden, 1Password, LastPass, Chrome or Firefox, and export to CSV.
+- **Feels at home:** follows your Nextcloud color and your light or dark choice.
 
-<p>
-  <img src="docs/screenshots/desktop-reports.png" width="49%" alt="Health report: weak, reused and expiring passwords">
-  <img src="docs/screenshots/desktop-generator.png" width="49%" alt="Password generator">
-</p>
-
-<details>
-<summary>Search syntax</summary>
-
-Words separated by spaces must all match. Plain words look in title, user name, URL, notes and tags.
-
-- **Fields:** `title:`, `user:`, `url:`, `notes:`, `pass:`, `tag:`, `group:` (with a `/` it matches the path), `attr:` (field
-  names), `att:` (attachment names), `uuid:`, and `_Name:` for the custom field *Name*. The start of a field name is enough.
-- **Filters:** `is:weak`, `is:expired`, `is:expired-30` (expired or expiring within 30 days), `has:totp`, `has:passkey`, `has:attachment`,
-  `has:tags`, `has:url`, `has:notes`, `has:history`.
-- **Modifiers:** `-` or `!` excludes, `+` matches exactly (case included), `*` turns the rest into a regular expression.
-- **Wildcards:** `*`, `?` and `|` (or), and `"quotes"` for values with spaces.
-
-Example: `url:bank is:weak -tag:old`
-
-</details>
-
-<details>
-<summary>Keyboard shortcuts</summary>
-
-`Ctrl+K` palette, `Ctrl+F` search, `Ctrl+N` new entry, `Ctrl+S` save, `Ctrl+L` lock, `Ctrl+B` copy user name,
-`Ctrl+C` copy password, `Ctrl+Shift+U` open URL, `Del` delete.
-
-</details>
+That's the short list. [Everything else](docs/FEATURES.md) (search tricks, shortcuts, database settings, shared files and more)
+lives on its own page.
 
 ## Install
 
@@ -112,8 +74,8 @@ Not a coder? KeePassNC is free and stays that way. If it saves you some nerves, 
 [sponsor the project on GitHub](https://github.com/sponsors/StudioCuda). Totally optional, a bug report helps just as much.
 
 Made with AI help: KeePassNC is built with [Claude Code](https://claude.com/claude-code), and the commits say so. Every change
-goes through the same test suite against KeePassXC, three browsers and real Nextcloud installs.
-That's a safety net, not an audit, which is why [`SECURITY.md`](SECURITY.md) still asks you to keep a KeePassXC copy around.
+runs through tests against KeePassXC, three browsers and real Nextcloud installs. That's a safety net, not an audit, so
+[`SECURITY.md`](SECURITY.md) still asks you to keep a KeePassXC copy around.
 
 ## License and credits
 
