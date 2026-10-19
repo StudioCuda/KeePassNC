@@ -14,6 +14,8 @@ master password anything they wouldn't have with a known key file anyway.
 
 - **Off by default.** "Remember key file on this device" only shows up once a key file is chosen, and is never pre-ticked.
 - Remembered only **after a successful open**, so password and key file are confirmed.
+- Only with a master password. A database that opens with the key file alone has nothing to encrypt the record with, so the
+  login says so and remembers nothing.
 - One record per database. Ids: `nc:<user>:<path>`, `dav:<url>`, `file:<file name>`; a local file inside Nextcloud: `nc-file:<user>:<file name>`.
   Id, key file and the wish to remember are captured on submit; changes during download or KDF don't count anymore.
 - Local files have no path, so two different databases with the same name share a record. The error message points that out.

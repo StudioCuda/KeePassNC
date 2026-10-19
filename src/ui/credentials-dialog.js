@@ -82,7 +82,7 @@ export function openCredentials() {
 
     /** Was sich aendern soll ({password, keyfile} wie Vault.changeCredentials) oder null (Fehler steht im Dialog). */
     async function collect() {
-        if (!i.current.value) return fail('cred.current.none');
+        if (!i.current.value && v.hasPassword) return fail('cred.current.none');
         if (!(await v.checkPassword(i.current.value))) return fail('cred.current.wrong');
         if (i.next.value !== i.repeat.value) return fail('cred.mismatch');
         const password = i.next.value && i.next.value !== i.current.value ? i.next.value : undefined;
@@ -100,6 +100,7 @@ export function openCredentials() {
             keyfile = fresh.slice(); name = freshName;
         } else if (mode === 'none') keyfile = null;
         if (password === undefined && keyfile === undefined) return fail('cred.nothing');
+        if (keyfile === null && password === undefined && !v.hasPassword) return fail('e.cred.empty');
         return { password, keyfile, name };
     }
 
@@ -146,11 +147,11 @@ export function openCredentials() {
 
     const isFile = state.source.type === 'file';
     const body = h('form', { class: 'stack', id: 'cred-form', onsubmit: apply },
-        h('label', {}, h('span', { text: t('cred.current') }), i.current),
+        v.hasPassword ? h('label', {}, h('span', { text: t('cred.current') }), i.current) : h('p', { class: 'hint', text: t('cred.current.nopw') }),
         h('section', { class: 'card stack' }, h('h3', { text: t('login.master') }),
             h('label', {}, h('span', { text: t('cred.new') }), h('div', { class: 'input-group' }, i.next, showBtn, genBtn)), meter,
             h('label', {}, h('span', { text: t('cred.repeat') }), i.repeat),
-            h('small', { class: 'hint', text: t('cred.new.hint') })),
+            h('small', { class: 'hint', text: t(v.hasPassword ? 'cred.new.hint' : 'cred.new.hint.nopw') })),
         h('section', { class: 'card stack' }, h('h3', { text: t('login.keyfile') }), kfGroup),
         isDav ? h('section', { class: 'stack tight' },
             h('label', { class: 'check' }, delBackups, h('span', { text: t('cred.backups') })),
@@ -159,7 +160,7 @@ export function openCredentials() {
         error,
         h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), applyBtn));
     const m = modal({ title: t('cred.title'), body, size: 'md', onClose: () => { fresh?.fill(0); } });
-    i.current.focus();
+    (v.hasPassword ? i.current : i.next).focus();
     return m;
 }
 
@@ -172,7 +173,7 @@ async function updateRemembered(change, password) {
     const v = state.vault, id = state.source.kfId;
     const rec = id ? await kfStore.info(id).catch(() => null) : null;
     if (!rec) return '';
-    if (!v.hasKeyfile) { await kfStore.forget(id).catch(() => {}); return t('cred.kf.forgotten'); }
+    if (!v.hasKeyfile || !password) { await kfStore.forget(id).catch(() => {}); return t('cred.kf.forgotten'); } // gemerkt wird nur mit Passwort
     const keyfile = v.keyfileCopy();
     try {
         const pepper = ctx.NC?.pepperUrl ? await fetchPepper(ctx.NC, nextcloudAuth(ctx.NC)) : null;

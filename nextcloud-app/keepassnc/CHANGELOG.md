@@ -11,6 +11,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - A wrong master password now also mentions the other usual suspect: a KeePassXC database that needs a hardware key like a YubiKey. Browsers can't talk to it, so such files don't open here.
 
+### Fixed
+- Databases protected by a key file alone, without a master password, open now: leave the password empty and pick the key file. Just like KeePassXC, an empty field first tries "no password" and then "empty password", which are two different keys. Before, the login insisted on a password and such files simply didn't open. A key file can only be remembered together with a master password, since that's what encrypts the record.
+
 ## [0.12.0] - 2026-10-18
 ### Added
 - Duplicating an entry now asks whether to link username and password to the original. A linked copy simply points there (`{REF:…}`, the same thing KeePassXC's "Clone" does), so a new password on the original shows up in every copy. Great for one account behind several URLs. Your choice is remembered for next time.
