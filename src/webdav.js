@@ -95,7 +95,7 @@ export class DavFile {
 
     async get() {
         const res = await this._fetch(this.url);
-        if (res.status === 401 || res.status === 403) throw new DavError(res.status, 'Zugriff verweigert - Anmeldung bzw. Zugangsdaten pruefen.', 'e.dav.denied');
+        if (res.status === 401 || res.status === 403) throw new DavError(res.status, 'Zugriff verweigert - Anmeldung oder Zugangsdaten pruefen.', 'e.dav.denied');
         if (res.status === 404) throw new DavError(404, 'Datei nicht gefunden - Pfad pruefen.', 'e.dav.notfound');
         if (!res.ok) throw new DavError(res.status, `Server antwortete mit Status ${res.status}.`, 'e.dav.status', { status: res.status });
         return { buf: await res.arrayBuffer(), etag: etagOf(res) };

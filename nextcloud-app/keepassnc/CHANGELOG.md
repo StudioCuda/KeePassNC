@@ -4,6 +4,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Added
+- Placeholders, the way KeePass and KeePassXC know them: `{USERNAME}`, `{PASSWORD}`, `{TITLE}`, `{URL}`, `{NOTES}`, `{S:Any field}` and the URL parts `{URL:HOST}`, `{URL:RMVSCM}` (no scheme), `{URL:PORT}`, `{URL:PATH}` and friends. A URL like `https://{S:Host}/login` now opens the real address, and a username of `{S:Login}` shows and copies what's in that field. They mix with `{REF:…}` references and nest, just like in KeePassXC. The editor keeps showing the placeholder itself, so saving keeps it.
 - Peek at attachments: pictures (PNG, JPEG, GIF, WebP, BMP, ICO, SVG) and text files (notes, keys, certificates, configs …) get an eye button that shows them right there, no download needed. SVGs are shown as pictures only, so nothing in them runs.
 - Entry colours, the ones KeePass and KeePassXC call background colour. Pick one of six in the editor (or keep whatever colour another app set) and the entry gets a coloured stripe in the list.
 - TOTP from a QR code: in the editor, "From QR code" reads a screenshot of the setup page and fills in the `otpauth://` address. The picture never leaves the browser; [jsQR](https://github.com/cozmo/jsQR) does the reading in a worker of its own, so the app itself stays as light as before.
@@ -13,6 +14,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - "Leave out of password health" in the entry editor. KeePassNC already respected the flag when KeePass 2 or KeePassXC had set it, you just couldn't set it here. Handy for that four-digit PIN that's weak on purpose. It's written in both dialects, `QualityCheck` for KeePass 2 (KDBX 4.1) and `KnownBad` for KeePassXC, and the "Weak passwords" filter skips such entries too.
 
 ### Changed
+- Small wording polish: the German texts speak to you with "du" everywhere (one error message still said "Ihre"), a few messages read a bit smoother in both languages, and the English texts use the same quotes and apostrophes throughout.
 - A wrong master password now also mentions the other usual suspect: a KeePassXC database that needs a hardware key like a YubiKey. Browsers can't talk to it, so such files don't open here.
 
 ### Fixed
