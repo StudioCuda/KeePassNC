@@ -280,6 +280,7 @@ export function loginShell(card) {
 /** Linke Haelfte der Anmeldung (auch beim Anlegen einer neuen Datenbank). */
 export function loginHero() {
     return h('aside', { class: 'login-hero' },
+        h('div', { class: 'login-mark', 'aria-hidden': 'true' }, icon('shield')),
         h('div', { class: 'brand-mark' }, icon('shield')),
         h('h1', { text: 'KeePassNC' }),
         h('p', { class: 'tagline', text: t('login.tagline') }),
