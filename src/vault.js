@@ -847,7 +847,7 @@ export class Vault {
                 return { merged, noBackup: this.noBackup };
             } catch (e) {
                 if (!(e instanceof ConflictError)) throw e;
-                if (attempt >= 3) throw new VaultError('Die Datei wird gerade von einem anderen Geraet laufend geaendert - bitte spaeter erneut speichern. Ihre Aenderungen sind lokal gesichert.', 'e.busy');
+                if (attempt >= 3) throw new VaultError('Die Datei wird gerade von einem anderen Geraet laufend geaendert - bitte spaeter erneut speichern. Deine Aenderungen sind lokal gesichert.', 'e.busy');
                 const remote = await this.dav.get();
                 await this._backup(remote.buf, `conflict-${stamp()}`);
                 await this._prune();
