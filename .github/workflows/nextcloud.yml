@@ -20,7 +20,8 @@ jobs:
         include:
           - { name: nc34, package: latest-34, browser: true }
           - { name: nc35, package: latest-35 }
-          - { name: nc-master, ref: master, canary: true }
+          # master builds its frontend with Node 24 / npm 11; npm 10 misreads its lock file
+          - { name: nc-master, ref: master, canary: true, node: 24 }
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
@@ -29,7 +30,7 @@ jobs:
         run: tools/ci-docs-only.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
       - uses: actions/setup-node@v7
         if: steps.changes.outputs.docs_only != 'true'
-        with: { node-version: 22 }
+        with: { node-version: '${{ matrix.node || 22 }}' }
       - uses: shivammathur/setup-php@v2
         if: steps.changes.outputs.docs_only != 'true'
         with: { php-version: '8.3', extensions: 'sqlite3, pdo_sqlite, gd, zip, curl, mbstring, xml, intl, bcmath, gmp' }
