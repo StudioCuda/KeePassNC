@@ -507,6 +507,6 @@ button.primary.big.done .icon { animation: unlock-pop .26s ease-out; }
 @media (prefers-reduced-motion: reduce) { button.primary.big.busy::after { animation: none; transform: none; opacity: .5; } }
 /* Nextcloud-Rahmen: der Inhalt sitzt wie bei den nativen Apps in einem abgerundeten Panel vor dem Instanzfarben-Hintergrund
    (stable35, core/css/apps.scss: #content mit Rand 8px und Radius 16px; unter 1024px randlos, oben mit 8px Rundung) */
-body.has-nch { --nch-gap: 8px; --nch-radius: 16px; --nch-c: var(--nch-bg, #0b1f3b); background: linear-gradient(160deg, color-mix(in srgb, var(--nch-c) 88%, #fff), var(--nch-c) 42%, color-mix(in srgb, var(--nch-c) 72%, #000)) fixed; }
+body.has-nch { --nch-gap: 8px; --nch-radius: 16px; --nch-c: var(--nch-bg, #0b1f3b); background: var(--nch-c); }
 body.has-nch .login, body.has-nch .shell { margin: 0 var(--nch-gap) var(--nch-gap); border-radius: var(--nch-radius); overflow: hidden; background-color: var(--bg); }
 @media (max-width: 1023px) { body.has-nch { --nch-gap: 0px; --nch-radius: 8px 8px 0 0; } }
