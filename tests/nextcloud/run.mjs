@@ -229,7 +229,8 @@ async function main() {
         await page.goto(`${BASE}/index.php/apps/files/files?dir=${encodeURIComponent('/Passwörter privat')}`);
         await page.locator('[data-cy-files-list-row-name="vault4.kdbx"]').waitFor({ timeout: 60000 });
         await page.locator('[data-cy-upload-picker] .action-item__menutoggle, [data-cy-upload-picker] button').first().click();
-        await page.locator('[data-cy-upload-picker-menu-entry="keepassnc-new"]').click();
+        // Nextcloud 34/35 markieren die Eintraege mit data-cy-upload-picker-menu-entry, master (36) nicht mehr: dann ueber Rolle und Namen
+        await page.locator('[data-cy-upload-picker-menu-entry="keepassnc-new"]').or(page.getByRole('menuitem', { name: /KeePass/ })).first().click();
         await page.waitForURL(/apps\/keepassnc\/\?new=/, { timeout: 30000 });
         const name = await page.inputValue('#new-name'), folder = await page.locator('#new-folder').innerText();
         expect(/^(Passwörter|Passwords)$/.test(name) && folder === 'Passwörter privat', `Vorschlag: ${name} in ${folder}`);
