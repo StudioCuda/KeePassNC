@@ -1,4 +1,4 @@
-# Weekly heads-up when Nextcloud changes the header we copy (app menu, account menu), see tools/nc-header-check.mjs.
+# Weekly heads-up when Nextcloud changes the header or frame we copy (app menu, account menu, content panel), see tools/nc-header-check.mjs.
 # Not a required check and not run on pull requests: a red run here means "compare the header", not "this PR broke something".
 name: nc-header
 on:

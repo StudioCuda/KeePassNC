@@ -11,7 +11,9 @@
     "core/src/components/AppActionIcon.vue": "9d2130ae1d25915f24689a34e709d0865de7aaa2a32714bc61f320e2a35579c6",
     "core/src/views/AccountMenu.vue": "57442446f4d4af0db788280136795a868045627a172deac00db64329a30347a9",
     "core/src/components/AccountMenu/AccountMenuEntry.vue": "2dbf0d095ed1b2da9067e1d7f025802756eec6b1b3de42ea98fa20ef142be7aa",
-    "core/src/components/AccountMenu/AccountMenuProfileEntry.vue": "44b4c90ee763a6209a431c17fe2e4eb4167e7b875c91edcfaaf9a0bcd0709a9b"
+    "core/src/components/AccountMenu/AccountMenuProfileEntry.vue": "44b4c90ee763a6209a431c17fe2e4eb4167e7b875c91edcfaaf9a0bcd0709a9b",
+    "core/css/apps.scss": "bf078345ac0b12a449edffbc7805800ffb2b4c64edc05f910bba3ef034e0d302",
+    "apps/theming/lib/Themes/DefaultTheme.php": "c2c80e96ae11821f831ae774dfa6c7ad079f79c824d6029c3e4918248bf81b16"
   },
   "vue": "^9.13.1"
 }
