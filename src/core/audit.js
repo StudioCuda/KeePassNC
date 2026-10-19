@@ -1,6 +1,6 @@
 // Passwort-Gesundheitsbericht (Regeln angelehnt an KeePassXC): Staerke, Wiederverwendung, Ablauf, kurze/fehlende Passwoerter.
 import { estimateBits, strengthLabel } from './entropy.js';
-import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolveRefs } from './util.js';
+import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolvePlaceholders } from './util.js';
 
 /** "Aus Berichten ausschliessen": KeePass 2 schreibt QualityCheck = False (KDBX 4.1), KeePassXC das CustomData-Item KnownBad. */
 export const excluded = (e) => e.qualityCheck === false || e.customData?.get?.('KnownBad')?.value === 'True';
@@ -26,7 +26,7 @@ export function auditEntries(entries, now = Date.now()) {
         if (hasTotp(e)) stats.totp++;
         if (isPasskey(e)) stats.passkeys++;
         if (e.binaries.size) stats.attachments++;
-        const raw = fieldOf(e, 'Password'), pw = resolveRefs(raw, entries);
+        const raw = fieldOf(e, 'Password'), pw = resolvePlaceholders(raw, e, entries);
         if (excluded(e)) { stats.excluded++; continue; }
         const reasons = [];
         let score = 100;

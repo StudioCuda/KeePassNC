@@ -5,7 +5,7 @@ import { argon2 } from './argon2.js';
 import { ConflictError, DavError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
 import { excluded } from './core/audit.js';
-import { groupPath, isOutOfMemory, isPasskeyField, isSystemField, resolveRefs, uuidHex, valueText } from './core/util.js';
+import { groupPath, isOutOfMemory, isPasskeyField, isSystemField, resolvePlaceholders, uuidHex, valueText } from './core/util.js';
 import { EXPORT_HEAD, otpUri } from './core/csv.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
@@ -622,10 +622,10 @@ export class Vault {
         return top;
     }
 
-    /** Alle Eintraege ausser dem Papierkorb als CSV-Zeilen im Format von KeePassXC; Feldreferenzen aufgeloest, damit andere Programme sie verstehen. */
+    /** Alle Eintraege ausser dem Papierkorb als CSV-Zeilen im Format von KeePassXC; Platzhalter und Feldreferenzen aufgeloest, damit andere Programme sie verstehen. */
     csvRows() {
         const all = [...this.root.allEntries()].filter((e) => !this.isInRecycleBin(e));
-        const val = (e, k) => resolveRefs(fieldText(e.fields.get(k)), all);
+        const val = (e, k) => resolvePlaceholders(fieldText(e.fields.get(k)), e, all);
         const time = (d) => (d ? d.toISOString().replace(/\.\d{3}Z$/, 'Z') : '');
         return [EXPORT_HEAD, ...all.map((e) => [[this.root.name, groupPath(e.parentGroup)].filter(Boolean).join('/'),
             val(e, 'Title'), val(e, 'UserName'), val(e, 'Password'), val(e, 'URL'), val(e, 'Notes'),

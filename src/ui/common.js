@@ -1,7 +1,7 @@
 // Gemeinsame Hilfen der Oberflaeche: Avatare, Filter/Sortierung der Eintragsliste, Staerke-Cache.
 import { estimateBits, strengthLabel } from '../core/entropy.js';
 import { parseQuery, matches } from '../core/search.js';
-import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolveRefs } from '../core/util.js';
+import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolvePlaceholders } from '../core/util.js';
 import { excluded } from '../core/audit.js';
 import { t } from '../i18n.js';
 import { ctx } from './ctx.js';
@@ -15,10 +15,10 @@ export function bitsOf(pw) {
     return b;
 }
 /**
- * Feldwert mit aufgeloesten Feldreferenzen ({REF:P@I:…} auf andere Eintraege), wie ihn Anzeige, Kopieren und Bewertung brauchen;
- * nicht aufloesbare bleiben als {REF:…} stehen. Der Editor arbeitet weiter mit dem Rohwert, damit die Referenz erhalten bleibt.
+ * Feldwert mit aufgeloesten Platzhaltern ({REF:P@I:…} auf andere Eintraege, {USERNAME}, {S:Feld}, {URL:HOST} …), wie ihn Anzeige,
+ * Kopieren und Bewertung brauchen; nicht aufloesbare bleiben stehen. Der Editor arbeitet weiter mit dem Rohwert, damit sie erhalten bleiben.
  */
-export const resolvedField = (e, name) => { const v = fieldOf(e, name); return v.includes('{REF:') ? resolveRefs(v, allRealEntries()) : v; };
+export const resolvedField = (e, name) => { const v = fieldOf(e, name); return v.includes('{') ? resolvePlaceholders(v, e, allRealEntries()) : v; };
 export const isWeak = (e) => { const pw = resolvedField(e, 'Password'); return !!pw && !pw.includes('{REF:') && !excluded(e) && bitsOf(pw) < 75; };
 export { strengthLabel };
 
