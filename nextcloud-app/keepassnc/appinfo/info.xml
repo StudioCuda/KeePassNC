@@ -75,6 +75,7 @@ KeePassXC, KeePassDX, Strongbox & Co. können sie jederzeit weiterverwenden.]]><
     <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.13.0/docs/screenshots/dark-detail.png</screenshot>
     <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.13.0/docs/screenshots/desktop-reports.png</screenshot>
     <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.13.0/docs/screenshots/mobile-list.png</screenshot>
+    <donation type="other" title="GitHub Sponsors">https://github.com/sponsors/StudioCuda</donation>
     <dependencies>
         <php min-version="8.2"/>
         <nextcloud min-version="34" max-version="37"/>
