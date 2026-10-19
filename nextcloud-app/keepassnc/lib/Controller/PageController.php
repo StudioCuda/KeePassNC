@@ -101,6 +101,8 @@ class PageController extends Controller {
 			'__NEW__' => $newFile,
 			'__CSS__' => $this->urlGenerator->linkTo(Application::APP_ID, 'css/keepassnc.css') . '?v=' . $version,
 			'__JS__' => $this->urlGenerator->linkTo(Application::APP_ID, 'js/keepassnc.js') . '?v=' . $version,
+			'__ICON__' => $this->urlGenerator->linkTo(Application::APP_ID, 'img/favicon.svg') . '?v=' . $version,
+			'__TOUCH__' => $this->urlGenerator->linkTo(Application::APP_ID, 'img/apple-touch-icon.png') . '?v=' . $version,
 			'__LANG__' => $lang,
 			'__NC_COLOR__' => $ncColor,
 			'__NC_THEMES__' => $ncThemes,
