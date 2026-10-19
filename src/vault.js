@@ -44,7 +44,8 @@ export function cryptoSettings(header) {
 
 /** Anzeigenamen zu Vault.securitySettings(); KDF_LABEL ist auch das Format, das keyfile-store.js erwartet. */
 export const KDF_LABEL = { argon2d: 'Argon2d', argon2id: 'Argon2id', aes: 'AES-KDF' };
-const CIPHER_LABEL = { aes: 'AES-256', chacha20: 'ChaCha20' };
+export const CIPHER_LABEL = { aes: 'AES-256', chacha20: 'ChaCha20', twofish: 'Twofish' };
+const CIPHER_ID = { aes: Consts.CipherId.Aes, chacha20: Consts.CipherId.ChaCha20, twofish: Consts.CipherId.Twofish };
 
 export const STANDARD_FIELDS = ['Title', 'UserName', 'Password', 'URL', 'Notes'];
 
@@ -107,7 +108,7 @@ export class Vault {
             if (e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) {
                 throw new VaultError('Falsches Master-Passwort oder falsche Schluesseldatei.', 'e.badkey');
             }
-            if (e instanceof KdbxError && (e.code === Consts.ErrorCodes.BadSignature || e.code === Consts.ErrorCodes.InvalidVersion)) {
+            if (e instanceof KdbxError && [Consts.ErrorCodes.BadSignature, Consts.ErrorCodes.InvalidVersion, Consts.ErrorCodes.Unsupported].includes(e.code)) {
                 throw new VaultError('Das ist keine gueltige KDBX-Datei (oder eine nicht unterstuetzte Version).', 'e.badfile');
             }
             throw e;
@@ -285,10 +286,10 @@ export class Vault {
     }
 
     // ---------------------------------------------------------------- Sicherheits-Einstellungen (Dateikopf)
-    /** {version, cipher: 'aes'|'chacha20'|null, kdf: 'argon2d'|'argon2id'|'aes', memoryKiB, iterations, parallelism, rounds} */
+    /** {version, cipher: 'aes'|'chacha20'|'twofish'|null, kdf: 'argon2d'|'argon2id'|'aes', memoryKiB, iterations, parallelism, rounds} */
     securitySettings() {
         const h = this.db.header, kp = h.kdfParameters;
-        const cipher = { [Consts.CipherId.Aes]: 'aes', [Consts.CipherId.ChaCha20]: 'chacha20' }[h.dataCipherUuid?.toString()] ?? null;
+        const cipher = Object.keys(CIPHER_ID).find((c) => CIPHER_ID[c] === h.dataCipherUuid?.toString()) ?? null;
         const out = { version: h.versionMajor, cipher, kdf: 'aes', memoryKiB: null, iterations: null, parallelism: null, rounds: null };
         if (!kp) { out.rounds = Number(h.keyEncryptionRounds ?? 0); return out; }
         const id = kp.get('$UUID'), b64 = id ? btoa(String.fromCharCode(...new Uint8Array(id))) : '';
@@ -311,7 +312,7 @@ export class Vault {
         const needs4 = upgrade || kdf !== 'aes' || cipher === 'chacha20';
         if (needs4 && cur.version < 4) this.db.upgrade();
         const h = this.db.header;
-        if (cipher && cipher !== cur.cipher) h.dataCipherUuid = new KdbxUuid(cipher === 'chacha20' ? Consts.CipherId.ChaCha20 : Consts.CipherId.Aes);
+        if (cipher && cipher !== cur.cipher) h.dataCipherUuid = new KdbxUuid(CIPHER_ID[cipher]);
         if (h.versionMajor >= 4) {
             const want = kdf === 'argon2id' ? Consts.KdfId.Argon2id : kdf === 'argon2d' ? Consts.KdfId.Argon2d : Consts.KdfId.Aes;
             if (kdf !== this.securitySettings().kdf) this.db.setKdf(want);

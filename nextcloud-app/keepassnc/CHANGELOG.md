@@ -4,6 +4,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Added
+- Twofish. KeePassXC lets you encrypt a database with Twofish instead of AES or ChaCha20, and until now such a file greeted you with a cryptic error here. It now opens, saves and stays Twofish, KDBX 3.1 and 4 alike, and the database settings offer it as a third choice. A file that uses something we really can't read (say, a KeePass 2 plugin cipher) now gets the plain "not a valid or supported KDBX file" message instead of a raw error.
 - "Leave out of password health" in the entry editor. KeePassNC already respected the flag when KeePass 2 or KeePassXC had set it, you just couldn't set it here. Handy for that four-digit PIN that's weak on purpose. It's written in both dialects, `QualityCheck` for KeePass 2 (KDBX 4.1) and `KnownBad` for KeePassXC, and the "Weak passwords" filter skips such entries too.
 
 ### Changed

@@ -37,7 +37,8 @@ export const KdfId = {
 
 export const CipherId = {
     Aes: 'McHy5r9xQ1C+WAUhavxa/w==',
-    ChaCha20: '1gOKK4tvTLWlJDOaMdu1mg=='
+    ChaCha20: '1gOKK4tvTLWlJDOaMdu1mg==',
+    Twofish: 'rWjyn1dvS7mjatR6+WU0bA=='
 } as const;
 
 export const AutoTypeObfuscationOptions = {
