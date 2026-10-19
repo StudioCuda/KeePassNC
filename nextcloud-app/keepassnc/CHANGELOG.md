@@ -3,6 +3,9 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Fixed
+- On phones the last entry in the list scrolls clear of the + button instead of hiding behind it.
+
 ### Changed
 - In Nextcloud the app now sits in a rounded panel in front of your instance colour, the way the native apps do (8px margin, 16px corners, edge to edge below 1024px). A calmer sign-in page (in Nextcloud's high-contrast themes the decoration steps aside, and "‹ Files" is a quiet line above the title). Inside Nextcloud it's now just the card under the header, no big blue panel next to it. A file you opened from Files shows up as a small card with its name and folder instead of a read-only path field. The key file and the offline copy tuck away under "Key file & offline options" until you need them (they open by themselves once you pick a key file). The eye for the master password sits inside the field, and "Delete local data" moved from the page footer into the settings. A touch more warmth, too: a small shield next to the title, a soft, neutral spotlight behind the card, a huge, barely-there shield in the corner, a thin accent edge, and one quiet line saying it's decrypted in your browser only. Opening has a little moment now: a sweep on the button while it decrypts, the lock springs open, and the vault fades in (skipped if your system asks for less motion). The field label gets small capitals, the card breathes a bit more, and it glows slightly while you type.
 
