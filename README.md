@@ -19,6 +19,7 @@ No lock-in, no special format, no drama.
 - **Decrypted only in your browser.** Your master password and your passwords never leave it. The server only ever stores the
   encrypted file.
 - **Careful saving.** A backup copy is made before every save. If two devices change the file at once, both changes are kept.
+  Got a "conflicted copy" from the Nextcloud desktop app anyway? Merge it back in from the "Database" dialog.
 - **Works offline.** Turn on the encrypted offline copy and your passwords stay usable even when the server or network is down.
   Changes sync back later.
 - **Phone or big screen.** Three panes on a desktop, one on a phone. Light and dark, English and German.
@@ -96,8 +97,8 @@ KeeWeb, the KeePass app many people used inside Nextcloud, stopped getting updat
 with the same idea: your passwords stay in a normal KeePass file on your own server, and you open them in the browser.
 
 What it doesn't do: fill in passwords on websites, or create new passkeys for websites. Both need a browser extension,
-which is a different project. Databases locked with a hardware key (YubiKey challenge-response in KeePassXC) don't open
-either: browsers can't talk to the key that way.
+which is a different project. Databases locked with a hardware key (YubiKey challenge-response in KeePassXC) are left out
+on purpose: browsers can't talk to the key that way.
 
 ## Contributing
 

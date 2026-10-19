@@ -129,14 +129,19 @@ async function loadWith(buf, password, kf) {
             }
         }
     } catch (e) {
-        if (e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) {
-            throw new VaultError('Falsches Master-Passwort oder falsche Schluesseldatei.', 'e.badkey');
-        }
-        if (e instanceof KdbxError && [Consts.ErrorCodes.BadSignature, Consts.ErrorCodes.InvalidVersion, Consts.ErrorCodes.Unsupported].includes(e.code)) {
-            throw new VaultError('Das ist keine gueltige KDBX-Datei (oder eine nicht unterstuetzte Version).', 'e.badfile');
-        }
-        throw e;
+        throw loadError(e);
     }
+}
+
+/** Fehler von Kdbx.load als verstaendliche VaultError (falsche Zugangsdaten, keine/unbekannte KDBX-Datei), sonst unveraendert. */
+function loadError(e) {
+    if (e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) {
+        return new VaultError('Falsches Master-Passwort oder falsche Schluesseldatei.', 'e.badkey');
+    }
+    if (e instanceof KdbxError && [Consts.ErrorCodes.BadSignature, Consts.ErrorCodes.InvalidVersion, Consts.ErrorCodes.Unsupported].includes(e.code)) {
+        return new VaultError('Das ist keine gueltige KDBX-Datei (oder eine nicht unterstuetzte Version).', 'e.badfile');
+    }
+    return e;
 }
 
 export class Vault {
@@ -263,6 +268,38 @@ export class Vault {
             await this._cacheWrite(remote.buf, false);
             return { pulled: true };
         });
+    }
+
+    /**
+     * Holt eine andere Kopie dieser Datenbank herein (z. B. "(conflicted copy)" der Nextcloud-Clients oder eine Kopie vom Handy), wie
+     * "Datenbank zusammenfuehren" in KeePassXC: je Eintrag gewinnt der neuere Stand, der aeltere landet im Verlauf; Loeschungen
+     * kommen mit. Dateikopf und Zugangsdaten bleiben die eigenen. creds fehlt: es wird mit den eigenen Zugangsdaten geoeffnet.
+     * Liefert {added, changed, removed} (Eintraege). Fehler: e.badkey, e.badfile, e.merge.other (andere Datenbank).
+     */
+    async mergeFrom(buf, creds) {
+        let other;
+        try {
+            other = creds ? (await loadWith(buf, creds.password, creds.keyfile ? toArrayBuffer(creds.keyfile) : undefined)).db
+                : await Kdbx.load(buf, new Credentials(this._pw, this._kf));
+        } catch (e) { throw loadError(e); }
+        const snapshot = (items) => new Map([...items].map((x) => [x.uuid.id, `${x.times.lastModTime?.getTime()}|${x.parentGroup?.uuid.id}`]));
+        const diff = (before, after) => ({
+            added: [...after.keys()].filter((id) => !before.has(id)).length,
+            changed: [...after].filter(([id, s]) => before.has(id) && before.get(id) !== s).length,
+            removed: [...before.keys()].filter((id) => !after.has(id)).length
+        });
+        const entries = snapshot(this.root.allEntries()), groups = snapshot(this.root.allGroups());
+        const { keyChanged, settingsChanged } = this.db.meta; // Zugangsdaten und Dateikopf bleiben die eigenen, ihre Zeitstempel also auch
+        try {
+            this.db.merge(other);
+            Object.assign(this.db.meta, { keyChanged, settingsChanged });
+        } catch (e) {
+            if (e instanceof KdbxError && e.code === Consts.ErrorCodes.MergeError) throw new VaultError('Das ist eine andere Datenbank, keine Kopie dieser.', 'e.merge.other');
+            throw e;
+        }
+        const count = diff(entries, snapshot(this.root.allEntries())); // die Meldung zaehlt Eintraege; Gruppen aendern sich meist nur mit
+        if (Object.values(count).some(Boolean) || Object.values(diff(groups, snapshot(this.root.allGroups()))).some(Boolean)) this.dirty = true;
+        return count;
     }
 
     /**
