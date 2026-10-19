@@ -13,6 +13,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - Databases protected by a key file alone, without a master password, open now: leave the password empty and pick the key file. Just like KeePassXC, an empty field first tries "no password" and then "empty password", which are two different keys. Before, the login insisted on a password and such files simply didn't open. A key file can only be remembered together with a master password, since that's what encrypts the record.
+- Changed the master password or key file on another device while KeePassNC was open here? It now asks for the new ones and carries on: your unsaved changes get merged and saved with them. Before, it told you to sign in again, and with unsynced offline changes that sign-in failed with the new password. If that happens at sign-in, the login now explains the way through: sign in with the old credentials, then enter the new ones.
 
 ## [0.12.0] - 2026-10-18
 ### Added

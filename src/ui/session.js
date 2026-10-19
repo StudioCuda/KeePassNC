@@ -9,6 +9,8 @@ import { fmtDate } from '../i18n.js';
 
 const { state } = ctx;
 let autoSaveTimer = null, syncing = false;
+// Der Server-Stand oeffnet nicht mehr mit den Zugangsdaten dieser Sitzung: nach den neuen fragen (credentials-dialog.js)
+const REMOTE_CREDS = new Set(['e.merge.pw', 'e.pull.pw']);
 
 /** Nach jeder Aenderung am Tresor aufrufen: Ansicht aktualisieren, Speicherzustand anzeigen, ggf. Auto-Speichern planen. */
 export function changed() {
@@ -88,6 +90,7 @@ export async function doSave({ auto = false } = {}) {
         if (!e?.key) console.error(e); // erklaerte Fehler (mit Uebersetzung) stehen im Status, nur Unerwartetes in die Konsole
         state.lastSyncFailed = isOffline(e);
         setStatus(t('save.failed', { msg: errText(e) }), 'error');
+        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
     } finally {
         refreshDirtyIndicator();
     }
@@ -116,6 +119,7 @@ export async function syncNow({ announce = false } = {}) {
         if (!e?.key) console.error(e); // erklaerte Fehler (mit Uebersetzung) stehen im Status, nur Unerwartetes in die Konsole
         state.lastSyncFailed = isOffline(e);
         if (announce || !isOffline(e)) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
+        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
     } finally {
         syncing = false;
         $('#sync-state')?.classList.remove('busy');

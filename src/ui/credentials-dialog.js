@@ -184,3 +184,51 @@ async function updateRemembered(change, password) {
         return t('cred.kf.lost');
     } finally { keyfile.fill(0); }
 }
+
+let askingRemote = false;
+/**
+ * Die Datei auf dem Server oeffnet nicht mehr mit den Zugangsdaten dieser Sitzung (auf einem anderen Geraet geaendert): nach den neuen
+ * fragen, statt nur "bitte neu anmelden" zu sagen. Mit ihnen werden lokale Aenderungen zusammengefuehrt und gespeichert, sonst wird
+ * einfach der neue Stand geholt. "Spaeter" laesst alles, wie es ist; die naechste Speicherung oder der naechste Abgleich fragt wieder.
+ */
+export function askRemoteCredentials() {
+    const v = state.vault;
+    if (askingRemote || !v?.dav) return;
+    askingRemote = true;
+    const pwInput = h('input', { id: 'rcred-pw', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off' });
+    const kfInput = h('input', { id: 'rcred-kf', type: 'file' });
+    const kfName = h('span', { class: 'muted', text: v.hasKeyfile ? t('rcred.kf.same') : t('login.keyfile.none') });
+    kfInput.addEventListener('change', () => { kfName.textContent = kfInput.files[0]?.name || (v.hasKeyfile ? t('rcred.kf.same') : t('login.keyfile.none')); });
+    const error = h('p', { class: 'error', id: 'rcred-error', role: 'alert' });
+    const okBtn = h('button', { type: 'submit', class: 'primary', id: 'rcred-ok', text: t('rcred.ok') });
+    async function submit(e) {
+        e.preventDefault();
+        if (okBtn.disabled) return;
+        error.textContent = ''; okBtn.disabled = true;
+        const picked = await readFile(kfInput);
+        const keyfile = picked || v.keyfileCopy(); // ohne Auswahl: die bisherige Schluesseldatei
+        if (!pwInput.value && !keyfile) { okBtn.disabled = false; error.textContent = t('err.login.empty'); return; }
+        try {
+            const res = await v.adoptCredentials({ password: pwInput.value, keyfile: keyfile || undefined });
+            m.close();
+            rebind(); ctx.ui.refresh?.();
+            const kfNote = await updateRemembered({ keyfile: picked, name: kfInput.files[0]?.name }, pwInput.value);
+            setStatus([t(res.merged ? 'rcred.done.merged' : 'rcred.done'), kfNote].filter(Boolean).join(' '), res.offline ? 'warn' : 'info');
+        } catch (err) {
+            if (!err?.key) console.error(err);
+            error.textContent = errText(err);
+        } finally {
+            keyfile?.fill(0);
+            okBtn.disabled = false;
+            refreshDirtyIndicator();
+        }
+    }
+    const body = h('form', { class: 'stack', id: 'rcred-form', onsubmit: submit },
+        h('p', { text: t(v.dirty || v.unsynced ? 'rcred.msg.local' : 'rcred.msg') }),
+        h('label', {}, h('span', { text: t('cred.new') }), pwInput),
+        h('label', {}, h('span', { text: t('login.keyfile') }), h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), kfName, kfInput)),
+        error,
+        h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', id: 'rcred-later', text: t('rcred.later'), onclick: () => m.close() }), okBtn));
+    const m = modal({ title: t('rcred.title'), body, size: 'sm', onClose: () => { askingRemote = false; } });
+    pwInput.focus();
+}

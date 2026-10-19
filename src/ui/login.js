@@ -161,6 +161,8 @@ export function showLogin(message) {
                 vault = await Vault.open({ buf, password: masterInput.value, keyfile, dav, etag, cache: cacheInfo, unsynced, remoteBuf, fromCache });
             } catch (e) {
                 if (usedRemembered && e instanceof VaultError) throw new VaultError(t('err.kf.mismatch'));
+                // Ungesyncte lokale Kopie (alte Zugangsdaten), waehrend anderswo neue gesetzt wurden: der Weg fuehrt ueber die alten
+                if (unsynced && e instanceof VaultError && e.key === 'e.badkey') throw new VaultError(t('err.cache.oldcreds'));
                 throw e;
             }
             vault.backupKeep = ctx.settings.backupKeep;

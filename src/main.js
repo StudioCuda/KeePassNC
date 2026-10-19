@@ -7,6 +7,7 @@ import { installShortcuts } from './ui/shell.js';
 import { installGlobalListeners, ensureOfflineApp } from './ui/session.js';
 import { langNow } from './ui/settings-dialog.js';
 import { renderNcHeader } from './ui/ncheader.js';
+import { askRemoteCredentials } from './ui/credentials-dialog.js';
 
 ctx.app = document.getElementById('app');
 ctx.NC = readNextcloudContext(ctx.app);
@@ -15,6 +16,7 @@ applyTheme();
 const ncHeader = renderNcHeader(ctx.NC); // nur in Nextcloud: Kopfleiste wie bei den anderen Apps
 if (ncHeader) { document.body.prepend(ncHeader); document.body.classList.add('has-nch'); }
 ctx.ui.showLogin = showLogin;
+ctx.ui.askRemoteCredentials = askRemoteCredentials;
 ctx.ui.rerender = () => (ctx.state.vault ? ctx.ui.showMain() : showLogin());
 installGlobalListeners();
 installShortcuts();
