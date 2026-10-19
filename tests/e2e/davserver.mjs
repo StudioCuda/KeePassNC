@@ -16,7 +16,7 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
     const options = { cors };
     const ncFiles = `/remote.php/dav/files/${encodeURIComponent(ncId)}`;
     const etagOf = (buf) => `"${crypto.createHash('sha1').update(buf).digest('hex')}"`;
-    const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
+    const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
 
     const server = http.createServer((req, res) => {
         const url = new URL(req.url, 'http://x');
@@ -94,7 +94,7 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
         if (nc && url.pathname === '/index.php/apps/keepassnc/') {
             const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
             const vars = { __SW_URL__: '', __PEPPER_URL__: '', __DAV_BASE__: '/dav', __CSRF_URL__: '/index.php/csrftoken', __FILES_URL__: '/index.php/apps/files/',
-                __USER__: 'anna', __FILE__: url.searchParams.get('open') || '', __NEW__: url.searchParams.get('new') || '', __CSS__: '/keepassnc.css', __JS__: '/keepassnc.js',
+                __USER__: 'anna', __FILE__: url.searchParams.get('open') || '', __NEW__: url.searchParams.get('new') || '', __CSS__: '/keepassnc.css', __JS__: '/keepassnc.js', __ICON__: '/icon.svg', __TOUCH__: '/apple-touch-icon.png',
                 __LANG__: 'de', __NC_COLOR__: '', __NC_THEMES__: '', __NC_NAV__: '' };
             let html = fs.readFileSync(nc.template, 'utf8');
             for (const [k, v] of Object.entries(vars)) html = html.split(k).join(esc(v));

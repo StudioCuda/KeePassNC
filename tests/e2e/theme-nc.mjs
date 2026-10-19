@@ -38,7 +38,7 @@ function start() {
         srv.log.push(`${req.method} ${req.url}`);
         if (p === '/index.php/apps/keepassnc/') {
             const vars = { __SW_URL__: '', __PEPPER_URL__: '', __DAV_BASE__: '/remote.php/dav/files/anna', __CSRF_URL__: '/index.php/csrftoken', __FILES_URL__: '/index.php/apps/files/',
-                __USER__: 'anna', __FILE__: '', __NEW__: '', __CSS__: '/apps/keepassnc/css/keepassnc.css', __JS__: '/apps/keepassnc/js/keepassnc.js', __LANG__: 'de',
+                __USER__: 'anna', __FILE__: '', __NEW__: '', __CSS__: '/apps/keepassnc/css/keepassnc.css', __ICON__: '/apps/keepassnc/img/favicon.svg', __TOUCH__: '/apps/keepassnc/img/apple-touch-icon.png', __JS__: '/apps/keepassnc/js/keepassnc.js', __LANG__: 'de',
                 __NC_COLOR__: srv.color, __NC_THEMES__: srv.themes, __NC_NAV__: srv.nav ? JSON.stringify(srv.nav) : '' };
             let html = fs.readFileSync(path.join(app, 'templates/page.html'), 'utf8');
             for (const [k, v] of Object.entries(vars)) html = html.split(k).join(esc(v));
@@ -50,7 +50,7 @@ function start() {
         if (p.startsWith('/apps/keepassnc/')) {
             const f = path.join(app, p.slice('/apps/keepassnc/'.length));
             if (!f.startsWith(app) || !fs.existsSync(f)) { res.writeHead(404).end(); return; }
-            res.writeHead(200, { 'Content-Type': f.endsWith('.js') ? 'text/javascript' : 'text/css' }).end(fs.readFileSync(f));
+            res.writeHead(200, { 'Content-Type': f.endsWith('.js') ? 'text/javascript' : f.endsWith('.svg') ? 'image/svg+xml' : f.endsWith('.png') ? 'image/png' : 'text/css' }).end(fs.readFileSync(f));
             return;
         }
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': CSP }).end('<!doctype html><title>Nextcloud</title><p>andere Seite</p>');

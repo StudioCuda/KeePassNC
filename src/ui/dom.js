@@ -1,4 +1,5 @@
 // DOM-Bausteine ohne innerHTML (Daten werden nie als HTML interpretiert) und ohne Inline-Styles/Handler (strikte CSP).
+import { MARK, STROKE } from '../brand.js';
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
@@ -34,7 +35,6 @@ export const P = {
     folderOpen: 'M3 8V6a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v1M3 19l2.5-9h15.5l-2.5 9Z',
     tag: 'M4 4h8l8 8-8 8-8-8ZM8.5 8.5h.01',
     clock: 'M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16ZM12 8v4.5l3 1.5',
-    shield: 'M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.500-7-10V6ZM9 12l2 2 4-4',
     copy: 'M8 8h11v12H8ZM5 16V4h11',
     eye: 'M2.500 12S6 5.500 12 5.500 21.500 12 21.500 12 18 18.500 12 18.500 2.500 12 2.500 12ZM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z',
     eyeOff: 'M4 4l16 16M10 6a9 9 0 0 1 2-.5C18 5.500 21.500 12 21.500 12a17 17 0 0 1-3 4M6.500 7.500A17 17 0 0 0 2.500 12S6 18.500 12 18.500a9 9 0 0 0 3.500-.7M10 10a3 3 0 0 0 4 4',
@@ -79,7 +79,20 @@ export const P = {
     wifi: 'M3 9a14 14 0 0 1 18 0M6 12.500a9 9 0 0 1 12 0M9 16a4.500 4.500 0 0 1 6 0M12 19.500h.01'
 };
 const NS = 'http://www.w3.org/2000/svg';
-export function icon(name, cls = '') { return pathIcon(P[name] || P.file, cls); }
+export function icon(name, cls = '') { return name === 'shield' ? markIcon(cls) : pathIcon(P[name] || P.file, cls); }
+/** Die Marke (brand.js): Schildkontur als Strich, Schluesselloch und innere Ecken als Fuellung. Klassen mk-* lassen das Wasserzeichen sie anpassen. */
+function markIcon(cls) {
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'currentColor');
+    svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('class', ('icon mark ' + cls).trim());
+    for (const [name, d] of [['line', MARK.line], ['inner', MARK.inner], ['key', MARK.key]]) {
+        const path = document.createElementNS(NS, 'path');
+        path.setAttribute('d', d); path.setAttribute('class', 'mk-' + name);
+        if (name === 'line') for (const [k, v] of Object.entries({ fill: 'none', stroke: 'currentColor', 'stroke-width': STROKE, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })) path.setAttribute(k, v);
+        svg.append(path);
+    }
+    return svg;
+}
 /** Linien-Symbol aus einem Pfad (fuer die KeePass-Standardsymbole in kpicons.js). */
 export function pathIcon(d, cls = '') {
     const svg = document.createElementNS(NS, 'svg');
