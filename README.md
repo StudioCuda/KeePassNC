@@ -85,7 +85,7 @@ easy way is: **Apps** → search for *KeePassNC* → **Download and enable**. Or
 
 </details>
 
-Then click a `.kdbx` file in Files.
+Then click a `.kdbx` file in Files. No database yet? **+ New** → **KeePass database** in Files makes one.
 
 ## Security
 

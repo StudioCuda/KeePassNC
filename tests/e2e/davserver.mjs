@@ -1,11 +1,13 @@
 // Minimaler Testserver: liefert web/ statisch aus und stellt unter /dav/ eine WebDAV-aehnliche Dateiablage bereit
-// (GET/HEAD/PUT mit ETag, If-Match, If-None-Match, HTTP-Basic-Auth). Nur fuer Tests, nicht fuer den Betrieb.
+// (GET/HEAD/PUT mit ETag, If-Match, If-None-Match, PROPFIND, MKCOL, HTTP-Basic-Auth). Nur fuer Tests, nicht fuer den Betrieb.
+// nc: zusaetzlich eine Nachbildung der App-Seite in Nextcloud unter /index.php/apps/keepassnc/ (templates/page.html, ?open= und ?new=)
+// mit /index.php/csrftoken; WebDAV nimmt dann statt Basic auch das CSRF-Token der Sitzung (wie Nextcloud fuer die eigene Seite).
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-secret', port = 0 }) {
+export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-secret', port = 0, nc = null }) {
     const log = [];
     const etagOf = (buf) => `"${crypto.createHash('sha1').update(buf).digest('hex')}"`;
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8' };
@@ -16,7 +18,7 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
         if (url.pathname.startsWith('/dav/')) {
             const auth = req.headers.authorization || '';
             const expect = 'Basic ' + Buffer.from(`${user}:${pass}`).toString('base64');
-            if (auth !== expect) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="t"' }).end(); return; }
+            if (auth !== expect && !(nc && req.headers.requesttoken === 'tok-test')) { res.writeHead(401, { 'WWW-Authenticate': 'Basic realm="t"' }).end(); return; }
             const rel = decodeURIComponent(url.pathname.slice(5));
             const file = path.join(davRoot, path.normalize(rel).replace(/^(\.\.[\\/])+/, ''));
             if (!file.startsWith(davRoot)) { res.writeHead(403).end(); return; }
@@ -47,15 +49,36 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
                 res.writeHead(204).end();
                 return;
             }
-            if (req.method === 'PROPFIND' && fs.existsSync(file) && fs.statSync(file).isDirectory()) {
-                const base = url.pathname.endsWith('/') ? url.pathname : url.pathname + '/';
-                const items = fs.readdirSync(file).map((n) => `<d:response><d:href>${base}${encodeURIComponent(n)}</d:href><d:propstat><d:prop/><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`);
-                res.writeHead(207, { 'Content-Type': 'application/xml' }).end(`<?xml version="1.0"?><d:multistatus xmlns:d="DAV:"><d:response><d:href>${base}</d:href></d:response>${items.join('')}</d:multistatus>`);
+            if (req.method === 'PROPFIND') {
+                if (!fs.existsSync(file)) { res.writeHead(404).end(); return; }
+                const base = url.pathname.endsWith('/') || !fs.statSync(file).isDirectory() ? url.pathname : url.pathname + '/';
+                const entry = (href, dir) => `<d:response><d:href>${href}</d:href><d:propstat><d:prop><d:resourcetype>${dir ? '<d:collection/>' : ''}</d:resourcetype></d:prop><d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response>`;
+                const items = fs.statSync(file).isDirectory() && req.headers.depth !== '0'
+                    ? fs.readdirSync(file).map((n) => entry(base + encodeURIComponent(n), fs.statSync(path.join(file, n)).isDirectory())) : [];
+                res.writeHead(207, { 'Content-Type': 'application/xml' }).end(`<?xml version="1.0"?><d:multistatus xmlns:d="DAV:">${entry(base, fs.statSync(file).isDirectory())}${items.join('')}</d:multistatus>`);
+                return;
+            }
+            if (req.method === 'MKCOL') {
+                if (fs.existsSync(file)) { res.writeHead(405).end(); return; }
+                if (!fs.existsSync(path.dirname(file))) { res.writeHead(409).end(); return; }
+                fs.mkdirSync(file);
+                res.writeHead(201).end();
                 return;
             }
             res.writeHead(405).end();
             return;
         }
+        if (nc && url.pathname === '/index.php/apps/keepassnc/') {
+            const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+            const vars = { __SW_URL__: '', __PEPPER_URL__: '', __DAV_BASE__: '/dav', __CSRF_URL__: '/index.php/csrftoken', __FILES_URL__: '/index.php/apps/files/',
+                __USER__: 'anna', __FILE__: url.searchParams.get('open') || '', __NEW__: url.searchParams.get('new') || '', __CSS__: '/keepassnc.css', __JS__: '/keepassnc.js',
+                __LANG__: 'de', __NC_COLOR__: '', __NC_THEMES__: '', __NC_NAV__: '' };
+            let html = fs.readFileSync(nc.template, 'utf8');
+            for (const [k, v] of Object.entries(vars)) html = html.split(k).join(esc(v));
+            res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'" }).end(html);
+            return;
+        }
+        if (nc && url.pathname === '/index.php/csrftoken') { res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ token: 'tok-test' })); return; }
         // statische Dateien
         const rel = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
         const file = path.join(webRoot, path.normalize(rel).replace(/^(\.\.[\\/])+/, ''));

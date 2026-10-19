@@ -119,6 +119,20 @@ export class DavFile {
     }
 
     /**
+     * Legt die Datei neu an (neue Datenbank), ueberschreibt aber nie eine vorhandene: PUT mit If-None-Match: *. Liefert den ETag.
+     * 412: gibt es schon; 403: im Ordner darf man nichts anlegen; 404/409: den Ordner gibt es nicht.
+     */
+    async create(buf) {
+        const res = await this._fetch(this.url, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'If-None-Match': '*' }, body: buf });
+        if (res.status === 412) throw new DavError(412, 'Diese Datei gibt es schon - bitte einen anderen Namen waehlen.', 'e.dav.exists');
+        if (res.status === 401) throw new DavError(401, 'Zugriff verweigert - Anmeldung bzw. Zugangsdaten pruefen.', 'e.dav.denied');
+        if (res.status === 403) throw new DavError(403, 'Keine Berechtigung, hier eine Datei anzulegen.', 'e.dav.nocreate');
+        if (res.status === 404 || res.status === 409) throw new DavError(res.status, 'Diesen Ordner gibt es nicht - Pfad pruefen.', 'e.dav.nofolder');
+        if (!res.ok) throw new DavError(res.status, `Anlegen fehlgeschlagen (Status ${res.status}).`, 'e.dav.save', { status: res.status });
+        return etagOf(res) || (await this.head());
+    }
+
+    /**
      * Nextcloud-Rechte der Datei (oc:permissions, z. B. "SRGDNVW"; "W" = Inhalt aendern). null, wenn der Server sie nicht nennt
      * (andere WebDAV-Server) oder die Abfrage scheitert - dann gilt die Datei als beschreibbar und erst das Speichern entscheidet.
      */
@@ -154,26 +168,57 @@ export class DavFile {
     /** Loescht alle Sicherungskopien dieser Datei (gleiches Muster wie pruneBackups). Liefert die Namen der geloeschten Dateien. */
     deleteBackups() { return this._deleteBackups(0); }
 
-    /** Der Ordner der Datei: Adresse (mit "/" am Ende), eigener Dateiname und alle Eintraege [{name, modified}] (leer, wenn der Server nicht listet). */
+    /**
+     * Inhalt des Ordners unter this.url (mit oder ohne "/" am Ende): [{name, dir, modified}], ohne den Ordner selbst.
+     * Ordner fehlt: DavError 404 (e.dav.nofolder); keine Rechte: 401/403; ein Server, der nicht listet (kein 207): [].
+     */
+    async list() {
+        const url = this.url.replace(/\/?$/, '/');
+        const res = await this._fetch(url, { method: 'PROPFIND', headers: { Depth: '1', 'Content-Type': 'application/xml' }, body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getlastmodified/></d:prop></d:propfind>' });
+        if (res.status === 404) throw new DavError(404, 'Diesen Ordner gibt es nicht - Pfad pruefen.', 'e.dav.nofolder');
+        if (res.status === 401 || res.status === 403) throw new DavError(res.status, 'Zugriff verweigert - Anmeldung bzw. Zugangsdaten pruefen.', 'e.dav.denied');
+        if (res.status !== 207) return [];
+        const abs = new URL(url, typeof location !== 'undefined' ? location.href : undefined); // Nextcloud: relative Adresse
+        const self = decodeURIComponent(abs.pathname).replace(/\/+$/, '');
+        const doc = new DOMParser().parseFromString(await res.text(), 'application/xml');
+        const out = [];
+        for (const r of Array.from(doc.getElementsByTagNameNS('DAV:', 'response'))) {
+            const href = r.getElementsByTagNameNS('DAV:', 'href')[0]?.textContent || '';
+            const p = decodeURIComponent(new URL(href, abs).pathname).replace(/\/+$/, '');
+            if (p === self) continue;
+            out.push({
+                name: p.split('/').pop() || '',
+                dir: r.getElementsByTagNameNS('DAV:', 'collection').length > 0,
+                modified: new Date(r.getElementsByTagNameNS('DAV:', 'getlastmodified')[0]?.textContent || NaN)
+            });
+        }
+        return out;
+    }
+
+    /** Legt den Ordner unter this.url an. Gibt es ihn schon: e.dav.exists; keine Rechte: e.dav.nocreate; Elternordner fehlt: e.dav.nofolder. */
+    async mkdir() {
+        const res = await this._fetch(this.url.replace(/\/+$/, ''), { method: 'MKCOL' });
+        if (res.status === 405) throw new DavError(405, 'Diesen Ordner gibt es schon.', 'e.dav.exists');
+        if (res.status === 401 || res.status === 403) throw new DavError(res.status, 'Keine Berechtigung, hier etwas anzulegen.', 'e.dav.nocreate');
+        if (res.status === 409) throw new DavError(409, 'Diesen Ordner gibt es nicht - Pfad pruefen.', 'e.dav.nofolder');
+        if (!res.ok) throw new DavError(res.status, `Server antwortete mit Status ${res.status}.`, 'e.dav.status', { status: res.status });
+    }
+
+    /** Der Ordner der Datei: Adresse (mit "/" am Ende), eigener Dateiname und alle Eintraege [{name, dir, modified}] (leer, wenn der Server nicht listet). */
     async _listDir() {
         const u = new URL(this.url, typeof location !== 'undefined' ? location.href : undefined);
         const slash = u.pathname.lastIndexOf('/');
         const dir = u.origin + u.pathname.slice(0, slash + 1);
         const base = decodeURIComponent(u.pathname.slice(slash + 1));
-        const res = await this._fetch(dir, { method: 'PROPFIND', headers: { Depth: '1', 'Content-Type': 'application/xml' }, body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:getlastmodified/></d:prop></d:propfind>' });
-        if (res.status !== 207) return { dir, base, files: [] };
-        const doc = new DOMParser().parseFromString(await res.text(), 'application/xml');
-        const files = Array.from(doc.getElementsByTagNameNS('DAV:', 'response')).map((r) => ({
-            name: decodeURIComponent((r.getElementsByTagNameNS('DAV:', 'href')[0]?.textContent || '').replace(/\/+$/, '').split('/').pop() || ''),
-            modified: new Date(r.getElementsByTagNameNS('DAV:', 'getlastmodified')[0]?.textContent || NaN)
-        }));
+        let files;
+        try { files = await new DavFile({ url: dir, auth: this.auth }).list(); } catch (e) { if (!(e instanceof DavError)) throw e; files = []; }
         return { dir, base, files };
     }
 
     /** Andere .kdbx-Dateien im selben Ordner (z. B. "(conflicted copy)" der Nextcloud-Clients), neueste zuerst, je als DavFile. */
     async siblings() {
         const { dir, base, files } = await this._listDir();
-        return files.filter((f) => /\.kdbx$/i.test(f.name) && f.name !== base)
+        return files.filter((f) => !f.dir && /\.kdbx$/i.test(f.name) && f.name !== base)
             .sort((a, b) => (b.modified.getTime() || 0) - (a.modified.getTime() || 0))
             .map((f) => ({ name: f.name, modified: f.modified, file: new DavFile({ url: dir + encodeURIComponent(f.name), auth: this.auth }) }));
     }

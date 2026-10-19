@@ -211,14 +211,6 @@ export function showLogin(message) {
             btn.querySelector('.label').textContent = t('login.open');
         }
     });
-    const hero = h('aside', { class: 'login-hero' },
-        h('div', { class: 'brand-mark' }, icon('shield')),
-        h('h1', { text: 'KeePassNC' }),
-        h('p', { class: 'tagline', text: t('login.tagline') }),
-        h('ul', { class: 'trust' },
-            h('li', {}, icon('lock'), h('span', { text: t('login.trust.1') })),
-            h('li', {}, icon('cloudOff'), h('span', { text: t('login.trust.2') })),
-            h('li', {}, icon('file'), h('span', { text: t('login.trust.3') }))));
     const card = h('main', { class: 'login-card' },
         h('div', { class: 'login-top' },
             h('h2', { text: t('login.title') }),
@@ -226,7 +218,21 @@ export function showLogin(message) {
                 NC?.filesUrl ? h('a', { href: NC.filesUrl, id: 'back-link', class: 'link', text: '← ' + t('login.back') }) : null,
                 iconBtn('settings', t('settings'), () => openSettings({ loginMode: true }), { id: 'login-settings' }))),
         form,
+        h('p', { class: 'login-alt' }, h('span', { class: 'muted', text: t('login.new.q') }), ' ',
+            h('button', { type: 'button', id: 'new-db-link', class: 'link', text: t('login.new'), onclick: () => ctx.ui.showCreate() })),
         h('footer', { class: 'login-foot' }, wipeBtn, h('span', { class: 'muted', text: 'v' + __VERSION__ })));
-    ctx.app.replaceChildren(h('div', { class: 'login' }, hero, card));
+    ctx.app.replaceChildren(h('div', { class: 'login' }, loginHero(), card));
     masterInput.focus();
+}
+
+/** Linke Haelfte der Anmeldung (auch beim Anlegen einer neuen Datenbank). */
+export function loginHero() {
+    return h('aside', { class: 'login-hero' },
+        h('div', { class: 'brand-mark' }, icon('shield')),
+        h('h1', { text: 'KeePassNC' }),
+        h('p', { class: 'tagline', text: t('login.tagline') }),
+        h('ul', { class: 'trust' },
+            h('li', {}, icon('lock'), h('span', { text: t('login.trust.1') })),
+            h('li', {}, icon('cloudOff'), h('span', { text: t('login.trust.2') })),
+            h('li', {}, icon('file'), h('span', { text: t('login.trust.3') }))));
 }

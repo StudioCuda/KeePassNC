@@ -173,6 +173,14 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .login-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; } .login-top h2 { font-size: 24px; letter-spacing: -.01em; }
 .row-gap { display: flex; gap: 10px; align-items: center; }
 .login-form { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: var(--shadow-2); }
+.login-alt { text-align: center; font-size: 13px; }
+/* Neue Datenbank: Name mit fester Endung, Ordnerzeile, Ordner-Browser */
+.input-suffix { align-self: center; color: var(--muted); font-size: 13px; }
+.folder-row { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; } .folder-row .icon { width: 16px; height: 16px; flex: none; }
+.folder-row #new-folder { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.folder-crumbs { flex-wrap: wrap; } .folder-crumbs button.link:disabled { color: var(--text); text-decoration: none; }
+.folder-list { display: flex; flex-direction: column; gap: 2px; min-height: 120px; max-height: 50vh; overflow-y: auto; padding: 4px; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.folder-list .menu-item:disabled { color: var(--muted); }
 .login-foot { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
 
 /* ---------- Nextcloud-Kopfleiste (ui/ncheader.js) ---------- */

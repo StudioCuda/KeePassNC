@@ -16,6 +16,7 @@ export function readNextcloudContext(root) {
         pepperUrl: root.dataset.pepperUrl || '', // Server-Geheimwert fuer gemerkte Schluesseldateien (leer = nicht verfuegbar)
         user: root.dataset.user || '',
         file: root.dataset.file || '', // z. B. /Dokumente/Passwoerter.kdbx (relativ zum Benutzerverzeichnis)
+        newFile: root.dataset.new || '', // Vorschlag fuer eine neue Datenbank aus "+ Neu" in Dateien, z. B. /Dokumente/Passwoerter.kdbx
         color: parseHex(root.dataset.ncColor) || '', // Primaerfarbe der Instanz (bzw. der Person), leer = unbekannt
         themes: String(root.dataset.ncThemes || ''), // Theme-IDs aus Nextcloud, z. B. "dark,opendyslexic"
         nav: parseNcNav(root.dataset.ncNav, globalThis.location?.origin) // Inhalt der Kopfleiste; null = keine Kopfleiste
