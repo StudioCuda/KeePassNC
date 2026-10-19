@@ -77,9 +77,9 @@ async function makeDb(opts: { version: 3 | 4; minor?: number; cipher: string; kd
         if (opts.kdf !== Consts.KdfId.Aes) { // kleine Argon2-Parameter fuer schnelle Tests
             kp.set('M', 5 /* UInt64 */, new Int64(8 * 1024)); kp.set('I', 5, new Int64(2));
         } else { kp.set('R', 5, new Int64(20000)); }
-        db.header.dataCipherUuid = new kdbxweb.KdbxUuid(opts.cipher);
         if (opts.minor !== undefined) db.header.versionMinor = opts.minor;
     }
+    db.header.dataCipherUuid = new kdbxweb.KdbxUuid(opts.cipher);
     return { db, cred };
 }
 
@@ -112,7 +112,7 @@ async function main() {
     const kfPath = path.join(TMP, 'test.keyx'); fs.writeFileSync(kfPath, Buffer.from(keyfileBytes));
 
     // 1) Schreib-Matrix: Cipher x KDF x Schluesseldatei, danach 5 Re-Saves
-    for (const [cn, cipher] of Object.entries({ AES: Consts.CipherId.Aes, ChaCha20: Consts.CipherId.ChaCha20 }))
+    for (const [cn, cipher] of Object.entries({ AES: Consts.CipherId.Aes, ChaCha20: Consts.CipherId.ChaCha20, Twofish: Consts.CipherId.Twofish }))
       for (const [kn, kdf] of Object.entries({ Argon2d: Consts.KdfId.Argon2d, Argon2id: Consts.KdfId.Argon2id, AES_KDF: Consts.KdfId.Aes }))
         for (const useKey of [false, true]) {
             const name = `KDBX4 ${cn}/${kn}${useKey ? '+Keyfile' : ''}: schreiben, KeePassXC liest, 5x Re-Save`;
@@ -135,13 +135,45 @@ async function main() {
         }
 
     // 2) KDBX 3.1
-    for (const useKey of [false, true])
-        await t(`KDBX3 AES-KDF${useKey ? '+Keyfile' : ''}: schreiben, KeePassXC liest`, async () => {
-            const file = path.join(TMP, `v3-${useKey}.kdbx`);
-            const { db } = await makeDb({ version: 3, cipher: Consts.CipherId.Aes, kdf: Consts.KdfId.Aes, keyfile: useKey ? keyfileBytes : undefined });
+    for (const [cn, cipher] of Object.entries({ AES: Consts.CipherId.Aes, Twofish: Consts.CipherId.Twofish }))
+      for (const useKey of [false, true])
+        await t(`KDBX3 ${cn}/AES-KDF${useKey ? '+Keyfile' : ''}: schreiben, KeePassXC liest`, async () => {
+            const file = path.join(TMP, `v3-${cn}-${useKey}.kdbx`);
+            const { db } = await makeDb({ version: 3, cipher, kdf: Consts.KdfId.Aes, keyfile: useKey ? keyfileBytes : undefined });
             await populate(db); await save(db, file);
             verify(file, useKey ? kfPath : undefined, 'v3', 'pw-eins-v2'); return `v${kdbxVersion(file)}`;
         });
+
+    // 2b) Twofish: Testvektoren aus der Spezifikation, dann KeePassXC als Gegenstelle (bearbeitet und verschluesselt selbst neu)
+    await t('Twofish: Testvektoren der Spezifikation, KeePassXC bearbeitet, kdbxweb liest, falsches Passwort wird erkannt', async () => {
+        const { Twofish } = require(path.join(process.env.KDBXWEB || '../../vendor/kdbxweb', 'lib/crypto/twofish'));
+        const vectors = [ // Schluessel, Klartext, Geheimtext (256 Bit, ecb_tbl.txt / ecb_ival.txt)
+            ['00'.repeat(32), '00'.repeat(16), '57FF739D4DC92C1BD7FC01700CC8216F'],
+            ['D43BB7556EA32E46F2A282B7D45B4E0D57FF739D4DC92C1BD7FC01700CC8216F', '90AFE91BB288544F2C32DC239B2635E6', '6CB4561C40BF0A9705931CB6D408E7FA'],
+            ['0123456789ABCDEFFEDCBA987654321000112233445566778899AABBCCDDEEFF', '00'.repeat(16), '37527BE0052334B89F0CFCCAE87CFA20']
+        ];
+        for (const [key, pt, ct] of vectors) {
+            const tf = new Twofish(Buffer.from(key, 'hex')), b = new Uint32Array(ab(Buffer.from(pt, 'hex')));
+            tf.encryptBlock(b);
+            if (Buffer.from(b.buffer).toString('hex').toUpperCase() !== ct) throw new Error(`Testvektor ${ct}: ${Buffer.from(b.buffer).toString('hex')}`);
+            tf.decryptBlock(b);
+            if (Buffer.from(b.buffer).toString('hex').toUpperCase() !== pt) throw new Error(`Zurueck zu ${pt}: ${Buffer.from(b.buffer).toString('hex')}`);
+        }
+        for (const version of [3, 4] as const) {
+            const file = path.join(TMP, `twofish-cross-${version}.kdbx`);
+            const { db } = await makeDb({ version, cipher: Consts.CipherId.Twofish, kdf: version === 4 ? Consts.KdfId.Argon2id : Consts.KdfId.Aes });
+            await populate(db); await save(db, file);
+            await new Promise(r => setTimeout(r, 1100)); // siehe xc
+            xc(['edit', file, 'Web äöü/Mail', '--notes', 'von KeePassXC geändert'], file);
+            const back = await Kdbx.load(ab(fs.readFileSync(file)), new Credentials(ProtectedValue.fromString(PW)));
+            if (back.header.dataCipherUuid.toString() !== Consts.CipherId.Twofish) throw new Error('KeePassXC hat die Verschluesselung gewechselt');
+            const m = [...back.getDefaultGroup().allEntries()].find((x: any) => x.fields.get('Title') === 'Mail');
+            if (m.fields.get('Notes') !== 'von KeePassXC geändert') throw new Error(`v${version}: Notiz nach KeePassXC-Edit: ${m.fields.get('Notes')}`);
+            let code = '';
+            try { await Kdbx.load(ab(fs.readFileSync(file)), new Credentials(ProtectedValue.fromString(PW + 'x'))); } catch (e: any) { code = e.code; }
+            if (code !== Consts.ErrorCodes.InvalidKey) throw new Error(`v${version}: falsches Passwort ergab "${code || 'kein Fehler'}"`);
+        }
+    });
 
     // 3) Grosser Anhang
     await t('Grosser Anhang (8 MB) bleibt byte-identisch', async () => {
