@@ -174,7 +174,10 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .row-gap { display: flex; gap: 10px; align-items: center; }
 .login-form { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: var(--shadow-2); }
 .login-alt { text-align: center; font-size: 13px; }
-.login.solo { grid-template-columns: 1fr; } .login.solo .login-card { padding-top: clamp(24px, 8vh, 72px); justify-content: flex-start; }
+.login.solo { grid-template-columns: 1fr; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 14%, transparent), transparent 380px); }
+.login.solo .login-form { box-shadow: inset 0 2px 0 var(--accent), 0 1px 2px rgb(0 0 0 / .04), 0 14px 34px -10px color-mix(in srgb, var(--accent) 24%, transparent); }
+.login-seal { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--accent-soft); color: var(--accent); } .login-seal .icon { width: 22px; height: 22px; }
+.login-trust { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 2px 0 0; font-size: 12.5px; color: var(--muted); } .login-trust .icon { width: 14px; height: 14px; } .login.solo .login-card { padding-top: clamp(24px, 8vh, 72px); justify-content: flex-start; }
 .pw-field { position: relative; display: flex; } .pw-field > input { padding-right: 44px; }
 .pw-field > .icon-btn { position: absolute; inset-block: 0; right: 2px; margin: auto 0; }
 .file-chip { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); min-width: 0; }
@@ -460,7 +463,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
     .dh-text h2 { font-size: 18px; }
     .grid2, .custom-row { grid-template-columns: 1fr; }
     .login { grid-template-columns: 1fr; } .login-hero { padding: 28px 22px; gap: 10px; } .login-hero .trust { display: none; } .brand-mark { width: 46px; height: 46px; border-radius: 14px; } .brand-mark .icon { width: 24px; height: 24px; }
-    .login-card { padding: 18px 14px 32px; }
+    .login-card { padding: 18px 14px 32px; } .login-seal { display: none; }
     .modal { max-height: 94vh; } .backdrop { align-items: end; padding: 0; } .modal { border-radius: 18px 18px 0 0; max-width: none !important; }
     .slider-row { grid-template-columns: 1fr 70px; } .slider-row .slider-label { grid-column: 1 / -1; }
     .toasts { bottom: 90px; right: 12px; left: 12px; max-width: none; }

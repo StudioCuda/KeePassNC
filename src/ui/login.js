@@ -82,7 +82,7 @@ export function showLogin(message) {
         davBox, fileBox,
         h('label', {}, h('span', { text: t('login.master') }), h('div', { class: 'pw-field' }, masterInput, showPw)),
         kfUseRow, more,
-        err, btn);
+        err, btn, NC ? h('p', { class: 'login-trust' }, icon('lock'), h('span', { text: t('login.trust.short') })) : null);
     // --- gemerkte Schluesseldatei (siehe keyfile-store.js / docs/KEYFILE-MEMORY.md)
     const currentSrc = () => form.querySelector('input[name=src]:checked').value;
     const kfIdNow = () => {
@@ -265,7 +265,12 @@ function fileChip(path) {
 
 /** Rahmen der Anmeldung (auch "Neue Datenbank"): in Nextcloud schlicht die Karte unter der Kopfleiste, eigenstaendig mit der Hero-Flaeche daneben. */
 export function loginShell(card) {
-    return ctx.NC ? h('div', { class: 'login solo' }, card) : h('div', { class: 'login' }, loginHero(), card);
+    if (!ctx.NC) return h('div', { class: 'login' }, loginHero(), card);
+    const title = card.querySelector('.login-top h2');
+    const row = h('div', { class: 'row-gap' });
+    title.replaceWith(row);
+    row.append(h('div', { class: 'login-seal', 'aria-hidden': 'true' }, icon('shield')), title);
+    return h('div', { class: 'login solo' }, card);
 }
 
 /** Linke Haelfte der Anmeldung (auch beim Anlegen einer neuen Datenbank). */

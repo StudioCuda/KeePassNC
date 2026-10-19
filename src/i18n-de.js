@@ -409,6 +409,7 @@ export default {
     'login.src.nc': 'Nextcloud-Datei',
     'login.tagline': 'Dein KeePass-Tresor in der Nextcloud - schlank, schnell und ohne Installation.',
     'login.title': 'Tresor öffnen',
+    'login.trust.short': 'Wird nur in deinem Browser entschlüsselt.',
     'login.trust.1': 'Entschlüsselt wird nur in diesem Browser. Master-Passwort und Klartext verlassen ihn nie.',
     'login.trust.2': 'Der Server sieht nur die verschlüsselte Datei - auch bei Ausfall bleibt eine Offline-Kopie nutzbar.',
     'login.trust.3': 'Kompatibel mit KeePassXC, KeePass 2 und KeeWeb (KDBX 3.1, 4.0, 4.1).',
