@@ -499,6 +499,59 @@ async function main() {
         return `Vorschlag ${it} Durchlaeufe`;
     });
 
+    await step('Zusammenfuehren: Konfliktkopie aus dem Ordner, Kopie mit anderem Passwort vom Geraet, fremde Datenbank wird abgelehnt', async () => {
+        const fM = path.join(davRoot, 'merge.kdbx'), fC = path.join(davRoot, 'merge (conflicted copy 2026-10-19 090000).kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fM); fs.copyFileSync(fM, fC);
+        xc(['add', '-q', '-u', 'handy', fC, 'Web/Vom Handy']);
+        xc(['edit', '-q', fC, 'Bank/Konto', '-u', 'bob-handy']);
+        const otherPw = path.join(tmp, 'merge-anderes-pw.kdbx'); // Kopie mit anderem Master-Passwort und einem eigenen Eintrag
+        execFileSync('python3', ['-I', '-c', ['from pykeepass import PyKeePass', `kp = PyKeePass(${JSON.stringify(fM)}, password=${JSON.stringify(PW)})`,
+            "kp.add_entry(kp.find_groups(name='Web', first=True), 'Vom Laptop', 'carol', 'pw-laptop')", `kp.password = 'anderes-pw'`, 'from datetime import datetime, timezone', 'kp.credchange_date = datetime(2030, 1, 1, tzinfo=timezone.utc)', `kp.save(${JSON.stringify(otherPw)})`].join('\n')]);
+        const foreign = path.join(tmp, 'fremd.kdbx');
+        execFileSync('keepassxc-cli', ['db-create', '-q', '-p', foreign], { input: `${PW}\n${PW}\n` });
+        const p = await newPage();
+        await login(p, 'merge.kdbx'); await rows(p).first().waitFor();
+        const openMerge = async () => { await p.click('#reports-btn'); await p.click('#rep-tab-info'); await p.click('#merge-btn'); await p.locator('#merge-form').waitFor(); };
+        const toastText = () => p.locator('.toast').last().innerText();
+        const keyChanged = async () => {
+            await p.click('#reports-btn'); await p.click('#rep-tab-info');
+            const row = await p.locator('.report-body .kv', { hasText: 'Zugangsdaten geändert' }).innerText().catch(() => '');
+            await p.keyboard.press('Escape'); return row;
+        };
+        const keyChanged0 = await keyChanged();
+
+        await openMerge();
+        await p.locator('#merge-form label', { hasText: 'conflicted copy' }).waitFor({ timeout: 5000 }).catch(() => {});
+        const others = await p.locator('#merge-form [role=radiogroup] label').allInnerTexts();
+        expect(others.some((x) => x.includes('conflicted copy')) && !others.some((x) => /^merge\.kdbx/.test(x)), 'Ordnerliste: ' + others.join(' | '));
+        await p.locator('#merge-form label', { hasText: 'conflicted copy' }).click();
+        await p.click('#merge-apply');
+        await p.locator('#merge-form').waitFor({ state: 'detached' });
+        expect(/1 neu, 1 geändert/.test(await toastText()), 'Meldung: ' + await toastText());
+
+        await openMerge();
+        await p.setInputFiles('#merge-file', foreign); await p.click('#merge-apply'); // gleiches Passwort, aber eine andere Datenbank
+        await p.waitForFunction(() => /andere Datenbank/.test(document.querySelector('#merge-error')?.textContent || ''));
+        await p.locator('#merge-form button', { hasText: 'Abbrechen' }).click();
+
+        await openMerge();
+        await p.setInputFiles('#merge-file', otherPw); await p.click('#merge-apply');
+        await p.locator('#merge-pw').waitFor();
+        await p.fill('#merge-pw', 'falsch'); await p.click('#merge-apply');
+        await p.waitForFunction(() => /Falsches Master-Passwort/.test(document.querySelector('#merge-error')?.textContent || ''));
+        await p.fill('#merge-pw', 'anderes-pw'); await p.click('#merge-apply');
+        await p.locator('#merge-form').waitFor({ state: 'detached' });
+        expect(/1 neu/.test(await toastText()), 'Meldung: ' + await toastText());
+
+        expect(await keyChanged() === keyChanged0, `Datum der Zugangsdaten kam aus der Kopie mit: ${keyChanged0} -> ${await keyChanged()}`);
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        await p.context().close();
+        const ls = xc(['ls', '-R', fM]);
+        expect(ls.includes('Vom Handy') && ls.includes('Vom Laptop'), 'Eintraege fehlen:\n' + ls);
+        expect(xc(['show', '-s', fM, 'Bank/Konto']).includes('UserName: bob-handy'), 'Aenderung aus der Konfliktkopie fehlt');
+        expect(xc(['show', '-s', fM, 'Web/Vom Laptop']).includes('Password: pw-laptop'), 'Eintrag von der Kopie mit anderem Passwort');
+    });
+
     await step('CSV: Bitwarden-Export landet in eigener Gruppe (KeePassXC sieht ihn), Export entspricht dem von KeePassXC und laesst sich wieder einlesen', async () => {
         const fCsv = path.join(davRoot, 'csv.kdbx');
         fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fCsv);

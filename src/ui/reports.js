@@ -8,6 +8,7 @@ import { h, icon, modal } from './dom.js';
 import { allRealEntries, avatar } from './common.js';
 import { openDbSettings } from './db-settings.js';
 import { openCredentials } from './credentials-dialog.js';
+import { openMerge } from './merge-dialog.js';
 import { openCsv } from './csv-dialog.js';
 
 const { state } = ctx;
@@ -51,6 +52,7 @@ export function openReports(initialTab = 'health') {
                 h('div', { class: 'row-gap' },
                     h('button', { type: 'button', class: 'small', id: 'db-settings-btn', text: t('dbset.edit'), onclick: () => openDbSettings({ onApplied: render }) }),
                     h('button', { type: 'button', class: 'small', id: 'cred-btn', text: t('cred.edit'), onclick: () => { m.close(); openCredentials(); } }),
+                    h('button', { type: 'button', class: 'small', id: 'merge-btn', text: t('merge.title'), onclick: () => { m.close(); openMerge(); } }),
                     h('button', { type: 'button', class: 'small', id: 'csv-btn', text: t('csv.title'), onclick: () => { m.close(); openCsv(); } }))));
         }
     }
