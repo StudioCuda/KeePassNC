@@ -52,7 +52,7 @@ export function refreshSyncState() {
     if (state.source?.type === 'dav') setNcHeaderOffline(state.offlineMode || state.lastSyncFailed);
 }
 
-function rebind() {
+export function rebind() {
     // Nach einem Austausch der Datenbank (Aenderungen anderer Geraete) zeigen Auswahl-Verweise auf alte Objekte: ueber UUID neu aufloesen.
     const v = state.vault;
     const f = state.filter;

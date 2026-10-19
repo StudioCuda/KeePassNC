@@ -52,7 +52,7 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(v) ? Math
 
 /**
  * Argon2id-Parameter fuer den Datensatz aus den Parametern der Datenbank-KDF: gleiche oder hoehere Arbeit (Speicher x Durchlaeufe).
- * db = {kdf: 'Argon2d'|'Argon2id'|'AES-KDF', memoryKiB, iterations} (aus Vault.securitySettings(), siehe dbKdf in ui/login.js).
+ * db = {kdf: 'Argon2d'|'Argon2id'|'AES-KDF', memoryKiB, iterations} (siehe Vault.kdfParams()).
  */
 export function chooseKdfParams(db = {}) {
     const m = Number(db.memoryKiB), t = Number(db.iterations);

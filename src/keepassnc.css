@@ -450,3 +450,4 @@ label.btn { flex-direction: row; color: var(--text); font-size: 13px; cursor: po
 input:disabled, select:disabled { opacity: .5; cursor: not-allowed; }
 .kf-used { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--accent-soft); }
 .kf-used .check { color: var(--text); }
+.cred-sub { margin-left: 28px; } /* Unterpunkte einer Schluesseldatei-Option im Dialog "Master-Passwort und Schluesseldatei" */

@@ -33,3 +33,15 @@ test('Aufraeumen behaelt die neuesten Kopien je Art und beruehrt nichts anderes'
         assert.deepEqual(left.filter((f) => f.includes('conflict')), ['daily.kdbx.conflict-20260102-110000.bak', 'daily.kdbx.conflict-20260103-110000.bak']);
     } finally { await srv.stop(); }
 });
+
+test('Alle Sicherungskopien loeschen (nach neuen Zugangsdaten) laesst fremde Dateien stehen', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kpnc-bak-'));
+    const srv = await startServer({ webRoot: dir, davRoot: dir });
+    try {
+        const mk = (n) => fs.writeFileSync(path.join(dir, n), 'x');
+        for (const n of ['daily.kdbx', 'daily.kdbx.20260101-100000.bak', 'daily.kdbx.20260102-100000.bak', 'daily.kdbx.conflict-20260101-110000.bak', 'other.kdbx.20260101-100000.bak', 'daily.kdbx.manual.bak']) mk(n);
+        const dav = new DavFile({ url: `http://127.0.0.1:${srv.port}/dav/daily.kdbx`, user: srv.user, pass: srv.pass });
+        assert.equal((await dav.deleteBackups()).length, 3);
+        assert.deepEqual(fs.readdirSync(dir).sort(), ['daily.kdbx', 'daily.kdbx.manual.bak', 'other.kdbx.20260101-100000.bak']);
+    } finally { await srv.stop(); }
+});

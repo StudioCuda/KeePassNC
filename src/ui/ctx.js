@@ -24,7 +24,8 @@ export const ctx = {
     ui: {}, // renderAll, renderSidebar, renderList, renderDetail, ...
     state: {
         vault: null,
-        source: null, // {type: 'dav'|'file', name}
+        source: null, // {type: 'dav'|'file', name, kfId (Kennung fuer gemerkte Schluesseldateien), readOnly}
+        kfBusy: null, // laufendes Neu-Verschluesseln einer gemerkten Schluesseldatei (Promise)
         filter: { type: 'all' }, // all | group | bin | expiring | weak | totp | passkey | tag
         selEntry: null,
         editing: null, // {entry|null, group}

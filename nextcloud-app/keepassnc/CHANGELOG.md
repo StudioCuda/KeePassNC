@@ -2,6 +2,10 @@
 
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+### Added
+- Change the master password and the key file, right from the "Database" dialog (Settings tab). You confirm with the current password, can keep, swap, create or drop the key file, and the change is saved straight away. A freshly created key file (`.keyx`, the same format KeePassXC writes) only counts once you've downloaded it and picked it again to show it's really saved, so nobody locks themselves out by accident. A remembered key file on this device follows along. If another device saved in the meantime, both get merged as usual. Backup copies next to the file still open with the old credentials; a checkbox deletes them afterwards if the old ones got out.
+
 ## [0.12.0] - 2026-10-18
 ### Added
 - Duplicating an entry now asks whether to link username and password to the original. A linked copy simply points there (`{REF:…}`, the same thing KeePassXC's "Clone" does), so a new password on the original shows up in every copy. Great for one account behind several URLs. Your choice is remembered for next time.

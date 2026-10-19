@@ -7,6 +7,7 @@ import { ctx } from './ctx.js';
 import { h, icon, modal } from './dom.js';
 import { allRealEntries, avatar } from './common.js';
 import { openDbSettings } from './db-settings.js';
+import { openCredentials } from './credentials-dialog.js';
 
 const { state } = ctx;
 
@@ -44,8 +45,11 @@ export function openReports(initialTab = 'health') {
             content.replaceChildren(h('div', { class: 'stack tight' }, h('div', { class: 'card flat' },
                 row(t('info.name'), i.name || state.source.name), state.vault.db.meta.desc ? row(t('info.desc'), state.vault.db.meta.desc) : null, row(t('info.format'), i.version), row(t('info.cipher'), i.cipher), row(t('info.kdf'), i.kdf),
                 i.memoryMiB !== null ? row(t('info.memory'), i.memoryMiB + ' MiB') : null, row(t('info.iterations'), i.iterations), i.parallelism !== null ? row(t('info.parallelism'), i.parallelism) : null,
-                row(t('info.modified'), fmtDate(state.vault.db.meta.settingsChanged || state.vault.db.meta.dbNameChanged, true))),
-                h('div', {}, h('button', { type: 'button', class: 'small', id: 'db-settings-btn', text: t('dbset.edit'), onclick: () => openDbSettings({ onApplied: render }) }))));
+                row(t('info.modified'), fmtDate(state.vault.db.meta.settingsChanged || state.vault.db.meta.dbNameChanged, true)),
+                state.vault.db.meta.keyChanged ? row(t('info.keychanged'), fmtDate(state.vault.db.meta.keyChanged, true)) : null),
+                h('div', { class: 'row-gap' },
+                    h('button', { type: 'button', class: 'small', id: 'db-settings-btn', text: t('dbset.edit'), onclick: () => openDbSettings({ onApplied: render }) }),
+                    h('button', { type: 'button', class: 'small', id: 'cred-btn', text: t('cred.edit'), onclick: () => { m.close(); openCredentials(); } }))));
         }
     }
     const m = modal({ title: t('database'), body: h('div', { class: 'stack' }, tabs, content), size: 'lg', cls: 'reports-modal' });

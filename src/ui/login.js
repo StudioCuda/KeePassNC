@@ -1,5 +1,5 @@
 // Anmeldung: Quelle waehlen (Nextcloud/WebDAV oder lokale Datei), Master-Passwort + optionale Schluesseldatei, Entschluesseln im Browser.
-import { Vault, VaultError, KDF_LABEL } from '../vault.js';
+import { Vault, VaultError } from '../vault.js';
 import { DavFile, DavError, NetworkError, isOffline, offlineFailKey } from '../webdav.js';
 import { cacheGet, wipeLocalData } from '../cache.js';
 import { loadSettings, saveSettings } from '../settings.js';
@@ -166,12 +166,11 @@ export function showLogin(message) {
             const perms = NC && dav && !offlineOpen ? await dav.permissions() : null;
             const readOnly = perms !== null && !perms.includes('W');
             let kfNote = '';
-            const dbKdf = () => { const k = vault.securitySettings(); return { kdf: KDF_LABEL[k.kdf], memoryKiB: k.memoryKiB ?? 0, iterations: k.iterations ?? k.rounds }; };
-            if (usedRemembered && (isWeakerThan(kfRec.kdf, dbKdf()) || (usePepper && !kfRec.server))) {
+            if (usedRemembered && (isWeakerThan(kfRec.kdf, vault.kdfParams()) || (usePepper && !kfRec.server))) {
                 // Aelterer/schwaecherer Datensatz (v0.4.0, Datenbank-KDF inzwischen erhoeht, in Nextcloud noch ohne Server-Geheimwert):
                 // im Hintergrund mit aktuellen Parametern neu verschluesseln. Klappt das nicht (Server weg), bleibt der alte Datensatz.
-                const copy = keyfile.slice(), pw = masterInput.value, params = dbKdf();
-                (async () => {
+                const copy = keyfile.slice(), pw = masterInput.value, params = vault.kdfParams();
+                state.kfBusy = (async () => {
                     const pepper = usePepper ? await getPepper() : null;
                     await kfStore.remember({ id: kfId, name: kfRec.name, keyfile: copy, password: pw, params, pepper });
                 })().catch(() => {}).finally(() => copy.fill(0));
@@ -182,14 +181,14 @@ export function showLogin(message) {
                     if (usePepper) {
                         try { pepper = await getPepper(); } catch (e) { throw Object.assign(new Error(t('err.kf.save.server', { msg: errText(e) })), { shown: true }); }
                     }
-                    await kfStore.remember({ id: kfId, name: kfPicked.name, keyfile, password: masterInput.value, params: dbKdf(), pepper });
+                    await kfStore.remember({ id: kfId, name: kfPicked.name, keyfile, password: masterInput.value, params: vault.kdfParams(), pepper });
                     kfNote = ' ' + t('login.kf.saved');
                 } catch (e) {
                     toast(e.shown ? e.message : e instanceof KeyfileStoreError && e.code === 'toolarge' ? t('err.kf.toolarge') : t('err.kf.save', { msg: e.message }), { kind: 'warn' });
                 }
             }
             masterInput.value = ''; passInput.value = '';
-            state.vault = vault; state.source = { type: src, name };
+            state.vault = vault; state.source = { type: src, name, kfId, readOnly };
             state.filter = { type: 'all' }; state.lastActivity = Date.now(); state.offlineMode = offlineOpen; state.lastSyncFailed = false;
             ctx.ui.showMain();
             if (offlineOpen) setStatus(t('open.offline', { name, version: vault.versionLabel, date: fmtDate(cachedAt, true), extra: unsynced ? t('open.offline.unsynced') : '' }), 'warn');
