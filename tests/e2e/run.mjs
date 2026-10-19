@@ -551,6 +551,24 @@ async function main() {
         expect(xc(['show', '-s', fM, 'Web/Vom Laptop']).includes('Password: pw-laptop'), 'Eintrag von der Kopie mit anderem Passwort');
     });
 
+    await step('Platzhalter: {S:…} und {USERNAME} in Benutzername und URL werden angezeigt und verlinkt, der Editor behaelt sie', async () => {
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), path.join(davRoot, 'platzhalter.kdbx'));
+        const p = await newPage();
+        await login(p, 'platzhalter.kdbx'); await rows(p).first().waitFor();
+        await p.click('#new-btn');
+        await p.fill('#e-title', 'Platzhalter'); await p.fill('#e-user', '{S:Login}'); await p.fill('#e-url', 'https://{S:Host}/{USERNAME}');
+        await p.click('#add-custom'); await p.locator('.c-name').last().fill('Login'); await p.locator('.c-value').last().fill('carol');
+        await p.click('#add-custom'); await p.locator('.c-name').last().fill('Host'); await p.locator('.c-value').last().fill('example.org');
+        await p.click('#apply-btn');
+        expect(await p.locator('[data-testid=f-user]').innerText() === 'carol', 'Benutzername: ' + await p.locator('[data-testid=f-user]').innerText());
+        const link = p.locator('[data-testid=f-url]');
+        expect(await link.innerText() === 'https://example.org/carol' && await link.getAttribute('href') === 'https://example.org/carol', 'URL: ' + await link.innerText());
+        expect(/carol/.test(await rows(p).filter({ hasText: 'Platzhalter' }).innerText()), 'Liste zeigt den Platzhalter statt carol');
+        await p.click('#edit-btn');
+        expect(await p.inputValue('#e-user') === '{S:Login}' && await p.inputValue('#e-url') === 'https://{S:Host}/{USERNAME}', 'Editor muss die Platzhalter zeigen');
+        await p.context().close();
+    });
+
     await step('Lokale Datei: oeffnen, aendern, "Speichern" liefert Download, der in KeePassXC oeffnet', async () => {
         const p = await newPage();
         await p.locator('input[value=file]').check({ force: true });
