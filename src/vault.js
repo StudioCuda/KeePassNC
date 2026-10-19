@@ -121,11 +121,21 @@ export class Vault {
      * remoteBuf: aktueller Server-Stand (fuer die Sicherungskopie); fromCache: buf stammt aus dem Cache (nicht erneut dorthin schreiben).
      */
     static async open({ buf, password, keyfile, dav, etag, cache, unsynced, remoteBuf, fromCache }) {
-        const pw = ProtectedValue.fromString(password);
         const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile : toArrayBuffer(keyfile)) : undefined;
-        let db;
+        // Leeres Feld mit Schluesseldatei: wie KeePassXC erst ganz ohne Passwort (Datenbank nur mit Schluesseldatei), dann mit leerem.
+        // Das sind zwei verschiedene Schluessel: "kein Passwort" laesst den Passwort-Anteil weg, "" steuert den Hash von "" bei.
+        const tries = password === '' && kf ? [null, ProtectedValue.fromString('')] : [ProtectedValue.fromString(password)];
+        let db, pw;
         try {
-            db = await Kdbx.load(buf, new Credentials(pw, kf));
+            for (const [n, p] of tries.entries()) {
+                try {
+                    db = await Kdbx.load(buf, new Credentials(p, kf));
+                    pw = p;
+                    break;
+                } catch (e) {
+                    if (!(e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) || n === tries.length - 1) throw e;
+                }
+            }
         } catch (e) {
             if (e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) {
                 throw new VaultError('Falsches Master-Passwort oder falsche Schluesseldatei.', 'e.badkey');
@@ -185,13 +195,16 @@ export class Vault {
         return new Credentials(this._base.pw, this._base.kf);
     }
 
-    /** Stimmt pw mit dem Master-Passwort dieser Datenbank ueberein? Vergleicht nur Hashes, ohne Schluesselableitung. */
+    /** Stimmt pw mit dem Master-Passwort dieser Datenbank ueberein? Vergleicht nur Hashes, ohne Schluesselableitung. Ohne Passwort: nur "". */
     async checkPassword(pw) {
+        if (!this._pw) return pw === '';
         const [a, b] = await Promise.all([ProtectedValue.fromString(pw).getHash(), this._pw.getHash()]);
         return sameBytes(a, b);
     }
 
     get hasKeyfile() { return !!this._kf; }
+    /** false: Datenbank nur mit Schluesseldatei (kein Passwort-Anteil, auch kein leeres Passwort). */
+    get hasPassword() { return !!this._pw; }
     /** Kopie der Schluesseldatei (zum Neu-Merken nach changeCredentials) oder null; der Aufrufer ueberschreibt sie danach mit Nullen. */
     keyfileCopy() { return this._kf ? new Uint8Array(this._kf.slice(0)) : null; }
 
@@ -206,6 +219,7 @@ export class Vault {
         return this._exclusive(async () => {
             const pw = password === undefined ? this._pw : ProtectedValue.fromString(password);
             const kf = keyfile === undefined ? this._kf : keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
+            if (!pw && !kf) throw new VaultError('Ohne Passwort und Schluesseldatei liesse sich die Datenbank von jedem oeffnen.', 'e.cred.empty');
             const creds = new Credentials(pw, kf);
             // unlesbare Schluesseldatei (z. B. XML mit falscher Pruefsumme) jetzt melden, nicht erst beim Speichern
             try { await creds.ready; } catch { throw new VaultError('Diese Schluesseldatei ist unlesbar.', 'e.keyfile.bad'); }

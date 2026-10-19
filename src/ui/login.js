@@ -23,7 +23,7 @@ export function showLogin(message) {
     const userInput = h('input', { id: 'dav-user', type: 'text', value: params.get('user') || pref('user'), autocomplete: 'username' });
     const passInput = h('input', { id: 'dav-pass', type: 'password', autocomplete: 'current-password' });
     const fileInput = h('input', { id: 'local-file', type: 'file', accept: '.kdbx' });
-    const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', required: true, spellcheck: 'false', autocapitalize: 'off' });
+    const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off' }); // leer: Datenbank nur mit Schluesseldatei
     const keyInput = h('input', { id: 'keyfile', type: 'file' });
     const keyName = h('span', { class: 'muted', text: t('login.keyfile.none') });
     keyInput.addEventListener('change', () => { keyName.textContent = keyInput.files[0]?.name || t('login.keyfile.none'); });
@@ -100,6 +100,8 @@ export function showLogin(message) {
             const kfPicked = keyInput.files[0] || null;
             const wantRemember = !!kfPicked && kfRemember.checked;
             const wantRecall = !kfPicked && kfUse.checked;
+            // Ohne Passwort braucht es eine gewaehlte Schluesseldatei; eine gemerkte entschluesselt nur das Master-Passwort
+            if (!masterInput.value && !kfPicked) throw new VaultError(t('err.login.empty'));
             // Nextcloud: gemerkte Schluesseldateien zusaetzlich an einen Geheimwert auf dem Server gebunden (Format v2, siehe keyfile-store.js)
             const ncAuth = NC ? nextcloudAuth(NC) : null;
             const usePepper = !!(NC && NC.pepperUrl);
@@ -175,7 +177,8 @@ export function showLogin(message) {
                     await kfStore.remember({ id: kfId, name: kfRec.name, keyfile: copy, password: pw, params, pepper });
                 })().catch(() => {}).finally(() => copy.fill(0));
             }
-            if (wantRemember && kfId) {
+            if (wantRemember && kfId && !vault.hasPassword) toast(t('err.kf.nopw'), { kind: 'warn' }); // ohne Passwort waere der Datensatz ungeschuetzt
+            else if (wantRemember && kfId) {
                 try {
                     let pepper = null;
                     if (usePepper) {

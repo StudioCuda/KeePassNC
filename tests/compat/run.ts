@@ -330,6 +330,19 @@ async function main() {
             xc(['ls', out], out, kf);
         });
     }
+    await t('Nur Schluesseldatei (kein Passwort-Anteil): kdbxweb liest und schreibt, ein leeres Passwort ist ein anderer Schluessel', async () => {
+        const kf = path.join(TMP, 'only.keyx'), dbf = path.join(TMP, 'only.kdbx');
+        execFileSync('keepassxc-cli', ['db-create', '-q', '--set-key-file', kf, '-t', '100', dbf], { stdio: 'pipe' });
+        const key = ab(fs.readFileSync(kf));
+        let opened = true;
+        try { await Kdbx.load(ab(fs.readFileSync(dbf)), new Credentials(ProtectedValue.fromString(''), key)); } catch { opened = false; }
+        if (opened) throw new Error('leeres Passwort oeffnet eine Datei ohne Passwort - unerwartet');
+        const db = await Kdbx.load(ab(fs.readFileSync(dbf)), new Credentials(null, key));
+        db.createEntry(db.getDefaultGroup()).fields.set('Title', 'Nur-Schluessel');
+        const out = path.join(TMP, 'only2.kdbx'); fs.writeFileSync(out, Buffer.from(await db.save()));
+        const ls = execFileSync('keepassxc-cli', ['ls', '-q', '--no-password', '-k', kf, out]).toString();
+        if (!ls.includes('Nur-Schluessel')) throw new Error('KeePassXC liest: ' + ls);
+    });
     await t('Master-Passwort mit Sonderzeichen/NFD/Emoji: KeePassXC <-> kdbxweb in beide Richtungen', async () => {
         const hard = 'Zähl-Ünï§ "Q\'uote" \\ €uro 日本語 🔐🗝️  e\u0301 0O1lI| ;&$`{}';
         const dbf = path.join(TMP, 'hardpw.kdbx');
