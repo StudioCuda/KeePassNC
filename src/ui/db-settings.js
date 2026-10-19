@@ -39,8 +39,8 @@ export function openDbSettings({ onApplied } = {}) {
         size: h('input', { id: 'db-hist-size', type: 'number', class: 'num', min: 1, max: 1024, step: 1, value: cur.historyMaxSize >= 0 ? Math.max(1, Math.round(cur.historyMaxSize / MiB)) : 6, 'aria-label': t('dbset.hist.size.post') }),
         // Sicherheit
         upgrade: sec.version < 4 ? h('input', { id: 'db-upgrade', type: 'checkbox' }) : null,
-        cipher: select('db-cipher', Object.keys(CIPHER_LABEL), sec.cipher ?? 'aes', (c) => CIPHER_LABEL[c]),
-        // AES-KDF nur, wenn die Datei sie schon nutzt: neu waehlen soll sie niemand mehr
+        // Twofish und AES-KDF nur, wenn die Datei sie schon nutzt: oeffnen und behalten ja, neu waehlen soll sie niemand mehr
+        cipher: select('db-cipher', Object.keys(CIPHER_LABEL).filter((c) => c !== 'twofish' || sec.cipher === 'twofish'), sec.cipher ?? 'aes', (c) => CIPHER_LABEL[c]),
         kdf: select('db-kdf', isArgon ? ['argon2id', 'argon2d'] : ['argon2id', 'argon2d', 'aes'], sec.kdf, (k) => t('dbsec.kdf.' + k)),
         memory: select('db-memory', withCurrent(MEMORY_PRESETS_MIB, isArgon ? sec.memoryKiB / 1024 : null), isArgon ? sec.memoryKiB / 1024 : 64,
             (mb) => (mb >= 1024 && mb % 1024 === 0 ? `${mb / 1024} GiB` : `${mb} MiB`) + (isArgon && mb === sec.memoryKiB / 1024 ? ' ' + t('dbsec.current') : '')),
