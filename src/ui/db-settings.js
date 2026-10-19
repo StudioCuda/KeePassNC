@@ -7,6 +7,7 @@ import { h, modal, confirmDialog } from './dom.js';
 import { changed } from './session.js';
 import { argon2 } from '../argon2.js';
 import { isOutOfMemory } from '../core/util.js';
+import { CIPHER_LABEL } from '../vault.js';
 import { MEMORY_PRESETS_MIB, PARALLELISM_OPTIONS, MAX_ITERATIONS, SLOW_MS, memoryLevel, isWeaker, suggestIterations } from '../core/kdf-policy.js';
 
 const MiB = 1024 * 1024;
@@ -38,7 +39,7 @@ export function openDbSettings({ onApplied } = {}) {
         size: h('input', { id: 'db-hist-size', type: 'number', class: 'num', min: 1, max: 1024, step: 1, value: cur.historyMaxSize >= 0 ? Math.max(1, Math.round(cur.historyMaxSize / MiB)) : 6, 'aria-label': t('dbset.hist.size.post') }),
         // Sicherheit
         upgrade: sec.version < 4 ? h('input', { id: 'db-upgrade', type: 'checkbox' }) : null,
-        cipher: select('db-cipher', ['aes', 'chacha20'], sec.cipher ?? 'aes', (c) => (c === 'aes' ? 'AES-256' : 'ChaCha20')),
+        cipher: select('db-cipher', Object.keys(CIPHER_LABEL), sec.cipher ?? 'aes', (c) => CIPHER_LABEL[c]),
         // AES-KDF nur, wenn die Datei sie schon nutzt: neu waehlen soll sie niemand mehr
         kdf: select('db-kdf', isArgon ? ['argon2id', 'argon2d'] : ['argon2id', 'argon2d', 'aes'], sec.kdf, (k) => t('dbsec.kdf.' + k)),
         memory: select('db-memory', withCurrent(MEMORY_PRESETS_MIB, isArgon ? sec.memoryKiB / 1024 : null), isArgon ? sec.memoryKiB / 1024 : 64,

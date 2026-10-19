@@ -426,6 +426,31 @@ async function main() {
         return dbi.split('\n').filter((l) => /^(Cipher|KDF)/.test(l)).join(', ');
     });
 
+    await step('Sicherheit: Twofish (bleibt KDBX 3.1), KeePassXC liest und bearbeitet, die App oeffnet das Ergebnis', async () => {
+        const fTf = path.join(davRoot, 'twofish.kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault3.kdbx'), fTf);
+        const p = await newPage();
+        await login(p, 'twofish.kdbx'); await rows(p).first().waitFor();
+        await openDbSettings(p);
+        await p.selectOption('#db-cipher', 'twofish');
+        expect(!(await p.isChecked('#db-upgrade')), 'Twofish braucht kein KDBX 4');
+        await p.click('#db-apply');
+        await p.waitForFunction(() => !document.querySelector('#db-settings'), null, { timeout: 30000 });
+        await p.keyboard.press('Escape');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./, 30000);
+        await p.context().close();
+        expect(kdbxVersion(fTf) === '3.1', 'Version: ' + kdbxVersion(fTf));
+        expect(/Cipher: Twofish/i.test(xc(['db-info', fTf])), 'KeePassXC db-info:\n' + xc(['db-info', fTf]));
+        await new Promise((r) => setTimeout(r, 1100)); // KeePassXC nicht in der Sekunde der letzten Aenderung bearbeiten lassen
+        xc(['edit', fTf, 'Konto', '-u', 'von-keepassxc']);
+        const q = await newPage();
+        await login(q, 'twofish.kdbx'); await rows(q).first().waitFor();
+        expect(/von-keepassxc/.test(await q.locator('[data-testid=entry-row]', { hasText: 'Konto' }).innerText()), 'Aenderung von KeePassXC fehlt');
+        await q.click('#reports-btn'); await q.click('#rep-tab-info');
+        expect(/Twofish/.test(await q.locator('.report-body').innerText()), 'Info zeigt kein Twofish');
+        await q.context().close();
+    });
+
     await step('Sicherheit: Rueckfrage bei "schwaecher" und bei 1 GiB, Abbrechen aendert nichts; "≈ 1 s" schlaegt nie weniger Arbeit vor', async () => {
         const p = await newPage();
         await login(p, 'v3-hoch.kdbx'); await rows(p).first().waitFor();

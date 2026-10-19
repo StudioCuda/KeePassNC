@@ -19,6 +19,7 @@ import * as HashedBlockTransform from '../crypto/hashed-block-transform';
 import * as CryptoEngine from '../crypto/crypto-engine';
 import * as KeyEncryptorAes from '../crypto/key-encryptor-aes';
 import * as KeyEncryptorKdf from '../crypto/key-encryptor-kdf';
+import { twofishCbc } from '../crypto/twofish';
 import { Int64 } from '../utils/int64';
 
 export class KdbxFormat {
@@ -415,6 +416,8 @@ export class KdbxFormat {
                 return this.transformDataV4Aes(data, cipherKey, false);
             case CipherId.ChaCha20:
                 return this.transformDataV4ChaCha20(data, cipherKey);
+            case CipherId.Twofish:
+                return this.transformDataTwofish(data, cipherKey, false);
             default:
                 return Promise.reject(new KdbxError(ErrorCodes.Unsupported, 'unsupported cipher'));
         }
@@ -430,6 +433,8 @@ export class KdbxFormat {
                 return this.transformDataV4Aes(data, cipherKey, true);
             case CipherId.ChaCha20:
                 return this.transformDataV4ChaCha20(data, cipherKey);
+            case CipherId.Twofish:
+                return this.transformDataTwofish(data, cipherKey, true);
             default:
                 return Promise.reject(new KdbxError(ErrorCodes.Unsupported, 'unsupported cipher'));
         }
@@ -459,6 +464,18 @@ export class KdbxFormat {
             throw new KdbxError(ErrorCodes.FileCorrupt, 'no encryption IV');
         }
         return CryptoEngine.chacha20(data, cipherKey, iv);
+    }
+
+    private transformDataTwofish(
+        data: ArrayBuffer,
+        cipherKey: ArrayBuffer,
+        encrypt: boolean
+    ): Promise<ArrayBuffer> {
+        const iv = this.kdbx.header.encryptionIV;
+        if (!iv) {
+            throw new KdbxError(ErrorCodes.FileCorrupt, 'no encryption IV');
+        }
+        return Promise.resolve().then(() => twofishCbc(data, cipherKey, iv, encrypt));
     }
 
     private cleanXml() {
