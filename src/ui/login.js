@@ -68,7 +68,7 @@ export function showLogin(message) {
     davBox.hidden = mode !== 'dav'; fileBox.hidden = mode !== 'file';
     const offlineBox = h('input', { type: 'checkbox', id: 'offline-opt', checked: ctx.settings.offline });
     const err = h('p', { class: 'error', id: 'login-error', role: 'alert', text: message || '' });
-    const btn = h('button', { type: 'submit', id: 'open-btn', class: 'primary big' }, icon('unlock'), h('span', { class: 'label', text: t('login.open') }));
+    const btn = h('button', { type: 'submit', id: 'open-btn', class: 'primary big' }, icon('lock'), h('span', { class: 'label', text: t('login.open') }));
     const showPw = iconBtn('eye', t('show'), () => { const on = masterInput.type === 'password'; masterInput.type = on ? 'text' : 'password'; showPw.setAttribute('aria-pressed', String(on)); showPw.replaceChildren(icon(on ? 'eyeOff' : 'eye')); }, { type: 'button', 'aria-pressed': 'false' });
     // Schluesseldatei und Offline-Kopie braucht nur, wer sie braucht: eingeklappt, bis eine Datei gewaehlt oder die Offline-Kopie schon an ist
     const more = h('details', { class: 'login-more', id: 'login-more', open: ctx.settings.offline },
@@ -112,7 +112,7 @@ export function showLogin(message) {
         ev.preventDefault();
         err.textContent = '';
         if (btn.disabled) return; // laufender Versuch
-        btn.disabled = true;
+        btn.disabled = true; btn.classList.add('busy');
         let keyfile, kfId;
         btn.querySelector('.label').textContent = t('login.decrypting');
         try {
@@ -226,7 +226,11 @@ export function showLogin(message) {
             masterInput.value = ''; passInput.value = '';
             state.vault = vault; state.source = { type: src, name, kfId, readOnly };
             state.filter = { type: 'all' }; state.lastActivity = Date.now(); state.offlineMode = offlineOpen; state.lastSyncFailed = false;
+            // Schloss springt auf, kurz durchatmen, dann blendet der Tresor ein (ohne Bewegungswunsch sofort)
+            const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+            if (!calm) { btn.classList.replace('busy', 'done'); btn.querySelector('.icon').replaceWith(icon('unlock')); await new Promise((r) => setTimeout(r, 260)); }
             ctx.ui.showMain();
+            if (!calm) document.querySelector('.shell')?.classList.add('enter');
             if (offlineOpen) setStatus(t('open.offline', { name, version: vault.versionLabel, date: fmtDate(cachedAt, true), extra: unsynced ? t('open.offline.unsynced') : '' }), 'warn');
             else if (readOnly) setStatus(t('open.ok', { name, version: vault.versionLabel }) + ' ' + t('open.readonly') + kfNote, 'warn');
             else setStatus(t('open.ok', { name, version: vault.versionLabel }) + (unsynced ? ' ' + t('open.merging') : '') + kfNote);
@@ -238,7 +242,7 @@ export function showLogin(message) {
             if (!known) console.error(e);
         } finally {
             keyfile?.fill(0); keyfile = undefined; // Vault.open arbeitet mit einer eigenen Kopie
-            btn.disabled = false;
+            btn.disabled = false; btn.classList.remove('busy', 'done');
             btn.querySelector('.label').textContent = t('login.open');
         }
     });
