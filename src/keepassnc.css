@@ -492,7 +492,8 @@ input:disabled, select:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ---------- Anmeldung: Anmutung (Typografie, Fokus, Entsperr-Moment) ---------- */
 button.primary.big .icon, .login-trust .icon { position: relative; top: -1px; } /* das Schloss ist unten schwer: optisch auf die Texthoehe heben */
-.login.solo .login-top h2 { font-weight: 650; letter-spacing: -.025em; }
+.login.solo .login-top h2 { font-weight: 600; letter-spacing: .01em; }
+.back-line { margin-bottom: -12px; } .back-line .link { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 550; } .back-line .link:hover { color: var(--text); text-decoration: underline; }
 .login.solo .login-form { padding: 28px 26px 24px; gap: 18px; transition: box-shadow .25s ease; }
 .login.solo .login-form > label > span:first-child, .login.solo .login-form .login-more label > span:first-child { font-size: 11.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
 .login.solo .login-form:focus-within { box-shadow: inset 0 2px 0 var(--accent), 0 1px 2px rgb(0 0 0 / .04), 0 20px 46px -12px color-mix(in srgb, var(--accent) calc(var(--solo-glow) + 8%), transparent); }
@@ -506,3 +507,7 @@ button.primary.big.done .icon { animation: unlock-pop .26s ease-out; }
 @keyframes unlock-pop { 40% { transform: translateY(-3px) scale(1.15); } }
 @media (prefers-reduced-motion: no-preference) { .shell.enter { animation: fade .45s ease both; } }
 @media (prefers-reduced-motion: reduce) { button.primary.big.busy::after { animation: none; transform: none; opacity: .5; } }
+/* Hochkontrast (Nextcloud-Theme) und erzwungene Farben: Dekor weg, nur Rand und Inhalt bleiben */
+:root[data-contrast="more"] .login.solo { background: none; } :root[data-contrast="more"] .login.solo::after, :root[data-contrast="more"] .login-mark { display: none; }
+:root[data-contrast="more"] .login.solo .login-form, :root[data-contrast="more"] .login.solo .login-form:focus-within { box-shadow: inset 0 2px 0 var(--accent); }
+@media (forced-colors: active) { .login.solo { background: none; } .login.solo::after, .login-mark { display: none; } .login.solo .login-form, .login.solo .login-form:focus-within { box-shadow: none; } }

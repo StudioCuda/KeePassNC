@@ -381,7 +381,7 @@ export default {
     'locked': 'Gesperrt.',
     'locked.auto': 'Automatisch gesperrt.',
     'locked.hidden': 'Automatisch gesperrt (Tab im Hintergrund).',
-    'login.back': 'Zurück zu Dateien',
+    'login.back': 'Dateien',
     'login.dav.custom': 'Anderer WebDAV-Server? Eigene WebDAV-Adresse eintragen',
     'login.dav.hint': 'Nextcloud: Einstellungen › Sicherheit › App-Passwort erstellen.',
     'login.dav.ncaddr': 'Doch lieber Nextcloud-Adresse eintragen',

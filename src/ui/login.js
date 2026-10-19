@@ -247,10 +247,10 @@ export function showLogin(message) {
         }
     });
     const card = h('main', { class: 'login-card' },
+        NC?.filesUrl ? h('div', { class: 'back-line' }, h('a', { href: NC.filesUrl, id: 'back-link', class: 'link', text: '‹ ' + t('login.back') })) : null,
         h('div', { class: 'login-top' },
             h('h2', { text: t('login.title') }),
             h('div', { class: 'row-gap' },
-                NC?.filesUrl ? h('a', { href: NC.filesUrl, id: 'back-link', class: 'link', text: '← ' + t('login.back') }) : null,
                 iconBtn('settings', t('settings'), () => openSettings({ loginMode: true }), { id: 'login-settings' }))),
         form,
         h('p', { class: 'login-alt' }, h('span', { class: 'muted', text: t('login.new.q') }), ' ',

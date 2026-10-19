@@ -210,10 +210,10 @@ export function showCreate() {
     });
 
     const card = h('main', { class: 'login-card' },
+        h('div', { class: 'back-line' }, h('button', { type: 'button', id: 'new-back', class: 'link', text: '‹ ' + t('new.back'), onclick: () => { kf.wipe(); back(); } })),
         h('div', { class: 'login-top' },
             h('h2', { text: t('new.title') }),
             h('div', { class: 'row-gap' },
-                h('button', { type: 'button', id: 'new-back', class: 'link', text: '← ' + t('new.back'), onclick: () => { kf.wipe(); back(); } }),
                 iconBtn('settings', t('settings'), () => openSettings({ loginMode: true }), { id: 'login-settings' }))),
         form,
         h('footer', { class: 'login-foot' }, h('span', {}), h('span', { class: 'muted', text: 'v' + __VERSION__ })));

@@ -381,7 +381,7 @@ export default {
     'locked': 'Locked.',
     'locked.auto': 'Locked automatically.',
     'locked.hidden': 'Locked automatically (tab in background).',
-    'login.back': 'Back to Files',
+    'login.back': 'Files',
     'login.dav.custom': 'Another WebDAV server? Enter your own WebDAV address',
     'login.dav.hint': 'Nextcloud: Settings › Security › create an app password.',
     'login.dav.ncaddr': 'Rather enter Nextcloud address',
