@@ -130,7 +130,7 @@ export function mark({ w, filledKey }) {
         contour(S.map((s) => offset(s, d)), shieldCorners(1 + d, 0.6)), // aussen: Schultern wie ein Radius-1-Bogen in der Mittellinie, Spitzen fein
         contour(S.map((s) => offset(s, -d)), shieldCorners(0.6, 0.6)) // innen: durchgehend 0,6
     ];
-    if (filledKey) parts.push(contour(K, keyCorners(0.65, 0.6)));
+    if (filledKey) parts.push(contour(K, keyCorners(0.6, 0.6))); // gefuellt: ueberall 0,6
     else parts.push(contour(K.map((s) => offset(s, d)), keyCorners(0.65, 0.6)), contour(K.map((s) => offset(s, -d)), keyCorners(0.65, 0.12)));
     return serialize(parts);
 }
