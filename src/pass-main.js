@@ -28,14 +28,15 @@ function render() {
     const other = lang === 'de' ? 'en' : 'de';
     const [before, after] = t('pass.powered').split('{app}');
     const switchLang = h('button', { type: 'button', class: 'link', id: 'pass-lang', lang: other, text: t('pass.lang.other'), onclick: () => { pref('lang', other); render(); } });
-    root.replaceChildren(h('main', { class: 'pass' },
+    // Gleicher Hintergrund wie die Anmeldung in Nextcloud (.login.solo in keepassnc.css): Licht, feines Korn, grosse Marke
+    root.replaceChildren(h('div', { class: 'login solo pass-wrap' }, h('div', { class: 'login-mark', 'aria-hidden': 'true' }, icon('shield-fine')), h('main', { class: 'pass' },
         h('header', { class: 'pass-head' },
             h('span', { class: 'brand-mark small', 'aria-hidden': 'true' }, icon('shield')),
             h('div', {}, h('h1', { text: t('pass.title') }), h('p', { class: 'muted', text: t('pass.lead') }))),
         h('section', { class: 'card pass-card' }, g.body, h('div', { class: 'pass-actions' }, g.copyBtn)),
         h('footer', { class: 'pass-foot' },
             h('p', {}, before, h('a', { href: REPO, rel: 'noopener', text: 'KeePassNC' }), after),
-            switchLang)));
+            switchLang))));
     g.start();
 }
 render();
