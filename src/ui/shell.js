@@ -4,7 +4,7 @@ import { fieldOf, domainOf, openableUrl, hasTotp, isPasskey, entryColor } from '
 import { SORTS } from './common.js';
 import { ctx, copy, setStatus, applyTheme } from './ctx.js';
 import { $, h, icon, iconBtn, modal, popupMenu, toast } from './dom.js';
-import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField } from './common.js';
+import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolvedUrl } from './common.js';
 import { renderSidebar, newGroup, setFilter, startEntryDrag, emptyBin } from './groups.js';
 import { renderDetail, deleteEntry, stopDetailTimers } from './detail.js';
 import { renderEditor, startEdit, cancelEdit } from './editor.js';
@@ -105,7 +105,7 @@ export function renderList(entries = visibleEntries()) {
             !state.query && state.filter.type === 'group' ? h('button', { type: 'button', class: 'btn', onclick: () => startEdit(null) }, icon('plus'), t('entry.new')) : null));
     }
     for (const e of entries.slice(0, shown)) {
-        const user = resolvedField(e, 'UserName'), dom = domainOf(resolvedField(e, 'URL'));
+        const user = resolvedField(e, 'UserName'), dom = domainOf(resolvedUrl(e));
         const main = h('button', { type: 'button', class: 'entry' + (state.selEntry === e ? ' active' : ''), role: 'option', 'aria-selected': state.selEntry === e ? 'true' : 'false', 'data-testid': 'entry-row',
             onclick: () => { state.selEntry = e; state.editing = null; state.view = 'detail'; for (const x of host.querySelectorAll('.entry.active')) { x.classList.remove('active'); x.setAttribute('aria-selected', 'false'); } main.classList.add('active'); main.setAttribute('aria-selected', 'true'); stopDetailTimers(); renderDetail($('#detail')); applyView(); },
             onkeydown: (ev) => listKeys(ev) },
@@ -180,7 +180,7 @@ export function installShortcuts() {
         else if (mod && key === 's') { e.preventDefault(); doSave(); }
         else if (mod && key === 'l') { e.preventDefault(); lock(t('locked')); }
         else if (mod && key === 'b' && state.selEntry && !typing) { e.preventDefault(); copy(resolvedField(state.selEntry, 'UserName'), t('f.user')); }
-        else if (mod && e.shiftKey && key === 'u' && state.selEntry) { e.preventDefault(); const u = openableUrl(resolvedField(state.selEntry, 'URL')); if (u) window.open(u, '_blank', 'noopener,noreferrer'); }
+        else if (mod && e.shiftKey && key === 'u' && state.selEntry) { e.preventDefault(); const u = openableUrl(resolvedUrl(state.selEntry)); if (u) window.open(u, '_blank', 'noopener,noreferrer'); }
         else if (mod && key === 'c' && state.selEntry && !typing && !getSelection().toString()) { e.preventDefault(); copy(resolvedField(state.selEntry, 'Password'), t('f.password')); }
         else if (e.key === 'Delete' && state.selEntry && !typing && !state.editing) { e.preventDefault(); deleteEntry(state.selEntry); }
         else if (e.key === 'Escape' && state.editing && !typing) cancelEdit();

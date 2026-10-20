@@ -5,7 +5,7 @@ import { entryExpiry, daysUntil, domainOf, openableUrl, isSystemField, isPasskey
 import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, copy, download, setStatus, pref } from './ctx.js';
 import { h, icon, iconBtn, modal, toast, confirmDialog, popupMenu } from './dom.js';
-import { avatar, expiryBadge, resolvedField } from './common.js';
+import { avatar, expiryBadge, resolvedField, resolvedUrl } from './common.js';
 import { colorizedPassword, strengthBar } from './pwview.js';
 import { changed } from './session.js';
 import { setFilter, groupSelect, selectedGroup } from './groups.js';
@@ -54,7 +54,7 @@ export function renderDetail(host) {
     // --- Felder
     const cards = [];
     const user = resolvedField(e, 'UserName');
-    const url = resolvedField(e, 'URL');
+    const url = resolvedUrl(e);
     const main = [];
     main.push(field(t('f.user'), h('span', { 'data-testid': 'f-user', text: user }), [copyBtn(user, t('f.user'), { 'data-testid': 'user-copy' })]));
 
@@ -236,7 +236,7 @@ function entryMenu(anchor, e) {
         { label: t('duplicate'), icon: 'duplicate', onclick: () => (v.isInRecycleBin(e) ? duplicate(e) : duplicateDialog(e)) },
         { label: t('move'), icon: 'moveTo', onclick: () => moveEntryDialog(e) },
         { label: t('entry.copy.user'), icon: 'user', hint: 'Ctrl+B', onclick: () => copy(resolvedField(e, 'UserName'), t('f.user')) },
-        { label: t('entry.copy.url'), icon: 'link', onclick: () => copy(resolvedField(e, 'URL'), t('f.url')) }
+        { label: t('entry.copy.url'), icon: 'link', onclick: () => copy(resolvedUrl(e), t('f.url')) }
     ], { align: 'end' });
 }
 function duplicate(e, linked = false) {

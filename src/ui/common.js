@@ -19,6 +19,8 @@ export function bitsOf(pw) {
  * Kopieren und Bewertung brauchen; nicht aufloesbare bleiben stehen. Der Editor arbeitet weiter mit dem Rohwert, damit sie erhalten bleiben.
  */
 export const resolvedField = (e, name) => { const v = fieldOf(e, name); return v.includes('{') ? resolvePlaceholders(v, e, allRealEntries()) : v; };
+/** URL fuer Anzeige, Link, Oeffnen und Kopieren: Platzhalter fuer Passwoerter und geschuetzte Felder bleiben stehen (siehe resolvePlaceholders). */
+export const resolvedUrl = (e) => { const v = fieldOf(e, 'URL'); return v.includes('{') ? resolvePlaceholders(v, e, allRealEntries(), { secrets: false }) : v; };
 export const isWeak = (e) => { const pw = resolvedField(e, 'Password'); return !!pw && !pw.includes('{REF:') && !excluded(e) && bitsOf(pw) < 75; };
 export { strengthLabel };
 

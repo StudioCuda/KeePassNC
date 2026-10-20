@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Changed
+- The URL field no longer fills in secrets: `{PASSWORD}`, `{REF:P@…}` and placeholders for protected fields stay as they are when the URL is shown, linked, opened (Ctrl+Shift+U) or copied. Everything else (`{USERNAME}`, `{S:Host}`, `{REF:U@…}` …) still resolves. Otherwise an imported or merged entry with a URL like `https://evil.example/?p={REF:P@T:}` would hand you a link with another entry's password in it. The password field resolves references as before.
 
 ## [0.15.0] - 2026-10-20
 ### Added

