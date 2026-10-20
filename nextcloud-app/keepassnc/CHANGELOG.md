@@ -9,6 +9,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The generator's "Regenerate" button moved down next to the strength bars, so the preview gets the full width.
 - The generator's small hint lines (word list source, bits per block) became tooltips on "Words", "Word list" and "Blocks"; the dotted underline shows where. The word list credits are in the README.
 - The standalone page opens a local file by default, so you can try it without a server; the switch to Nextcloud/WebDAV is the same one as before and is remembered. Inside Nextcloud nothing changes.
+- The "click a .kdbx file in Files" tip on the open-vault screen is a tooltip on the file label and field now, instead of a line of its own.
+
+## [0.14.1] - 2026-10-20
+### Changed
 - The password generator sits still now: the preview keeps a fixed height (five lines for passphrases, two for Simple, and for passwords exactly as tall as the passphrase dialog), so dragging a slider or switching tabs no longer makes the window hop. Shorter values sit centred in it.
 - Passphrase options got tidier: the word list moves up next to the separator, and the capitalisation menu becomes a "First letter upper case" checkbox like in Simple. Upper case and one-word-upper are gone; a saved choice of either falls back to lower case.
 - Password health fills its second row: "No issues" counts the entries that are fine, "Older than a year" the passwords that haven't changed in over a year (going by the entry history). Age is just a nudge and doesn't lower the score.

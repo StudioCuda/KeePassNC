@@ -59,9 +59,10 @@ export function showLogin(message) {
         refreshKf();
         masterInput.focus();
     });
-    const pathBox = h('label', {}, h('span', { text: NC?.file ? t('login.nc.file') : t('login.nc.path') }), browseBtn ? h('div', { class: 'input-group' }, ncPathInput, browseBtn) : ncPathInput);
+    // Hinweis als Tooltip auf Beschriftung und Feld statt als eigene Zeile
+    const pathBox = h('label', NC && !NC.file ? { title: t('login.nc.tip') } : {}, h('span', { text: NC?.file ? t('login.nc.file') : t('login.nc.path') }), browseBtn ? h('div', { class: 'input-group' }, ncPathInput, browseBtn) : ncPathInput);
     const davBox = NC
-        ? h('div', { id: 'dav-box', class: 'stack' }, NC.file ? fileChip(NC.file) : null, pathBox, NC.file ? null : h('p', { class: 'hint', text: t('login.nc.tip') }))
+        ? h('div', { id: 'dav-box', class: 'stack' }, NC.file ? fileChip(NC.file) : null, pathBox)
         : h('div', { id: 'dav-box', class: 'stack' }, remote.serverBox, remote.urlBox, remote.creds, pathBox, remote.foot);
     pathBox.hidden = !!NC?.file; // aus Dateien geoeffnet: die Datei steht als Karte da, das schreibgeschuetzte Feld bleibt nur fuer die Logik
     const fileBox = h('div', { id: 'file-box', class: 'stack', hidden: true }, h('label', {}, h('span', { text: t('login.file') }), fileInput));
