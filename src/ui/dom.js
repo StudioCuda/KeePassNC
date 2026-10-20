@@ -56,7 +56,7 @@ export const P = {
     cloudOff: 'M3 3l18 18M7 18a4.500 4.500 0 0 1-.9-8.900M10 6.200A6 6 0 0 1 18 10a4 4 0 0 1 1.500 7.700M13 18H7',
     alert: 'M12 4l9 16H3ZM12 10v4M12 17h.01',
     globe: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18',
-    dice: 'M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM8.500 8.500h.01M15.500 8.500h.01M12 12h.01M8.500 15.500h.01M15.500 15.500h.01',
+    dice: 'M5 4h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1ZM7.9 8.5a.6.6 0 1 0 1.2 0a.6.6 0 1 0-1.2 0M14.9 8.5a.6.6 0 1 0 1.2 0a.6.6 0 1 0-1.2 0M11.4 12a.6.6 0 1 0 1.2 0a.6.6 0 1 0-1.2 0M7.9 15.5a.6.6 0 1 0 1.2 0a.6.6 0 1 0-1.2 0M14.9 15.5a.6.6 0 1 0 1.2 0a.6.6 0 1 0-1.2 0',
     sun: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8ZM12 2v2M12 20v2M4.900 4.900l1.400 1.400M17.700 17.700l1.400 1.400M2 12h2M20 12h2M4.900 19.100l1.400-1.400M17.700 6.300l1.400-1.400',
     moon: 'M20 14.500A8 8 0 0 1 9.500 4 8 8 0 1 0 20 14.500Z',
     download: 'M12 4v11M7.500 11L12 15.500 16.500 11M5 20h14',
@@ -118,6 +118,7 @@ export function toast(message, { kind = 'info', action, timeout = 4500 } = {}) {
 
 // ---------------------------------------------------------------- Dialoge (ersetzen window.confirm/prompt)
 let modalDepth = 0;
+const openModals = new Set(); // close-Funktionen aller offenen Dialoge (fuer closeAllDialogs beim Sperren)
 export function modal({ title, body, actions = [], size = 'md', onClose, labelledBy = true, cls = '' }) {
     const previouslyFocused = document.activeElement;
     const backdrop = h('div', { class: 'backdrop' });
@@ -130,6 +131,7 @@ export function modal({ title, body, actions = [], size = 'md', onClose, labelle
     let done = false;
     function close(result) {
         if (done) return; done = true;
+        openModals.delete(close);
         document.removeEventListener('keydown', onKey, true);
         backdrop.remove();
         previouslyFocused?.focus?.();
@@ -148,8 +150,16 @@ export function modal({ title, body, actions = [], size = 'md', onClose, labelle
     backdrop.addEventListener('mousedown', (e) => { if (e.target === backdrop) close(undefined); });
     document.addEventListener('keydown', onKey, true);
     document.body.append(backdrop);
+    openModals.add(close);
     (dlg.querySelector('[autofocus]') || dlg.querySelector('input, select, textarea, .modal-actions .primary') || closeBtn).focus();
     return { close, el: dlg };
+}
+
+/** Schliesst alle offenen Dialoge und Menues wie "Abbrechen". Dialoge haengen an <body>, nicht an #app: Ohne das blieben sie beim
+ *  Sperren ueber der Anmeldung stehen, samt Klartext (Grosse Ansicht, Verlauf, Generator, Anhang-Vorschau). */
+export function closeAllDialogs() {
+    for (const close of [...openModals].reverse()) close(undefined);
+    closeMenus();
 }
 
 export function confirmDialog({ title, message, confirmLabel, cancelLabel, danger = false }) {

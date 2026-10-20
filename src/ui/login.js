@@ -7,8 +7,9 @@ import { nextcloudAuth, davUrlFor, normalizeUserPath, fetchPepper } from '../nex
 import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, params, pref, setStatus, applyTheme, kfStore, kfFileId } from './ctx.js';
 import { KeyfileStoreError, isWeakerThan } from '../keyfile-store.js';
-import { h, icon, iconBtn, toast } from './dom.js';
+import { h, icon, iconBtn, toast, closeAllDialogs } from './dom.js';
 import { stopTimers, startTimers, ensureOfflineApp, syncNow, refreshDirtyIndicator } from './session.js';
+import { stopDetailTimers } from './detail.js';
 import { openSettings } from './settings-dialog.js';
 import { pickFolder, splitPath } from './folder-picker.js';
 import { remoteFields } from './remote.js';
@@ -17,6 +18,9 @@ const { state } = ctx;
 
 export function showLogin(message) {
     stopTimers();
+    // Vor dem Leeren: offene Dialoge (haengen an <body>, nicht an #app) und der TOTP-Takt (haelt das Geheimnis) duerfen das Sperren nicht ueberleben
+    closeAllDialogs();
+    stopDetailTimers();
     state.vault = null; state.selEntry = null; state.editing = null; state.query = '';
     document.body.classList.remove('in-vault');
     const NC = ctx.NC;
@@ -72,8 +76,8 @@ export function showLogin(message) {
     const err = h('p', { class: 'error', id: 'login-error', role: 'alert', text: message || '' });
     const btn = h('button', { type: 'submit', id: 'open-btn', class: 'primary big' }, icon('lock'), h('span', { class: 'label', text: t('login.open') }));
     const showPw = iconBtn('eye', t('show'), () => { const on = masterInput.type === 'password'; masterInput.type = on ? 'text' : 'password'; showPw.setAttribute('aria-pressed', String(on)); showPw.replaceChildren(icon(on ? 'eyeOff' : 'eye')); }, { type: 'button', 'aria-pressed': 'false' });
-    // Schluesseldatei und Offline-Kopie braucht nur, wer sie braucht: eingeklappt, bis eine Datei gewaehlt oder die Offline-Kopie schon an ist
-    const more = h('details', { class: 'login-more', id: 'login-more', open: ctx.settings.offline },
+    // Schluesseldatei und Offline-Kopie braucht nur, wer sie braucht: immer eingeklappt, auch wenn die Offline-Kopie an ist
+    const more = h('details', { class: 'login-more', id: 'login-more' },
         h('summary', { text: t('login.more') }),
         h('div', { class: 'stack' },
             h('label', {}, h('span', { text: t('login.keyfile') }), h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), keyName, keyInput)),

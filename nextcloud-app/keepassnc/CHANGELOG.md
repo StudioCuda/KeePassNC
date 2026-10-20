@@ -4,7 +4,13 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Changed
+- The dice icon (password generator) has fuller pips, so they no longer look so thin next to the other toolbar icons.
+- "Key file & offline options" on the open-vault screen now always starts folded, even with the offline copy switched on. One click away, a lot less card.
 - The URL field no longer fills in secrets: `{PASSWORD}`, `{REF:P@…}` and placeholders for protected fields stay as they are when the URL is shown, linked, opened (Ctrl+Shift+U) or copied. Everything else (`{USERNAME}`, `{S:Host}`, `{REF:U@…}` …) still resolves. Otherwise an imported or merged entry with a URL like `https://evil.example/?p={REF:P@T:}` would hand you a link with another entry's password in it. The password field resolves references as before.
+
+### Fixed
+- Unfolding those options inside Nextcloud no longer nudges the frame and the shield watermark sideways: the open-vault card now scrolls inside its panel instead of the whole page growing a scrollbar.
+- Locking (by hand or after inactivity) now closes every open dialog too. Before, a dialog such as the large password view, an entry's history or an attachment preview stayed on top of the sign-in screen, plaintext included, and the TOTP code kept ticking in the background.
 
 ## [0.15.0] - 2026-10-20
 ### Added

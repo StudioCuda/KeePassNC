@@ -386,9 +386,12 @@ async function main() {
         await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
         await p.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
         await p.click('[data-testid=pw-toggle]');
+        // Grosse Ansicht offen lassen: der Dialog haengt an <body> und muss mit dem Sperren verschwinden
+        await p.click('[data-testid=pw-large]'); await p.locator('[data-testid=large-type]').waitFor();
         await p.waitForFunction(() => /Automatisch gesperrt/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 15000 });
         const html = await p.content();
         expect(!/alice|extern\.example|Notiz/.test(html), 'Nach dem Sperren stehen noch Daten im DOM');
+        expect(await p.locator('.backdrop, .modal, [data-testid=large-type]').count() === 0, 'Nach dem Sperren ist noch ein Dialog offen');
         expect(await p.inputValue('#master') === '', 'Master-Passwort-Feld muss leer sein');
         await p.context().close();
     });
