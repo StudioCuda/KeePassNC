@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Changed
+- The "click a .kdbx file in Files" tip on the open-vault screen is a tooltip on the file label and field now, instead of a line of its own.
 
 ## [0.14.1] - 2026-10-20
 ### Changed
