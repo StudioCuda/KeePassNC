@@ -4,11 +4,11 @@
   "private": true,
   "description": "KeePass (KDBX) files in the browser, for Nextcloud and WebDAV. Decrypted only in the browser.",
   "scripts": {
-    "build": "node tools/build.mjs && node tools/build-nextcloud.mjs",
+    "build": "node tools/build.mjs && node tools/build-nextcloud.mjs && node tools/build-pass.mjs",
     "test:compat": "node -r ts-node/register/transpile-only tests/compat/run.ts",
     "test:e2e": "node tests/e2e/run.mjs",
     "test:unit": "node --test tests/unit/*.test.mjs",
-    "test": "npm run build && npm run test:unit && npm run test:compat && npm run test:e2e && npm run test:ui && npm run test:theme && npm run test:keyfile && npm run test:credentials && npm run test:create && npm run test:remote && npm run test:offline && npm run test:fidelity",
+    "test": "npm run build && npm run test:unit && npm run test:compat && npm run test:e2e && npm run test:ui && npm run test:theme && npm run test:keyfile && npm run test:credentials && npm run test:create && npm run test:remote && npm run test:offline && npm run test:fidelity && npm run test:pass",
     "package:nc": "npm run build && tar czf keepassnc-nextcloud-app.tar.gz -C nextcloud-app keepassnc",
     "test:nc": "node tests/nextcloud/run.mjs",
     "test:offline": "node tests/e2e/offline.mjs",
@@ -18,7 +18,8 @@
     "test:keyfile": "node tests/e2e/keyfile.mjs && node tests/e2e/keyfile-nc.mjs",
     "test:credentials": "node tests/e2e/credentials.mjs",
     "test:create": "node tests/e2e/create.mjs",
-    "test:remote": "node tests/e2e/remote.mjs"
+    "test:remote": "node tests/e2e/remote.mjs",
+    "test:pass": "node tests/e2e/pass.mjs"
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.8.15",

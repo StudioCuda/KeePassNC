@@ -33,10 +33,12 @@ async function main() {
     const files = `${base}/remote.php/dav/files/tester-id`;
     const browser = await launchBrowser();
     const errors = [];
-    const newPage = async () => {
+    // Ohne bisherige Wahl startet die Seite mit "Lokale Datei"; die Tests hier gehen von Nextcloud/WebDAV aus (fresh: so wie beim allerersten Besuch)
+    const newPage = async ({ fresh = false } = {}) => {
         const c = await browser.newContext({ locale: 'de-DE', viewport: { width: 1400, height: 950 }, serviceWorkers: 'block' });
         await c.addInitScript(uncaughtWatch);
         await c.addInitScript(() => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'off' })); } catch {} });
+        if (!fresh) await c.addInitScript(() => { try { if (!localStorage.getItem('kpnc.mode')) localStorage.setItem('kpnc.mode', 'dav'); } catch {} });
         const p = await c.newPage();
         // Blockiert CORS eine Anfrage, meldet WebKit das als Seitenfehler, obwohl die App ihn abfaengt (knownFetchNoise); nicht
         // abgefangene Fehler kommen ueber uncaughtWatch trotzdem an. Playwright teilt diese Meldung am ersten ":" ("http:") in name
@@ -191,6 +193,20 @@ async function main() {
         expect(xcLs(dav('Privat/Passwörter.kdbx'), PW)?.includes('Von woanders/'), 'Gruppe fehlt bei KeePassXC');
         expect((await ls(p3)).url === `http://localhost:${port}/remote.php/dav/files/tester-id/Privat/Passw%C3%B6rter.kdbx`, (await ls(p3)).url);
         await p3.context().close();
+    });
+
+    await step('Allererster Besuch: "Lokale Datei" ist vorgewaehlt, der Wechsel zu Nextcloud/WebDAV ist ein Klick und bleibt', async () => {
+        const p = await newPage({ fresh: true });
+        await p.goto(base); await p.locator('#login-form').waitFor();
+        expect(await p.locator('input[name=src][value=file]').isChecked(), 'Lokale Datei nicht vorgewaehlt');
+        expect(await p.locator('#local-file').isVisible() && !(await p.locator('#dav-server').isVisible()), 'Datei-Feld soll sichtbar, Server-Feld versteckt sein');
+        await p.locator('label.seg:has(input[value=dav])').click();
+        expect(await p.locator('#dav-server').isVisible(), 'Nextcloud-Felder fehlen nach dem Wechsel');
+        await p.reload(); await p.locator('#login-form').waitFor();
+        expect(await p.locator('input[name=src][value=file]').isChecked() === false, 'Wahl wurde nicht gemerkt');
+        const q = await newPage({ fresh: true });
+        await q.goto(`${base}/?url=${encodeURIComponent(files + '/x.kdbx')}`); await q.locator('#login-form').waitFor();
+        expect(await q.locator('input[name=src][value=dav]').isChecked(), 'Mit ?url= soll WebDAV vorgewaehlt sein');
     });
 
     await step('Keine JS-Fehler', async () => { expect(errors.length === 0, errors.join(' | ')); });

@@ -23,8 +23,8 @@ export const webkitCspWatch = () => document.addEventListener('securitypolicyvio
 }, true);
 
 // Die Testserver bieten WebDAV unter /dav/ an, nicht unter einer Nextcloud-Adresse: Anmeldung und "Neue Datenbank" der eigenstaendigen
-// Seite auf "Eigene WebDAV-Adresse" stellen (wie fuer jemanden, der das schon so benutzt). Als Init-Skript eines Browser-Kontexts.
-export const plainWebdav = () => { try { if (!localStorage.getItem('kpnc.davmode')) localStorage.setItem('kpnc.davmode', 'url'); } catch {} };
+// Seite auf "Eigene WebDAV-Adresse" stellen (und die Quelle auf WebDAV: ohne Wahl startet sie mit "Lokale Datei") (wie fuer jemanden, der das schon so benutzt). Als Init-Skript eines Browser-Kontexts.
+export const plainWebdav = () => { try { if (!localStorage.getItem('kpnc.davmode')) localStorage.setItem('kpnc.davmode', 'url'); if (!localStorage.getItem('kpnc.mode')) localStorage.setItem('kpnc.mode', 'dav'); } catch {} };
 
 // Letzte Konsolenmeldungen je Seite, fuer waitOpened. Wird beim ersten Aufruf angehaengt; was davor kam, fehlt.
 const consoleTails = new WeakMap();

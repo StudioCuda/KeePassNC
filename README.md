@@ -69,6 +69,7 @@ on purpose: browsers can't talk to the key that way.
 
 Bug reports, odd KDBX files and patches are welcome.
 Building from source, running the tests and the standalone page (without Nextcloud) are described in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+Hosting the standalone page or the generator-only page yourself: [`docs/HOSTING.md`](docs/HOSTING.md).
 
 Not a coder? KeePassNC is free and stays that way. If it saves you some nerves, you're welcome to
 [sponsor the project on GitHub](https://github.com/sponsors/StudioCuda). Totally optional, a bug report helps just as much.

@@ -8,6 +8,11 @@ web/keepassnc-argon2.js
 web/keepassnc-qr.js
 web/keepassnc.css
 web/sw.js
+web-generator/keepassnc-pass.js
+web-generator/keepassnc.css
+web-generator/pass.css
+web-generator/icon.svg
+web-generator/apple-touch-icon.png
 nextcloud-app/keepassnc/js/
 nextcloud-app/keepassnc/css/
 nextcloud-app/keepassnc/COPYING

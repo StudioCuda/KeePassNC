@@ -8,7 +8,7 @@ import { estimateBits, strengthLabel } from '../core/entropy.js';
 import { NEW_DB, newDbIterations } from '../core/kdf-policy.js';
 import { isOutOfMemory } from '../core/util.js';
 import { t, errText } from '../i18n.js';
-import { ctx, pref, setStatus, download, kfFileId } from './ctx.js';
+import { ctx, params, pref, setStatus, download, kfFileId } from './ctx.js';
 import { h, icon, iconBtn, confirmDialog } from './dom.js';
 import { startTimers, ensureOfflineApp, refreshDirtyIndicator } from './session.js';
 import { newPasswordFields, newKeyfileFlow, readFile } from './new-credentials.js';
@@ -29,7 +29,7 @@ const baseName = (p) => p.split('/').pop().replace(/\.kdbx$/i, '');
  */
 export function showCreate() {
     const NC = ctx.NC;
-    const mode = pref('mode');
+    const mode = pref('mode') || (NC || params.get('url') ? 'dav' : 'file'); // wie in der Anmeldung
     const defName = t('new.file.default');
     const defBase = baseName(defName);
     let folder = '/', startName = defBase, touched = false;

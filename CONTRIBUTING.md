@@ -58,5 +58,12 @@ send `Access-Control-Allow-Origin: <the page's origin>` (also on the other respo
 DELETE, PROPFIND, MKCOL`, `Access-Control-Allow-Headers: Authorization, Content-Type, Depth, If-Match, If-None-Match` and
 `Access-Control-Expose-Headers: ETag`. Allow only the origin you actually use, never `*`.
 
+The page starts with "Local file" until you pick something else, so it works as a demo without any server.
+
 `?autolock=SECONDS` overrides the auto-lock (default 300). If you host it yourself, also read the CSP note in
 [`SECURITY.md`](SECURITY.md).
+
+## Generator page
+
+`web-generator/` is the password generator on its own (`src/pass-main.js`, `src/pass.css`, built by `tools/build-pass.mjs`, tested by `npm run test:pass`). It shares
+`src/ui/generator-panel.js` with the app's generator dialog and has no network access of its own. Hosting both pages: [`docs/HOSTING.md`](docs/HOSTING.md).
