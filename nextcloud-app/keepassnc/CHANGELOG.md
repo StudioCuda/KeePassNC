@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Changed
+- The dice icon (password generator) has fuller pips, so they no longer look so thin next to the other toolbar icons.
 
 ## [0.15.0] - 2026-10-20
 ### Added
