@@ -49,7 +49,7 @@ export function openReports(initialTab = 'health') {
                 i.memoryMiB !== null ? row(t('info.memory'), i.memoryMiB + ' MiB') : null, row(t('info.iterations'), i.iterations), i.parallelism !== null ? row(t('info.parallelism'), i.parallelism) : null,
                 row(t('info.modified'), fmtDate(state.vault.db.meta.settingsChanged || state.vault.db.meta.dbNameChanged, true)),
                 state.vault.db.meta.keyChanged ? row(t('info.keychanged'), fmtDate(state.vault.db.meta.keyChanged, true)) : null),
-                h('div', { class: 'row-gap' },
+                h('div', { class: 'db-actions' },
                     h('button', { type: 'button', class: 'small', id: 'db-settings-btn', text: t('dbset.edit'), onclick: () => openDbSettings({ onApplied: render }) }),
                     h('button', { type: 'button', class: 'small', id: 'cred-btn', text: t('cred.edit'), onclick: () => { m.close(); openCredentials(); } }),
                     h('button', { type: 'button', class: 'small', id: 'merge-btn', text: t('merge.title'), onclick: () => { m.close(); openMerge(); } }),

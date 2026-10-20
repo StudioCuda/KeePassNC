@@ -435,6 +435,8 @@ textarea.c-value { min-height: 0; resize: vertical; }
 .chips-inline { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .report-note { display: flex; flex-direction: column; gap: 2px; margin: 20px 0 0; }
 .empty-note { padding: 24px; text-align: center; color: var(--ok); font-weight: 600; }
+/* Aktionen unter den Datenbank-Infos: gleich breite Buttons, die bei wenig Platz in die naechste Zeile rutschen */
+.db-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
 .kv { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; } .kv + .kv { border-top: 1px solid var(--border); }
 .palette-modal { align-self: start; margin-top: 10vh; } .palette-modal .modal-head { display: none; } .palette-modal .modal-body { padding: 10px; }
 .palette input { margin-bottom: 8px; min-height: 46px; font-size: 16px; }
