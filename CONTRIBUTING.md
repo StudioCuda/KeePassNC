@@ -41,7 +41,7 @@ eventually. When a new Nextcloud version joins the CI matrix, raise `max-version
 - `nextcloud-app/keepassnc/` the Nextcloud wrapper
 - `tests/` the safety net
 - `tools/make-showcase.py` (made-up data) and `tools/shots.mjs` make the README screenshots
-- `src/brand.js` is the one drawing of the shield with the keyhole; `tools/brand-geometry.mjs` draws its paths (outer and inner contour with a radius per corner, so tips can be fine outside and softer inside) into `src/brand-paths.js`. `node tools/make-brand.mjs` redraws them and makes the app icon, the favicon and the touch icon from them (`--png` renders the touch icon, needs Chromium); `tests/unit/brand.test.mjs` checks they match
+- `src/brand.js` is the one drawing of the shield with the keyhole. `node tools/make-brand.mjs` makes the app icon, the favicon and the touch icon from it (`--png` renders the touch icon, needs Chromium); `tests/unit/brand.test.mjs` checks they match
 
 ## Standalone page
 
