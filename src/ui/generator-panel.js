@@ -128,7 +128,7 @@ export function createGenerator({ pref, copy, onUse } = {}) {
     const useBtn = h('button', { type: 'button', class: 'primary', id: 'gen-use', onclick: () => onUse?.(current, currentBits), text: t('gen.use') });
     const copyBtn = h('button', { type: 'button', id: 'gen-copy', onclick: () => copy(current, t('f.password')) }, icon('copy'), h('span', { text: t('copy') }));
     const regen = h('button', { type: 'button', id: 'gen-regen', class: 'icon-btn', title: t('gen.regenerate'), 'aria-label': t('gen.regenerate'), onclick: generate }, icon('refresh'));
-    const body = h('div', { class: 'stack gen' }, h('div', { class: 'gen-top' }, preview, regen), meter, tabs, phBox, optsBox);
+    const body = h('div', { class: 'stack gen' }, preview, h('div', { class: 'gen-meter' }, meter, regen), tabs, phBox, optsBox);
     if (!onUse) useBtn.hidden = true;
     const start = () => { renderOpts(); generate(); requestAnimationFrame(fitPasswordPreview); };
     return { body, copyBtn, useBtn, start };

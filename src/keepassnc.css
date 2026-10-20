@@ -413,7 +413,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
 .toast-action { margin-left: auto; border: 0; background: transparent; color: #d9bd7a; font-weight: 700; padding: 2px 6px; }
 
 /* Generator / Berichte / Palette */
-.gen-top { display: flex; gap: 8px; align-items: stretch; }
+.gen-meter { display: flex; gap: 8px; align-items: center; justify-content: space-between; } .gen-meter .strength { margin-top: 0; }
 .gen-preview { flex: 1; min-height: 64px; display: flex; align-items: center; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font: 600 20px/1.35 var(--mono); overflow-wrap: anywhere; word-break: break-all; } .gen-preview.phrase { word-break: normal; }
 /* Feste Hoehen, damit der Dialog beim Schieben und Umschalten nicht springt: Passphrase 5 Zeilen, Simpel 2, Passwort per JS so,
    dass der Dialog so hoch ist wie bei der Passphrase. min-height, damit ungewoehnlich lange Werte trotzdem Platz haben. */
