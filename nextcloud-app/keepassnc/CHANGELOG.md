@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [0.14.1] - 2026-10-20
 ### Changed
 - The password generator sits still now: the preview keeps a fixed height (five lines for passphrases, two for Simple, and for passwords exactly as tall as the passphrase dialog), so dragging a slider or switching tabs no longer makes the window hop. Shorter values sit centred in it.
 - Passphrase options got tidier: the word list moves up next to the separator, and the capitalisation menu becomes a "First letter upper case" checkbox like in Simple. Upper case and one-word-upper are gone; a saved choice of either falls back to lower case.
