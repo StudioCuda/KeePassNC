@@ -210,7 +210,10 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .login-foot { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
 
 /* ---------- Nextcloud-Kopfleiste (ui/ncheader.js) ---------- */
-body.has-nch .login { min-height: calc(100vh - var(--nch-h) - var(--nch-gap)); }
+/* Die Anmeldung ist so hoch wie das Fenster und scrollt nur in der Karte: sonst taucht beim Aufklappen der Optionen die Scrollleiste
+   der Seite auf und Rahmen und Wasserzeichen ruecken um ihre Breite. Die reservierte Rinne haelt auch die Karte selbst still. */
+body.has-nch .login { min-height: 0; height: calc(100vh - var(--nch-h) - var(--nch-gap)); height: calc(100dvh - var(--nch-h) - var(--nch-gap)); }
+body.has-nch .login > .login-card { overflow-y: auto; scrollbar-gutter: stable; }
 body.has-nch .shell { height: calc(100vh - var(--nch-h) - var(--nch-gap)); height: calc(100dvh - var(--nch-h) - var(--nch-gap)); }
 body.has-nch .topbar .brand { display: none; } /* der Name steht schon in der Kopfleiste */
 /* Schrift wie --font-face in Nextcloud, damit Namen im Header und im App-Menue genauso umbrechen */
