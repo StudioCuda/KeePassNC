@@ -20,7 +20,8 @@ export function showLogin(message) {
     state.vault = null; state.selEntry = null; state.editing = null; state.query = '';
     document.body.classList.remove('in-vault');
     const NC = ctx.NC;
-    const mode = pref('mode') || 'dav';
+    // Eigenstaendige Seite: ohne bisherige Wahl (und ohne ?url=) erst einmal eine lokale Datei, dafuer braucht es keinen Server
+    const mode = pref('mode') || (NC || params.get('url') ? 'dav' : 'file');
     // Ohne Nextcloud-App: Nextcloud-Adresse + Pfad (oder ueber den Link die WebDAV-Adresse wie bisher)
     const remote = NC ? null : remoteFields('dav', { urlValue: params.get('url') || pref('url'), urlPlaceholder: 'https://cloud.example.org/remote.php/dav/files/NAME/Passwoerter.kdbx',
         onMode: (m) => { pathBox.hidden = m !== 'nc'; refreshKf(); }, onFound: () => refreshKf() });
@@ -65,7 +66,7 @@ export function showLogin(message) {
         : h('div', { id: 'dav-box', class: 'stack' }, remote.serverBox, remote.urlBox, remote.creds, pathBox, remote.foot);
     pathBox.hidden = !!NC?.file; // aus Dateien geoeffnet: die Datei steht als Karte da, das schreibgeschuetzte Feld bleibt nur fuer die Logik
     const fileBox = h('div', { id: 'file-box', class: 'stack', hidden: true }, h('label', {}, h('span', { text: t('login.file') }), fileInput));
-    const seg = (value, label, ic) => h('label', { class: 'seg' }, h('input', { type: 'radio', name: 'src', value, checked: mode === value, onchange: () => { davBox.hidden = value !== 'dav'; fileBox.hidden = value !== 'file'; } }), h('span', {}, icon(ic), label));
+    const seg = (value, label, ic) => h('label', { class: 'seg' }, h('input', { type: 'radio', name: 'src', value, checked: mode === value, onchange: () => { davBox.hidden = value !== 'dav'; fileBox.hidden = value !== 'file'; pref('mode', value); } }), h('span', {}, icon(ic), label));
     davBox.hidden = mode !== 'dav'; fileBox.hidden = mode !== 'file';
     const offlineBox = h('input', { type: 'checkbox', id: 'offline-opt', checked: ctx.settings.offline });
     const err = h('p', { class: 'error', id: 'login-error', role: 'alert', text: message || '' });

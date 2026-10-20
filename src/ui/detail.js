@@ -5,7 +5,8 @@ import { entryExpiry, daysUntil, domainOf, openableUrl, isSystemField, isPasskey
 import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, copy, download, setStatus, pref } from './ctx.js';
 import { h, icon, iconBtn, modal, toast, confirmDialog, popupMenu } from './dom.js';
-import { avatar, bitsOf, strengthLabel, expiryBadge, resolvedField } from './common.js';
+import { avatar, expiryBadge, resolvedField } from './common.js';
+import { colorizedPassword, strengthBar } from './pwview.js';
 import { changed } from './session.js';
 import { setFilter, groupSelect, selectedGroup } from './groups.js';
 import { startEdit } from './editor.js';
@@ -17,21 +18,7 @@ export function stopDetailTimers() { clearInterval(totpTimer); totpTimer = null;
 const DOTS = '•'.repeat(12);
 export const binData = (bin) => { let d = bin?.value ?? bin; if (d && typeof d.getBinary === 'function') d = d.getBinary(); return d; };
 
-/** Passwort mit farbigen Ziffern/Sonderzeichen (gut lesbar); textContent bleibt der reine Klartext. */
-export function colorizedPassword(pw) {
-    const out = h('span', { class: 'pw-colored' });
-    for (const ch of pw) out.append(h('span', { class: /[0-9]/.test(ch) ? 'c-digit' : /[A-Za-z]/.test(ch) ? '' : /\s/.test(ch) ? '' : 'c-sym', text: ch }));
-    return out;
-}
-
-/** bits: exakter Wert, wenn bekannt (Generator); sonst Schaetzung aus dem Text. */
-export function strengthBar(pw, bits) {
-    if (bits === undefined) bits = pw ? bitsOf(pw) : 0;
-    const label = strengthLabel(bits);
-    const lvl = { bad: 1, poor: 1, weak: 2, good: 3, excellent: 4 }[label] || 0;
-    return h('div', { class: `strength s${lvl}`, 'data-level': label, title: `${Math.round(bits)} bit` },
-        h('span', { class: 'bars' }, h('i'), h('i'), h('i'), h('i')), h('span', { class: 'strength-label', text: pw ? `${t('strength.' + label)} · ${Math.round(bits)} bit` : '' }));
-}
+export { colorizedPassword, strengthBar };
 
 function field(label, valueNode, actions = [], cls = '') {
     return h('div', { class: 'field ' + cls }, h('div', { class: 'flabel', text: label }), h('div', { class: 'fvalue' }, h('div', { class: 'fv-main' }, valueNode), h('div', { class: 'fv-actions' }, ...actions)));
