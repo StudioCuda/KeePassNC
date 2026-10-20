@@ -8,8 +8,6 @@
 .pass-head h1 { font-size: 22px; letter-spacing: -.01em; line-height: 1.2; }
 .pass-lead { font-size: 14px; line-height: 1.6; } .pass-lead > span { display: block; }
 .pass-card { display: flex; flex-direction: column; gap: 16px; padding: 18px; --glow: var(--solo-glow); box-shadow: inset 0 1px 0 var(--solo-edge), 0 1px 2px rgb(0 0 0 / .04), 0 16px 36px -10px color-mix(in srgb, #000 var(--glow), transparent); }
-.pass-actions { display: flex; justify-content: flex-end; }
-.pass-actions button { min-width: 140px; }
 .pass-foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 6px 16px; padding-top: 4px; font-size: 13px; line-height: 1.6; color: var(--muted); }
 .pass-foot a { color: inherit; font-weight: 600; }
 @media (max-width: 520px) { .pass { padding-top: 24px; } .pass-head h1 { font-size: 20px; } }
