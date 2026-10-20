@@ -1,9 +1,6 @@
 /* Generator-Seite (web-generator/): baut auf den Variablen und Bausteinen aus keepassnc.css auf (Generator, Karten, Knoepfe). */
 .login.pass-wrap { display: block; } /* Hintergrund: .login.solo aus keepassnc.css */
-/* Etwas mehr Farbe als in Nextcloud: das Schild kraeftiger, dazu ein Schimmer der Akzentfarbe von unten rechts (sitzt hinter dem Schild) */
-.login.pass-wrap { background:
-    radial-gradient(ellipse 1100px 760px at 88% 104%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%),
-    radial-gradient(ellipse 900px 640px at 50% 38%, color-mix(in srgb, #fff var(--solo-spot), transparent), color-mix(in srgb, #fff calc(var(--solo-spot) * .4), transparent) 50%, transparent); }
+/* Etwas mehr Farbe als in Nextcloud: das Schild kraeftiger */
 .pass-wrap > .login-mark { opacity: calc(var(--solo-mark) * 1.9); }
 .pass { min-height: 100vh; max-width: 560px; margin: 0 auto; padding: 40px 16px 24px; display: flex; flex-direction: column; gap: 20px; }
 .pass-head { display: flex; flex-direction: column; gap: 12px; }

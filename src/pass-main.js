@@ -9,9 +9,9 @@ const REPO = 'https://github.com/StudioCuda/KeePassNC';
 const root = document.getElementById('app');
 
 // Akzent wie eine Nextcloud-Instanz mit eigener Farbe (dieselbe Ableitung wie in der App, ui/ctx.js -> applyTheme): Nextcloud-Blau
-const ACCENT = '#0082c9';
+const ACCENT = ''; // TEST: leer = das eigene Nachtblau (hell) bzw. Gold (dunkel)
 {
-    const { vars, accent } = themeVars(ACCENT);
+    const { vars, accent } = themeVars(ACCENT || null);
     for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v); // CSSOM: faellt nicht unter style-src
     if (accent) document.documentElement.dataset.accent = 'nc';
 }
