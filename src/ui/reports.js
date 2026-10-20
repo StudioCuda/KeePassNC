@@ -33,7 +33,7 @@ export function openReports(initialTab = 'health') {
             const score = stats.health;
             content.replaceChildren(
                 h('div', { class: 'stat-grid' }, stat(t('rep.score'), score + '%', score >= 80 ? 'ok' : score >= 50 ? 'warn' : 'bad'), stat(t('rep.weak.n'), stats.weak, stats.weak ? 'bad' : 'ok'), stat(t('rep.reused.n'), stats.reused, stats.reused ? 'bad' : 'ok'),
-                    stat(t('rep.expired.n'), stats.expired, stats.expired ? 'bad' : 'ok'), stat(t('rep.expiring.n'), stats.expiring, stats.expiring ? 'warn' : 'ok'), stat(t('rep.short.n'), stats.short, stats.short ? 'warn' : 'ok')),
+                    stat(t('rep.expired.n'), stats.expired, stats.expired ? 'bad' : 'ok'), stat(t('rep.expiring.n'), stats.expiring, stats.expiring ? 'warn' : 'ok'), stat(t('rep.short.n'), stats.short, stats.short ? 'warn' : 'ok'), stat(t('rep.old.n'), stats.old, stats.old ? 'warn' : 'ok'), stat(t('rep.ok.n'), stats.ok, 'ok')),
                 items.length ? h('div', { class: 'issue-list' }, ...items.map((it) => h('button', { type: 'button', class: 'issue', 'data-testid': 'issue-row', onclick: () => { m.close(); ctx.ui.selectEntry(it.entry); } },
                     avatar(it.entry), h('span', { class: 'grow' }, h('strong', { text: fieldOf(it.entry, 'Title') || t('entry.untitled') }), h('span', { class: 'muted', text: ' · ' + (it.path || t('group.root')) })), h('span', { class: 'chips-inline' }, ...it.reasons.map(reasonChip))))) : h('p', { class: 'empty-note', text: t('rep.none') }),
                 h('p', { class: 'hint report-note' }, h('span', { text: t('rep.note') }), h('span', { text: t('rep.note.private') })));

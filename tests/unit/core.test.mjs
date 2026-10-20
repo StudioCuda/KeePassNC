@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { parseQuery, matches } from '../../src/core/search.js';
 import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SYLLABLES, SYLLABLE_SHAPES, SIMPLE_DIGITS, SEPARATORS, migratePasswordOptions, SIMPLE_BLOCK_BITS, badJunction, randomInt } from '../../src/core/generator.js';
 import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
-import { auditEntries } from '../../src/core/audit.js';
+import { auditEntries, passwordSince } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
 import { WORDS as WORDS_DE } from '../../src/core/wordlist-de.js';
 import { isOutOfMemory, openableUrl, resolveRefs, resolvePlaceholders, uuidHex, previewKind, previewOf, entryColor } from '../../src/core/util.js';
@@ -191,6 +191,20 @@ test('Bericht: Gesundheit ist ein Durchschnitt pro Eintrag, nicht Treffer minus 
     assert.equal(auditEntries(almost, NOW).stats.health, 99);
     const gone = entry({ Title: 'g', Password: generatePassword().password }, { times: { expires: true, expiryTime: new Date(NOW - 86400000) } });
     assert.equal(auditEntries([gone], NOW).stats.health, 0, 'alles abgelaufen bleibt ehrlich 0 %');
+});
+
+test('Bericht: Passwort-Alter aus der Historie, "Unauffaellig"', () => {
+    const day = 86400000, at = (d) => ({ lastModTime: new Date(NOW - d * day) });
+    const pw = generatePassword().password;
+    const old = entry({ Title: 'old', Password: pw }, { times: at(10) });
+    old.history = [{ fields: new Map([['Password', 'alt']]), times: at(900) }, { fields: new Map([['Password', pw]]), times: at(500) }, { fields: new Map([['Password', pw]]), times: at(30) }];
+    const changed = entry({ Title: 'neu', Password: generatePassword().password }, { times: at(10) });
+    changed.history = [{ fields: new Map([['Password', 'alt']]), times: at(900) }];
+    const plain = entry({ Title: 'ohne', Password: generatePassword().password }, { times: at(400) });
+    const r = auditEntries([old, changed, plain, entry({ Title: 'w', Password: '123456' })], NOW);
+    assert.equal(passwordSince(old).getTime(), NOW - 500 * day, 'aelteste Version am Stueck mit demselben Passwort');
+    assert.equal(r.stats.old, 2); assert.equal(r.stats.ok, 3);
+    assert.equal(r.stats.health, Math.round((300 + r.items[0].score) / 4), 'Alter zaehlt nicht in die Note');
 });
 
 const withUuid = (e, hex) => Object.assign(e, { uuid: { toString: () => Buffer.from(hex, 'hex').toString('base64') } });
