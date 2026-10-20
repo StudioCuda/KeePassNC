@@ -7,8 +7,9 @@ import { nextcloudAuth, davUrlFor, normalizeUserPath, fetchPepper } from '../nex
 import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, params, pref, setStatus, applyTheme, kfStore, kfFileId } from './ctx.js';
 import { KeyfileStoreError, isWeakerThan } from '../keyfile-store.js';
-import { h, icon, iconBtn, toast } from './dom.js';
+import { h, icon, iconBtn, toast, closeAllDialogs } from './dom.js';
 import { stopTimers, startTimers, ensureOfflineApp, syncNow, refreshDirtyIndicator } from './session.js';
+import { stopDetailTimers } from './detail.js';
 import { openSettings } from './settings-dialog.js';
 import { pickFolder, splitPath } from './folder-picker.js';
 import { remoteFields } from './remote.js';
@@ -17,6 +18,9 @@ const { state } = ctx;
 
 export function showLogin(message) {
     stopTimers();
+    // Vor dem Leeren: offene Dialoge (haengen an <body>, nicht an #app) und der TOTP-Takt (haelt das Geheimnis) duerfen das Sperren nicht ueberleben
+    closeAllDialogs();
+    stopDetailTimers();
     state.vault = null; state.selEntry = null; state.editing = null; state.query = '';
     document.body.classList.remove('in-vault');
     const NC = ctx.NC;

@@ -118,6 +118,7 @@ export function toast(message, { kind = 'info', action, timeout = 4500 } = {}) {
 
 // ---------------------------------------------------------------- Dialoge (ersetzen window.confirm/prompt)
 let modalDepth = 0;
+const openModals = new Set(); // close-Funktionen aller offenen Dialoge (fuer closeAllDialogs beim Sperren)
 export function modal({ title, body, actions = [], size = 'md', onClose, labelledBy = true, cls = '' }) {
     const previouslyFocused = document.activeElement;
     const backdrop = h('div', { class: 'backdrop' });
@@ -130,6 +131,7 @@ export function modal({ title, body, actions = [], size = 'md', onClose, labelle
     let done = false;
     function close(result) {
         if (done) return; done = true;
+        openModals.delete(close);
         document.removeEventListener('keydown', onKey, true);
         backdrop.remove();
         previouslyFocused?.focus?.();
@@ -148,8 +150,16 @@ export function modal({ title, body, actions = [], size = 'md', onClose, labelle
     backdrop.addEventListener('mousedown', (e) => { if (e.target === backdrop) close(undefined); });
     document.addEventListener('keydown', onKey, true);
     document.body.append(backdrop);
+    openModals.add(close);
     (dlg.querySelector('[autofocus]') || dlg.querySelector('input, select, textarea, .modal-actions .primary') || closeBtn).focus();
     return { close, el: dlg };
+}
+
+/** Schliesst alle offenen Dialoge und Menues wie "Abbrechen". Dialoge haengen an <body>, nicht an #app: Ohne das blieben sie beim
+ *  Sperren ueber der Anmeldung stehen, samt Klartext (Grosse Ansicht, Verlauf, Generator, Anhang-Vorschau). */
+export function closeAllDialogs() {
+    for (const close of [...openModals].reverse()) close(undefined);
+    closeMenus();
 }
 
 export function confirmDialog({ title, message, confirmLabel, cancelLabel, danger = false }) {

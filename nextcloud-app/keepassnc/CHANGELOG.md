@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Fixed
+- Locking (by hand or after inactivity) now closes every open dialog too. Before, a dialog such as the large password view, an entry's history or an attachment preview stayed on top of the sign-in screen, plaintext included, and the TOTP code kept ticking in the background.
 
 ## [0.15.0] - 2026-10-20
 ### Added
