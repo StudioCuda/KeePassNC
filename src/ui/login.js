@@ -72,8 +72,8 @@ export function showLogin(message) {
     const err = h('p', { class: 'error', id: 'login-error', role: 'alert', text: message || '' });
     const btn = h('button', { type: 'submit', id: 'open-btn', class: 'primary big' }, icon('lock'), h('span', { class: 'label', text: t('login.open') }));
     const showPw = iconBtn('eye', t('show'), () => { const on = masterInput.type === 'password'; masterInput.type = on ? 'text' : 'password'; showPw.setAttribute('aria-pressed', String(on)); showPw.replaceChildren(icon(on ? 'eyeOff' : 'eye')); }, { type: 'button', 'aria-pressed': 'false' });
-    // Schluesseldatei und Offline-Kopie braucht nur, wer sie braucht: eingeklappt, bis eine Datei gewaehlt oder die Offline-Kopie schon an ist
-    const more = h('details', { class: 'login-more', id: 'login-more', open: ctx.settings.offline },
+    // Schluesseldatei und Offline-Kopie braucht nur, wer sie braucht: immer eingeklappt, auch wenn die Offline-Kopie an ist
+    const more = h('details', { class: 'login-more', id: 'login-more' },
         h('summary', { text: t('login.more') }),
         h('div', { class: 'stack' },
             h('label', {}, h('span', { text: t('login.keyfile') }), h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), keyName, keyInput)),
