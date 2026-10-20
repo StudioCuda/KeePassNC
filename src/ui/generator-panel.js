@@ -13,7 +13,7 @@ const PREFS_VERSION = 2;
 
 /** pref(key, value?) liest/schreibt einen Komfortwert, copy(text, label) kopiert. Mit onUse gibt es "Verwenden" (Aufrufer schliesst danach).
  * Liefert body und die beiden Knoepfe; start() erst aufrufen, wenn body im Dokument haengt (die Hoehenmessung braucht das). */
-export function createGenerator({ pref, copy, onUse } = {}) {
+export function createGenerator({ pref, copy, onUse, copyOnClick = false } = {}) {
     let saved;
     try { saved = JSON.parse(pref('gen') || '{}'); } catch { saved = {}; }
     const pwOpts = { ...DEFAULT_PASSWORD_OPTIONS, ...migratePasswordOptions(saved.pw) };
@@ -58,12 +58,16 @@ export function createGenerator({ pref, copy, onUse } = {}) {
         useBtn.disabled = !current; copyBtn.disabled = !current;
         persist();
     }
-    const num = (id, label, min, max, o, key) => {
+    // Erklaerungen (Wortliste, Bits je Block) stehen als Tooltip an der Beschriftung statt als Zeile im Dialog
+    const tip = (node, text) => { node.title = text; node.classList.add('has-tip'); return node; };
+    const num = (id, label, min, max, o, key, hint) => {
         const range = h('input', { type: 'range', min, max, value: o[key], 'aria-label': label });
         const number = h('input', { type: 'number', min, max, value: o[key], id, class: 'num' });
         const set = (v) => { const n = Math.max(min, Math.min(max, parseInt(v, 10) || min)); o[key] = n; range.value = n; number.value = n; generate(); };
         range.addEventListener('input', () => set(range.value)); number.addEventListener('change', () => set(number.value));
-        return h('div', { class: 'slider-row' }, h('span', { class: 'slider-label', text: label }), range, number);
+        const lab = h('span', { class: 'slider-label', text: label });
+        if (hint) tip(lab, hint);
+        return h('div', { class: 'slider-row' }, lab, range, number);
     };
     const sepSelect = (id, o) => h('select', { id, onchange: (e) => { o.separator = e.target.value; generate(); } }, ...SEPARATORS.map((c) => h('option', { value: c, selected: o.separator === c, text: t('gen.sep.' + SEP_KEYS[c]) })));
     const chk = (id, label, o, key) => h('label', { class: 'check' }, h('input', { type: 'checkbox', id, checked: !!o[key], onchange: (e) => { o[key] = e.target.checked; generate(); } }), h('span', { text: label }));
@@ -72,13 +76,14 @@ export function createGenerator({ pref, copy, onUse } = {}) {
 
     function phraseOpts() {
         const sep = sepSelect('gen-sep', phOpts);
-        const hint = h('p', { class: 'hint', text: t('gen.wordlist.' + phOpts.list) });
-        const list = h('select', { id: 'gen-list', onchange: (e) => { phOpts.list = e.target.value; hint.textContent = t('gen.wordlist.' + phOpts.list); generate(); } }, ...['de', 'en'].map((l) => h('option', { value: l, selected: phOpts.list === l, text: t('gen.list.' + l) })));
+        const words = num('gen-words', t('gen.words'), 3, 20, phOpts, 'words', t('gen.wordlist.' + phOpts.list));
+        const listLabel = tip(h('span', { text: t('gen.list') }), t('gen.wordlist.' + phOpts.list));
+        const setHint = () => { for (const el of [words.querySelector('.slider-label'), listLabel]) el.title = t('gen.wordlist.' + phOpts.list); };
+        const list = h('select', { id: 'gen-list', onchange: (e) => { phOpts.list = e.target.value; setHint(); generate(); } }, ...['de', 'en'].map((l) => h('option', { value: l, selected: phOpts.list === l, text: t('gen.list.' + l) })));
         const capital = h('label', { class: 'check' }, h('input', { type: 'checkbox', id: 'gen-ph-capital', checked: phOpts.casing === 'title', onchange: (e) => { phOpts.casing = e.target.checked ? 'title' : 'lower'; generate(); } }), h('span', { text: t('gen.capital') }));
-        return [num('gen-words', t('gen.words'), 3, 20, phOpts, 'words'),
-            h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('label', {}, h('span', { text: t('gen.list') }), list)),
-            h('div', { class: 'grid2' }, h('div', { class: 'gen-side' }, chk('gen-digit', t('gen.digit'), phOpts, 'digit')), h('div', { class: 'gen-side' }, capital)),
-            hint];
+        return [words,
+            h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('label', {}, listLabel, list)),
+            h('div', { class: 'grid2' }, h('div', { class: 'gen-side' }, chk('gen-digit', t('gen.digit'), phOpts, 'digit')), h('div', { class: 'gen-side' }, capital))];
     }
     // Die Passphrasen-Optionen entstehen nur einmal und werden ausgeblendet: so laesst sich die Passwort-Vorschau messen, ohne
     // <select>-Elemente neu zu bauen (WebKit meldet dabei CSP-Verstoesse, siehe tests/browser.mjs).
@@ -118,9 +123,8 @@ export function createGenerator({ pref, copy, onUse } = {}) {
                             h('label', {}, h('span', { text: t('gen.exclude') }), h('input', { id: 'gen-exclude', value: pwOpts.exclude, oninput: (e) => { pwOpts.exclude = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' }))))));
         } else if (mode === 'si') {
             const sep = sepSelect('gen-si-sep', siOpts);
-            optsBox.replaceChildren(num('gen-blocks', t('gen.blocks'), 1, 6, siOpts, 'blocks'),
-                h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('div', { class: 'gen-side' }, chk('gen-capital', t('gen.capital'), siOpts, 'capital'))),
-                h('p', { class: 'hint', text: t('gen.simple.hint') }));
+            optsBox.replaceChildren(num('gen-blocks', t('gen.blocks'), 1, 6, siOpts, 'blocks', t('gen.simple.hint')),
+                h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('div', { class: 'gen-side' }, chk('gen-capital', t('gen.capital'), siOpts, 'capital'))));
         } else {
             optsBox.replaceChildren();
         }
@@ -130,6 +134,15 @@ export function createGenerator({ pref, copy, onUse } = {}) {
     const regen = h('button', { type: 'button', id: 'gen-regen', class: 'icon-btn', title: t('gen.regenerate'), 'aria-label': t('gen.regenerate'), onclick: generate }, icon('refresh'));
     const body = h('div', { class: 'stack gen' }, preview, h('div', { class: 'gen-meter' }, meter, regen), tabs, phBox, optsBox);
     if (!onUse) useBtn.hidden = true;
+    if (copyOnClick) {
+        // Ein Klick auf die Vorschau kopiert (nicht, wenn gerade Text markiert wurde); der Knopf bleibt der Weg fuer die Tastatur
+        preview.classList.add('click-copy'); preview.title = t('gen.click.copy');
+        preview.addEventListener('click', () => {
+            if (!current || String(getSelection()).length) return;
+            copy(current, t('f.password'));
+            preview.classList.add('copied'); clearTimeout(preview.copiedTimer); preview.copiedTimer = setTimeout(() => preview.classList.remove('copied'), 900);
+        });
+    }
     const start = () => { renderOpts(); generate(); requestAnimationFrame(fitPasswordPreview); };
     return { body, copyBtn, useBtn, start };
 }

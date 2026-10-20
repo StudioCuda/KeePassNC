@@ -7,6 +7,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A page for the password generator alone (`web-generator/`), for hosting it on its own, e.g. as pass.example.org: passphrases, passwords and Simple, no sign-in, and a CSP that allows no network connections at all. It speaks German or English by browser language, with a small switch at the bottom. See `docs/HOSTING.md`.
 ### Changed
 - The generator's "Regenerate" button moved down next to the strength bars, so the preview gets the full width.
+- The generator's small hint lines (word list source, bits per block) became tooltips on "Words", "Word list" and "Blocks"; the dotted underline shows where. The word list credits are in the README.
 - The standalone page opens a local file by default, so you can try it without a server; the switch to Nextcloud/WebDAV is the same one as before and is remembered. Inside Nextcloud nothing changes.
 - The password generator sits still now: the preview keeps a fixed height (five lines for passphrases, two for Simple, and for passwords exactly as tall as the passphrase dialog), so dragging a slider or switching tabs no longer makes the window hop. Shorter values sit centred in it.
 - Passphrase options got tidier: the word list moves up next to the separator, and the capitalisation menu becomes a "First letter upper case" checkbox like in Simple. Upper case and one-word-upper are gone; a saved choice of either falls back to lower case.

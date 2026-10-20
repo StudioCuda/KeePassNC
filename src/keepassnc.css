@@ -423,6 +423,8 @@ textarea.c-value { min-height: 0; resize: vertical; }
 .check-grid > .wide { grid-column: 1 / -1; } .gen-chars { font: 500 13px var(--mono); color: var(--muted); }
 .gen-cls { grid-template-columns: repeat(3, 1fr); } @media (max-width: 520px) { .gen-cls { grid-template-columns: 1fr 1fr; } }
 .gen-side { align-self: end; display: flex; align-items: center; min-height: 40px; }
+.has-tip { cursor: help; text-decoration: underline dotted var(--border-strong); text-underline-offset: 4px; }
+.gen-preview.click-copy { cursor: copy; transition: border-color .15s, box-shadow .15s; } .gen-preview.click-copy:hover { border-color: var(--accent); } .gen-preview.copied { border-color: var(--ok); box-shadow: 0 0 0 3px var(--ok-soft); }
 .gen-more > summary { cursor: pointer; width: fit-content; color: var(--muted); font-size: 13px; font-weight: 600; }
 .gen-more[open] > summary { margin-bottom: 12px; }
 .large-type { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; padding: 8px 0; }

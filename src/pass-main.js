@@ -24,18 +24,18 @@ function render() {
     const lang = detectLang(pref('lang'), '', navigator.language);
     setLang(lang);
     document.title = `${t('pass.title')} · KeePassNC`;
-    const g = createGenerator({ pref, copy });
+    const g = createGenerator({ pref, copy, copyOnClick: true });
     const other = lang === 'de' ? 'en' : 'de';
-    const [before, after] = t('pass.powered').split('{app}');
     const switchLang = h('button', { type: 'button', class: 'link', id: 'pass-lang', lang: other, text: t('pass.lang.other'), onclick: () => { pref('lang', other); render(); } });
     // Gleicher Hintergrund wie die Anmeldung in Nextcloud (.login.solo in keepassnc.css): Licht, feines Korn, grosse Marke
     root.replaceChildren(h('div', { class: 'login solo pass-wrap' }, h('div', { class: 'login-mark', 'aria-hidden': 'true' }, icon('shield-fine')), h('main', { class: 'pass' },
         h('header', { class: 'pass-head' },
-            h('span', { class: 'brand-mark small', 'aria-hidden': 'true' }, icon('shield')),
-            h('div', {}, h('h1', { text: t('pass.title') }), h('p', { class: 'muted', text: t('pass.lead') }))),
+            h('div', { class: 'pass-title' }, h('span', { class: 'brand-mark small', 'aria-hidden': 'true' }, icon('shield')), h('h1', { text: t('pass.title') })),
+            // Jeder Satz in eine eigene Zeile
+            h('p', { class: 'muted pass-lead' }, ...t('pass.lead').split(/(?<=\.) /).map((x) => h('span', { text: x })))),
         h('section', { class: 'card pass-card' }, g.body, h('div', { class: 'pass-actions' }, g.copyBtn)),
         h('footer', { class: 'pass-foot' },
-            h('p', {}, before, h('a', { href: REPO, rel: 'noopener', text: 'KeePassNC' }), after),
+            h('p', {}, t('pass.powered').split('{app}')[0], h('a', { href: REPO, rel: 'noopener', text: 'KeePassNC' }), h('br'), t('pass.tagline')),
             switchLang))));
     g.start();
 }

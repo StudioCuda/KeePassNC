@@ -81,5 +81,6 @@ runs through tests against KeePassXC, three browsers and real Nextcloud installs
 ## License and credits
 
 AGPL-3.0-or-later. [kdbxweb](https://github.com/keeweb/kdbxweb) (MIT) does the KDBX heavy lifting, [jsQR](https://github.com/cozmo/jsQR)
-(Apache-2.0) reads QR codes.
+(Apache-2.0) reads QR codes. The passphrase word lists are the [EFF Large Wordlist](https://www.eff.org/deeplinks/2016/07/new-wordlists-random-passphrases)
+(© Electronic Frontier Foundation, CC BY 3.0 US) and [de-7776](https://github.com/dys2p/wordlists-de) by dys2p (CC0).
 Behaviour is inspired by KeePassXC (GPL), but no KeePassXC code was copied. The Nextcloud side owes a nod to jhass/nextcloud-keeweb.

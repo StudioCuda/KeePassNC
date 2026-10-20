@@ -46,7 +46,7 @@ await step('English browser: English page, a passphrase appears', async () => {
     expect(await page.locator('html').getAttribute('lang') === 'en', 'lang nicht en');
     const words = (await preview(page)).trim().split(/\s+/);
     expect(words.length === 6, `6 Woerter erwartet: ${words}`);
-    expect(await page.locator('.pass-foot').innerText().then((x) => /powered by KeePassNC – the easygoing KDBX password manager for Nextcloud and Web\./.test(x)), 'Fusszeile fehlt');
+    expect(await page.locator('.pass-foot').innerText().then((x) => /powered by KeePassNC\s+The easygoing KDBX password manager for Nextcloud and Web\./.test(x)), 'Fusszeile fehlt');
     expect(await page.locator('.pass-foot a').getAttribute('href') === 'https://github.com/StudioCuda/KeePassNC', 'Link falsch');
     await ctx.close();
 });
@@ -79,13 +79,18 @@ await step('Password tab: length, groups, regenerate', async () => {
     expect(/^[a-z]+$/i.test(await page.locator('.strength-label').innerText().then((x) => x.split(' ')[0])), 'Staerke fehlt');
     await ctx.close();
 });
-await step('Copy puts the shown password on the clipboard', async () => {
+await step('Copy button and a click on the preview put the shown password on the clipboard', async () => {
     if (browser.browserType().name() !== 'chromium') return 'nur Chromium (Zwischenablage-Rechte)';
     const { ctx, page } = await open('en-GB');
     const shown = (await preview(page)).trim();
     await page.locator('#gen-copy').click();
     await page.locator('.toast').waitFor();
     expect(await page.evaluate(() => navigator.clipboard.readText()) === shown, 'Zwischenablage != Anzeige');
+    await page.locator('#gen-regen').click();
+    const next = (await preview(page)).trim();
+    await page.locator('#gen-preview').click();
+    await page.locator('#gen-preview.copied').waitFor();
+    expect(await page.evaluate(() => navigator.clipboard.readText()) === next, 'Klick auf die Vorschau kopiert nicht');
     await ctx.close();
 });
 await step('Options are remembered in this browser', async () => {
