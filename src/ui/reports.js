@@ -33,7 +33,7 @@ export function openReports(initialTab = 'health') {
             const score = stats.health;
             content.replaceChildren(
                 h('div', { class: 'stat-grid' }, stat(t('rep.score'), score + '%', score >= 80 ? 'ok' : score >= 50 ? 'warn' : 'bad'), stat(t('rep.weak.n'), stats.weak, stats.weak ? 'bad' : 'ok'), stat(t('rep.reused.n'), stats.reused, stats.reused ? 'bad' : 'ok'),
-                    stat(t('rep.expired.n'), stats.expired, stats.expired ? 'bad' : 'ok'), stat(t('rep.expiring.n'), stats.expiring, stats.expiring ? 'warn' : 'ok'), stat(t('rep.short.n'), stats.short, stats.short ? 'warn' : 'ok')),
+                    stat(t('rep.expired.n'), stats.expired, stats.expired ? 'bad' : 'ok'), stat(t('rep.expiring.n'), stats.expiring, stats.expiring ? 'warn' : 'ok'), stat(t('rep.short.n'), stats.short, stats.short ? 'warn' : 'ok'), stat(t('rep.old.n'), stats.old, stats.old ? 'warn' : 'ok'), stat(t('rep.ok.n'), stats.ok, 'ok')),
                 items.length ? h('div', { class: 'issue-list' }, ...items.map((it) => h('button', { type: 'button', class: 'issue', 'data-testid': 'issue-row', onclick: () => { m.close(); ctx.ui.selectEntry(it.entry); } },
                     avatar(it.entry), h('span', { class: 'grow' }, h('strong', { text: fieldOf(it.entry, 'Title') || t('entry.untitled') }), h('span', { class: 'muted', text: ' · ' + (it.path || t('group.root')) })), h('span', { class: 'chips-inline' }, ...it.reasons.map(reasonChip))))) : h('p', { class: 'empty-note', text: t('rep.none') }),
                 h('p', { class: 'hint report-note' }, h('span', { text: t('rep.note') }), h('span', { text: t('rep.note.private') })));
@@ -49,7 +49,7 @@ export function openReports(initialTab = 'health') {
                 i.memoryMiB !== null ? row(t('info.memory'), i.memoryMiB + ' MiB') : null, row(t('info.iterations'), i.iterations), i.parallelism !== null ? row(t('info.parallelism'), i.parallelism) : null,
                 row(t('info.modified'), fmtDate(state.vault.db.meta.settingsChanged || state.vault.db.meta.dbNameChanged, true)),
                 state.vault.db.meta.keyChanged ? row(t('info.keychanged'), fmtDate(state.vault.db.meta.keyChanged, true)) : null),
-                h('div', { class: 'row-gap' },
+                h('div', { class: 'db-actions' },
                     h('button', { type: 'button', class: 'small', id: 'db-settings-btn', text: t('dbset.edit'), onclick: () => openDbSettings({ onApplied: render }) }),
                     h('button', { type: 'button', class: 'small', id: 'cred-btn', text: t('cred.edit'), onclick: () => { m.close(); openCredentials(); } }),
                     h('button', { type: 'button', class: 'small', id: 'merge-btn', text: t('merge.title'), onclick: () => { m.close(); openMerge(); } }),

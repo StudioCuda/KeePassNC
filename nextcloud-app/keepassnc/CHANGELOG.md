@@ -6,6 +6,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - The password generator sits still now: the preview keeps a fixed height (five lines for passphrases, two for Simple, and for passwords exactly as tall as the passphrase dialog), so dragging a slider or switching tabs no longer makes the window hop. Shorter values sit centred in it.
 - Passphrase options got tidier: the word list moves up next to the separator, and the capitalisation menu becomes a "First letter upper case" checkbox like in Simple. Upper case and one-word-upper are gone; a saved choice of either falls back to lower case.
+- Password health fills its second row: "No issues" counts the entries that are fine, "Older than a year" the passwords that haven't changed in over a year (going by the entry history). Age is just a nudge and doesn't lower the score.
+### Fixed
+- The buttons under Database → Settings wrap into a tidy grid instead of running off the edge with a scrollbar.
 
 ## [0.14.0] - 2026-10-19
 ### Added
