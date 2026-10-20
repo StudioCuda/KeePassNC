@@ -1,11 +1,20 @@
 // Generator-Seite (web-generator/): nur der Passwort-Generator aus KeePassNC, ohne Anmeldung, ohne Netz. Sprache: Browser (de oder en),
 // unten umschaltbar. Baut ausschliesslich mit DOM-Methoden; die CSP der Seite verbietet jede Verbindung (connect-src 'none').
 import { setLang, detectLang, t } from './i18n.js';
+import { themeVars } from './theme.js';
 import { h, icon, toast } from './ui/dom.js';
 import { createGenerator } from './ui/generator-panel.js';
 
 const REPO = 'https://github.com/StudioCuda/KeePassNC';
 const root = document.getElementById('app');
+
+// Akzent wie eine Nextcloud-Instanz mit eigener Farbe (dieselbe Ableitung wie in der App, ui/ctx.js -> applyTheme): Nextcloud-Blau
+const ACCENT = '#0082c9';
+{
+    const { vars, accent } = themeVars(ACCENT);
+    for (const [k, v] of Object.entries(vars)) document.documentElement.style.setProperty(k, v); // CSSOM: faellt nicht unter style-src
+    if (accent) document.documentElement.dataset.accent = 'nc';
+}
 
 // Komfortwerte (Sprache, Generator-Optionen) bleiben in diesem Browser; ohne Speicher geht alles trotzdem
 function pref(key, value) {
