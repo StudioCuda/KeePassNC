@@ -1,10 +1,10 @@
 // Hauptansicht: Kopfzeile, drei Spalten (Seitenleiste | Liste | Details), Mobil-Navigation, Tastenkuerzel, Befehlspalette.
 import { t } from '../i18n.js';
-import { fieldOf, domainOf, openableUrl, hasTotp, isPasskey, entryColor } from '../core/util.js';
+import { fieldOf, domainOf, hasTotp, isPasskey, entryColor } from '../core/util.js';
 import { SORTS } from './common.js';
 import { ctx, copy, setStatus, applyTheme } from './ctx.js';
 import { $, h, icon, iconBtn, modal, popupMenu, toast } from './dom.js';
-import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolvedUrl } from './common.js';
+import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl } from './common.js';
 import { renderSidebar, newGroup, setFilter, startEntryDrag, emptyBin } from './groups.js';
 import { renderDetail, deleteEntry, stopDetailTimers } from './detail.js';
 import { renderEditor, startEdit, cancelEdit } from './editor.js';
@@ -180,7 +180,7 @@ export function installShortcuts() {
         else if (mod && key === 's') { e.preventDefault(); doSave(); }
         else if (mod && key === 'l') { e.preventDefault(); lock(t('locked')); }
         else if (mod && key === 'b' && state.selEntry && !typing) { e.preventDefault(); copy(resolvedField(state.selEntry, 'UserName'), t('f.user')); }
-        else if (mod && e.shiftKey && key === 'u' && state.selEntry) { e.preventDefault(); const u = openableUrl(resolvedUrl(state.selEntry)); if (u) window.open(u, '_blank', 'noopener,noreferrer'); }
+        else if (mod && e.shiftKey && key === 'u' && state.selEntry) { e.preventDefault(); openEntryUrl(state.selEntry); }
         else if (mod && key === 'c' && state.selEntry && !typing && !getSelection().toString()) { e.preventDefault(); copy(resolvedField(state.selEntry, 'Password'), t('f.password')); }
         else if (e.key === 'Delete' && state.selEntry && !typing && !state.editing) { e.preventDefault(); deleteEntry(state.selEntry); }
         else if (e.key === 'Escape' && state.editing && !typing) cancelEdit();

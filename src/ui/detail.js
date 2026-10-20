@@ -5,7 +5,7 @@ import { entryExpiry, daysUntil, domainOf, openableUrl, isSystemField, isPasskey
 import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, copy, download, setStatus, pref } from './ctx.js';
 import { h, icon, iconBtn, modal, toast, confirmDialog, popupMenu } from './dom.js';
-import { avatar, expiryBadge, resolvedField, resolvedUrl } from './common.js';
+import { avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl } from './common.js';
 import { colorizedPassword, strengthBar } from './pwview.js';
 import { changed } from './session.js';
 import { setFilter, groupSelect, selectedGroup } from './groups.js';
@@ -69,7 +69,11 @@ export function renderDetail(host) {
         iconBtn('search', t('pw.large'), () => largeType(pwText, title), { 'data-testid': 'pw-large' }), copyBtn(pwText, t('f.password'), { 'data-testid': 'pw-copy' })], 'pw'));
 
     if (url) {
-        main.push(field(t('f.url'), linkOrText(url, openableUrl(url), { 'data-testid': 'f-url' }), [copyBtn(url, t('f.url'))]));
+        // Link und Anzeige behalten {PASSWORD} & Co.; erst Klick und Kopieren setzen die eigenen Geheimnisse ein
+        const own = () => resolvedUrl(e, { own: true }), secret = own() !== url;
+        const openOwn = (ev) => { if (ev.button > 1) return; ev.preventDefault(); openEntryUrl(e); };
+        main.push(field(t('f.url'), linkOrText(url, openableUrl(url), { 'data-testid': 'f-url', onclick: secret ? openOwn : null, onauxclick: secret ? openOwn : null }),
+            [copyBtn(own, t('f.url'), { 'data-testid': 'url-copy' })]));
     }
 
     // TOTP
@@ -236,7 +240,7 @@ function entryMenu(anchor, e) {
         { label: t('duplicate'), icon: 'duplicate', onclick: () => (v.isInRecycleBin(e) ? duplicate(e) : duplicateDialog(e)) },
         { label: t('move'), icon: 'moveTo', onclick: () => moveEntryDialog(e) },
         { label: t('entry.copy.user'), icon: 'user', hint: 'Ctrl+B', onclick: () => copy(resolvedField(e, 'UserName'), t('f.user')) },
-        { label: t('entry.copy.url'), icon: 'link', onclick: () => copy(resolvedUrl(e), t('f.url')) }
+        { label: t('entry.copy.url'), icon: 'link', onclick: () => copy(resolvedUrl(e, { own: true }), t('f.url')) }
     ], { align: 'end' });
 }
 function duplicate(e, linked = false) {

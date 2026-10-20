@@ -1,7 +1,7 @@
 // Gemeinsame Hilfen der Oberflaeche: Avatare, Filter/Sortierung der Eintragsliste, Staerke-Cache.
 import { estimateBits, strengthLabel } from '../core/entropy.js';
 import { parseQuery, matches } from '../core/search.js';
-import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolvePlaceholders } from '../core/util.js';
+import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolvePlaceholders, openableUrl } from '../core/util.js';
 import { excluded } from '../core/audit.js';
 import { t } from '../i18n.js';
 import { ctx } from './ctx.js';
@@ -19,8 +19,13 @@ export function bitsOf(pw) {
  * Kopieren und Bewertung brauchen; nicht aufloesbare bleiben stehen. Der Editor arbeitet weiter mit dem Rohwert, damit sie erhalten bleiben.
  */
 export const resolvedField = (e, name) => { const v = fieldOf(e, name); return v.includes('{') ? resolvePlaceholders(v, e, allRealEntries()) : v; };
-/** URL fuer Anzeige, Link, Oeffnen und Kopieren: Platzhalter fuer Passwoerter und geschuetzte Felder bleiben stehen (siehe resolvePlaceholders). */
-export const resolvedUrl = (e) => { const v = fieldOf(e, 'URL'); return v.includes('{') ? resolvePlaceholders(v, e, allRealEntries(), { secrets: false }) : v; };
+/**
+ * URL zum Anzeigen: Platzhalter fuer Passwoerter und geschuetzte Felder bleiben stehen (siehe resolvePlaceholders).
+ * own: true (Oeffnen, Kopieren) setzt die eigenen Geheimnisse des Eintrags ein, die anderer Eintraege nicht.
+ */
+export const resolvedUrl = (e, { own = false } = {}) => { const v = fieldOf(e, 'URL'); return v.includes('{') ? resolvePlaceholders(v, e, allRealEntries(), { secrets: own ? 'own' : false }) : v; };
+/** Oeffnet die URL eines Eintrags in einem neuen Tab, mit den eigenen Geheimnissen (Link-Klick, Ctrl+Shift+U). */
+export const openEntryUrl = (e) => { const u = openableUrl(resolvedUrl(e, { own: true })); if (u) window.open(u, '_blank', 'noopener,noreferrer'); };
 export const isWeak = (e) => { const pw = resolvedField(e, 'Password'); return !!pw && !pw.includes('{REF:') && !excluded(e) && bitsOf(pw) < 75; };
 export { strengthLabel };
 

