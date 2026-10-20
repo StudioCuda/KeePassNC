@@ -4,6 +4,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- "Key file & offline options" on the open-vault screen now always starts folded, even with the offline copy switched on. One click away, a lot less card.
+
 ## [0.15.0] - 2026-10-20
 ### Added
 - A page for the password generator alone (`web-generator/`), for hosting it on its own, e.g. as pass.example.org: passphrases, passwords and Simple, no sign-in, and a CSP that allows no network connections at all. It speaks German or English by browser language, with a small switch at the bottom. See `docs/HOSTING.md`.
