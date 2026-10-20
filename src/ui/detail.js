@@ -66,7 +66,7 @@ export function renderDetail(host) {
         toggle.replaceChildren(icon(shown ? 'eyeOff' : 'eye')); toggle.title = toggle.ariaLabel = shown ? t('hide') : t('show');
     }, { 'data-testid': 'pw-toggle' });
     main.push(field(t('f.password'), h('div', {}, pwSpan, pwText && !pwText.includes('{REF:') ? strengthBar(pwText) : null), [toggle,
-        iconBtn('search', t('pw.large'), () => largeType(pwText, title)), copyBtn(pwText, t('f.password'), { 'data-testid': 'pw-copy' })], 'pw'));
+        iconBtn('search', t('pw.large'), () => largeType(pwText, title), { 'data-testid': 'pw-large' }), copyBtn(pwText, t('f.password'), { 'data-testid': 'pw-copy' })], 'pw'));
 
     if (url) {
         main.push(field(t('f.url'), linkOrText(url, openableUrl(url), { 'data-testid': 'f-url' }), [copyBtn(url, t('f.url'))]));
