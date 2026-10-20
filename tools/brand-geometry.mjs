@@ -83,7 +83,7 @@ function contour(prims, radii) {
 /** Befehlslisten als kurzer Pfadtext: relative Befehle, h/v fuer Waagerechte und Senkrechte, kein Befehlsbuchstabe doppelt, keine ueberfluessigen Trenner.
  *  Gerechnet wird in ganzen Hundertsteln auf dem gerundeten Punkt, so summiert sich kein Rundungsfehler auf. */
 function serialize(lists, prec = 2) {
-    const k = 10 ** prec, R = (v) => Math.round(v * k);
+    const k = 10 ** prec, rnd = (v) => Math.round(v * k);
     let out = '', lastCmd = '', lastNum = '', cx = 0, cy = 0, sx = 0, sy = 0;
     const num = (i) => { // ganze Hundertstel -> kuerzeste Schreibweise
         let s = String(Math.abs(i) / k).replace(/^0\./, '.'); if (i < 0) s = '-' + s;
@@ -94,18 +94,18 @@ function serialize(lists, prec = 2) {
     const cmd = (c) => { if (c !== lastCmd) { out += c; lastCmd = c; lastNum = ''; } };
     for (const list of lists) for (const c of list) {
         const [name, ...v] = c;
-        if (name === 'M') { cmd('M'); cx = sx = R(v[0]); cy = sy = R(v[1]); num(cx); num(cy); lastCmd = 'M'; }
+        if (name === 'M') { cmd('M'); cx = sx = rnd(v[0]); cy = sy = rnd(v[1]); num(cx); num(cy); lastCmd = 'M'; }
         else if (name === 'Z') { out += 'z'; lastCmd = 'z'; lastNum = ''; cx = sx; cy = sy; }
         else if (name === 'L') {
-            const x = R(v[0]), y = R(v[1]), dx = x - cx, dy = y - cy;
+            const x = rnd(v[0]), y = rnd(v[1]), dx = x - cx, dy = y - cy;
             if (!dx && !dy) continue;
             if (!dx) { cmd('v'); num(dy); } else if (!dy) { cmd('h'); num(dx); } else { cmd('l'); num(dx); num(dy); }
             cx = x; cy = y;
         } else if (name === 'A') {
-            const x = R(v[5]), y = R(v[6]);
-            cmd('a'); num(R(v[0])); num(R(v[1])); raw(v[2]); raw(v[3]); raw(v[4]); num(x - cx); num(y - cy); cx = x; cy = y;
+            const x = rnd(v[5]), y = rnd(v[6]);
+            cmd('a'); num(rnd(v[0])); num(rnd(v[1])); raw(v[2]); raw(v[3]); raw(v[4]); num(x - cx); num(y - cy); cx = x; cy = y;
         } else {
-            const p = [R(v[0]), R(v[1]), R(v[2]), R(v[3]), R(v[4]), R(v[5])];
+            const p = [rnd(v[0]), rnd(v[1]), rnd(v[2]), rnd(v[3]), rnd(v[4]), rnd(v[5])];
             cmd('c'); for (let i = 0; i < 6; i += 2) { num(p[i] - cx); num(p[i + 1] - cy); } cx = p[4]; cy = p[5];
         }
     }
@@ -119,6 +119,8 @@ const keyLine = () => {
     const cy = 11.607 - Math.sqrt(2.4 ** 2 - 1.15 ** 2), a0 = Math.atan2(11.607 - cy, -1.15), a1 = Math.atan2(11.607 - cy, 1.15) + 2 * Math.PI;
     return [A([12, cy], 2.4, a0, a1), L([13.15, 11.607], [13.15, 14.85]), C([[13.15, 14.85], [13.15, 15.58], [12.622, 16.14], [12, 16.497]]), C([[12, 16.497], [11.378, 16.14], [10.85, 15.58], [10.85, 14.85]]), L([10.85, 14.85], [10.85, 11.607])];
 };
+// Der Eckenradius der Marke: Scheitel und Spitze des Schilds, Schluesselhals und Schluesselspitze, innen wie aussen. Nur die Innenspitze im Schluesselloch ist feiner.
+const R = 0.6, R_KEY_INNER = 0.12;
 // Eckenfolge: Schild [Schulter rechts, glatt, Spitze, glatt, Schulter links, Scheitel]; Schluessel [Hals rechts, glatt, Spitze, glatt, Hals links]
 const shieldCorners = (shoulder, tip) => [shoulder, null, tip, null, shoulder, tip];
 const keyCorners = (neck, tip) => [neck, null, tip, null, neck];
@@ -127,11 +129,11 @@ const keyCorners = (neck, tip) => [neck, null, tip, null, neck];
 export function mark({ w, filledKey }) {
     const d = w / 2, S = shieldLine(), K = keyLine();
     const parts = [
-        contour(S.map((s) => offset(s, d)), shieldCorners(1 + d, 0.6)), // aussen: Schultern wie ein Radius-1-Bogen in der Mittellinie, Spitzen fein
-        contour(S.map((s) => offset(s, -d)), shieldCorners(0.6, 0.6)) // innen: durchgehend 0,6
+        contour(S.map((s) => offset(s, d)), shieldCorners(1 + d, R)), // aussen: Schultern wie ein Radius-1-Bogen in der Mittellinie, Spitzen fein
+        contour(S.map((s) => offset(s, -d)), shieldCorners(R, R)) // innen: durchgehend R
     ];
-    if (filledKey) parts.push(contour(K, keyCorners(0.6, 0.6))); // gefuellt: ueberall 0,6
-    else parts.push(contour(K.map((s) => offset(s, d)), keyCorners(0.6, 0.6)), contour(K.map((s) => offset(s, -d)), keyCorners(0.6, 0.12)));
+    if (filledKey) parts.push(contour(K, keyCorners(R, R))); // gefuellt: ueberall R
+    else parts.push(contour(K.map((s) => offset(s, d)), keyCorners(R, R)), contour(K.map((s) => offset(s, -d)), keyCorners(R, R_KEY_INNER)));
     return serialize(parts);
 }
 
