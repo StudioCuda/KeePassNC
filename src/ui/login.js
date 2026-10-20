@@ -274,13 +274,13 @@ export function loginShell(card) {
     const row = h('div', { class: 'row-gap' });
     title.replaceWith(row);
     row.append(h('div', { class: 'login-seal', 'aria-hidden': 'true' }, icon('shield')), title);
-    return h('div', { class: 'login solo' }, h('div', { class: 'login-mark', 'aria-hidden': 'true' }, icon('shield')), card);
+    return h('div', { class: 'login solo' }, h('div', { class: 'login-mark', 'aria-hidden': 'true' }, icon('shield-fine')), card);
 }
 
 /** Linke Haelfte der Anmeldung (auch beim Anlegen einer neuen Datenbank). */
 export function loginHero() {
     return h('aside', { class: 'login-hero' },
-        h('div', { class: 'login-mark', 'aria-hidden': 'true' }, icon('shield')),
+        h('div', { class: 'login-mark', 'aria-hidden': 'true' }, icon('shield-fine')),
         h('div', { class: 'brand-mark' }, icon('shield')),
         h('h1', { text: 'KeePassNC' }),
         h('p', { class: 'tagline', text: t('login.tagline') }),
