@@ -9,6 +9,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Password health fills its second row: "No issues" counts the entries that are fine, "Older than a year" the passwords that haven't changed in over a year (going by the entry history). Age is just a nudge and doesn't lower the score.
 ### Fixed
 - The buttons under Database → Settings wrap into a tidy grid instead of running off the edge with a scrollbar.
+- The big shield on the sign-in page is sharp where it should be: the tip of the keyhole (and of the shield itself) was rounded off by the line ends, now it's a proper point that echoes the shield.
 
 ## [0.14.0] - 2026-10-19
 ### Added
