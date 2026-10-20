@@ -7,9 +7,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The password generator sits still now: the preview keeps a fixed height (five lines for passphrases, two for Simple, and for passwords exactly as tall as the passphrase dialog), so dragging a slider or switching tabs no longer makes the window hop. Shorter values sit centred in it.
 - Passphrase options got tidier: the word list moves up next to the separator, and the capitalisation menu becomes a "First letter upper case" checkbox like in Simple. Upper case and one-word-upper are gone; a saved choice of either falls back to lower case.
 - Password health fills its second row: "No issues" counts the entries that are fine, "Older than a year" the passwords that haven't changed in over a year (going by the entry history). Age is just a nudge and doesn't lower the score.
+- The mark is a bit more careful with its corners: tip and top of the shield, the tip of the keyhole and the neck where circle meets shaft all have a small, even rounding instead of being either razor sharp or blobby, and the keyhole's point now echoes the point of the shield. The same drawing everywhere, from the big watermark on the sign-in page to the favicon and the app icon.
 ### Fixed
 - The buttons under Database → Settings wrap into a tidy grid instead of running off the edge with a scrollbar.
-- The big shield on the sign-in page is sharp where it should be: the tip of the keyhole (and of the shield itself) was rounded off by the line ends, now it's a proper point that echoes the shield.
 
 ## [0.14.0] - 2026-10-19
 ### Added

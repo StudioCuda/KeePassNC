@@ -1,16 +1,19 @@
 #!/usr/bin/env node
-// Erzeugt aus src/brand.js die Dateien der Marke: img/app.svg (Nextcloud-App-Symbol, weiss), das Favicon (SVG) und das Touch-Icon (PNG).
+// Erzeugt die Dateien der Marke (die Pfade zeichnet tools/brand-geometry.mjs nach src/brand-paths.js, daraus src/brand.js): img/app.svg (Nextcloud-App-Symbol, weiss), das Favicon (SVG) und das Touch-Icon (PNG).
 //   node tools/make-brand.mjs         SVG-Dateien schreiben
 //   node tools/make-brand.mjs --png   zusaetzlich das Touch-Icon (180 px) rendern; braucht Chromium (CHROMIUM=/pfad/zu/chrome)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { markSvg, tileSvg } from '../src/brand.js';
+import { pathsModule } from './brand-geometry.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const img = path.join(root, 'nextcloud-app/keepassnc/img');
 const web = path.join(root, 'web');
 const write = (file, text) => { fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, text); };
+
+write(path.join(root, 'src/brand-paths.js'), pathsModule());
+const { markSvg, tileSvg } = await import('../src/brand.js'); // erst jetzt laden: die Pfade sind frisch
 
 write(path.join(img, 'app.svg'), markSvg('#fff'));
 write(path.join(web, 'icon.svg'), tileSvg());
