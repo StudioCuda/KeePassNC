@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Changed
+- Picking a database from your Nextcloud ("Browse") shows the last known contents of a folder straight away and refreshes them once the server has answered, instead of an empty "Loading …". The session token for the first request is fetched as soon as the open-vault screen appears, which saves one round trip on slow connections. Folder and file names are kept in the browser tab only (session storage), nothing else.
 
 ## [0.16.0] - 2026-10-21
 ### Added

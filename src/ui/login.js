@@ -3,7 +3,7 @@ import { Vault, VaultError } from '../vault.js';
 import { DavFile, DavError, NetworkError, isOffline, offlineFailKey } from '../webdav.js';
 import { cacheGet } from '../cache.js';
 import { loadSettings, saveSettings } from '../settings.js';
-import { nextcloudAuth, davUrlFor, normalizeUserPath, fetchPepper } from '../nextcloud.js';
+import { nextcloudAuth, warmNextcloudAuth, davUrlFor, normalizeUserPath, fetchPepper } from '../nextcloud.js';
 import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, params, pref, setStatus, applyTheme, kfStore, kfFileId } from './ctx.js';
 import { KeyfileStoreError, isWeakerThan } from '../keyfile-store.js';
@@ -24,6 +24,7 @@ export function showLogin(message) {
     state.vault = null; state.selEntry = null; state.editing = null; state.query = '';
     document.body.classList.remove('in-vault');
     const NC = ctx.NC;
+    warmNextcloudAuth(NC);
     // Standalone page: with no previous choice (and no ?url=) start with a local file, that needs no server
     const mode = pref('mode') || (NC || params.get('url') ? 'dav' : 'file');
     // Without the Nextcloud app: Nextcloud address + path (or the WebDAV address via the link, as before)
