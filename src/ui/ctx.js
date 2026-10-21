@@ -1,4 +1,4 @@
-// Gemeinsamer Zustand der Oberflaeche. Module registrieren ihre Zeichenfunktionen in ctx.ui (vermeidet zyklische Importe).
+// Shared UI state. Modules register their render functions in ctx.ui (avoids circular imports).
 import { loadSettings } from '../settings.js';
 import { createKeyfileStore } from '../keyfile-store.js';
 import { keyfileBackend } from '../cache.js';
@@ -8,13 +8,13 @@ import { $ } from './dom.js';
 import { toast } from './dom.js';
 
 export const kfStore = createKeyfileStore(keyfileBackend);
-/** Kennung einer gemerkten Schluesseldatei fuer eine lokal gewaehlte Datei (in Nextcloud zusaetzlich je Benutzer getrennt). */
+/** ID of a remembered key file for a locally chosen file (in Nextcloud additionally separated per user). */
 export const kfFileId = (name) => (ctx.NC ? `nc-file:${ctx.NC.user}:${name}` : `file:${name}`);
-/** Welche gemerkten Datensaetze die Einstellungen zeigen/loeschen: in Nextcloud nur die des angemeldeten Benutzers. */
+/** Which remembered records the settings show/delete: in Nextcloud only those of the signed-in user. */
 export const kfScope = (id) => (ctx.NC ? id.startsWith(`nc:${ctx.NC.user}:`) || id.startsWith(`nc-file:${ctx.NC.user}:`) : !id.startsWith('nc:') && !id.startsWith('nc-file:'));
 export const params = new URLSearchParams(location.search);
 export const SW_CACHE = 'kpnc-app-v1';
-export const SYNC_RETRY_MS = (parseFloat(params.get('syncretry')) || 30) * 1000; // ungesyncte Offline-Staende werden alle 30 s erneut versucht
+export const SYNC_RETRY_MS = (parseFloat(params.get('syncretry')) || 30) * 1000; // unsynced offline states are retried every 30 s
 
 export const ctx = {
     params,
@@ -24,8 +24,8 @@ export const ctx = {
     ui: {}, // renderAll, renderSidebar, renderList, renderDetail, ...
     state: {
         vault: null,
-        source: null, // {type: 'dav'|'file', name, kfId (Kennung fuer gemerkte Schluesseldateien), readOnly}
-        kfBusy: null, // laufendes Neu-Verschluesseln einer gemerkten Schluesseldatei (Promise)
+        source: null, // {type: 'dav'|'file', name, kfId (ID for remembered key files), readOnly}
+        kfBusy: null, // running re-encryption of a remembered key file (promise)
         filter: { type: 'all' }, // all | group | bin | expiring | weak | totp | passkey | tag
         selEntry: null,
         editing: null, // {entry|null, group}
@@ -34,7 +34,7 @@ export const ctx = {
         offlineMode: false,
         lastSyncFailed: false,
         hiddenSince: 0,
-        view: 'list', // mobil: groups | list | detail
+        view: 'list', // mobile: groups | list | detail
         collapsed: new Set()
     }
 };
@@ -43,11 +43,11 @@ export function pref(key, value) {
     try {
         if (value === undefined) return localStorage.getItem('kpnc.' + key) || '';
         localStorage.setItem('kpnc.' + key, value);
-    } catch { /* Speicher nicht verfuegbar - kein Problem */ }
+    } catch { /* storage not available - no problem */ }
     return '';
 }
 
-/** Statuszeile unten; Warnungen/Fehler zusaetzlich als Hinweis (Toast). */
+/** Status line at the bottom; warnings/errors additionally as a notice (toast). */
 export function setStatus(msg, kind = 'info') {
     const el = $('#status');
     if (el) { el.textContent = msg; el.dataset.kind = kind; }
@@ -75,7 +75,7 @@ export function download(name, data, type = 'application/octet-stream') {
     setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
-/** Hell/dunkel, Dichte und (in Nextcloud) Instanzfarbe. Die eigene Wahl in der App geht vor; "wie Nextcloud" folgt der Person. */
+/** Light/dark, density and (in Nextcloud) instance colour. The app's own choice wins; "like Nextcloud" follows the person. */
 export function applyTheme() {
     const root = document.documentElement;
     const nc = ncThemeFrom(ctx.NC?.themes);
@@ -85,6 +85,6 @@ export function applyTheme() {
     if (ctx.NC && nc.contrast) root.dataset.contrast = 'more'; else delete root.dataset.contrast;
     for (const name of THEME_VARS) root.style.removeProperty(name);
     const { vars, accent } = themeVars(ctx.NC?.color, { useAccent: ctx.settings.ncAccent, highContrast: !!(ctx.NC && nc.contrast) });
-    for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v); // CSSOM: faellt nicht unter style-src (kein style-Attribut im Markup)
+    for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v); // CSSOM: not covered by style-src (no style attribute in the markup)
     if (accent) root.dataset.accent = 'nc'; else delete root.dataset.accent;
 }

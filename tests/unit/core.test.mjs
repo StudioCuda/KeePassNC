@@ -89,9 +89,9 @@ test('Passphrase: Ziffer hinter einem Wort, exakte Entropie', () => {
         assert.ok(Math.abs(bits - (5 * Math.log2(7776) + Math.log2(50))) < 1e-9);
     }
 });
-// Entropie eines Blocks aus `syllables` Silben, ohne verbotene Uebergaenge. Mit P = Produkt der Silben-Wahrscheinlichkeiten und
-// Z = Summe aller P der erlaubten Bloecke ist H = log2(Z) - Summe(P * log2 P) / Z. badJunction haengt nur von den letzten zwei
-// Buchstaben der vorderen Silbe ab, also fuehren wir Z und Summe(P * log2 P) je Endung mit.
+// Entropy of a block of `syllables` syllables, without forbidden junctions. With P = product of the syllable probabilities and
+// Z = sum of all P of the allowed blocks, H = log2(Z) - sum(P * log2 P) / Z. badJunction only depends on the last two
+// letters of the leading syllable, so we carry Z and sum(P * log2 P) along per ending.
 function simpleBlockEntropy(syllables) {
     const end = (s) => s.slice(-2);
     const add = (m, s, z, b) => { const e = m.get(end(s)) || { z: 0, b: 0, s }; e.z += z; e.b += b; m.set(end(s), e); };
@@ -105,7 +105,7 @@ function simpleBlockEntropy(syllables) {
     const all = [...f.values()].reduce((a, { z, b }) => ({ z: a.z + z, b: a.b + b }), { z: 0, b: 0 });
     return Math.log2(all.z) - all.b / all.z;
 }
-// Zerlegt einen Silbenblock: vor jedem Vokal beginnt mit dem Konsonanten davor eine neue Silbe
+// Splits a syllable block: a new syllable starts before every vowel, together with the consonant in front of it
 const splitSyllables = (w) => w.replace(/([^aeiou])(?=[aeiou])/g, ' $1').trim().split(' ');
 test('Simpel: Silbenvorrat, eindeutige Zerlegung, Uebergaenge, exakte Entropie', () => {
     const { consonants: C, vowels: V } = SYLLABLE;
@@ -119,12 +119,12 @@ test('Simpel: Silbenvorrat, eindeutige Zerlegung, Uebergaenge, exakte Entropie',
         const seq = [0, 1, 2].map(() => all[randomInt(all.length)]);
         assert.deepEqual(splitSyllables(seq.join('')), seq);
     }
-    // Entropie fuer zwei Silben gegen Durchrechnen aller Paare
+    // Entropy for two syllables against brute-forcing all pairs
     let z = 0, b = 0;
     for (const x of SYLLABLES) for (const y of SYLLABLES) if (!badJunction(x.s, y.s)) { const p = x.p * y.p; z += p; b += p * Math.log2(p); }
     assert.ok(Math.abs(simpleBlockEntropy(2) - (Math.log2(z) - b / z)) < 1e-9);
     assert.ok(Math.abs(simpleBlockEntropy(1) + SYLLABLES.reduce((a, { p }) => a + p * Math.log2(p), 0)) < 1e-9);
-    // Gleichverteilt waeren es log2(1960) = 10,94 Bit je Silbe; die Gewichtung kostet nur wenig
+    // Uniformly distributed it would be log2(1960) = 10.94 bits per syllable; the weighting costs only a little
     assert.ok(Math.abs(SIMPLE_BLOCK_BITS - simpleBlockEntropy(3)) < 1e-9, `SIMPLE_BLOCK_BITS muss ${simpleBlockEntropy(3)} sein`);
     assert.ok(SIMPLE_BLOCK_BITS > 31.5 && SIMPLE_BLOCK_BITS < 3 * Math.log2(1960));
 });
@@ -146,7 +146,7 @@ test('Simpel: Silben, Ziffern, Silben (+ weitere Silbenbloecke), Trennzeichen fe
             assert.ok(Math.abs(bits - (blocks * SIMPLE_BLOCK_BITS + 2 * Math.log2(8))) < 1e-9);
         }
     }
-    // Anteile: 15 % offen, 60 % geschlossen, 25 % verdoppelt (etwas weniger, weil Bloecke mit dreifachem Buchstaben neu gezogen werden)
+    // Shares: 15 % open, 60 % closed, 25 % doubled (slightly less, because blocks with a triple letter are redrawn)
     const share = (k) => shapes[k] / shapes.n;
     assert.ok(Math.abs(share(2) - 0.15) < 0.02 && Math.abs(share(3) - 0.6) < 0.025 && share(4) < 0.26 && share(4) > 0.22, JSON.stringify(shapes));
     assert.match(generateSimple().password, /^[A-Z][a-z]{5,11} [2-9]{2} [a-z]{6,12}$/, 'Vorgabe: zwei Bloecke, Leerzeichen, erster Buchstabe gross');
@@ -182,11 +182,11 @@ test('Bericht: Gesundheit ist ein Durchschnitt pro Eintrag, nicht Treffer minus 
     const strong = () => entry({ Title: 's', Password: generatePassword().password });
     assert.equal(auditEntries([], NOW).stats.health, 100);
     assert.equal(auditEntries([strong(), strong()], NOW).stats.health, 100);
-    // Viele Eintraege mit wenigen schwachen Passwoertern: frueher 0 %, weil Treffer (Eintraege) >= verschiedene Passwoerter
+    // Many entries with a few weak passwords: used to be 0 %, because hits (entries) >= distinct passwords
     const many = [...Array(30)].map((_, i) => entry({ Title: 'w' + i, Password: 'Sommer' + (i % 3) + 'x!' })).concat([...Array(10)].map(strong));
     const h = auditEntries(many, NOW).stats.health;
     assert.ok(h > 0 && h < 100, `health ${h}`);
-    // Ein Treffer zwischen lauter starken Passwoertern rundet nicht auf 100 %
+    // A single hit among only strong passwords doesn't round up to 100 %
     const almost = [...Array(300)].map(strong).concat([entry({ Title: 'x', Password: generatePassword().password }, { times: { expires: true, expiryTime: new Date(NOW + 20 * 86400000) } })]);
     assert.equal(auditEntries(almost, NOW).stats.health, 99);
     const gone = entry({ Title: 'g', Password: generatePassword().password }, { times: { expires: true, expiryTime: new Date(NOW - 86400000) } });

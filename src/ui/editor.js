@@ -1,4 +1,4 @@
-// Eintrag anlegen/bearbeiten. Ungezeigte Felder (Passkeys, Browser-Daten, Auto-Type ...) bleiben im Vault unveraendert (siehe Vault.applyEntry).
+// Create/edit an entry. Fields that aren't shown (passkeys, browser data, Auto-Type ...) stay unchanged in the vault (see Vault.applyEntry).
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
 import { isSystemField, entryExpiry, entryColor, ENTRY_COLORS } from '../core/util.js';
 import { excluded } from '../core/audit.js';
@@ -46,7 +46,7 @@ export function renderEditor(host) {
     i.expiry.disabled = !i.expires.checked;
     i.expires.addEventListener('change', () => { i.expiry.disabled = !i.expires.checked; });
     const groupSel = groupSelect({ value: group, id: 'e-group' });
-    // TOTP aus einem QR-Code: Screenshot der Einrichtungsseite waehlen, nur otpauth:// wird uebernommen
+    // TOTP from a QR code: pick a screenshot of the setup page, only otpauth:// is accepted
     const qrInput = h('input', { type: 'file', id: 'e-qr', accept: 'image/*', class: 'sr-only', onchange: async () => {
         const f = qrInput.files[0]; qrInput.value = '';
         if (!f) return;
@@ -57,11 +57,11 @@ export function renderEditor(host) {
     const color = entryColor(entry) || '';
     const swatch = (c) => {
         const r = h('input', { type: 'radio', name: 'e-color', value: c, checked: c === color, class: 'swatch' + (c ? '' : ' none'), title: c || t('color.none'), 'aria-label': c || t('color.none') });
-        if (c) r.style.setProperty('--swatch', c); // CSSOM, kein style-Attribut (CSP)
+        if (c) r.style.setProperty('--swatch', c); // CSSOM, no style attribute (CSP)
         return r;
     };
     const colorBox = h('div', { class: 'swatches', id: 'e-color', role: 'radiogroup', 'aria-label': t('f.color') }, swatch(''), ...[...new Set([...ENTRY_COLORS, color].filter(Boolean))].map(swatch));
-    let generated = null; // {pw, bits} aus dem Generator: exakte Staerke, solange das Feld unveraendert ist
+    let generated = null; // {pw, bits} from the generator: exact strength as long as the field is unchanged
     const meter = h('div', { class: 'meter' }, strengthBar(i.Password.value));
     i.Password.addEventListener('input', () => meter.replaceChildren(strengthBar(i.Password.value, generated?.pw === i.Password.value ? generated.bits : undefined)));
     const showBtn = iconBtn('eye', t('show'), () => { const on = i.Password.type === 'password'; i.Password.type = on ? 'text' : 'password'; showBtn.replaceChildren(icon(on ? 'eyeOff' : 'eye')); }, { id: 'e-show', type: 'button' });
@@ -73,12 +73,12 @@ export function renderEditor(host) {
         if (sel) { iconSel = sel; showIcon(); }
     } });
     const showIcon = () => iconBtnEl.replaceChildren(iconPreview(iconSel, 'entry', i.Title.value, 'lg'));
-    i.Title.addEventListener('input', () => { if (!iconSel.add && !iconSel.custom && !iconSel.icon) showIcon(); }); // Anfangsbuchstabe
+    i.Title.addEventListener('input', () => { if (!iconSel.add && !iconSel.custom && !iconSel.icon) showIcon(); }); // initial letter
     showIcon();
 
     const customBox = h('div', { id: 'e-custom', class: 'stack' });
-    // Werte sind mehrzeilig (Textfeld). Geschuetzte Werte stehen verdeckt in einem Passwortfeld (nur Anzeige) und werden erst
-    // nach einem Klick aufs Auge bearbeitbar; ein <input> wuerde Zeilenumbrueche beim Speichern verlieren.
+    // Values are multi-line (text area). Protected values sit hidden in a password field (display only) and only become
+    // editable after a click on the eye; an <input> would lose line breaks on save.
     const lineCount = (v) => Math.min(12, v.split('\n').length);
     const addCustom = (name = '', value = '', protect = false) => {
         const val = h('textarea', { placeholder: t('field.value'), class: 'c-value', 'aria-label': t('field.value'), rows: lineCount(value), autocomplete: 'off', spellcheck: 'false' });
@@ -96,7 +96,7 @@ export function renderEditor(host) {
             h('div', { class: 'c-value-wrap' }, val, mask, eye),
             h('label', { class: 'check small' }, protectBox, h('span', { text: t('field.protected') })),
             iconBtn('x', t('remove'), () => row.remove(), { type: 'button' }));
-        // Windows-Zeilenenden (KeePass 2) bleiben erhalten, solange der Wert nicht geaendert wurde (Textfelder liefern nur \n)
+        // Windows line endings (KeePass 2) are kept as long as the value hasn't changed (text areas only deliver \n)
         row.customValue = () => (val.value === value.replace(/\r\n?/g, '\n') ? value : val.value);
         eye.hidden = !protect; setMasked(protect);
         customBox.append(row);
@@ -141,10 +141,10 @@ export function renderEditor(host) {
             excludeReports: i.excludeReports.checked,
             color: colorBox.querySelector(':checked')?.value ?? ''
         };
-        if (i.expires.checked && entry?.times.expires && i.expiry.value === dateStr(entry.times.expiryTime)) data.expiryTime = entry.times.expiryTime; // Uhrzeit unveraendert lassen
+        if (i.expires.checked && entry?.times.expires && i.expiry.value === dateStr(entry.times.expiryTime)) data.expiryTime = entry.times.expiryTime; // leave the time of day unchanged
         if (i.otp.value.trim() !== val('otp')) {
             let o = i.otp.value.trim();
-            if (o && !/^otpauth:\/\//i.test(o)) { // nur das Geheimnis eingegeben: wie KeePassXC zu einer otpauth-URL ergaenzen
+            if (o && !/^otpauth:\/\//i.test(o)) { // only the secret was entered: complete it to an otpauth URL like KeePassXC does
                 const label = encodeURIComponent(i.Title.value || 'KeePassNC') + (i.UserName.value ? ':' + encodeURIComponent(i.UserName.value) : '');
                 o = `otpauth://totp/${label}?secret=${o.replace(/[\s-]/g, '').toUpperCase()}&period=30&digits=6&issuer=${encodeURIComponent(i.Title.value || 'KeePassNC')}`;
             }

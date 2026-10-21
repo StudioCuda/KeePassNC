@@ -1,6 +1,6 @@
-// Symbol waehlen (Eintrag/Gruppe) wie im Symbol-Reiter von KeePassXC: eines der 69 Standard-Symbole von KeePass oder ein eigenes Bild.
-// Eigene Bilder kommen nur vom Geraet (kein Favicon-Abruf, nichts geht ins Netz) und werden im Browser auf hoechstens 128 px gebracht
-// und als PNG neu geschrieben (auch SVG). In die Datei kommen sie erst mit "Uebernehmen" im Editor bzw. Gruppen-Dialog.
+// Pick an icon (entry/group) like in the icon tab of KeePassXC: one of the 69 standard KeePass icons or a custom image.
+// Custom images only come from the device (no favicon fetch, nothing goes over the network) and are scaled in the browser to at most 128 px
+// and rewritten as PNG (SVG too). They only get into the file with "Apply" in the editor or group dialog.
 import { imageUrl } from '../vault.js';
 import { t } from '../i18n.js';
 import { ctx } from './ctx.js';
@@ -11,27 +11,27 @@ import { KP_ICONS, ENTRY_DEFAULT_ICON, GROUP_DEFAULT_ICON } from './kpicons.js';
 export const ICON_MAX = 128;
 const MAX_FILE = 16 * 1024 * 1024;
 
-/** Auswahl eines Elements: {icon, custom, add}; add = {data, name, url} ist ein neues Bild, das noch nicht in der Datei liegt. */
+/** Selection for one item: {icon, custom, add}; add = {data, name, url} is a new image that is not in the file yet. */
 export function iconSelOf(item, kind) {
     return { icon: item?.icon ?? (kind === 'group' ? GROUP_DEFAULT_ICON : ENTRY_DEFAULT_ICON), custom: item?.customIcon?.id ?? null, add: null };
 }
 
 const view = (sel) => ({ icon: sel.icon, url: sel.add ? sel.add.url : sel.custom ? ctx.state.vault.iconUrl(sel.custom) : null });
 
-/** Vorschau der Auswahl, wie sie spaeter in Liste bzw. Gruppenbaum erscheint. */
+/** Preview of the selection as it will later appear in the list or group tree. */
 export function iconPreview(sel, kind, title = '', size = '') {
     return kind === 'group' ? groupIcon(null, { sel: view(sel) }) : avatar(null, { sel: view(sel), title, size });
 }
 
-/** Fuer Vault.applyEntry/updateGroup: ein neues Bild jetzt in der Datei ablegen und {icon, customIcon} liefern. */
+/** For Vault.applyEntry/updateGroup: store a new image in the file now and return {icon, customIcon}. */
 export function commitIconSel(sel) {
     const customIcon = sel.add ? ctx.state.vault.addCustomIcon(sel.add.data, sel.add.name) : sel.custom;
     return { icon: sel.icon, customIcon };
 }
 
 /**
- * SVG als Bild laden: als <img> von einer data:-URL fuehrt der Browser darin keine Skripte aus und laedt nichts nach. Ohne eigene Groesse
- * (nur viewBox) gilt ICON_MAX x ICON_MAX.
+ * Load an SVG as an image: as an <img> from a data: URL the browser runs no scripts in it and loads nothing. Without its own size
+ * (viewBox only), ICON_MAX x ICON_MAX applies.
  */
 async function loadSvg(file) {
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -43,8 +43,8 @@ async function loadSvg(file) {
 }
 
 /**
- * Bilddatei -> PNG mit hoechstens ICON_MAX px an der laengeren Seite. Rasterbilder werden nur verkleinert, SVG wird direkt in dieser
- * Groesse gezeichnet (bleibt scharf); in der Datei landet immer PNG, das zeigen auch KeePass und KeePassXC.
+ * Image file -> PNG with at most ICON_MAX px on the longer side. Raster images are only scaled down, SVG is drawn directly at this
+ * size (stays sharp); the file always ends up with PNG, which KeePass and KeePassXC display too.
  */
 export async function shrinkImage(file) {
     const svg = /svg/i.test(file.type) || /\.svg$/i.test(file.name);
@@ -58,27 +58,27 @@ export async function shrinkImage(file) {
         const g = c.getContext('2d'); g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, w, hh);
         return c;
     };
-    // In Halbierungsschritten verkleinern: ein einziger grosser Schritt wird in manchen Browsern koernig
+    // Shrink in halving steps: a single big step looks grainy in some browsers
     let src = svg ? bmp.img : bmp, w = bmp.width, hh = bmp.height;
     while (!svg && w / 2 > tw && hh / 2 > th) { w = Math.round(w / 2); hh = Math.round(hh / 2); src = draw(src, w, hh); }
     const out = draw(src, tw, th);
     bmp.close?.();
     let blob;
-    try { blob = await new Promise((resolve) => out.toBlob(resolve, 'image/png')); } catch { throw new Error('format'); } // z. B. Safari bei SVG mit foreignObject
+    try { blob = await new Promise((resolve) => out.toBlob(resolve, 'image/png')); } catch { throw new Error('format'); } // e.g. Safari with SVG containing foreignObject
     if (!blob) throw new Error('format');
     return new Uint8Array(await blob.arrayBuffer());
 }
 
 /**
- * Dialog. kind: 'entry' | 'group'; sel: aktuelle Auswahl; title: fuer den Anfangsbuchstaben; onRemoved: ein eigenes Symbol wurde aus der
- * Datei geloescht (die Datei hat sich sofort geaendert, wie in KeePassXC).
- * @returns {Promise<object|null>} neue Auswahl oder null (abgebrochen)
+ * Dialog. kind: 'entry' | 'group'; sel: current selection; title: for the initial letter; onRemoved: a custom icon was deleted from the
+ * file (the file changed immediately, as in KeePassXC).
+ * @returns {Promise<object|null>} new selection or null (cancelled)
  */
 export function pickIcon({ kind, sel, title = '', onRemoved }) {
     return new Promise((resolve) => {
         const v = ctx.state.vault;
         let cur = { ...sel };
-        let pending = sel.add ? [sel.add] : []; // in diesem Dialog hinzugefuegte Bilder; nur das gewaehlte kommt in die Datei
+        let pending = sel.add ? [sel.add] : []; // images added in this dialog; only the chosen one goes into the file
         const cells = [];
         const cell = (label, content, isActive, choose, extra = {}) => {
             const b = h('button', { type: 'button', class: 'icon-cell', role: 'radio', title: label, 'aria-label': label, onclick: () => { cur = choose(); mark(); }, ondblclick: () => { cur = choose(); m.close(cur); }, ...extra }, content);
@@ -93,7 +93,7 @@ export function pickIcon({ kind, sel, title = '', onRemoved }) {
         const letter = ([...(title || '?').trim()][0] || '?').toUpperCase();
         const std = h('div', { class: 'icon-grid', role: 'radiogroup', 'aria-label': t('icon.standard'), id: 'icon-std' },
             KP_ICONS.map((d, n) => {
-                const dflt = kind === 'entry' && n === ENTRY_DEFAULT_ICON; // Vorgabe: Anfangsbuchstabe statt Schluessel
+                const dflt = kind === 'entry' && n === ENTRY_DEFAULT_ICON; // default: initial letter instead of key
                 return cell(dflt ? t('icon.default.entry') : t('icon.' + n), dflt ? h('span', { class: 'icon-letter', text: letter }) : pathIcon(d),
                     () => !cur.custom && !cur.add && cur.icon === n, () => ({ icon: n, custom: null, add: null }), { 'data-icon': String(n) });
             }));
@@ -141,7 +141,7 @@ export function pickIcon({ kind, sel, title = '', onRemoved }) {
             custom);
         const m = modal({ title: t('icon.choose'), body, size: 'lg', actions: [h('button', { type: 'button', text: t('cancel'), onclick: () => m.close(undefined) }), ok],
             onClose: (r) => resolve(r || null) });
-        // Pfeiltasten im Raster bewegen den Fokus (Radiogruppe)
+        // Arrow keys in the grid move the focus (radio group)
         body.addEventListener('keydown', (e) => {
             const grid = e.target.closest?.('.icon-grid');
             if (!grid || !/^Arrow(Left|Right|Up|Down)$/.test(e.key)) return;

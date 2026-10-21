@@ -1,17 +1,17 @@
-// Gemeinsamer Browser-Start fuer die Playwright-Tests.
-// BROWSER=chromium (Standard) | firefox | webkit. Chromium kann ueber CHROMIUM auf eine feste Programmdatei zeigen.
+// Shared browser launch for the Playwright tests.
+// BROWSER=chromium (default) | firefox | webkit. CHROMIUM can point Chromium at a fixed executable.
 import { chromium, firefox, webkit } from 'playwright-core';
 
 export const browserName = process.env.BROWSER || 'chromium';
 
-// Bekannte Eigenart von WebKit (Playwright-Build): Jedes <select> loest ein "style-src-attr"-Verstoss aus, auch auf einer leeren Seite
-// ohne unseren Code. Die Konsolenmeldung nennt das Element nicht; deshalb meldet webkitCspWatch jeden Verstoss ausserhalb von <select>
-// weiterhin selbst. Nur zusammen verwenden: knownEngineNoise (ausblenden) + webkitCspWatch (Gegenprobe).
+// Known quirk of WebKit (Playwright build): every <select> triggers a "style-src-attr" violation, even on an empty page
+// without our code. The console message doesn't name the element; that's why webkitCspWatch still reports every violation outside <select>
+// itself. Only use together: knownEngineNoise (hide) + webkitCspWatch (cross-check).
 export const knownEngineNoise = (text) => browserName === 'webkit'
     && /^Refused to apply a stylesheet because its hash, its nonce, or 'unsafe-inline' does not appear in the style-src directive/.test(text);
-// Zweite Eigenart von WebKit: Bricht eine Anfrage ab, weil der Server waehrend der Anfrage wegfaellt, meldet WebKit das manchmal als
-// Seitenfehler "Fetch API cannot load <URL> due to access control checks", obwohl die App den Fehler abfaengt. Nur fuer WebDAV-URLs
-// ausblenden und nur zusammen mit uncaughtWatch verwenden: das meldet echte, nicht abgefangene Fehler weiterhin.
+// Second quirk of WebKit: if a request aborts because the server goes away during the request, WebKit sometimes reports it as a
+// page error "Fetch API cannot load <URL> due to access control checks", although the app catches the error. Hide it only for WebDAV URLs
+// and only use together with uncaughtWatch: that still reports real, uncaught errors.
 export const knownFetchNoise = (text) => browserName === 'webkit'
     && /^(?:TypeError: )?Fetch API cannot load [^ ]*:? ?\/[^ ]*\/dav\/\S* due to access control checks\.?$/.test(text);
 export const uncaughtWatch = () => {
@@ -22,11 +22,11 @@ export const webkitCspWatch = () => document.addEventListener('securitypolicyvio
     if (!(e.target instanceof HTMLSelectElement)) console.error(`CSP-Verstoss ausserhalb von <select>: ${e.violatedDirective} ${e.blockedURI} ${String((e.target && e.target.outerHTML) || e.target).slice(0, 120)}`);
 }, true);
 
-// Die Testserver bieten WebDAV unter /dav/ an, nicht unter einer Nextcloud-Adresse: Anmeldung und "Neue Datenbank" der eigenstaendigen
-// Seite auf "Eigene WebDAV-Adresse" stellen (und die Quelle auf WebDAV: ohne Wahl startet sie mit "Lokale Datei") (wie fuer jemanden, der das schon so benutzt). Als Init-Skript eines Browser-Kontexts.
+// The test servers offer WebDAV at /dav/, not at a Nextcloud address: set login and "New database" of the standalone
+// page to "Custom WebDAV address" (and the source to WebDAV: without a choice it starts with "Local file") (as for someone who already uses it that way). As an init script of a browser context.
 export const plainWebdav = () => { try { if (!localStorage.getItem('kpnc.davmode')) localStorage.setItem('kpnc.davmode', 'url'); if (!localStorage.getItem('kpnc.mode')) localStorage.setItem('kpnc.mode', 'dav'); } catch {} };
 
-// Letzte Konsolenmeldungen je Seite, fuer waitOpened. Wird beim ersten Aufruf angehaengt; was davor kam, fehlt.
+// Latest console messages per page, for waitOpened. Attached on the first call; whatever came before is missing.
 const consoleTails = new WeakMap();
 function consoleTail(page) {
     let tail = consoleTails.get(page);
@@ -39,9 +39,9 @@ function consoleTail(page) {
 }
 
 /**
- * Wartet, bis die Datenbank offen ist (.shell). Klappt das nicht, sagt der Fehler, wo die Anmeldung stand: Knopf-Text
- * ("Entschlüssele …" = haengt noch in Netz/KDF), Fehlermeldung, Status und die letzten Konsolenmeldungen. Ein Timeout allein
- * verraet nicht, ob die App haengt oder still gescheitert ist.
+ * Waits until the database is open (.shell). If that fails, the error says where the login stood: button text
+ * ("Entschlüssele …" = still stuck in network/KDF), error message, status and the latest console messages. A timeout alone
+ * doesn't tell whether the app hangs or failed silently.
  */
 export async function waitOpened(page, timeout) {
     const tail = consoleTail(page);
@@ -59,7 +59,7 @@ export async function waitOpened(page, timeout) {
 
 export async function launchBrowser() {
     if (browserName === 'chromium') {
-        // ohne CHROMIUM: das von Playwright installierte Chromium (npx playwright-core install chromium)
+        // without CHROMIUM: the Chromium installed by Playwright (npx playwright-core install chromium)
         return chromium.launch({ executablePath: process.env.CHROMIUM || undefined, args: ['--no-sandbox'] });
     }
     const engine = { firefox, webkit }[browserName];

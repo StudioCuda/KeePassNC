@@ -1,13 +1,13 @@
-// Eigenstaendige Seite (web/) gegen eine Nextcloud: aus "cloud.example.org", Benutzername und App-Passwort die WebDAV-Adressen
-// bauen, damit niemand /remote.php/dav/files/NAME/... tippen muss. Die Kennung einer Datei (gemerkte Schluesseldatei "dav:<url>",
-// Offline-Kopie) bleibt ihre volle WebDAV-Adresse wie bisher; eine schon gespeicherte Adresse wird dafuer unveraendert weiterverwendet.
+// Standalone page (web/) against a Nextcloud: build the WebDAV addresses from "cloud.example.org", username and app password,
+// so nobody has to type /remote.php/dav/files/NAME/... The identifier of a file (remembered key file "dav:<url>",
+// offline copy) stays its full WebDAV address as before; an already stored address is kept unchanged for that.
 import { DavFile } from './webdav.js';
 import { davUrlFor, normalizeUserPath } from './nextcloud.js';
 
 /**
- * Basisadresse der Nextcloud aus einer Eingabe: "cloud.example.org" -> "https://cloud.example.org"; eine hineinkopierte Adresse
- * wird bis vor /remote.php, /index.php, /apps, /login gekuerzt ("https://x.org/nc/index.php/apps/files" -> "https://x.org/nc").
- * Ohne Schema gilt https, ausser es ist der Host der Seite selbst (dann deren Schema). '' = keine brauchbare Adresse.
+ * Base address of the Nextcloud from an input: "cloud.example.org" -> "https://cloud.example.org"; a pasted-in address
+ * is cut off before /remote.php, /index.php, /apps, /login ("https://x.org/nc/index.php/apps/files" -> "https://x.org/nc").
+ * Without a scheme https applies, unless it is the page's own host (then its scheme). '' = no usable address.
  */
 export function ncRoot(input, here = typeof location !== 'undefined' ? location : null) {
     let s = String(input || '').trim();
@@ -20,8 +20,8 @@ export function ncRoot(input, here = typeof location !== 'undefined' ? location 
 }
 
 /**
- * Zerlegt die WebDAV-Adresse einer Datei in einer Nextcloud (.../remote.php/dav/files/NAME/... oder das alte .../remote.php/webdav/...):
- * { root, davBase, path, url }; null bei anderen WebDAV-Servern. url ist die Eingabe unveraendert (sie ist die Kennung).
+ * Splits the WebDAV address of a file in a Nextcloud (.../remote.php/dav/files/NAME/... or the old .../remote.php/webdav/...):
+ * { root, davBase, path, url }; null for other WebDAV servers. url is the input unchanged (it is the identifier).
  */
 export function parseNcUrl(url) {
     let u;
@@ -35,8 +35,8 @@ export function parseNcUrl(url) {
 }
 
 /**
- * WebDAV-Basis der Dateien (".../remote.php/dav/files/ID"). Die ID ist nicht immer der Anmeldename (Anmeldung per E-Mail, LDAP),
- * deshalb fragt das den Server nach dem Konto; nennt er keines, gilt der Benutzername.
+ * WebDAV base of the files (".../remote.php/dav/files/ID"). The ID isn't always the login name (login by email, LDAP),
+ * so this asks the server for the account; if it names none, the username applies.
  */
 export async function findDavBase(root, user, auth) {
     const href = await new DavFile({ url: root + '/remote.php/dav/', auth }).principal();
@@ -44,7 +44,7 @@ export async function findDavBase(root, user, auth) {
     return `${root}/remote.php/dav/files/${id || encodeURIComponent(user)}`;
 }
 
-/** Adresse der Datei path unter davBase; legacy (parseNcUrl einer gespeicherten Adresse) gewinnt, wenn es dieselbe Datei ist. */
+/** Address of the file path under davBase; legacy (parseNcUrl of a stored address) wins if it is the same file. */
 export function ncFileUrl(davBase, path, legacy = null) {
     const p = normalizeUserPath(path);
     return legacy && legacy.davBase === davBase && legacy.path === p ? legacy.url : davUrlFor({ davBase }, p);

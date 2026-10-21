@@ -1,5 +1,5 @@
-// Passwort- und Passphrasen-Generator (Verhalten angelehnt an KeePassXC: Zeichenklassen, aehnlich aussehende Zeichen ausschliessen,
-// mindestens ein Zeichen je gewaehlter Klasse, gleichverteilt per Rejection Sampling).
+// Password and passphrase generator (behaves like KeePassXC: character classes, excluding look-alike characters,
+// at least one character from each chosen class, uniformly random via rejection sampling).
 import { WORDS as WORDS_EN } from './wordlist-eff.js';
 import { WORDS as WORDS_DE } from './wordlist-de.js';
 
@@ -9,7 +9,7 @@ export const CLASSES = {
     lower: 'abcdefghijklmnopqrstuvwxyz',
     upper: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
     digits: '0123456789',
-    // Sonderzeichen 1: auf Handy- und TV-Tastaturen meist schnell erreichbar; Sonderzeichen 2: der Rest der ASCII-Zeichen
+    // Special 1: usually quick to reach on phone and TV keyboards; special 2: the rest of the ASCII characters
     special1: '!?.,:;-_+=*"$%&@',
     special2: '\'/\\|()[]{}<>#^~`',
     extended: [...Array(0xff - 0xa1 + 1).keys()].map((i) => String.fromCharCode(0xa1 + i)).filter((c) => c !== '­').join('')
@@ -30,7 +30,7 @@ function shuffle(a) {
 
 export const DEFAULT_PASSWORD_OPTIONS = { length: 24, lower: true, upper: true, digits: true, special1: true, special2: false, extended: false, lookalike: true, everyGroup: true, custom: '', exclude: '' };
 
-// Bis 0.9 gab es sechs kleinere Zeichengruppen. Klammern lagen nur in der heutigen Gruppe 2, alle anderen zum Teil in Gruppe 1.
+// Up to 0.9 there were six smaller character groups. Brackets were only in today's group 2, all the others partly in group 1.
 const OLD_CLASSES = ['braces', 'punct', 'quotes', 'dashes', 'math', 'logograms'];
 export function migratePasswordOptions(o = {}) {
     if (!OLD_CLASSES.some((k) => k in o) || 'special1' in o) return o;
@@ -38,7 +38,7 @@ export function migratePasswordOptions(o = {}) {
     return { ...rest, special1: !!(punct || quotes || dashes || math || logograms), special2: !!braces };
 }
 
-/** Liefert {password, bits}. Wirft Error('empty'), wenn keine Zeichen zur Verfuegung stehen. */
+/** Returns {password, bits}. Throws Error('empty') if no characters are available. */
 export function generatePassword(opts = {}) {
     const o = { ...DEFAULT_PASSWORD_OPTIONS, ...opts };
     const exclude = new Set([...(o.exclude || '')]);
@@ -55,12 +55,12 @@ export function generatePassword(opts = {}) {
     return { password: shuffle(out).join(''), bits: len * Math.log2(pool.length) };
 }
 
-// Trennzeichen fuer Passphrase und Simpel, das erste ist die Vorgabe. Leerzeichen, Punkt, Komma und @ liegen bei Fire TV auf der
-// ersten Tastaturseite.
+// Separators for passphrase and simple mode, the first one is the default. Space, period, comma and @ are on the first keyboard
+// page on Fire TV.
 export const SEPARATORS = [' ', '.', '-', ',', '_', '@', '!'];
 export const DEFAULT_PASSPHRASE_OPTIONS = { words: 6, separator: ' ', casing: 'lower', list: 'en', digit: false };
-/** list: 'en' (EFF Large Wordlist) oder 'de' (dys2p de-7776); beide 7776 Woerter, also ca. 12,9 Bit je Wort. digit: eine Ziffer
- * 0-9 hinter einem zufaelligen Wort, fuer Dienste, die eine Zahl verlangen (die Woerter enthalten keine Ziffern, die Bits sind exakt). */
+/** list: 'en' (EFF Large Wordlist) or 'de' (dys2p de-7776); both have 7776 words, so about 12.9 bits per word. digit: one digit
+ * 0-9 after a random word, for services that demand a number (the words contain no digits, so the bits are exact). */
 export function generatePassphrase(opts = {}) {
     const o = { ...DEFAULT_PASSPHRASE_OPTIONS, ...opts };
     const words = WORDLISTS[o.list] || WORDS_EN;
@@ -74,19 +74,19 @@ export function generatePassphrase(opts = {}) {
     return { password: list.join(o.separator), bits };
 }
 
-// Simpel: fuer Geraete mit Bildschirmtastatur (TV-Fernbedienung, Konsole). Nur Kleinbuchstaben (auf Wunsch der erste gross), Ziffern
-// und ein Trennzeichen; Grossbuchstaben und die meisten Zeichen kosten je Taste einen Seitenwechsel.
-// Aufbau: Silben, Ziffern und je weiterem Block noch einmal Silben, z. B. "Bodfussim 47" oder "Bodfussim 47 katnoriz lupmesgad".
-// Ein Block sind drei Silben: offen (ba), geschlossen (bal) oder mit verdoppeltem Endkonsonanten (ball). Jede Silbe beginnt mit genau
-// einem Konsonanten und einem Vokal, deshalb laesst sich jedes Ergebnis nur auf eine Weise in Silben zerlegen (vor jedem Vokal beginnt
-// mit dem Konsonanten davor eine neue Silbe). Ohne Buchstaben, die man beim Buchstabieren leicht verwechselt (c/k, v/f/w, j/y, q, x),
-// ohne hh und ohne 0/1 (sehen aus wie o/l). Das Trennzeichen ist fest gewaehlt und bringt keine Bits.
+// Simple: for devices with an on-screen keyboard (TV remote, console). Lowercase letters only (optionally the first one capitalised), digits
+// and one separator; capitals and most special characters cost a page switch per key.
+// Layout: syllables, digits, and for each further block more syllables, e.g. "Bodfussim 47" or "Bodfussim 47 katnoriz lupmesgad".
+// A block is three syllables: open (ba), closed (bal) or with a doubled final consonant (ball). Each syllable starts with exactly
+// one consonant and one vowel, so every result splits into syllables in only one way (a new syllable starts at every vowel, together
+// with the consonant before it). No letters that are easily confused when spelling aloud (c/k, v/f/w, j/y, q, x),
+// no hh and no 0/1 (they look like o/l). The separator is fixed and adds no bits.
 //
-// Gleichverteilt waeren fast die Haelfte der Silben verdoppelt und nur 4 % offen. Deshalb wird erst die Form gezogen (Gewichte in
-// Zwanzigsteln: 3 offen, 12 geschlossen, 5 verdoppelt), dann die Silbe gleichverteilt innerhalb der Form. Ein Block mit dreifachem
-// Buchstaben ("tupp" + "pup") oder hh ("huh" + "hak") an einer Silbengrenze wird neu gezogen. Weil die Bloecke damit nicht mehr
-// gleich wahrscheinlich sind, zaehlen wir nicht, sondern rechnen die Entropie der tatsaechlichen Verteilung exakt aus (anders als
-// FIPS 181/pwgen, deren ungleich haeufige Silben die Staerke ueberschaetzen lassen).
+// Uniformly, almost half of the syllables would be doubled and only 4 % open. So the shape is drawn first (weights in
+// twentieths: 3 open, 12 closed, 5 doubled), then the syllable uniformly within that shape. A block with a triple
+// letter ("tupp" + "pup") or hh ("huh" + "hak") at a syllable boundary is redrawn. Since the blocks are no longer
+// equally likely, we don't count but compute the entropy of the actual distribution exactly (unlike
+// FIPS 181/pwgen, whose unevenly frequent syllables make the strength look higher than it is).
 export const SYLLABLE = { consonants: 'bdfghklmnprstz', vowels: 'aeiou', doubled: 'bdfgklmnprstz' };
 export const SYLLABLE_SHAPES = (() => {
     const { consonants: C, vowels: V, doubled: D } = SYLLABLE;
@@ -99,13 +99,13 @@ export const SYLLABLE_SHAPES = (() => {
     return shapes;
 })();
 const SHAPE_TOTAL = Object.values(SYLLABLE_SHAPES).reduce((a, { weight }) => a + weight, 0);
-/** Alle Silben mit ihrer Wahrscheinlichkeit. */
+/** All syllables with their probability. */
 export const SYLLABLES = Object.values(SYLLABLE_SHAPES).flatMap(({ weight, list }) => list.map((s) => ({ s, p: weight / SHAPE_TOTAL / list.length })));
 export const SIMPLE_DIGITS = '23456789';
 export const DEFAULT_SIMPLE_OPTIONS = { blocks: 2, separator: ' ', capital: true };
 export const badJunction = (a, b) => (a.length === 4 && a[3] === b[0]) || (a.endsWith('h') && b[0] === 'h');
-// Exakte Entropie eines Blocks aus drei Silben mit diesen Gewichten und ohne verbotene Uebergaenge. Das Ausrechnen dauert rund
-// 75 ms, deshalb steht hier das Ergebnis; tests/unit/core.test.mjs rechnet es nach und schlaegt an, wenn sich etwas aendert.
+// Exact entropy of a block of three syllables with these weights and without forbidden junctions. Computing it takes about
+// 75 ms, so the result sits here; tests/unit/core.test.mjs recomputes it and fails if anything changes.
 export const SIMPLE_BLOCK_BITS = 31.972186269066746;
 const SIMPLE_DIGITS_BITS = 2 * Math.log2(SIMPLE_DIGITS.length);
 
@@ -117,8 +117,8 @@ function pickSyllable() {
     }
 }
 
-/** Liefert {password, bits}. blocks: Silbenbloecke (1-8, die Ziffern stehen immer nach dem ersten). separator: eines aus
- * SEPARATORS. capital: erster Buchstabe gross (bringt keine Bits, erfuellt aber "mindestens ein Grossbuchstabe"). */
+/** Returns {password, bits}. blocks: syllable blocks (1-8, the digits always come after the first). separator: one of
+ * SEPARATORS. capital: first letter uppercase (adds no bits, but satisfies "at least one uppercase letter"). */
 export function generateSimple(opts = {}) {
     const o = { ...DEFAULT_SIMPLE_OPTIONS, ...opts };
     const n = Math.max(1, Math.min(8, o.blocks));

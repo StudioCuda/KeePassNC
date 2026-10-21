@@ -1,6 +1,6 @@
-// Nextcloud-Integrationstest: installiert eine frische Nextcloud (SQLite) aus einem Quellverzeichnis, aktiviert die App,
-// startet den PHP-Entwicklungsserver und spielt im echten Chromium den gesamten Ablauf durch. KeePassXC prueft das Ergebnis.
-// Aufruf: NC_DIR=/pfad/zu/nextcloud NC_PORT=18035 node tests/nextcloud/run.mjs
+// Nextcloud integration test: installs a fresh Nextcloud (SQLite) from a source directory, enables the app,
+// starts the PHP development server and runs the whole flow in a real Chromium. KeePassXC checks the result.
+// Usage: NC_DIR=/path/to/nextcloud NC_PORT=18035 node tests/nextcloud/run.mjs
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -27,7 +27,7 @@ async function step(name, fn) {
 }
 const expect = (c, m) => { if (!c) throw new Error(m); };
 
-// ---------- Nextcloud vorbereiten ----------
+// ---------- Prepare Nextcloud ----------
 function resetNextcloud() {
     fs.rmSync(path.join(NC_DIR, 'config/config.php'), { force: true });
     fs.mkdirSync(dataDir, { recursive: true });
@@ -38,9 +38,9 @@ function resetNextcloud() {
     const link = path.join(NC_DIR, 'apps/keepassnc');
     fs.rmSync(link, { force: true, recursive: true });
     fs.symlinkSync(path.join(root, 'nextcloud-app/keepassnc'), link);
-    // Release-Pakete bringen den Willkommensdialog (firstrunwizard) mit, der Klicks in der Dateiansicht verdeckt; Git-Staende haben ihn nicht
-    try { occ('app:disable', 'firstrunwizard'); } catch { /* nicht vorhanden */ }
-    occ('user:setting', ADMIN, 'core', 'lang', 'de'); // Oberflaeche folgt der Nextcloud-Sprache des Benutzers
+    // Release packages ship the welcome dialog (firstrunwizard), which covers clicks in the file view; git checkouts don't have it
+    try { occ('app:disable', 'firstrunwizard'); } catch { /* not present */ }
+    occ('user:setting', ADMIN, 'core', 'lang', 'de'); // UI follows the user's Nextcloud language
     return occ('app:enable', 'keepassnc').trim();
 }
 let php;
@@ -52,7 +52,7 @@ async function stopPhp() {
 async function startPhp() {
     php = spawn('php', ['-d', 'memory_limit=512M', '-S', `127.0.0.1:${PORT}`, '-t', NC_DIR], { cwd: NC_DIR, env: { ...process.env, PHP_CLI_SERVER_WORKERS: '4' }, stdio: 'ignore' });
     for (let i = 0; i < 60; i++) {
-        try { if ((await fetch(`${BASE}/status.php`)).ok) return; } catch { /* noch nicht bereit */ }
+        try { if ((await fetch(`${BASE}/status.php`)).ok) return; } catch { /* not ready yet */ }
         await new Promise((r) => setTimeout(r, 500));
     }
     throw new Error('PHP-Server startet nicht');
@@ -76,7 +76,7 @@ async function main() {
     const fixture = path.join(tmp, 'vault4.kdbx');
     makeFixture(fixture);
     const fixBuf = fs.readFileSync(fixture);
-    // Datei liegt in einem Ordner mit Leerzeichen/Umlaut: prueft Pfad-Kodierung
+    // File sits in a folder with a space/umlaut: checks path encoding
     await dav('/Passw%C3%B6rter%20privat', { method: 'MKCOL' });
     const up = await dav('/Passw%C3%B6rter%20privat/vault4.kdbx', { method: 'PUT', body: fixBuf });
     const srvFile = path.join(dataDir, ADMIN, 'files', 'Passwörter privat', 'vault4.kdbx');
@@ -92,16 +92,16 @@ async function main() {
         page.on('console', (m) => {
             const t = m.text();
             if (/Content Security Policy|Refused to/.test(t) && /keepassnc/i.test(m.location()?.url + t)) problems.csp.push(t);
-            if (m.type() === 'error' && m.location()?.url?.includes('keepassnc') && !/Failed to load resource/.test(t)) problems.consoleErrors.push(t); // Netzfehler gehoeren zu den absichtlichen Ausfaellen
+            if (m.type() === 'error' && m.location()?.url?.includes('keepassnc') && !/Failed to load resource/.test(t)) problems.consoleErrors.push(t); // network errors belong to the intentional outages
         });
-        // Gelegentlich bleibt die Anmeldung auf der Login-Seite stehen (in der CI selten, auf NC 35 und master beobachtet; Ursache offen).
-        // Deshalb bis zu 3 Versuche; jede Wiederholung wird mit Seite und sichtbarem Text protokolliert, damit sie nicht unbemerkt bleibt.
+        // Occasionally the login gets stuck on the login page (rare in CI, seen on NC 35 and master; cause unknown).
+        // Hence up to 3 attempts; every retry is logged with the page and visible text, so it doesn't go unnoticed.
         for (let attempt = 1; ; attempt++) {
             await page.goto(`${BASE}/login`);
             await page.fill('input[name=user]', ADMIN); await page.fill('input[name=password]', ADMIN_PW);
             await page.click('button[type=submit]');
             try {
-                await page.waitForURL(/\/apps\//, { timeout: 25000, waitUntil: 'domcontentloaded' }); // 'load' kann in Release-Paketen haengen (Dashboard-Widgets/Ankuendigungen laden extern nach)
+                await page.waitForURL(/\/apps\//, { timeout: 25000, waitUntil: 'domcontentloaded' }); // 'load' can hang in release packages (dashboard widgets/announcements load externally afterwards)
                 return page;
             } catch (e) {
                 const seen = (await page.locator('body').innerText({ timeout: 3000 }).catch(() => '(Seite nicht lesbar)')).replace(/\s+/g, ' ').slice(0, 200);
@@ -142,13 +142,13 @@ async function main() {
         expect(r.headers()['cache-control']?.includes('no-store'), 'no-store fehlt');
         expect(await page.inputValue('#nc-path') === '/Passwörter privat/vault4.kdbx', 'Pfad nicht vorbelegt');
         expect(await page.locator('#nc-path').getAttribute('readonly') !== null, 'Pfad sollte readonly sein');
-        // Relativ, damit ein Reverse-Proxy ohne overwriteprotocol nicht zu http:// auf einer https-Seite fuehrt (Issue #50)
+        // Relative, so a reverse proxy without overwriteprotocol doesn't lead to http:// on an https page (issue #50)
         const davBase = await page.locator('#app').getAttribute('data-dav-base');
         expect(davBase === `/remote.php/dav/files/${ADMIN}`, 'data-dav-base ' + davBase);
     });
 
     await step('Pretty URLs (htaccess.IgnoreFrontController, z. B. YunoHost): Adressen ohne "//", Entsperren klappt (Issue #50)', async () => {
-        // Mit Pretty URLs liefert linkTo('', 'index.php') nur "/"; daraus wurde "//csrftoken", ein Host namens "csrftoken"
+        // With pretty URLs linkTo('', 'index.php') returns just "/"; that turned into "//csrftoken", a host named "csrftoken"
         occ('config:system:set', 'htaccess.IgnoreFrontController', '--value', 'true', '--type', 'boolean');
         try {
             await page.goto(`${BASE}/index.php/apps/keepassnc/?open=${encodeURIComponent('/Passwörter privat/vault4.kdbx')}`);
@@ -243,13 +243,13 @@ async function main() {
         await page.goto(`${BASE}/index.php/apps/files/files?dir=${encodeURIComponent('/Passwörter privat')}`);
         await page.locator('[data-cy-files-list-row-name="vault4.kdbx"]').waitFor({ timeout: 60000 });
         await page.locator('[data-cy-upload-picker] .action-item__menutoggle, [data-cy-upload-picker] button').first().click();
-        // Nextcloud 34/35 markieren die Eintraege mit data-cy-upload-picker-menu-entry, master (36) nicht mehr: dann ueber Rolle und Namen
+        // Nextcloud 34/35 mark the entries with data-cy-upload-picker-menu-entry, master (36) no longer does: then via role and name
         await page.locator('[data-cy-upload-picker-menu-entry="keepassnc-new"]').or(page.getByRole('menuitem', { name: /KeePass/ })).first().click();
         await page.waitForURL(/apps\/keepassnc\/\?new=/, { timeout: 30000 });
         const name = await page.inputValue('#new-name'), folder = await page.locator('#new-folder').innerText();
         expect(/^(Passwörter|Passwords)$/.test(name) && folder === 'Passwörter privat', `Vorschlag: ${name} in ${folder}`);
         const suggested = `/Passwörter privat/${name}.kdbx`;
-        await page.click('#new-folder-btn'); // Ordner-Browser gegen echtes Sabre: listet den Ordner samt vorhandener .kdbx
+        await page.click('#new-folder-btn'); // folder browser against real Sabre: lists the folder including the existing .kdbx
         await page.locator('.folder-item[data-name="vault4.kdbx"]').waitFor({ timeout: 15000 });
         await page.click('#folder-ok');
         await page.fill('#new-new', PW + '-neu'); await page.fill('#new-repeat', PW + '-neu');
@@ -271,7 +271,7 @@ async function main() {
         expect(/apps\/keepassnc/.test(html), 'Link auf die App fehlt im Menue');
     });
 
-    // ---- Theming und Kopfleiste (OCP\Defaults, Benutzerwert theming/enabled-themes, INavigationManager) ----
+    // ---- Theming and header bar (OCP\Defaults, user value theming/enabled-themes, INavigationManager) ----
     const rgb = (hex) => `rgb(${[1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)).join(', ')})`;
     const { deriveAccent } = await import('../../src/theme.js');
     const look = async () => {
@@ -331,10 +331,10 @@ async function main() {
             const l = await look();
             expect(l.accentMode === '' && l.accent === rgb('#0b1f3b'), 'Akzent ' + JSON.stringify(l));
             expect(l.header === rgb('#00679e'), 'Kopfleiste ' + l.header);
-        } finally { occ('theming:config', 'primary_color', '#e6007e'); } // fuer den Offline-Schritt unten
+        } finally { occ('theming:config', 'primary_color', '#e6007e'); } // for the offline step below
     });
 
-    // ---- Freigaben: die Datei gehoert "bob" und ist mit admin geteilt (Rechte: 1 = lesen, 2 = aendern, 4 = erstellen) ----
+    // ---- Shares: the file belongs to "bob" and is shared with admin (permissions: 1 = read, 2 = change, 4 = create) ----
     const OWNER = 'bob', OWNER_PW = 'Bob-Pass-12345';
     const ownerAuth = { Authorization: 'Basic ' + Buffer.from(`${OWNER}:${OWNER_PW}`).toString('base64') };
     const ownerDav = (p, init = {}) => fetch(`${BASE}/remote.php/dav/files/${OWNER}${p}`, { ...init, headers: { ...ownerAuth, ...(init.headers || {}) } });
@@ -382,7 +382,7 @@ async function main() {
         return await status(page);
     });
 
-    // ---- Ausfall-Szenarien: erst Wartungsmodus (503), dann harter Serverausfall ----
+    // ---- Outage scenarios: first maintenance mode (503), then hard server outage ----
     const page2 = await newSession({ autosync: 'change', offline: true });
     const appUrl = `${BASE}/index.php/apps/keepassnc/`;
     const rows2 = () => page2.locator('[data-testid=entry-row]');
@@ -424,7 +424,7 @@ async function main() {
         await page2.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
         await page2.click('#edit-btn'); await page2.fill('#e-user', 'alice-ausfall'); await page2.click('#apply-btn');
         await waitStatus2(/Server nicht erreichbar/);
-        // Fremdaenderung direkt in der Datei (anderes Geraet synchronisiert z. B. per Syncthing/Dateisystem)
+        // Foreign change directly in the file (another device syncs e.g. via Syncthing/file system)
         const other = path.join(tmp, 'other2.kdbx'); fs.copyFileSync(srvFile, other);
         xc(['edit', '-q', other, 'Bank/Konto', '--url', 'https://wartung.example']);
         fs.copyFileSync(other, srvFile); occ('files:scan', '--path', `${ADMIN}/files/Passwörter privat`);
@@ -484,10 +484,10 @@ async function main() {
 
     await browser.close();
 
-    // Nextcloud fuehrt Uninstall-Schritte bei jedem Deaktivieren aus und kennt keinen eigenen Haken fuers Entfernen. Darum raeumt die
-    // App dabei nichts weg: kurz aus- und wieder einschalten darf gemerkte Schluesseldateien nicht ungueltig machen.
+    // Nextcloud runs uninstall steps on every disable and has no hook of its own for removal. So the
+    // app removes nothing there: briefly disabling and re-enabling must not invalidate remembered key files.
     await step('Deaktivieren + wieder aktivieren: App laeuft, Server-Geheimwert der Benutzer unveraendert', async () => {
-        const sys = (key, fallback) => { try { return occ('config:system:get', key).trim(); } catch { return fallback; } }; // SQLite-Installationen setzen dbname nicht
+        const sys = (key, fallback) => { try { return occ('config:system:get', key).trim(); } catch { return fallback; } }; // SQLite installations don't set dbname
         const db = path.join(dataDir, `${sys('dbname', 'owncloud')}.db`);
         const sql = `SELECT userid || ':' || configvalue FROM ${sys('dbtableprefix', 'oc_')}preferences WHERE appid = 'keepassnc' AND configkey = 'kf_pepper' ORDER BY userid`;
         const peppers = () => execFileSync('php', ['-r', 'echo implode("\\n", (new PDO("sqlite:" . $argv[1]))->query($argv[2])->fetchAll(PDO::FETCH_COLUMN));', db, sql]).toString();

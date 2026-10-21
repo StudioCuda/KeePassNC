@@ -1,11 +1,11 @@
-// QR-Code aus einem Bild lesen (etwa der Screenshot einer TOTP-Einrichtung). Das Bild wird nur hier im Browser ausgewertet.
+// Read a QR code from an image (e.g. a screenshot of a TOTP setup). The image is only processed here in the browser.
 import { workerUrl } from './argon2.js';
 
 const scriptSrc = typeof document !== 'undefined' ? document.currentScript?.src : '';
 const QR_WORKER_URL = scriptSrc && typeof Worker !== 'undefined' ? workerUrl(scriptSrc, 'keepassnc-qr.js') : null;
-const MAX_SIDE = 1600; // groessere Bilder verkleinern: schneller, und QR-Codes bleiben lesbar
+const MAX_SIDE = 1600; // scale larger images down: faster, and QR codes stay readable
 
-/** Text des QR-Codes in der Bilddatei oder null (kein Code gefunden). Fehler, wenn das Bild unlesbar ist oder kein Worker startet. */
+/** Text of the QR code in the image file or null (no code found). Throws if the image is unreadable or no worker starts. */
 export async function readQr(file) {
     if (!QR_WORKER_URL) throw new Error('QR worker unavailable');
     const bmp = await createImageBitmap(file);

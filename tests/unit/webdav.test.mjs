@@ -4,7 +4,7 @@ import { DavError, NetworkError, offlineFailKey, isOffline } from '../../src/web
 
 test('Server-Ausfall ohne Offline-Kopie: ein 5xx nennt seinen Status (Issue #50)', () => {
     const e503 = new DavError(503, 'x', 'e.dav.status', { status: 503 });
-    assert.ok(isOffline(e503)); // die Offline-Kopie darf weiter einspringen
+    assert.ok(isOffline(e503)); // the offline copy may step in
     assert.equal(offlineFailKey(e503, false), 'err.offline.status.nooption');
     assert.equal(offlineFailKey(e503, true), 'err.offline.status.nocopy');
 });

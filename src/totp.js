@@ -1,6 +1,6 @@
-// TOTP (RFC 6238) per WebCrypto. Unterstuetzt otpauth://-URLs (KeePassXC-Standard) und die aelteren
-// KeePass-Felder "TOTP Seed" / "TOTP Settings" ("30;6").
-// Steam Guard: gleiche Rechnung, aber 5 Zeichen aus einem eigenen Alphabet. Erkannt an "encoder=steam" (otpauth) bzw. "30;S" (alt).
+// TOTP (RFC 6238) via WebCrypto. Supports otpauth:// URLs (KeePassXC standard) and the older
+// KeePass fields "TOTP Seed" / "TOTP Settings" ("30;6").
+// Steam Guard: same calculation, but 5 characters from its own alphabet. Detected by "encoder=steam" (otpauth) or "30;S" (old).
 
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const STEAM = '23456789BCDFGHJKMNPQRTVWXY';
@@ -53,7 +53,7 @@ export function parseOtpConfig(otpField, seedField, settingsField) {
     return null;
 }
 
-/** 31-Bit-Wert aus der RFC-4226-Kuerzung -> 5 Zeichen, niedrigste "Stelle" zuerst. */
+/** 31-bit value from the RFC 4226 truncation -> 5 characters, lowest "digit" first. */
 export function steamCode(bin) {
     let s = '';
     for (let i = 0; i < 5; i++) { s += STEAM[bin % STEAM.length]; bin = Math.floor(bin / STEAM.length); }

@@ -1,13 +1,13 @@
-// Argon2 (hash-wasm) in einem Web Worker, damit die Seite waehrend der Schluesselableitung bedienbar bleibt.
-// Je Ableitung ein frischer Worker, der danach beendet wird: Sein WASM-Speicher (bis zu 1 GiB, mit Zwischenwerten aus dem Passwort)
-// ist damit sofort wieder frei, statt bis zum Neuladen der Seite liegen zu bleiben.
-// Laesst sich kein Worker starten (Node-Tests, CSP des Servers, Datei fehlt offline), rechnet die Seite selbst wie bisher.
+// Argon2 (hash-wasm) in a web worker, so the page stays usable during key derivation.
+// A fresh worker per derivation, ended afterwards: its WASM memory (up to 1 GiB, with intermediate values from the password)
+// is then freed right away instead of lingering until the page is reloaded.
+// If no worker can be started (Node tests, the server's CSP, file missing offline), the page computes it itself as before.
 import { argon2d, argon2id } from 'hash-wasm';
 
 const WORKER_FILE = 'keepassnc-argon2.js';
 
 /**
- * Rechnet im aktuellen Thread (im Worker oder als Rueckfall auf der Seite).
+ * Computes in the current thread (in the worker or as a fallback on the page).
  * p = {type: 'd'|'id', password: Uint8Array, salt: Uint8Array, parallelism, iterations, memoryKiB, hashLength} -> Uint8Array
  */
 export function argon2Here(p) {
@@ -17,16 +17,16 @@ export function argon2Here(p) {
     });
 }
 
-/** Adresse eines Workers neben dem App-Skript; behaelt dessen Query (?v= der Nextcloud-App), damit Cache und Version zusammenpassen. */
+/** Address of a worker next to the app script; keeps its query (?v= of the Nextcloud app) so cache and version match. */
 export function workerUrl(scriptSrc, file = WORKER_FILE) {
     const u = new URL(file, scriptSrc);
     u.search = new URL(scriptSrc).search;
     return u.href;
 }
 
-// document.currentScript gibt es nur, solange das App-Skript laeuft, also hier beim Laden lesen.
+// document.currentScript only exists while the app script is running, so read it here at load time.
 const scriptSrc = typeof document !== 'undefined' ? document.currentScript?.src : '';
-/** Adresse des Workers (null ohne Worker-Unterstuetzung); gehoert in den App-Cache fuer den Offline-Start (session.js). */
+/** Address of the worker (null without worker support); belongs in the app cache for offline start (session.js). */
 export const ARGON2_WORKER_URL = scriptSrc && typeof Worker !== 'undefined' ? workerUrl(scriptSrc) : null;
 let url = ARGON2_WORKER_URL;
 
@@ -39,21 +39,21 @@ function inWorker(p) {
         w.onmessage = ({ data }) => {
             w.terminate();
             if (data.ok) resolve(data.hash);
-            else if (data.oom) reject(new RangeError(data.message)); // wie auf der Seite: isOutOfMemory erkennt es
-            else reject(new NoWorker(data.message)); // z. B. WASM per CSP des Servers gesperrt -> auf der Seite versuchen
+            else if (data.oom) reject(new RangeError(data.message)); // like on the page: isOutOfMemory recognizes it
+            else reject(new NoWorker(data.message)); // e.g. WASM blocked by the server's CSP -> try on the page
         };
-        // Nur Lade-/Startfehler landen hier (der Worker faengt Rechenfehler selbst ab und meldet sie per Nachricht).
+        // Only load/start errors end up here (the worker catches computation errors itself and reports them by message).
         w.onerror = (e) => { e.preventDefault?.(); w.terminate(); reject(new NoWorker(e.message || 'worker error')); };
-        w.postMessage(p); // kopiert; Passwort und Salz bleiben dem Aufrufer erhalten (Rueckfall, kdbxweb raeumt seine Puffer selbst)
+        w.postMessage(p); // copies; password and salt stay with the caller (fallback, kdbxweb clears its own buffers)
     });
 }
 
-/** Wie argon2Here, rechnet aber im Worker, solange das klappt. */
+/** Like argon2Here, but computes in the worker as long as that works. */
 export async function argon2(p) {
     if (url) {
         try { return await inWorker(p); } catch (e) {
             if (!(e instanceof NoWorker)) throw e;
-            url = null; // einmal gescheitert: fuer den Rest der Sitzung direkt rechnen statt jedes Mal erneut zu probieren
+            url = null; // failed once: compute directly for the rest of the session instead of retrying every time
         }
     }
     return argon2Here(p);

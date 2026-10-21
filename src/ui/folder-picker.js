@@ -1,22 +1,22 @@
-// Ordner oder Datenbank in der eigenen Nextcloud waehlen: Brotkrumen, Unterordner, Dateien. Zwei Arten:
-// - 'folder' (neue Datenbank): "Neuer Ordner", "Hier speichern"; .kdbx-Dateien stehen ausgegraut dabei, damit man sieht, was da ist.
-// - 'file' (Anmeldung, [Durchsuchen]): .kdbx-Dateien waehlbar (Klick markiert, Doppelklick/Enter oeffnet), "Oeffnen" liefert den Pfad.
-// Liest ueber WebDAV (DavFile.list), nicht ueber den Datei-Picker von Nextcloud: der braucht Vue und die Core-Skripte, die diese
-// Seite wegen der strengen CSP bewusst nicht laedt.
+// Pick a folder or database in your own Nextcloud: breadcrumbs, subfolders, files. Two kinds:
+// - 'folder' (new database): "New folder", "Save here"; .kdbx files are shown greyed out so you can see what is there.
+// - 'file' (login, [Browse]): .kdbx files are selectable (click selects, double click/Enter opens), "Open" returns the path.
+// Reads via WebDAV (DavFile.list), not via Nextcloud's file picker: that needs Vue and the core scripts, which this
+// page deliberately doesn't load because of the strict CSP.
 import { DavFile } from '../webdav.js';
 import { davUrlFor } from '../nextcloud.js';
 import { t, errText } from '../i18n.js';
 import { h, icon, modal, promptDialog } from './dom.js';
 
-/** Anzeigename eines Ordners: "Alle Dateien" bzw. "Dokumente › Privat". */
+/** Display name of a folder: "All files" or "Documents › Private". */
 export const folderLabel = (folder) => (folder === '/' ? t('folder.root') : folder.split('/').filter(Boolean).join(' › '));
 export const joinPath = (folder, name) => (folder === '/' ? '' : folder) + '/' + name;
 /** "/A/B/x.kdbx" -> { folder: "/A/B", name: "x.kdbx" }; "/x.kdbx" -> { folder: "/", ... }. */
 export const splitPath = (p) => { const i = p.lastIndexOf('/'); return { folder: p.slice(0, i) || '/', name: p.slice(i + 1) }; };
 
 /**
- * mode 'folder': liefert den gewaehlten Ordner ("/" oder "/A/B"); mode 'file': den Pfad der gewaehlten .kdbx-Datei ("/A/x.kdbx"),
- * select markiert eine Datei im Startordner vor. Abgebrochen: null.
+ * mode 'folder': returns the chosen folder ("/" or "/A/B"); mode 'file': the path of the chosen .kdbx file ("/A/x.kdbx"),
+ * select preselects a file in the start folder. Cancelled: null.
  */
 export function pickFolder({ NC, auth, start = '/', mode = 'folder', select = '' }) {
     const fileMode = mode === 'file';
@@ -41,10 +41,10 @@ export function pickFolder({ NC, auth, start = '/', mode = 'folder', select = ''
             try { entries = await new DavFile({ url: davUrlFor(NC, folder), auth }).list(); }
             catch (e) {
                 if (my !== seq) return;
-                if (e?.status === 404 && folder !== '/') return load('/'); // vorgeschlagener Ordner gibt es nicht (mehr)
+                if (e?.status === 404 && folder !== '/') return load('/'); // the suggested folder does not exist (any more)
                 list.replaceChildren(); error.textContent = errText(e); return;
             }
-            if (my !== seq) return; // inzwischen woanders hingeklickt
+            if (my !== seq) return; // clicked somewhere else in the meantime
             cur = folder;
             const parts = folder.split('/').filter(Boolean);
             crumbs.replaceChildren(...[t('folder.root'), ...parts].flatMap((name, i) => {
@@ -59,7 +59,7 @@ export function pickFolder({ NC, auth, start = '/', mode = 'folder', select = ''
             const fileItem = (f) => (fileMode
                 ? item(f.name, 'file', { class: 'menu-item folder-item file-item', 'aria-pressed': 'false', onclick: () => choose(f.name),
                     ondblclick: () => m.close(joinPath(cur, f.name)),
-                    onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); m.close(joinPath(cur, f.name)); } } }) // Leertaste markiert nur
+                    onkeydown: (e) => { if (e.key === 'Enter') { e.preventDefault(); m.close(joinPath(cur, f.name)); } } }) // space only selects
                 : item(f.name, 'file', { disabled: true }));
             const items = [...dirs.map((d) => item(d.name, 'folder', { onclick: () => load(joinPath(folder, d.name)) })), ...dbs.map(fileItem)];
             list.replaceChildren(...(items.length ? items : [h('p', { class: 'hint', text: t(fileMode ? 'folder.empty.file' : 'folder.empty') })]));

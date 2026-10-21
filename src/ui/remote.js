@@ -1,7 +1,7 @@
-// Eigenstaendige Seite (ohne Nextcloud-App): Felder fuer die eigene Nextcloud (Adresse, Benutzername, App-Passwort) und, ueber
-// "Eigene WebDAV-Adresse", das bisherige Feld fuer andere WebDAV-Server. Gemeinsam fuer Anmeldung und "Neue Datenbank".
-// Eine gespeicherte Adresse (pref 'url') bleibt die Kennung der Datei: liegt sie in einer Nextcloud, fuellt sie Adresse und Pfad
-// vor und wird unveraendert wiederverwendet, solange es dieselbe Datei ist (gemerkte Schluesseldatei, Offline-Kopie).
+// Standalone page (without the Nextcloud app): fields for your own Nextcloud (address, username, app password) and, via
+// "Own WebDAV address", the previous field for other WebDAV servers. Shared by login and "New database".
+// A saved address (pref 'url') stays the identifier of the file: if it points into a Nextcloud, it prefills address and path
+// and is reused unchanged as long as it's the same file (remembered key file, offline copy).
 import { basicAuth, isOffline } from '../webdav.js';
 import { ncRoot, parseNcUrl, findDavBase, ncFileUrl } from '../nc-remote.js';
 import { VaultError } from '../vault.js';
@@ -10,8 +10,8 @@ import { h } from './dom.js';
 import { params, pref } from './ctx.js';
 
 /**
- * prefix: "dav" (Anmeldung) oder "new"; urlValue/urlPlaceholder/urlLabel fuer das WebDAV-Feld; onMode(mode) nach jedem Wechsel
- * ('nc' | 'url'); onFound() wenn die WebDAV-Basis erstmals vom Server kommt (die Kennung kann sich damit aendern).
+ * prefix: "dav" (login) or "new"; urlValue/urlPlaceholder/urlLabel for the WebDAV field; onMode(mode) after every switch
+ * ('nc' | 'url'); onFound() when the WebDAV base comes from the server for the first time (the identifier can change with it).
  */
 export function remoteFields(prefix, { urlValue = '', urlPlaceholder = '', urlLabel = 'login.dav.url', onMode, onFound } = {}) {
     const start = params.get('url') || pref('url');
@@ -43,14 +43,14 @@ export function remoteFields(prefix, { urlValue = '', urlPlaceholder = '', urlLa
     return {
         server, url, user, pass, serverBox, urlBox, creds, foot, legacy,
         mode: () => mode, setMode, root,
-        /** Adresse, Benutzername und App-Passwort eingetragen. */
+        /** Address, username and app password entered. */
         ready: () => !!(root() && user.value && pass.value),
         auth: () => basicAuth(user.value, pass.value),
-        /** WebDAV-Basis ohne Netz (fuer die Kennung beim Tippen): gespeicherte Adresse, schon gefunden, sonst aus dem Benutzernamen. */
+        /** WebDAV base without network (for the identifier while typing): saved address, already found, otherwise derived from the username. */
         guess() { const r = root(); return r && user.value ? guessFor(r, user.value) : ''; },
         /**
-         * WebDAV-Basis vom Server (einmal je Adresse und Zugangsdaten). offline: ist der Server nicht erreichbar, gilt die Schaetzung;
-         * dann scheitert erst der eigentliche Abruf, und eine Offline-Kopie kann einspringen (nur beim Oeffnen sinnvoll).
+         * WebDAV base from the server (once per address and credentials). offline: if the server is unreachable, the estimate applies;
+         * then only the actual fetch fails, and an offline copy can step in (only useful when opening).
          */
         async davBase({ offline = false } = {}) {
             const r = root(), u = user.value, p = pass.value;

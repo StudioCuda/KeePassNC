@@ -1,4 +1,4 @@
-// Sitzung: Speichern, Abgleichen (Intervall/Wiederverbinden), Sperren, Zeitgeber, Offline-App (Service Worker).
+// Session: save, sync (interval/reconnect), lock, timers, offline app (service worker).
 import { isOffline } from '../webdav.js';
 import { ARGON2_WORKER_URL } from '../argon2.js';
 import { t, errText } from '../i18n.js';
@@ -9,17 +9,17 @@ import { fmtDate } from '../i18n.js';
 
 const { state } = ctx;
 let autoSaveTimer = null, syncing = false;
-// Der Server-Stand oeffnet nicht mehr mit den Zugangsdaten dieser Sitzung: nach den neuen fragen (credentials-dialog.js)
+// The server version no longer opens with this session's credentials: ask for the new ones (credentials-dialog.js)
 const REMOTE_CREDS = new Set(['e.merge.pw', 'e.pull.pw']);
 
-/** Nach jeder Aenderung am Tresor aufrufen: Ansicht aktualisieren, Speicherzustand anzeigen, ggf. Auto-Speichern planen. */
+/** Call after every change to the vault: refresh the view, show the save state, schedule auto-save if needed. */
 export function changed() {
     ctx.ui.refresh?.();
     refreshDirtyIndicator();
     scheduleAutoSave();
 }
 
-/** Im Modus "Bei jeder Aenderung" kurz warten (mehrere Klicks zusammenfassen), dann speichern. */
+/** In "on every change" mode wait briefly (batching several clicks), then save. */
 export function scheduleAutoSave() {
     if (state.source?.type !== 'dav' || ctx.settings.autosync !== 'change') return;
     clearTimeout(autoSaveTimer);
@@ -55,7 +55,7 @@ export function refreshSyncState() {
 }
 
 export function rebind() {
-    // Nach einem Austausch der Datenbank (Aenderungen anderer Geraete) zeigen Auswahl-Verweise auf alte Objekte: ueber UUID neu aufloesen.
+    // After the database was swapped (changes from other devices), selection references point to old objects: re-resolve them via UUID.
     const v = state.vault;
     const f = state.filter;
     if (f.group) { const g = v.db.getGroup(f.group.uuid); if (g) f.group = g; else state.filter = { type: 'all' }; }
@@ -87,7 +87,7 @@ export async function doSave({ auto = false } = {}) {
             if (res.noBackup) setStatus(t('saved.nobackup'), 'warn'); else setStatus(t('saved'));
         }
     } catch (e) {
-        if (!e?.key) console.error(e); // erklaerte Fehler (mit Uebersetzung) stehen im Status, nur Unerwartetes in die Konsole
+        if (!e?.key) console.error(e); // explained errors (with translation) show in the status, only unexpected ones go to the console
         state.lastSyncFailed = isOffline(e);
         setStatus(t('save.failed', { msg: errText(e) }), 'error');
         if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
@@ -96,7 +96,7 @@ export async function doSave({ auto = false } = {}) {
     }
 }
 
-/** Hintergrund-Abgleich (Intervall, Wiederverbinden, Tab sichtbar): schiebt Lokales hoch oder holt Fremdaenderungen. */
+/** Background sync (interval, reconnect, tab visible): pushes local changes up or pulls changes from others. */
 export async function syncNow({ announce = false } = {}) {
     const v = state.vault;
     if (!v || state.source?.type !== 'dav' || syncing || state.editing) return;
@@ -116,7 +116,7 @@ export async function syncNow({ announce = false } = {}) {
             else if (wasOffline || announce) setStatus(t('sync.done'));
         }
     } catch (e) {
-        if (!e?.key) console.error(e); // erklaerte Fehler (mit Uebersetzung) stehen im Status, nur Unerwartetes in die Konsole
+        if (!e?.key) console.error(e); // explained errors (with translation) show in the status, only unexpected ones go to the console
         state.lastSyncFailed = isOffline(e);
         if (announce || !isOffline(e)) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
         if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
@@ -131,7 +131,7 @@ export async function lock(message) {
     const auto = state.autoLockRequest === true;
     const v = state.vault;
     if (v && (v.dirty || v.unsynced) && state.source.type === 'dav') {
-        // WebDAV: erst sichern. Lokal gesicherte (offline) Staende duerfen bleiben, das Entsperren uebertraegt sie spaeter.
+        // WebDAV: save first. Locally saved (offline) versions may stay, unlocking transfers them later.
         if (v.dirty) await doSave({ auto: true });
         if (state.vault?.dirty) {
             if (auto) { setStatus(t('lock.blocked'), 'warn'); return; }
@@ -173,7 +173,7 @@ export function installGlobalListeners() {
     });
 }
 
-// ---------------------------------------------------------------- App-Seite offline vorhalten (Service Worker)
+// ---------------------------------------------------------------- Keep the app page available offline (service worker)
 export async function ensureOfflineApp() {
     if (!('serviceWorker' in navigator) || !window.isSecureContext) return;
     try {
@@ -189,16 +189,16 @@ export async function ensureOfflineApp() {
         const cache = await caches.open(SW_CACHE);
         const shell = location.origin + location.pathname;
         const assets = [...document.querySelectorAll('script[src], link[rel=stylesheet][href]')].map((n) => n.src || n.href);
-        const wanted = new Set([shell, ...assets, ...(ARGON2_WORKER_URL ? [ARGON2_WORKER_URL] : [])]); // der Worker steht nicht im DOM
-        // Wie cache.add(), nur ohne dessen Konsolenfehler, wenn der Server gerade 503 liefert (Wartungsmodus).
+        const wanted = new Set([shell, ...assets, ...(ARGON2_WORKER_URL ? [ARGON2_WORKER_URL] : [])]); // the worker isn't in the DOM
+        // Like cache.add(), but without its console error when the server is returning 503 (maintenance mode).
         const refresh = async (u) => {
             try {
                 const res = await fetch(new Request(u, { cache: 'reload', credentials: 'same-origin' }));
                 if (res.ok) await cache.put(u, res);
-            } catch { /* Server nicht erreichbar: alter Stand bleibt */ }
+            } catch { /* server unreachable: old version stays */ }
         };
         await Promise.all([...wanted].map(refresh));
-        for (const k of await cache.keys()) if (!wanted.has(k.url)) await cache.delete(k); // alte Versionen entfernen
+        for (const k of await cache.keys()) if (!wanted.has(k.url)) await cache.delete(k); // remove old versions
         document.documentElement.dataset.offlineReady = '1';
     } catch (e) {
         console.warn('Offline-App nicht verfuegbar', e);

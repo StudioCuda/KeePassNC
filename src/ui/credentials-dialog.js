@@ -1,7 +1,7 @@
-// Master-Passwort und Schluesseldatei aendern. Bestaetigt wird mit dem aktuellen Passwort (nur Hash-Vergleich, keine KDF). Eine neue
-// Schluesseldatei gilt erst, wenn sie heruntergeladen UND zur Kontrolle wieder ausgewaehlt wurde: sonst sperrt man sich aus.
-// Danach wird sofort gespeichert, die gemerkte Schluesseldatei dieses Geraets nachgezogen und auf Wunsch die Sicherungskopien
-// geloescht (die oeffnen weiter mit den alten Zugangsdaten).
+// Change master password and key file. Confirmed with the current password (hash comparison only, no KDF). A new
+// key file only counts once it has been downloaded AND selected again as a check: otherwise you lock yourself out.
+// Afterwards it saves immediately, updates this device's remembered key file and, if wanted, deletes the backups
+// (those keep opening with the old credentials).
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus, download, kfStore } from './ctx.js';
 import { h, icon, modal, confirmDialog, toast } from './dom.js';
@@ -16,13 +16,13 @@ const { state } = ctx;
 export function openCredentials() {
     const v = state.vault, isDav = state.source.type === 'dav';
     if (isDav && state.source.readOnly) { toast(t('cred.readonly'), { kind: 'warn' }); return; }
-    // Ein noch nicht hochgeladener Stand liegt mit den alten Zugangsdaten auf dem Server: erst abgleichen
+    // A state that hasn't been uploaded yet sits on the server with the old credentials: sync first
     if (isDav && (state.offlineMode || v.unsynced)) { toast(t('cred.unsynced'), { kind: 'warn' }); return; }
     const current = h('input', { id: 'cred-current', type: 'password', autocomplete: 'current-password', spellcheck: 'false', autocapitalize: 'off' });
     const pwf = newPasswordFields('cred');
     const i = { current, next: pwf.next, repeat: pwf.repeat };
 
-    // --- Schluesseldatei: beibehalten (bzw. keine), andere waehlen, neue erzeugen, entfernen
+    // --- Key file: keep (or none), choose another, create new, remove
     const had = v.hasKeyfile;
     let mode = 'keep';
     const pickInput = h('input', { id: 'cred-kf-pick', type: 'file' });
@@ -48,7 +48,7 @@ export function openCredentials() {
     const applyBtn = h('button', { type: 'submit', class: 'primary', id: 'cred-apply', text: t('cred.apply') });
     const fail = (key) => { error.textContent = t(key); return null; };
 
-    /** Was sich aendern soll ({password, keyfile} wie Vault.changeCredentials) oder null (Fehler steht im Dialog). */
+    /** What should change ({password, keyfile} like Vault.changeCredentials) or null (the error is shown in the dialog). */
     async function collect() {
         if (!i.current.value && v.hasPassword) return fail('cred.current.none');
         if (!(await v.checkPassword(i.current.value))) return fail('cred.current.wrong');
@@ -86,7 +86,7 @@ export function openCredentials() {
             if (change.password !== undefined && ['bad', 'poor'].includes(strengthLabel(estimateBits(change.password))) && !(await ask(t('cred.weak.title'), t('cred.weak.msg')))) return;
             if (change.keyfile === null && !(await ask(t('cred.kf.none.title'), t('cred.kf.none.msg')))) return;
             setStatus(t('cred.saving'));
-            await state.kfBusy; // ein Neu-Verschluesseln vom Anmelden darf den Datensatz nicht danach mit dem alten Passwort ueberschreiben
+            await state.kfBusy; // a re-encryption from the login must not overwrite the record with the old password afterwards
             let res;
             try {
                 res = await v.changeCredentials({ password: change.password, keyfile: change.keyfile });
@@ -134,15 +134,15 @@ export function openCredentials() {
 }
 
 /**
- * Gemerkte Schluesseldatei dieses Geraets (keyfile-store.js) an die neuen Zugangsdaten anpassen: mit dem neuen Passwort und der
- * aktuellen Schluesseldatei neu verschluesseln, ohne Schluesseldatei vergessen. Geht das nicht (Server-Geheimwert fehlt), wird der
- * Datensatz vergessen, er passt ohnehin nicht mehr. Liefert einen Hinweis fuer die Statuszeile oder ''.
+ * Adapt this device's remembered key file (keyfile-store.js) to the new credentials: re-encrypt it with the new password and the
+ * current key file, without forgetting the key file. If that isn't possible (server secret missing), the
+ * record is forgotten, it no longer fits anyway. Returns a note for the status line or ''.
  */
 async function updateRemembered(change, password) {
     const v = state.vault, id = state.source.kfId;
     const rec = id ? await kfStore.info(id).catch(() => null) : null;
     if (!rec) return '';
-    if (!v.hasKeyfile || !password) { await kfStore.forget(id).catch(() => {}); return t('cred.kf.forgotten'); } // gemerkt wird nur mit Passwort
+    if (!v.hasKeyfile || !password) { await kfStore.forget(id).catch(() => {}); return t('cred.kf.forgotten'); } // only remembered together with a password
     const keyfile = v.keyfileCopy();
     try {
         const pepper = ctx.NC?.pepperUrl ? await fetchPepper(ctx.NC, nextcloudAuth(ctx.NC)) : null;
@@ -156,9 +156,9 @@ async function updateRemembered(change, password) {
 
 let askingRemote = false;
 /**
- * Die Datei auf dem Server oeffnet nicht mehr mit den Zugangsdaten dieser Sitzung (auf einem anderen Geraet geaendert): nach den neuen
- * fragen, statt nur "bitte neu anmelden" zu sagen. Mit ihnen werden lokale Aenderungen zusammengefuehrt und gespeichert, sonst wird
- * einfach der neue Stand geholt. "Spaeter" laesst alles, wie es ist; die naechste Speicherung oder der naechste Abgleich fragt wieder.
+ * The file on the server no longer opens with this session's credentials (changed on another device): ask for the new
+ * ones instead of just saying "please log in again". With them, local changes are merged and saved, otherwise
+ * the new state is simply fetched. "Later" leaves everything as is; the next save or sync asks again.
  */
 export function askRemoteCredentials() {
     const v = state.vault;
@@ -175,7 +175,7 @@ export function askRemoteCredentials() {
         if (okBtn.disabled) return;
         error.textContent = ''; okBtn.disabled = true;
         const picked = await readFile(kfInput);
-        const keyfile = picked || v.keyfileCopy(); // ohne Auswahl: die bisherige Schluesseldatei
+        const keyfile = picked || v.keyfileCopy(); // without a selection: the existing key file
         if (!pwInput.value && !keyfile) { okBtn.disabled = false; error.textContent = t('err.login.empty'); return; }
         try {
             const res = await v.adoptCredentials({ password: pwInput.value, keyfile: keyfile || undefined });

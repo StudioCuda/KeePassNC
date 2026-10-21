@@ -1,5 +1,5 @@
-// Mit einer anderen Kopie zusammenfuehren: andere .kdbx-Dateien im selben Nextcloud-Ordner (z. B. "(conflicted copy)") oder eine Datei
-// von diesem Geraet. Erst mit den eigenen Zugangsdaten versuchen; nur wenn die Kopie andere hat, werden sie abgefragt.
+// Merge with another copy: other .kdbx files in the same Nextcloud folder (e.g. "(conflicted copy)") or a file
+// from this device. Try the own credentials first; they are only asked for if the copy has different ones.
 import { t, errText, fmtDate } from '../i18n.js';
 import { ctx } from './ctx.js';
 import { h, icon, modal, toast } from './dom.js';
@@ -49,7 +49,7 @@ export function openMerge() {
             changed();
             toast(n.added || n.changed || n.removed ? t('merge.done', { name: pick.name, ...n }) : t('merge.nothing', { name: pick.name }));
         } catch (err) {
-            if (err.key === 'e.badkey' && credBox.hidden) { credBox.hidden = false; pw.focus(); } // die Kopie hat andere Zugangsdaten
+            if (err.key === 'e.badkey' && credBox.hidden) { credBox.hidden = false; pw.focus(); } // the copy has different credentials
             else error.textContent = errText(err);
         } finally {
             kf?.fill(0);

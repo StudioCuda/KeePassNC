@@ -1,5 +1,5 @@
-// Service Worker: haelt die App-Seite (HTML, JS, CSS) vor, damit KeePassNC auch bei Ausfall des Servers startet.
-// Er beruehrt keine Anfragen an WebDAV oder die Anmeldung; die Dateien selbst liegen verschluesselt in IndexedDB (cache.js).
+// Service worker: keeps the app page (HTML, JS, CSS) available so KeePassNC also starts when the server is down.
+// It doesn't touch requests to WebDAV or the login; the files themselves live encrypted in IndexedDB (cache.js).
 const CACHE = 'kpnc-app-v1';
 const ASSET = /\.(?:js|css|svg|png|wasm)$/i;
 
@@ -22,18 +22,18 @@ self.addEventListener('fetch', (event) => {
     if (!isNav && !isAsset) return;
     event.respondWith((async () => {
         const cache = await caches.open(CACHE);
-        const key = isNav ? new Request(url.origin + url.pathname) : req; // Seite ohne Query ablegen (kein ?open= im Offline-Rahmen)
+        const key = isNav ? new Request(url.origin + url.pathname) : req; // store the page without a query (no ?open= in the offline frame)
         try {
             const res = await withTimeout(fetch(req), isNav ? 4000 : 8000);
             if (res.ok && !res.redirected) {
-                // Nur die neutrale Seite (ohne Query) und Assets merken; Weiterleitungen (z. B. Login-Seite) nie.
+                // Only remember the neutral page (without a query) and assets; never redirects (e.g. login page).
                 if (!isNav || url.search === '') cache.put(key, res.clone()).catch(() => {});
                 return res;
             }
-            if (res.status < 500 && res.status !== 0) return res; // 3xx/4xx sind echte Antworten des Servers
-        } catch { /* Server nicht erreichbar -> Cache */ }
+            if (res.status < 500 && res.status !== 0) return res; // 3xx/4xx are real answers from the server
+        } catch { /* server unreachable -> cache */ }
         const hit = await cache.match(key);
         if (hit) return hit;
-        return fetch(req); // nichts im Cache: normales Verhalten (Fehler/Antwort durchreichen)
+        return fetch(req); // nothing in the cache: normal behaviour (pass the error/response through)
     })());
 });

@@ -1,6 +1,6 @@
-// Neue Datenbank anlegen, in einer Maske statt eines Assistenten: wo sie liegen soll, Master-Passwort, optional Schluesseldatei.
-// Verschluesselung ohne Fragen (NEW_DB in core/kdf-policy.js, Durchlaeufe aus einem Probelauf), aendern geht spaeter in den
-// Datenbank-Einstellungen. Eine vorhandene Datei wird nie ueberschrieben (DavFile.create); danach ist die Datenbank gleich offen.
+// Create a new database, in one form instead of a wizard: where it goes, master password, optionally a key file.
+// Encryption without questions (NEW_DB in core/kdf-policy.js, iterations from a test run); it can be changed later in the
+// database settings. An existing file is never overwritten (DavFile.create); afterwards the database is open right away.
 import { Vault, VaultError } from '../vault.js';
 import { DavFile, DavError, NetworkError } from '../webdav.js';
 import { nextcloudAuth, davUrlFor, normalizeUserPath } from '../nextcloud.js';
@@ -23,26 +23,26 @@ const withExt = (s) => (/\.kdbx$/i.test(s) ? s : s + '.kdbx');
 const baseName = (p) => p.split('/').pop().replace(/\.kdbx$/i, '');
 
 /**
- * In Nextcloud nur Name und Ordner: der Ordner kommt aus "+ Neu" in Dateien (?new=), sonst aus der zuletzt geoeffneten Datenbank,
- * sonst das Hauptverzeichnis; [Aendern] oeffnet den Ordner-Browser. Ist der Name dort schon vergeben, sagt die Maske das gleich
- * (und schlaegt selbst einen freien vor, solange niemand etwas eingetippt hat). Ohne Nextcloud-App: die WebDAV-Adresse der Datei.
+ * In Nextcloud just name and folder: the folder comes from "+ New" in Files (?new=), otherwise from the last opened database,
+ * otherwise the root; [Change] opens the folder browser. If the name is already taken there, the form says so right away
+ * (and suggests a free one itself, as long as nobody has typed anything). Without the Nextcloud app: the file's WebDAV address.
  */
 export function showCreate() {
     const NC = ctx.NC;
-    const mode = pref('mode') || (NC || params.get('url') ? 'dav' : 'file'); // wie in der Anmeldung
+    const mode = pref('mode') || (NC || params.get('url') ? 'dav' : 'file'); // same as in the login
     const defName = t('new.file.default');
     const defBase = baseName(defName);
     let folder = '/', startName = defBase, touched = false;
     if (NC?.newFile) { const x = splitPath(normalizeUserPath(NC.newFile)); folder = x.folder; startName = baseName(x.name) || defBase; touched = true; }
     else if (NC && pref('ncfile')) folder = splitPath(normalizeUserPath(pref('ncfile'))).folder;
     const auth = NC ? nextcloudAuth(NC) : null;
-    // Ohne Nextcloud-App: Nextcloud-Adresse + Name und Ordner wie in der App, oder ueber den Link die WebDAV-Adresse wie bisher
+    // Without the Nextcloud app: Nextcloud address + name and folder as in the app, or via the link the WebDAV address as before
     const remote = NC ? null : remoteFields('new', { urlPlaceholder: `https://cloud.example.org/remote.php/dav/files/NAME/${defName}`, urlLabel: 'new.dav.url', onMode: () => show() });
-    if (remote?.legacy) folder = splitPath(remote.legacy.path).folder; // neben der zuletzt geoeffneten Datenbank
+    if (remote?.legacy) folder = splitPath(remote.legacy.path).folder; // next to the last opened database
     const urlInput = remote?.url || h('input'), userInput = remote?.user || h('input'), passInput = remote?.pass || h('input');
-    /** Name + Ordner statt einer Adresse: in Nextcloud und mit Nextcloud-Adresse. */
+    /** Name + folder instead of an address: in Nextcloud and with a Nextcloud address. */
     const ncLike = () => !!NC || remote.mode() === 'nc';
-    /** Wo der Ordner-Browser und die Namenspruefung lesen: { loc, auth }; null, solange Zugangsdaten fehlen. */
+    /** Where the folder browser and the name check read: { loc, auth }; null while credentials are missing. */
     const davLoc = async () => (NC ? { loc: NC, auth } : remote.ready() ? { loc: { davBase: await remote.davBase() }, auth: remote.auth() } : null);
     const nameInput = h('input', { id: 'new-name', type: 'text', value: startName, autocomplete: 'off', spellcheck: 'false' });
     const nameNote = h('p', { class: 'level-note warn', id: 'new-name-note', 'aria-live': 'polite', hidden: true });
@@ -69,13 +69,13 @@ export function showCreate() {
         urlBox.hidden = urlFoot.hidden = !!NC || where !== 'dav'; fileHint.hidden = where !== 'file';
         kf.relabel(); check();
     };
-    /** Eingegebener Name ohne .kdbx; '' wenn leer oder ungueltig (Schraegstriche, "." und ".."). */
+    /** Entered name without .kdbx; '' if empty or invalid (slashes, "." and ".."). */
     const nameValue = () => { const n = nameInput.value.trim().replace(/\.kdbx$/i, ''); return !n || /[/\\]/.test(n) || n === '.' || n === '..' ? '' : n; };
-    /** Wo die Datei hinkommt, fuer Datenbank- und Schluesseldatei-Namen. */
+    /** Where the file goes, for database and key file names. */
     const target = () => (ncLike() || where === 'file' ? nameValue() : urlInput.value.split(/[?#]/)[0].trim());
     const seg = (value, label, ic) => h('label', { class: 'seg' }, h('input', { type: 'radio', name: 'new-src', value, checked: value === where, onchange: () => { where = value; show(); } }), h('span', {}, icon(ic), label));
 
-    // --- Name schon vergeben? Ordnerinhalt einmal je Ordner holen; Fehler beim Listen stoeren nicht, das Anlegen prueft ohnehin.
+    // --- Name already taken? Fetch the folder contents once per folder; errors while listing don't matter, creating checks anyway.
     const listings = new Map();
     let checkTimer = null;
     function check() {
@@ -83,7 +83,7 @@ export function showCreate() {
         if (!ncLike() || where !== 'dav') { nameNote.hidden = true; return; }
         checkTimer = setTimeout(async () => {
             const f = folder;
-            const at = await davLoc().catch(() => null); // ohne Zugangsdaten keine Pruefung (und keine Anfrage beim Tippen des Passworts)
+            const at = await davLoc().catch(() => null); // no credentials, no check (and no request while typing the password)
             if (!at) { nameNote.hidden = true; return; }
             const k = at.loc.davBase + '\n' + f;
             if (!listings.has(k)) listings.set(k, new DavFile({ url: davUrlFor(at.loc, f), auth: at.auth }).list().then((l) => new Set(l.map((x) => x.name.toLowerCase())), () => null));
@@ -135,7 +135,7 @@ export function showCreate() {
         const label = btn.querySelector('.label');
         let keyfile = null;
         try {
-            const src = where; // Auswahl jetzt festhalten: sie kann sich waehrend Probelauf und Netz noch aendern
+            const src = where; // freeze the selection now: it can still change during the test run and network
             const password = pwf.next.value;
             if (password !== pwf.repeat.value) throw new VaultError(t('cred.mismatch'));
             if (kfMode === 'pick') {
@@ -175,7 +175,7 @@ export function showCreate() {
             if (password && ['bad', 'poor'].includes(strengthLabel(estimateBits(password))) && !(await ask(t('cred.weak.title'), t('cred.weak.msg')))) return;
 
             label.textContent = t('new.creating');
-            await new Promise((r) => setTimeout(r, 30)); // Text vor dem Probelauf anzeigen
+            await new Promise((r) => setTimeout(r, 30)); // show the text before the test run
             let ms;
             try { ms = await trialRun(NEW_DB, 1); } catch (e) { if (isOutOfMemory(e)) throw new VaultError(t('new.oom', { mb: NEW_DB.memoryKiB / 1024 })); throw e; }
             const security = { ...NEW_DB, iterations: newDbIterations(ms) };
@@ -188,7 +188,7 @@ export function showCreate() {
             pref('mode', src);
             if (src === 'file') download(name, bytes);
             else if (NC) {
-                // Wie nach einem Klick in "Dateien": Neu laden und Sperren zeigen genau diese Datei
+                // Like after a click in "Files": reloading and locking show exactly this file
                 pref('ncfile', userPath); NC.file = userPath; NC.newFile = '';
                 history.replaceState(null, '', `${location.pathname}?open=${encodeURIComponent(userPath)}`);
             } else { pref('url', url); pref('user', userInput.value); pref('davmode', remote.mode()); }
@@ -218,7 +218,7 @@ export function showCreate() {
         form,
         h('footer', { class: 'login-foot' }, h('span', {}), h('span', { class: 'muted', text: 'v' + __VERSION__ })));
     ctx.app.replaceChildren(loginShell(card));
-    /** Zurueck zur Anmeldung; kam die Seite aus "+ Neu" in Dateien, auch ohne ?new= in der Adresse (sonst kaeme beim Neuladen wieder diese Maske). */
+    /** Back to the login; if the page came from "+ New" in Files, also without ?new= in the address (otherwise a reload would bring this form back). */
     function back() {
         if (NC?.newFile) { NC.newFile = ''; history.replaceState(null, '', location.pathname + (NC.file ? `?open=${encodeURIComponent(NC.file)}` : '')); }
         ctx.ui.showLogin();

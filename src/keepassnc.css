@@ -1,12 +1,12 @@
-/* KeePassNC 2026 - Design: ruhige Flaechen, ein Akzent, grosse Klickziele; Desktop zuerst (3 Spalten), darunter Tablet/Mobil.
-   Strikte CSP: keine Inline-Styles - Farben/Abstaende nur ueber Klassen und CSS-Variablen. */
+/* KeePassNC 2026 - design: calm surfaces, one accent, large click targets; desktop first (3 columns), tablet/mobile below.
+   Strict CSP: no inline styles - colors/spacing only via classes and CSS variables. */
 :root {
     --bg: #f4f1ec; --surface: #fffdfa; --surface-2: #f9f6f2; --surface-3: #ede8e2; --border: #e2dcd4; --border-strong: #cec6bb;
     --text: #18202c; --muted: #685f58; --accent: #0b1f3b; --accent-2: #4f7774; --accent-soft: #e7e7e7; --on-accent: #fff; --on-accent-2: #fff; --ring: #a8893f;
     --ok: #2f7d46; --ok-soft: #e2f0e5; --warn: #9d5a00; --warn-soft: #fbefd9; --bad: #c0362c; --bad-soft: #f9e3e0;
     --shadow-1: 0 1px 2px rgb(11 31 59 / .06), 0 1px 1px rgb(11 31 59 / .04); --shadow-2: 0 8px 28px rgb(11 31 59 / .14), 0 2px 6px rgb(11 31 59 / .08);
     --hero: #0b1f3b; --hero-2: #1a3560; --nch-h: 44px;
-    --solo-spot: 70%; --solo-glow: 10%; --solo-mark: .11; --solo-noise: .05; --solo-edge: rgb(255 255 255 / .8); /* Anmeldung in Nextcloud: Dekor */
+    --solo-spot: 70%; --solo-glow: 10%; --solo-mark: .11; --solo-noise: .05; --solo-edge: rgb(255 255 255 / .8); /* Login in Nextcloud: decoration */
     --radius: 12px; --radius-sm: 8px; --row-h: 60px; --topbar-h: 56px; --sidebar-w: 264px; --list-w: 368px;
     --font: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
     color-scheme: light;
@@ -27,14 +27,14 @@
     --shadow-1: 0 1px 2px rgb(0 0 0 / .4); --shadow-2: 0 10px 34px rgb(0 0 0 / .55); color-scheme: dark;
     --solo-spot: 6%; --solo-glow: 33%; --solo-mark: .1; --solo-noise: .03; --solo-edge: rgb(255 255 255 / .08);
 }
-/* Nextcloud: Akzent aus der Instanzfarbe (ui/ctx.js -> applyTheme setzt die --nc-*-Werte per CSSOM, theme.js prueft die Kontraste).
-   Ohne data-accent bleibt alles wie oben. Die Dunkel-Regeln sind spezifischer, damit sie die helle Regel schlagen. */
+/* Nextcloud: accent from the instance colour (ui/ctx.js -> applyTheme sets the --nc-* values via CSSOM, theme.js checks the contrasts).
+   Without data-accent everything stays as above. The dark rules are more specific so they beat the light rule. */
 :root[data-accent="nc"] { --accent: var(--nc-accent-l); --accent-soft: var(--nc-accent-soft-l); --on-accent: var(--nc-on-accent-l); --ring: var(--nc-accent-l); --hero: var(--nc-hero); --hero-2: var(--nc-hero-2); }
 @media (prefers-color-scheme: dark) {
     :root[data-accent="nc"]:not([data-theme="light"]) { --accent: var(--nc-accent-d); --accent-soft: var(--nc-accent-soft-d); --on-accent: var(--nc-on-accent-d); --ring: var(--nc-accent-d); }
 }
 :root[data-accent="nc"][data-theme="dark"] { --accent: var(--nc-accent-d); --accent-soft: var(--nc-accent-soft-d); --on-accent: var(--nc-on-accent-d); --ring: var(--nc-accent-d); }
-/* Hoher Kontrast in Nextcloud: kraeftigere Linien und Nebentexte (der Akzent rechnet dann mit 7:1). */
+/* High contrast in Nextcloud: stronger lines and secondary text (the accent then works with 7:1). */
 :root[data-contrast="more"] { --border: var(--border-strong); --muted: var(--text); --solo-spot: 0%; --solo-glow: 0%; --solo-mark: 0; --solo-noise: 0; --solo-edge: transparent; }
 @media (forced-colors: active) { :root { --solo-spot: 0%; --solo-glow: 0%; --solo-mark: 0; --solo-noise: 0; --solo-edge: transparent; } }
 :root[data-density="compact"] { --row-h: 46px; }
@@ -56,7 +56,7 @@ img.icon, img.avatar { object-fit: contain; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 kbd { font: 11px var(--mono); padding: 1px 6px; border: 1px solid var(--border-strong); border-bottom-width: 2px; border-radius: 5px; color: var(--muted); background: var(--surface-2); }
 
-/* ---------- Bausteine ---------- */
+/* ---------- Building blocks ---------- */
 .stack { display: flex; flex-direction: column; gap: 14px; }
 .stack.tight { gap: 8px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -138,7 +138,7 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); fon
 .avatar.hue-4 { background: #a4553a; } .avatar.hue-5 { background: #8a6a2e; } .avatar.hue-6 { background: #6f7a3a; } .avatar.hue-7 { background: #3f7a52; }
 .avatar.hue-8 { background: #2f6f6c; } .avatar.hue-9 { background: #3a5470; } .avatar.hue-10 { background: #7a4a5e; } .avatar.hue-11 { background: #6b625a; }
 .avatar.glyph .icon { width: 21px; height: 21px; } .avatar.lg.glyph .icon { width: 28px; height: 28px; }
-/* Symbol-Auswahl (ui/icon-picker.js) */
+/* Icon picker (ui/icon-picker.js) */
 .title-row { display: flex; align-items: flex-end; gap: 12px; }
 .icon-pick { display: inline-grid; place-items: center; flex: none; padding: 0; border: 0; border-radius: 16px; background: transparent; outline-offset: 2px; }
 .icon-pick:hover .avatar, .icon-pick:focus-visible .avatar { box-shadow: 0 0 0 3px var(--accent-soft); }
@@ -162,7 +162,7 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .empty.small { height: auto; padding: 40px 16px; color: var(--muted); }
 .empty-art { width: 84px; height: 84px; border-radius: 24px; display: grid; place-items: center; background: linear-gradient(135deg, var(--accent-soft), var(--surface-3)); color: var(--accent); } .empty-art .icon { width: 40px; height: 40px; }
 
-/* ---------- Anmeldung ---------- */
+/* ---------- Login ---------- */
 .login { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(420px, .95fr); }
 .login-hero { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: 64px clamp(32px, 6vw, 96px); color: #fff; background: radial-gradient(1200px 600px at 0% 0%, var(--hero-2) 0%, transparent 60%), var(--hero); overflow: hidden; }
 .login-hero h1 { font-size: clamp(34px, 4.4vw, 56px); letter-spacing: -.02em; line-height: 1.05; }
@@ -183,9 +183,9 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .login.solo::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: var(--solo-noise);
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E"); }
 .login-mark { position: absolute; z-index: -1; right: -22vh; bottom: -24vh; width: 124vh; height: 124vh; color: var(--accent); opacity: var(--solo-mark); pointer-events: none;
-    mask-image: linear-gradient(150deg, rgb(0 0 0 / .2) 8%, #000 38%, rgb(0 0 0 / .24) 58%, #000 82%); } /* Mattglanz: eine helle Bahn quer ueber dem Strich */
-.login-hero { isolation: isolate; } .login-hero .login-mark { right: -16vh; bottom: -18vh; width: 100vh; height: 100vh; color: #fff; opacity: .07; } /* eigenstaendige Seite: dasselbe Schild auf dem Nachtblau */
-.login-mark .icon { width: 100%; height: 100%; } /* Wasserzeichen: die feine Kontur der Marke (icon('shield-fine')), gefuellt mit currentColor */
+    mask-image: linear-gradient(150deg, rgb(0 0 0 / .2) 8%, #000 38%, rgb(0 0 0 / .24) 58%, #000 82%); } /* Matte sheen: one light band across the stroke */
+.login-hero { isolation: isolate; } .login-hero .login-mark { right: -16vh; bottom: -18vh; width: 100vh; height: 100vh; color: #fff; opacity: .07; } /* standalone page: the same shield on the night blue */
+.login-mark .icon { width: 100%; height: 100%; } /* Watermark: the fine outline of the brand mark (icon('shield-fine')), filled with currentColor */
 .login.solo > .login-card { position: relative; justify-content: flex-start; padding-top: clamp(24px, 8vh, 72px); background: transparent; }
 .login.solo .login-form { --glow: var(--solo-glow); padding: 28px 26px 24px; gap: 18px; transition: box-shadow .25s ease;
     box-shadow: inset 0 1px 0 var(--solo-edge), 0 1px 2px rgb(0 0 0 / .04), 0 16px 36px -10px color-mix(in srgb, #000 var(--glow), transparent); }
@@ -199,7 +199,7 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .file-chip > span { display: flex; flex-direction: column; min-width: 0; } .file-chip strong, .file-chip small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .file-chip strong { font-size: 15px; }
 .login-more > summary { cursor: pointer; width: fit-content; color: var(--muted); font-size: 13px; font-weight: 600; }
 .login-more[open] > summary { margin-bottom: 14px; }
-/* Neue Datenbank: Name mit fester Endung, Ordnerzeile, Ordner-Browser */
+/* New database: name with fixed extension, folder row, folder browser */
 .input-suffix { align-self: center; color: var(--muted); font-size: 13px; }
 .folder-row { display: flex; align-items: center; gap: 8px; font-size: 13px; min-width: 0; } .folder-row .icon { width: 16px; height: 16px; flex: none; }
 .folder-row #new-folder { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
@@ -209,24 +209,24 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .folder-list .file-item[aria-pressed="true"], .folder-list .file-item[aria-pressed="true"]:hover { background: var(--accent-soft); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .login-foot { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
 
-/* ---------- Nextcloud-Kopfleiste (ui/ncheader.js) ---------- */
-/* Die Anmeldung ist so hoch wie das Fenster und scrollt nur in der Karte: sonst taucht beim Aufklappen der Optionen die Scrollleiste
-   der Seite auf und Rahmen und Wasserzeichen ruecken um ihre Breite. Die reservierte Rinne haelt auch die Karte selbst still. */
+/* ---------- Nextcloud header bar (ui/ncheader.js) ---------- */
+/* The login is as tall as the window and only scrolls inside the card: otherwise expanding the options makes the page scrollbar
+   appear and frame and watermark shift by its width. The reserved gutter also keeps the card itself still. */
 body.has-nch .login { min-height: 0; height: calc(100vh - var(--nch-h) - var(--nch-gap)); height: calc(100dvh - var(--nch-h) - var(--nch-gap)); }
 body.has-nch .login > .login-card { overflow-y: auto; scrollbar-gutter: stable; }
 body.has-nch .shell { height: calc(100vh - var(--nch-h) - var(--nch-gap)); height: calc(100dvh - var(--nch-h) - var(--nch-gap)); }
-body.has-nch .topbar .brand { display: none; } /* der Name steht schon in der Kopfleiste */
-/* Schrift wie --font-face in Nextcloud, damit Namen im Header und im App-Menue genauso umbrechen */
+body.has-nch .topbar .brand { display: none; } /* the name is already in the header bar */
+/* Font like --font-face in Nextcloud, so names wrap the same way in the header and the app menu */
 .nch { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Oxygen-Sans, Cantarell, Ubuntu, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif; position: relative; z-index: 30; display: flex; align-items: center; height: var(--nch-h); padding: 0 12px 0 0; background: var(--nch-bg, #0b1f3b); color: var(--nch-fg, #fff); --nch-hover: rgb(0 0 0 / .1); --nch-press: rgb(0 0 0 / .15); }
 .nch a { color: inherit; text-decoration: none; }
 .nch :focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
 .nch[data-offline="1"] > .nch-logo, .nch[data-offline="1"] > .nch-apps, .nch[data-offline="1"] .nch-user { opacity: .55; }
-/* Masse wie Nextcloud 35 (tools/nc-header.json): Logo 62 px breit, Knoepfe 34 px hoch, App-Raster 4 x 69 px */
+/* Dimensions like Nextcloud 35 (tools/nc-header.json): logo 62 px wide, buttons 34 px high, app grid 4 x 69 px */
 .nch-logo { display: flex; align-items: center; height: calc(var(--nch-h) - 4px); margin: 0 2px; padding: 0 12px; border-radius: 8px; }
 .nch-logo img { display: block; width: 62px; height: calc(var(--nch-h) - 6px); object-fit: contain; }
 .nch[data-fg="dark"] .nch-logo img.stock { filter: invert(1); }
 .nch-apps { position: relative; display: flex; align-items: center; --nch-el: var(--nch-bg, #0b1f3b); --nch-el-light: color-mix(in srgb, var(--nch-el) 10%, var(--surface)); }
-/* Wie Nextcloud 35: Beide Knoepfe sind volle Kopfleistenhoehe und durchsichtig, ein gemeinsamer Hover (34 px hoch) liegt dahinter */
+/* Like Nextcloud 35: both buttons are full header height and transparent, a shared hover (34 px high) sits behind them */
 .nch-trigger { position: relative; display: flex; align-items: center; height: var(--nch-h); isolation: isolate; }
 .nch-trigger::before { content: ""; position: absolute; inset: calc((var(--nch-h) - 34px) / 2) 0; z-index: -1; border-radius: 8px; pointer-events: none; }
 .nch-trigger:hover::before, .nch-trigger:has([aria-expanded="true"])::before { background: var(--nch-hover); }
@@ -240,16 +240,16 @@ body.has-nch .topbar .brand { display: none; } /* der Name steht schon in der Ko
 .nch-btn .icon { width: 20px; height: 20px; }
 .nch-current { padding: 0 12px 0 7px; } .nch-current-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: clamp(80px, 22vw, 320px); letter-spacing: -.5px; }
 .nch-glyph { display: inline-grid; place-items: center; width: 20px; height: 20px; flex: none; font-weight: 700; font-size: 13px; }
-/* App-Symbole nach unten leicht ausgeblendet wie --header-menu-icon-mask in Nextcloud */
+/* App icons fade out slightly towards the bottom like --header-menu-icon-mask in Nextcloud */
 .nch-glyph.has-icon { background: linear-gradient(currentColor 25%, color-mix(in srgb, currentColor 45%, transparent) 90%); -webkit-mask: var(--nch-icon) center / contain no-repeat; mask: var(--nch-icon) center / contain no-repeat; }
 .nch-pop { position: absolute; top: calc(100% + 6px); z-index: 40; padding: 10px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-2); }
-/* App-Menue wie Nextcloud 35: ohne Pfeil direkt unter der Kopfleiste, 82 px nach links versetzt (Logo + Abstand), Raster 4 x 69 px */
+/* App menu like Nextcloud 35: no arrow, directly under the header bar, shifted 82 px to the left (logo + gap), grid 4 x 69 px */
 .nch-apps-pop { top: 100%; left: -82px; display: flex; flex-direction: column; overflow: hidden; max-width: calc(100vw - 16px); max-height: calc(100vh - var(--nch-h) - 4px); padding: 0; border: 0; box-shadow: 0 1px 10px rgb(77 77 77 / .5); }
 .nch-grid { box-sizing: border-box; display: grid; grid-template-columns: repeat(4, 69px); grid-auto-rows: minmax(82.5px, max-content); min-height: 0; padding: 8px; overflow: hidden auto; scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
 .nch-grid::-webkit-scrollbar { width: 6px; } .nch-grid::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 .nch .nch-tile { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 4px 0; border-radius: 8px; color: var(--text); font-size: 12px; line-height: 1.3; letter-spacing: -.3px; text-align: center; }
 .nch-grid > .nch-tile:nth-child(-n+4) { padding-top: 8px; }
-/* Kein Hover-Hintergrund mehr: der Kreis waechst ein wenig, beim Klicken schrumpft er */
+/* No hover background anymore: the circle grows a little, on click it shrinks */
 .nch .nch-tile:hover, .nch .nch-tile:focus-visible { --nch-scale: 1.08; }
 .nch .nch-tile:active { --nch-scale: .96; }
 .nch .nch-tile:focus-visible { outline: none; box-shadow: inset 0 0 0 2px var(--nch-el); }
@@ -260,11 +260,11 @@ body.has-nch .topbar .brand { display: none; } /* der Name steht schon in der Ko
 .nch-tile-icon .nch-glyph.has-icon { background: linear-gradient(color-mix(in srgb, var(--nch-el), var(--nch-el-light) 28%), var(--nch-el)); }
 .nch-tile-name { max-width: 100%; padding: 0 4px; overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto; }
 .nch .nch-tile[aria-current="page"] .nch-tile-name { font-weight: 700; }
-/* "Weitere Apps" ist keine App: nur ein Ring, Symbol und Name gedaempft */
+/* "More apps" is not an app: just a ring, icon and name muted */
 .nch-tile.outlined .nch-tile-icon { background: transparent; box-shadow: inset 0 0 0 2px var(--border); color: var(--muted); }
 .nch .nch-tile.outlined .nch-tile-name { color: var(--muted); }
 .nch-tile-svg { width: 28px; height: 28px; }
-/* Navigations-Aktionen (z. B. "Textdokument" von Office) in einer eigenen Zeile unter dem Raster */
+/* Navigation actions (e.g. "Text document" from Office) in their own row under the grid */
 .nch-actions-wrap { flex: none; border-top: 1px solid var(--border); background: var(--surface); }
 .nch-actions { display: grid; grid-template-columns: repeat(4, 69px); padding: 8px; }
 .nch-action-icon { position: relative; display: grid; place-items: center; flex: none; width: 48px; height: 48px; transform: scale(var(--nch-scale, 1)); transition: transform .1s ease-out; }
@@ -278,7 +278,7 @@ body.has-nch .topbar .brand { display: none; } /* der Name steht schon in der Ko
 .nch .nch-action.compact:hover, .nch .nch-action.compact:focus-visible { background: var(--surface-3); --nch-scale: 1; }
 .nch-action.compact .nch-action-icon { width: 32px; height: 32px; }
 .nch-action.compact .nch-tile-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; -webkit-hyphens: none; hyphens: none; }
-/* Dunkel: Instanzfarbe aufgehellt wie --color-primary-element in Nextcloud, ohne Schliff am Kreis */
+/* Dark: instance colour lightened like --color-primary-element in Nextcloud, no bevel on the circle */
 @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) .nch-apps { --nch-el: color-mix(in srgb, var(--nch-bg, #0b1f3b) 55%, #fff); }
     :root:not([data-theme="light"]) .nch-tile:not(.outlined) .nch-tile-icon { box-shadow: none; }
@@ -289,7 +289,7 @@ body.has-nch .topbar .brand { display: none; } /* der Name steht schon in der Ko
 @media (forced-colors: active) { .nch-tile-icon .nch-glyph.has-icon { background: CanvasText; } }
 .nch-offline { font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 999px; background: var(--bad-soft); color: var(--bad); white-space: nowrap; }
 .nch-user-wrap { position: relative; }
-/* Kontomenue wie Nextcloud 35: Bild mit duennem Ring, beim Hover ein 2-px-Rand statt einer Flaeche */
+/* Account menu like Nextcloud 35: image with a thin ring, on hover a 2 px border instead of a fill */
 .nch-user { width: 44px; height: 44px; border-radius: 50%; } .nch .nch-user:hover, .nch .nch-user:active { background: transparent; }
 .nch-avatar, .nch-initial { box-sizing: border-box; display: inline-grid; place-items: center; width: 32px; height: 32px; border-radius: 50%; flex: none; object-fit: cover; outline: 1px solid color-mix(in srgb, currentColor 25%, transparent); }
 .nch-user:hover .nch-avatar, .nch-user:hover .nch-initial, .nch-user:focus-visible .nch-avatar, .nch-user:focus-visible .nch-initial { outline: none; border: 2px solid currentColor; }
@@ -399,7 +399,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
 #status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } #status[data-kind=error] { color: var(--bad); } #status[data-kind=warn] { color: var(--warn); }
 .fab { display: none; }
 
-/* ---------- Dialoge, Menues, Hinweise ---------- */
+/* ---------- Dialogs, menus, notices ---------- */
 .backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; background: rgb(8 15 28 / .5); backdrop-filter: blur(3px); animation: fade .12s ease-out; }
 .modal { width: 100%; max-height: min(90vh, 900px); display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-2); animation: pop .14s ease-out; }
 .modal.sm { max-width: 420px; } .modal.md { max-width: 560px; } .modal.lg { max-width: 760px; }
@@ -415,11 +415,11 @@ textarea.c-value { min-height: 0; resize: vertical; }
 .toast.warn { background: #6e4a0a; } .toast.error { background: #8e2323; }
 .toast-action { margin-left: auto; border: 0; background: transparent; color: #d9bd7a; font-weight: 700; padding: 2px 6px; }
 
-/* Generator / Berichte / Palette */
+/* Generator / reports / palette */
 .gen-meter { display: flex; gap: 8px; align-items: center; justify-content: space-between; } .gen-meter .strength { margin-top: 0; }
 .gen-preview { flex: 1; min-height: 64px; display: flex; align-items: center; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font: 600 20px/1.35 var(--mono); overflow-wrap: anywhere; word-break: break-all; } .gen-preview.phrase { word-break: normal; }
-/* Feste Hoehen, damit der Dialog beim Schieben und Umschalten nicht springt: Passphrase 5 Zeilen, Simpel 2, Passwort per JS so,
-   dass der Dialog so hoch ist wie bei der Passphrase. min-height, damit ungewoehnlich lange Werte trotzdem Platz haben. */
+/* Fixed heights so the dialog doesn't jump when sliding and switching: passphrase 5 lines, simple 2, password set via JS so
+   the dialog is as tall as with the passphrase. min-height so unusually long values still have room. */
 .gen-preview.ph { min-height: calc(5 * 27px + 22px); } .gen-preview.si { min-height: calc(2 * 27px + 22px); } .gen-preview.pw { min-height: max(64px, var(--gen-pw-h, 64px)); } .gen-preview.error { color: var(--bad); font: 14px var(--font); }
 .slider-row { display: grid; grid-template-columns: 110px 1fr 76px; gap: 12px; align-items: center; } .slider-label { font-size: 13.5px; font-weight: 550; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 14px; }
@@ -440,7 +440,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
 .chips-inline { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .report-note { display: flex; flex-direction: column; gap: 2px; margin: 20px 0 0; }
 .empty-note { padding: 24px; text-align: center; color: var(--ok); font-weight: 600; }
-/* Aktionen unter den Datenbank-Infos: gleich breite Buttons, die bei wenig Platz in die naechste Zeile rutschen */
+/* Actions under the database info: equal-width buttons that wrap to the next line when space is short */
 .db-actions { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
 .kv { display: flex; justify-content: space-between; gap: 16px; padding: 7px 0; } .kv + .kv { border-top: 1px solid var(--border); }
 .palette-modal { align-self: start; margin-top: 10vh; } .palette-modal .modal-head { display: none; } .palette-modal .modal-body { padding: 10px; }
@@ -448,7 +448,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
 .palette-list { max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; }
 .palette-item { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 0; border-radius: 10px; background: transparent; text-align: left; width: 100%; } .palette-item.active { background: var(--accent-soft); }
 
-/* ---------- Responsiv ---------- */
+/* ---------- Responsive ---------- */
 @media (max-width: 1180px) {
     :root { --sidebar-w: 0px; --list-w: 340px; }
     .panes { grid-template-columns: var(--list-w) minmax(0, 1fr); }
@@ -460,7 +460,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
     .hide-narrow, .topbar .kbd, .searchbox kbd { display: none !important; }
     .file-name { display: none; }
 }
-/* Wie Nextcloud: unter 1024 px nur der 9-Punkte-Knopf */
+/* Like Nextcloud: below 1024 px only the 9-dot button */
 @media (max-width: 1024px) { .nch-current { display: none; } }
 @media (max-width: 760px) {
     :root { --topbar-h: 52px; }
@@ -503,10 +503,10 @@ label.btn { flex-direction: row; color: var(--text); font-size: 13px; cursor: po
 input:disabled, select:disabled { opacity: .5; cursor: not-allowed; }
 .kf-used { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--accent-soft); }
 .kf-used .check { color: var(--text); }
-.cred-sub { margin-left: 28px; } /* Unterpunkte einer Schluesseldatei-Option im Dialog "Master-Passwort und Schluesseldatei" */
+.cred-sub { margin-left: 28px; } /* Sub-items of a key file option in the dialog "Master password and key file" */
 
-/* ---------- Anmeldung: Anmutung (Typografie, Fokus, Entsperr-Moment) ---------- */
-button.primary.big .icon, .login-trust .icon { position: relative; top: -1px; } /* das Schloss ist unten schwer: optisch auf die Texthoehe heben */
+/* ---------- Login: look and feel (typography, focus, unlock moment) ---------- */
+button.primary.big .icon, .login-trust .icon { position: relative; top: -1px; } /* the lock is bottom-heavy: lift it optically to the text height */
 .login.solo .login-top h2 { font-weight: 600; letter-spacing: .01em; }
 .back-line { margin-bottom: -5px; } .back-line .link { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 550; } .back-line .link:hover { color: var(--text); text-decoration: underline; }
 .login.solo .login-form label > span:first-child { font-size: 11.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }
@@ -517,8 +517,8 @@ button.primary.big.done .icon { animation: unlock-pop .26s ease-out; }
 @keyframes unlock-pop { 40% { transform: translateY(-3px) scale(1.15); } }
 @media (prefers-reduced-motion: no-preference) { .shell.enter { animation: fade .45s ease both; } }
 @media (prefers-reduced-motion: reduce) { button.primary.big.busy::after { animation: none; transform: none; opacity: .5; } }
-/* Nextcloud-Rahmen: der Inhalt sitzt wie bei den nativen Apps in einem abgerundeten Panel vor dem Instanzfarben-Hintergrund
-   (stable35, core/css/apps.scss: #content mit Rand 8px und Radius 16px; unter 1024px randlos, oben mit 8px Rundung) */
+/* Nextcloud frame: like in the native apps, the content sits in a rounded panel in front of the instance-colour background
+   (stable35, core/css/apps.scss: #content with margin 8px and radius 16px; below 1024px edge to edge, 8px rounding at the top) */
 body.has-nch { --nch-gap: 8px; --nch-radius: 16px; --nch-c: var(--nch-bg, #0b1f3b); background: var(--nch-c); }
 body.has-nch .login, body.has-nch .shell { margin: 0 var(--nch-gap) var(--nch-gap); border-radius: var(--nch-radius); overflow: hidden; background-color: var(--bg); }
 @media (max-width: 1023px) { body.has-nch { --nch-gap: 0px; --nch-radius: 8px 8px 0 0; } }

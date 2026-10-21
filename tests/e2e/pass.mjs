@@ -1,5 +1,5 @@
-// Generator-Seite (web-generator/): erzeugt Passwoerter, folgt der Browsersprache, laesst sich umschalten, kopiert, und die strenge CSP
-// (connect-src 'none') haelt: keine Anfrage ausser den eigenen Dateien, keine CSP-Verstoesse, keine Seitenfehler.
+// Generator page (web-generator/): generates passwords, follows the browser language, can be switched, copies, and the strict CSP
+// (connect-src 'none') holds: no request except the own files, no CSP violations, no page errors.
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
