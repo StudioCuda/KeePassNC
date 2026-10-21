@@ -171,6 +171,7 @@ export default {
     'e.dav.status': 'Server antwortete mit Status {status}.',
     'e.merge.other': 'Das ist eine andere Datenbank, keine Kopie dieser. Zusammenführen geht nur mit Kopien.',
     'e.merge.pw': 'Die Zugangsdaten wurden auf einem anderen Gerät geändert. Deine Änderungen sind noch da: Mit den neuen Zugangsdaten werden sie zusammengeführt.',
+    'nc.urlfix': 'Diese Nextcloud liefert App-Pfade mit doppeltem Webroot (/nc/nc/apps/...). KeePassNC läuft trotzdem, andere Apps vielleicht nicht. In der config.php darf apps_paths[].url den Webroot nicht enthalten: "/apps", nicht "/nc/apps".',
     'e.nc.session': 'Sitzung abgelaufen - bitte die Seite neu laden und erneut anmelden.',
     'e.kf.nopepper': 'Kein Geheimwert vom Server verfügbar.',
     'e.network': 'Server nicht erreichbar.',

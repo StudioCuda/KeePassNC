@@ -9,6 +9,8 @@ import { installGlobalListeners, ensureOfflineApp } from './ui/session.js';
 import { langNow } from './ui/settings-dialog.js';
 import { renderNcHeader } from './ui/ncheader.js';
 import { askRemoteCredentials } from './ui/credentials-dialog.js';
+import { toast } from './ui/dom.js';
+import { t } from './i18n.js';
 
 ctx.app = document.getElementById('app');
 ctx.NC = readNextcloudContext(ctx.app);
@@ -24,3 +26,4 @@ installGlobalListeners();
 installShortcuts();
 if (ctx.NC?.newFile) showCreate(); else showLogin(); // ?new= aus "+ Neu" in Dateien
 ensureOfflineApp();
+if (ctx.NC?.urlFix) toast(t('nc.urlfix'), { kind: 'warn', timeout: 0, action: { label: t('close'), run() {} } });

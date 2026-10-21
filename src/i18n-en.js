@@ -171,6 +171,7 @@ export default {
     'e.dav.status': 'The server answered with status {status}.',
     'e.merge.other': 'That is a different database, not a copy of this one. Merging only works with copies.',
     'e.merge.pw': 'The credentials were changed on another device. Your changes are still here: with the new credentials they get merged.',
+    'nc.urlfix': 'This Nextcloud hands out app paths with the web root twice (/nc/nc/apps/...). KeePassNC works anyway, but other apps may not. In config.php, apps_paths[].url must not contain the web root: "/apps", not "/nc/apps".',
     'e.nc.session': 'Session expired - please reload the page and sign in again.',
     'e.kf.nopepper': 'No secret available from the server.',
     'e.network': 'Server unreachable.',
