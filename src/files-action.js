@@ -7,11 +7,13 @@ const KEEPASS_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24
 
 const isKdbx = (node) => /\.kdbx$/i.test(node.basename || node.path || '');
 
+const de = /^de\b/i.test(document.documentElement.lang || '');
+
 registerFileAction({
     id: 'keepassnc-open',
     order: -10,
     default: DefaultType.DEFAULT,
-    displayName: () => (typeof window.t === 'function' ? window.t('keepassnc', 'Mit KeePassNC öffnen') : 'Mit KeePassNC öffnen'),
+    displayName: () => (de ? 'Mit KeePassNC öffnen' : 'Open with KeePassNC'),
     iconSvgInline: () => KEEPASS_ICON,
     enabled: ({ nodes }) => nodes.length === 1 && isKdbx(nodes[0]) && (nodes[0].permissions & Permission.READ) !== 0,
     async exec({ nodes }) {
@@ -22,7 +24,6 @@ registerFileAction({
 
 // "+ New" -> "KeePass database": the file is only created in KeePassNC once the master password is set (an empty .kdbx would be
 // broken). Here just a free name in the current folder; the app asks for the credentials and never overwrites an existing file.
-const de = /^de\b/i.test(document.documentElement.lang || '');
 const NEW_NAME = de ? 'Passwörter' : 'Passwords';
 addNewFileMenuEntry({
     id: 'keepassnc-new',

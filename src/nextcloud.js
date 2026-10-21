@@ -82,7 +82,7 @@ export function normalizeUserPath(p) {
 
 export function davUrlFor(ctx, userPath) {
     const segments = normalizeUserPath(userPath).split('/').filter(Boolean);
-    if (segments.some((s) => s === '..' || s === '.')) throw new Error('Ungueltiger Pfad');
+    if (segments.some((s) => s === '..' || s === '.')) throw new Error('Invalid path');
     return ctx.davBase.replace(/\/+$/, '') + '/' + segments.map(encodeURIComponent).join('/');
 }
 
@@ -93,10 +93,10 @@ export function nextcloudAuth(ctx) {
         try {
             res = await fetch(ctx.csrfUrl, { credentials: 'same-origin', headers: { 'OCS-APIREQUEST': 'true' }, cache: 'no-store' });
         } catch (e) {
-            console.warn('CSRF-Token-Abruf fehlgeschlagen', ctx.csrfUrl, e); // as in webdav.js: the UI only says "not reachable"
+            console.warn('CSRF token request failed', ctx.csrfUrl, e); // as in webdav.js: the UI only says "not reachable"
             throw new NetworkError(e);
         }
-        if (!res.ok) console.warn('CSRF-Token-Abruf: Status', res.status, ctx.csrfUrl);
+        if (!res.ok) console.warn('CSRF token request: status', res.status, ctx.csrfUrl);
         if (res.status >= 500) throw new DavError(res.status, `Server antwortete mit Status ${res.status}.`, 'e.dav.status', { status: res.status });
         if (!res.ok) throw new DavError(res.status, 'Sitzung abgelaufen - bitte die Seite neu laden und erneut anmelden.', 'e.nc.session');
         token = (await res.json()).token;
@@ -123,7 +123,7 @@ export async function fetchPepper(ctx, auth, { rotate = false } = {}) {
             return await fetch(url, { method: rotate ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', headers: { ...(await auth.headers()), Accept: 'application/json' } });
         } catch (e) {
             if (e instanceof DavError || e instanceof NetworkError) throw e; // from auth.headers(), already reported there
-            console.warn('Server-Geheimwert-Abruf fehlgeschlagen', url, e);
+            console.warn('Server secret request failed', url, e);
             throw new NetworkError(e);
         }
     };

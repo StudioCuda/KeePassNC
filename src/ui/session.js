@@ -201,7 +201,7 @@ export async function ensureOfflineApp() {
         for (const k of await cache.keys()) if (!wanted.has(k.url)) await cache.delete(k); // remove old versions
         document.documentElement.dataset.offlineReady = '1';
     } catch (e) {
-        console.warn('Offline-App nicht verfuegbar', e);
+        console.warn('Offline app unavailable', e);
     }
 }
 export { fmtDate };

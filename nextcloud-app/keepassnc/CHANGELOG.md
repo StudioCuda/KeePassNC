@@ -8,6 +8,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - "Key file & offline options" on the open-vault screen now always starts folded, even with the offline copy switched on. One click away, a lot less card.
 
 ### Fixed
+- A few texts were stuck in one language: the "Open with KeePassNC" action in Files is now English in an English Nextcloud, TOTP errors on an entry follow the interface language, the no-JavaScript notice is bilingual, and the path placeholders on the open-vault screen no longer show German folder names in English.
 - Unfolding those options inside Nextcloud no longer nudges the frame and the shield watermark sideways: the open-vault card now scrolls inside its panel instead of the whole page growing a scrollbar.
 - Locking (by hand or after inactivity) now closes every open dialog too. Before, a dialog such as the large password view, an entry's history or an attachment preview stayed on top of the sign-in screen, plaintext included, and the TOTP code kept ticking in the background.
 

@@ -92,7 +92,7 @@ export class DavFile {
                 res = await fetch(url, { ...init, headers, cache: 'no-store', credentials: this.auth.credentials });
             } catch (e) {
                 // The UI only says "not reachable"; the actual cause (mixed content, CSP, DNS ...) is recorded here
-                console.warn('WebDAV-Abruf fehlgeschlagen', init.method || 'GET', url, e);
+                console.warn('WebDAV request failed', init.method || 'GET', url, e);
                 throw new NetworkError(e, foreignHost(url));
             }
             // Expired session token (Nextcloud): refresh once and retry

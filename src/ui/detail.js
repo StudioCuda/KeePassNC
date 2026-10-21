@@ -74,7 +74,7 @@ export function renderDetail(host) {
 
     // TOTP
     let otpCfg = null;
-    try { otpCfg = parseOtpConfig(fieldText(e.fields.get('otp')), fieldText(e.fields.get('TOTP Seed')), fieldText(e.fields.get('TOTP Settings'))); } catch (err) { main.push(field('TOTP', h('span', { class: 'error', text: err.message }))); }
+    try { otpCfg = parseOtpConfig(fieldText(e.fields.get('otp')), fieldText(e.fields.get('TOTP Seed')), fieldText(e.fields.get('TOTP Settings'))); } catch (err) { main.push(field('TOTP', h('span', { class: 'error', text: errText(err) }))); }
     if (otpCfg) {
         const codeEl = h('span', { class: 'totp', 'data-testid': 'totp-code', text: '------' });
         const NSs = 'http://www.w3.org/2000/svg';
