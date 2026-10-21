@@ -297,8 +297,13 @@ async function main() {
         await page.fill('#gen-blocks', '1'); await page.locator('#gen-blocks').press('Tab');
         pw = (await page.locator('#gen-preview').innerText()).trim();
         expect(/^[A-Z][a-z]{5,11}@[2-9]{2}$/.test(pw), 'Simpel mit einem Block ' + pw);
+        if (browserName === 'chromium') {
+            await page.locator('#gen-preview').click(); await page.locator('#gen-preview.copied').waitFor();
+            expect(await page.evaluate(() => navigator.clipboard.readText()) === pw, 'Klick auf das Passwort kopiert es');
+        }
         await page.keyboard.press('Escape');
         await pick(page, 'UI Ablauf-TOTP'); await page.click('#edit-btn'); await page.click('#gen-btn');
+        expect(await page.locator('#gen-preview.click-copy').count() === 0, 'Im Editor-Dialog kopiert ein Klick auf das Passwort nicht');
         await page.click('#gen-tab-pw'); await page.click('#gen-use'); await page.click('#e-show');
         const v = await page.inputValue('#e-pass');
         expect(v !== 'Ui-Passwort-123!' && v.length >= 20, 'Editor uebernimmt Passwort');

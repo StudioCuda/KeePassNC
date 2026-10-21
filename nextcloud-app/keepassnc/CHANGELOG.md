@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Changed
+- Generator dialog (opened from the tool bar, not from the editor): a click on the password copies it, like on the generator page.
 
 ## [0.16.3] - 2026-10-21
 ### Fixed
