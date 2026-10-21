@@ -19,6 +19,7 @@ browser only. Start with `README.md`, `CONTRIBUTING.md` (build, tests, layout) a
   `e2e (nc35)`, `browsers (firefox)`, `browsers (webkit)`. `e2e (nc-master)` is an early warning only.
 - Before pushing: `npm run build` and `npm run test:unit`, plus the browser tests that cover the change
   (`CHROMIUM=/path/to/chrome npm run test:ui`, `test:e2e`, …). Build output isn't committed.
+- Code, comments and identifiers are written in English. Working language with the user can be theirs.
 - New UI text goes into both `src/i18n-de.js` and `src/i18n-en.js`.
 - User-visible changes get a line under `## [Unreleased]` in `nextcloud-app/keepassnc/CHANGELOG.md`.
 - Releases: a release PR bumps `package.json`, `package-lock.json` and `appinfo/info.xml` (including the tag `vX.Y.Z` in the
