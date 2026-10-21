@@ -29,7 +29,7 @@ export default {
     'cred.backups': 'Delete the backup copies of this file afterwards',
     'cred.backups.done': 'Backup copies deleted: {n}.',
     'cred.backups.failed': 'Backup copies not deleted: {msg}',
-    'cred.backups.hint': 'Old backup copies (.bak) still open with the previous password. Delete them if it got out.',
+    'cred.backups.hint': 'Old backup copies (.bak) still open with the previous master password.\nDelete them if it got out.',
     'cred.current': 'Current master password',
     'cred.current.none': 'Please enter the current master password first.',
     'cred.current.nopw': 'This database has no master password, only a key file.',

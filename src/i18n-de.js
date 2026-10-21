@@ -29,7 +29,7 @@ export default {
     'cred.backups': 'Sicherungskopien dieser Datei danach löschen',
     'cred.backups.done': 'Sicherungskopien gelöscht: {n}.',
     'cred.backups.failed': 'Sicherungskopien nicht gelöscht: {msg}',
-    'cred.backups.hint': 'Alte Sicherungskopien (.bak) lassen sich noch mit dem bisherigen Passwort öffnen. Lösche sie, wenn es bekannt geworden ist.',
+    'cred.backups.hint': 'Alte Sicherungskopien (.bak) lassen sich noch mit dem bisherigen Master-Passwort öffnen.\nLösche sie, wenn es bekannt geworden ist.',
     'cred.current': 'Aktuelles Master-Passwort',
     'cred.current.none': 'Bitte zuerst das aktuelle Master-Passwort eingeben.',
     'cred.current.nopw': 'Diese Datenbank hat kein Master-Passwort, nur eine Schlüsseldatei.',

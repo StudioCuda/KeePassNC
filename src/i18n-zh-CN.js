@@ -29,7 +29,7 @@ export default {
     'cred.backups': '之后删除该文件的备份副本',
     'cred.backups.done': '已删除备份副本：{n} 个。',
     'cred.backups.failed': '未能删除备份副本：{msg}',
-    'cred.backups.hint': '旧的备份副本（.bak）仍然可以用原来的密码打开。如果密码已经泄露，请把它们删掉。',
+    'cred.backups.hint': '旧的备份副本（.bak）仍然可以用原来的主密码打开。\n如果密码已经泄露，请把它们删掉。',
     'cred.current': '当前主密码',
     'cred.current.none': '请先输入当前主密码。',
     'cred.current.nopw': '该数据库没有主密码，只有密钥文件。',
