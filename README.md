@@ -50,6 +50,10 @@ easy way is: **Apps** → search for *KeePassNC* → **Download and enable**. Or
 
 Then click a `.kdbx` file in Files. No database yet? **+ New** → **KeePass database** in Files makes one.
 
+> **Nextcloud in a sub-folder** works as well, as long as the instance hands out its URLs correctly. If `config.php` carries the webroot in
+> `apps_paths[].url` (`/nc/apps` instead of `/apps`), Nextcloud returns every app path doubled (`/nc/nc/apps/...`), nothing loads and the page
+> stays empty. KeePassNC shows a hint at the top of the page when it sees that.
+
 ## Security
 
 All decryption happens in your browser, and the app loads nothing from other servers. There hasn't been an independent audit

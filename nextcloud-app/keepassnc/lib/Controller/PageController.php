@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\Keepassnc\Controller;
 
 use OCA\Keepassnc\AppInfo\Application;
+use OCA\Keepassnc\Util\UrlHelper;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -50,15 +51,22 @@ class PageController extends Controller {
 		$uid = $user?->getUID() ?? '';
 		$version = $this->appManager->getAppVersion(Application::APP_ID);
 
+		// Instanzen, deren config.php den webroot in 'apps_paths[].url' mitbringt, liefern jeden App-Pfad doppelt
+		// (z. B. "/nc/nc/apps/keepassnc/js/app.js"). Solche URLs loesen im Browser nicht auf, die Seite bleibt leer.
+		// Der ueberzaehlige webroot wird entfernt; die Pfade bleiben relativ, damit ein Reverse Proxy ohne
+		// overwriteprotocol kein Mixed Content erzeugt (siehe Kommentar bei $davBase).
+		$webroot = UrlHelper::webroot($this->urlGenerator->getBaseUrl());
+		$fixUrl = fn (string $u): string => UrlHelper::withoutDuplicateWebroot($u, $webroot);
+
 		// Ohne abschliessenden "/": Mit Pretty URLs (htaccess.IgnoreFrontController, z. B. YunoHost) liefert linkTo() nur "/" bzw.
 		// "/unterordner/", und aus "/" . "/csrftoken" wurde "//csrftoken", fuer den Browser ein Host namens "csrftoken" (Issue #50).
-		$indexPhp = rtrim($this->urlGenerator->linkTo('', 'index.php'), '/');
+		$indexPhp = rtrim($fixUrl($this->urlGenerator->linkTo('', 'index.php')), '/');
 		// Relativ wie alle anderen Adressen der Seite: linkToRemote() baut eine absolute URL aus Protokoll und Host, wie PHP sie sieht.
 		// Hinter einem Reverse-Proxy ohne overwriteprotocol wird daraus http://, und Browser (Mixed Content) wie CSP (connect-src 'self')
 		// blockieren den Abruf, bevor er den Server erreicht (Issue #50).
-		$davBase = $this->urlGenerator->linkTo('', 'remote.php') . '/dav/files/' . rawurlencode($uid);
+		$davBase = $fixUrl($this->urlGenerator->linkTo('', 'remote.php')) . '/dav/files/' . rawurlencode($uid);
 		try {
-			$filesUrl = $this->urlGenerator->linkToRoute('files.view.index');
+			$filesUrl = $fixUrl($this->urlGenerator->linkToRoute('files.view.index'));
 		} catch (\Throwable) {
 			$filesUrl = $indexPhp . '/apps/files/';
 		}
@@ -70,13 +78,13 @@ class PageController extends Controller {
 		$newFile = $clean($new);
 
 		try {
-			$swUrl = $this->urlGenerator->linkToRoute('keepassnc.page.sw');
+			$swUrl = $fixUrl($this->urlGenerator->linkToRoute('keepassnc.page.sw'));
 		} catch (\Throwable) {
 			$swUrl = '';
 		}
 
 		try {
-			$pepperUrl = $this->urlGenerator->linkToRoute('keepassnc.pepper.get');
+			$pepperUrl = $fixUrl($this->urlGenerator->linkToRoute('keepassnc.pepper.get'));
 		} catch (\Throwable) {
 			$pepperUrl = '';
 		}
@@ -90,6 +98,21 @@ class PageController extends Controller {
 
 		[$ncColor, $ncThemes] = $this->theming($uid);
 
+		// Liefert die Instanz die App-Pfade doppelt, ist nicht nur diese App betroffen: auch die Dateien-App holt
+		// ihre Icons und Styles mit doppeltem Pfad. Der Hinweis sagt der Administration, was in der config.php
+		// zu aendern ist, damit auch die anderen Apps der Instanz wieder laufen.
+		$cssPath = $this->urlGenerator->linkTo(Application::APP_ID, 'css/keepassnc.css');
+		$instanceNotice = '';
+		if (UrlHelper::withoutDuplicateWebroot($cssPath, $webroot) !== $cssPath) {
+			$instanceNotice = $lang === 'de'
+				? 'Diese Nextcloud-Instanz liefert doppelte URLs: Der Pfad enthaelt den webroot zweimal. '
+					. 'In der config.php darf apps_paths[].url den webroot nicht enthalten, z. B. "/apps" statt "/nc/apps". '
+					. 'Andere Apps dieser Instanz sind vermutlich ebenfalls betroffen.'
+				: 'This Nextcloud instance returns doubled URLs: the path contains the webroot twice. '
+					. 'In config.php, apps_paths[].url must not contain the webroot, e.g. "/apps" instead of "/nc/apps". '
+					. 'Other apps on this instance are probably affected as well.';
+		}
+
 		$vars = [
 			'__SW_URL__' => $swUrl,
 			'__PEPPER_URL__' => $pepperUrl,
@@ -99,14 +122,15 @@ class PageController extends Controller {
 			'__USER__' => $uid,
 			'__FILE__' => $file,
 			'__NEW__' => $newFile,
-			'__CSS__' => $this->urlGenerator->linkTo(Application::APP_ID, 'css/keepassnc.css') . '?v=' . $version,
-			'__JS__' => $this->urlGenerator->linkTo(Application::APP_ID, 'js/keepassnc.js') . '?v=' . $version,
-			'__ICON__' => $this->urlGenerator->linkTo(Application::APP_ID, 'img/favicon.svg') . '?v=' . $version,
-			'__TOUCH__' => $this->urlGenerator->linkTo(Application::APP_ID, 'img/apple-touch-icon.png') . '?v=' . $version,
+			'__CSS__' => $fixUrl($cssPath) . '?v=' . $version,
+			'__JS__' => $fixUrl($this->urlGenerator->linkTo(Application::APP_ID, 'js/keepassnc.js')) . '?v=' . $version,
+			'__ICON__' => $fixUrl($this->urlGenerator->linkTo(Application::APP_ID, 'img/favicon.svg')) . '?v=' . $version,
+			'__TOUCH__' => $fixUrl($this->urlGenerator->linkTo(Application::APP_ID, 'img/apple-touch-icon.png')) . '?v=' . $version,
 			'__LANG__' => $lang,
 			'__NC_COLOR__' => $ncColor,
 			'__NC_THEMES__' => $ncThemes,
-			'__NC_NAV__' => $this->navigation($uid, $indexPhp),
+			'__INSTANCE_NOTICE__' => $instanceNotice,
+			'__NC_NAV__' => $this->navigation($uid, $indexPhp, $webroot),
 		];
 		$template = file_get_contents(__DIR__ . '/../../templates/page.html');
 		$html = strtr($template, array_map(static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8'), $vars));
@@ -172,7 +196,7 @@ class PageController extends Controller {
 	 * Der Browser prueft die Werte noch einmal (src/nextcloud.js). Der Abmelde-Link kommt ohne requesttoken: Die Seite liegt im
 	 * Offline-Cache, das Token holt der Browser beim Klick frisch.
 	 */
-	private function navigation(string $uid, string $indexPhp): string {
+	private function navigation(string $uid, string $indexPhp, string $webroot): string {
 		if ($uid === '') {
 			return '';
 		}
@@ -184,14 +208,14 @@ class PageController extends Controller {
 					'id' => (string)($e['id'] ?? ''),
 					'name' => (string)($e['name'] ?? ''),
 					'href' => (string)($e['href'] ?? ''),
-					'icon' => (string)($e['icon'] ?? ''),
+					'icon' => UrlHelper::withoutDuplicateWebroot((string)($e['icon'] ?? ''), $webroot),
 					'active' => ($e['active'] ?? false) === true,
 				];
 			}
 			// Navigations-Aktionen gibt es erst ab Nextcloud 35 (INavigationManager::TYPE_ACTION); in 34 liefert 'action' nichts.
 			$actions = [];
 			foreach ($this->navigationManager->getAll('action') as $e) {
-				$entry = ['id' => (string)($e['id'] ?? ''), 'name' => (string)($e['name'] ?? ''), 'href' => (string)($e['href'] ?? ''), 'icon' => (string)($e['icon'] ?? '')];
+				$entry = ['id' => (string)($e['id'] ?? ''), 'name' => (string)($e['name'] ?? ''), 'href' => (string)($e['href'] ?? ''), 'icon' => UrlHelper::withoutDuplicateWebroot((string)($e['icon'] ?? ''), $webroot)];
 				if (isset($e['color'])) {
 					$entry['color'] = (string)$e['color'];
 				}
@@ -206,7 +230,7 @@ class PageController extends Controller {
 					$href = rtrim($href, '?&');
 					$csrf = true;
 				}
-				$settings[] = ['id' => (string)($e['id'] ?? ''), 'name' => (string)($e['name'] ?? ''), 'href' => $href, 'icon' => (string)($e['icon'] ?? ''), 'csrf' => $csrf];
+				$settings[] = ['id' => (string)($e['id'] ?? ''), 'name' => (string)($e['name'] ?? ''), 'href' => $href, 'icon' => UrlHelper::withoutDuplicateWebroot((string)($e['icon'] ?? ''), $webroot), 'csrf' => $csrf];
 			}
 			try {
 				$avatar = $this->urlGenerator->linkToRoute('core.avatar.getAvatar', ['userId' => $uid, 'size' => 64]);

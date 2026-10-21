@@ -80,6 +80,8 @@ input.num { width: 76px; text-align: center; }
 .level-note.ok { background: var(--ok-soft); color: var(--ok); } .level-note.warn { background: var(--warn-soft); color: var(--warn); } .level-note.bad { background: var(--bad-soft); color: var(--bad); }
 .error { color: var(--bad); font-size: 13.5px; min-height: 0; }
 .error:empty { display: none; }
+.kpnc-notice { max-width: 760px; margin: 10px auto; padding: 9px 12px; border-radius: var(--radius-sm); background: var(--warn-soft); color: var(--warn); font-size: 13.5px; }
+.kpnc-notice:empty { display: none; }
 
 button { cursor: pointer; }
 button:disabled { cursor: default; opacity: .5; }
