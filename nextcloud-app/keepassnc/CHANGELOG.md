@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [0.16.3] - 2026-10-21
 ### Fixed
 - Databases that were saved by KeePassDX (Android) could fail to open with "too large number": some apps write a huge "never" value as an expiry date. Those dates are read now (as the latest date KeePass can show) instead of aborting the whole file.
 
