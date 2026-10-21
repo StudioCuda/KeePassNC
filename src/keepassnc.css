@@ -377,6 +377,8 @@ body.has-nch .topbar .brand { display: none; } /* the name is already in the hea
 .ring-wrap { position: relative; width: 38px; height: 38px; display: inline-grid; place-items: center; } .ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .ring-bg { stroke: var(--surface-3); } .ring-fg { stroke: var(--ring); transition: stroke-dashoffset .9s linear; } .ring.low .ring-fg { stroke: var(--bad); }
 .ring-num { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.dropzone { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 14px; border: 2px dashed var(--border); border-radius: 12px; color: var(--muted); cursor: pointer; text-align: center; }
+.dropzone:hover, .dropzone:focus-visible, .dropzone.drop { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
 .att-row, .hist-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; } .att-row + .att-row, .hist-row + .hist-row { border-top: 1px solid var(--border); }
 .entry.tinted { box-shadow: inset 4px 0 0 var(--entry-color); }
 .swatches { display: flex; flex-wrap: wrap; gap: 8px; }

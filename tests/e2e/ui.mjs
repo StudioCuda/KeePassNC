@@ -169,10 +169,20 @@ async function main() {
         await pick(page, 'Mit Anhaengen');
         const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('[data-testid=attachment]').first().click()]);
         expect(fs.readFileSync(await dl.path()).toString() === 'Hallo Anhang\nZeile 2\n', 'Inhalt notiz.txt');
+        expect(await page.locator('#att-input').count() === 0, 'Ansicht hat kein Hinzufuegen');
+        await page.click('#edit-btn');
         await page.setInputFiles('#att-input', { name: 'neu.txt', mimeType: 'text/plain', buffer: Buffer.from('neu-inhalt') });
-        await page.waitForFunction(() => document.querySelectorAll('[data-testid=attachment]').length === 3);
-        await page.locator('.att-row', { hasText: 'zufall.bin' }).locator('[data-testid=attachment-remove]').click(); await page.click('#confirm-ok');
+        await page.locator('#e-att-list .att-row', { hasText: 'neu.txt' }).waitFor();
+        await page.locator('#e-att-list .att-row', { hasText: 'zufall.bin' }).locator('[data-testid=e-att-remove]').click();
+        await page.click('#cancel-btn'); // Abbrechen verwirft beides
+        expect(await page.locator('[data-testid=attachment]').count() === 2 && await page.locator('.att-row', { hasText: 'zufall.bin' }).count() === 1, 'Abbrechen laesst die Anhaenge unveraendert');
+        await page.click('#edit-btn');
+        await page.setInputFiles('#att-input', { name: 'neu.txt', mimeType: 'text/plain', buffer: Buffer.from('neu-inhalt') });
+        await page.locator('#e-att-list .att-row', { hasText: 'neu.txt' }).waitFor();
+        await page.locator('#e-att-list .att-row', { hasText: 'zufall.bin' }).locator('[data-testid=e-att-remove]').click();
+        await page.click('#apply-btn');
         await page.waitForFunction(() => document.querySelectorAll('[data-testid=attachment]').length === 2);
+        expect(await page.locator('.att-row', { hasText: 'neu.txt' }).count() === 1 && await page.locator('.att-row', { hasText: 'zufall.bin' }).count() === 0, 'Uebernehmen setzt Hinzufuegen/Entfernen um');
     });
 
     await step('Verlauf: Eintrag mit 5 Staenden -> anzeigen, frueheren Stand wiederherstellen (aktueller wird selbst Verlauf)', async () => {

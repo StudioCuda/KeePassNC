@@ -5,6 +5,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ### Changed
 - Generator dialog (opened from the tool bar, not from the editor): a click on the password copies it, like on the generator page.
+- Attachments are added and removed in the entry editor now, together with the other changes, and only land in the entry (and its history) when you press Apply. The entry view just shows them, with preview and download. The editor has a drop area: drag files onto it or click it to choose them. New entries can take attachments right away.
 
 ## [0.16.3] - 2026-10-21
 ### Fixed
