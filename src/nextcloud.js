@@ -19,6 +19,7 @@ export function readNextcloudContext(root) {
         newFile: root.dataset.new || '', // suggestion for a new database from "+ New" in Files, e.g. /Dokumente/Passwoerter.kdbx
         color: parseHex(root.dataset.ncColor) || '', // primary colour of the instance (or the person), empty = unknown
         themes: String(root.dataset.ncThemes || ''), // theme IDs from Nextcloud, e.g. "dark,opendyslexic"
+        urlFix: root.dataset.urlFix === '1', // the instance hands out app paths with the webroot twice (the PHP part has fixed them)
         nav: parseNcNav(root.dataset.ncNav, globalThis.location?.origin) // content of the header bar; null = no header bar
     };
 }

@@ -175,6 +175,7 @@ export default {
     'e.otp.base32': 'Ungültiges Base32-Zeichen im TOTP-Geheimnis.',
     'e.otp.secret': 'Die otpauth-URL enthält kein Geheimnis (secret).',
     'e.otp.type': 'Es wird nur TOTP unterstützt.',
+    'nc.urlfix': 'Diese Nextcloud liefert App-Pfade mit doppeltem Webroot (/nc/nc/apps/...). KeePassNC läuft trotzdem, andere Apps vielleicht nicht. In der config.php darf apps_paths[].url den Webroot nicht enthalten: "/apps", nicht "/nc/apps".',
     'e.nc.session': 'Sitzung abgelaufen - bitte die Seite neu laden und erneut anmelden.',
     'e.kf.nopepper': 'Kein Geheimwert vom Server verfügbar.',
     'e.network': 'Server nicht erreichbar.',
