@@ -16,5 +16,5 @@ export function strengthBar(pw, bits) {
     const label = strengthLabel(bits);
     const lvl = { bad: 1, poor: 1, weak: 2, good: 3, excellent: 4 }[label] || 0;
     return h('div', { class: `strength s${lvl}`, 'data-level': label, title: `${Math.round(bits)} bit` },
-        h('span', { class: 'bars' }, h('i'), h('i'), h('i'), h('i')), h('span', { class: 'strength-label', text: pw ? `${t('strength.' + label)} · ${Math.round(bits)} bit` : '' }));
+        h('span', { class: 'bars' }, h('i'), h('i'), h('i'), h('i')), h('span', { class: 'strength-label' }, pw ? t('strength.' + label) : '', pw ? h('span', { class: 'strength-bits', text: ` · ${Math.round(bits)} bit` }) : null));
 }
