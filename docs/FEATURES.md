@@ -56,7 +56,7 @@ KeePass trick works here too (it probably does).
   kept. Got a "conflicted copy" from the Nextcloud desktop app anyway? Merge it back in from the "Database" dialog.
 - **Works offline:** turn on the encrypted offline copy and your passwords stay usable when the server or network is down.
   Changes sync back later.
-- **Phone or big screen:** three panes on a desktop, one on a phone. Light and dark, English and German.
+- **Phone or big screen:** three panes on a desktop, one on a phone. Light and dark, English, German and Chinese.
 
 ## Search syntax
 

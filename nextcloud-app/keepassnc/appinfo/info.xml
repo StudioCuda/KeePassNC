@@ -26,7 +26,7 @@
 - Merge a "conflicted copy" back in, and import or export CSV (KeePassXC, Bitwarden, 1Password, browsers …)
 - Password generator and a health report
 - Follows your Nextcloud's accent color and light or dark theme, with a layout that works on phones and big screens alike
-- English and German
+- English, German and Chinese
 
 **Still just a KeePass file**
 
@@ -52,12 +52,12 @@ KeePassXC, KeePassDX and Strongbox keep working on it, no lock-in.]]></descripti
 - Eine „Konfliktkopie“ wieder zusammenführen, CSV importieren und exportieren (KeePassXC, Bitwarden, 1Password, Browser …)
 - Passwortgenerator und Gesundheitsbericht
 - Übernimmt Akzentfarbe und helles oder dunkles Design von Nextcloud, für Smartphone und großen Bildschirm
-- Deutsch und Englisch
+- Deutsch, Englisch und Chinesisch
 
 **Bleibt eine normale KeePass-Datei**
 
 KeePassXC, KeePassDX, Strongbox & Co. können sie jederzeit weiterverwenden.]]></description>
-    <version>0.15.0</version>
+    <version>0.16.0</version>
     <licence>AGPL-3.0-or-later</licence>
     <author>KeePassNC</author>
     <namespace>Keepassnc</namespace>
@@ -71,10 +71,10 @@ KeePassXC, KeePassDX, Strongbox & Co. können sie jederzeit weiterverwenden.]]><
     <website>https://github.com/StudioCuda/KeePassNC</website>
     <bugs>https://github.com/StudioCuda/KeePassNC/issues</bugs>
     <repository type="git">https://github.com/StudioCuda/KeePassNC.git</repository>
-    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.15.0/docs/screenshots/desktop-detail.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.15.0/docs/screenshots/dark-detail.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.15.0/docs/screenshots/desktop-reports.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.15.0/docs/screenshots/mobile-list.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.16.0/docs/screenshots/desktop-detail.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.16.0/docs/screenshots/dark-detail.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.16.0/docs/screenshots/desktop-reports.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v0.16.0/docs/screenshots/mobile-list.png</screenshot>
     <donation type="other" title="GitHub Sponsors">https://github.com/sponsors/StudioCuda</donation>
     <dependencies>
         <php min-version="8.2"/>

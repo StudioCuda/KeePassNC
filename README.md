@@ -20,7 +20,7 @@ No lock-in, no special format, no drama.
   encrypted file.
 - **Careful saving.** A backup copy is made before every save. If two devices change the file at once, both changes are kept.
 - **Works offline.** Turn on the encrypted offline copy and your passwords stay usable even when the server or network is down.
-- **Phone or big screen.** Three panes on a desktop, one on a phone. Light and dark, English and German.
+- **Phone or big screen.** Three panes on a desktop, one on a phone. Light and dark, English, German and Chinese.
 
 ## Highlights
 

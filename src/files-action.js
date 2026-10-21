@@ -7,13 +7,15 @@ const KEEPASS_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24
 
 const isKdbx = (node) => /\.kdbx$/i.test(node.basename || node.path || '');
 
-const de = /^de\b/i.test(document.documentElement.lang || '');
+// Own tiny lookup (this script runs inside Files, so it stays out of the app's i18n bundle)
+const htmlLang = (document.documentElement.lang || '').toLowerCase();
+const pick = (de, en, zh) => (htmlLang.startsWith('de') ? de : htmlLang.startsWith('zh') ? zh : en);
 
 registerFileAction({
     id: 'keepassnc-open',
     order: -10,
     default: DefaultType.DEFAULT,
-    displayName: () => (de ? 'Mit KeePassNC öffnen' : 'Open with KeePassNC'),
+    displayName: () => pick('Mit KeePassNC öffnen', 'Open with KeePassNC', '用 KeePassNC 打开'),
     iconSvgInline: () => KEEPASS_ICON,
     enabled: ({ nodes }) => nodes.length === 1 && isKdbx(nodes[0]) && (nodes[0].permissions & Permission.READ) !== 0,
     async exec({ nodes }) {
@@ -24,10 +26,10 @@ registerFileAction({
 
 // "+ New" -> "KeePass database": the file is only created in KeePassNC once the master password is set (an empty .kdbx would be
 // broken). Here just a free name in the current folder; the app asks for the credentials and never overwrites an existing file.
-const NEW_NAME = de ? 'Passwörter' : 'Passwords';
+const NEW_NAME = pick('Passwörter', 'Passwords', '密码');
 addNewFileMenuEntry({
     id: 'keepassnc-new',
-    displayName: de ? 'KeePass-Datenbank' : 'KeePass database',
+    displayName: pick('KeePass-Datenbank', 'KeePass database', 'KeePass 数据库'),
     iconSvgInline: KEEPASS_ICON,
     order: 50,
     enabled: (folder) => (folder.permissions & Permission.CREATE) !== 0,
