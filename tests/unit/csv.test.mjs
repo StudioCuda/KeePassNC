@@ -34,6 +34,18 @@ test('mapRows: Bitwarden, Chrome, Firefox (Titel aus der URL), 1Password, KeePas
     assert.deepEqual([kp2.title, kp2.user, kp2.password, kp2.url, kp2.notes], ['Forum', 'eve', 'pw4', 'forum.example', 'alt']);
 });
 
+test('mapRows: Proton Pass (Tresor als Gruppe, E-Mail nur wenn der Benutzername fehlt)', () => {
+    const { entries } = mapRows(parseCsv('type,name,url,email,username,password,note,totp,vault\nlogin,A,https://a.example,a@x.org,,pw,,,Privat\nlogin,B,https://b.example,b@x.org,bob,pw,,,Privat'));
+    assert.deepEqual(entries.map((e) => [e.path, e.user]), [[['Privat'], 'a@x.org'], [['Privat'], 'bob']]);
+});
+
+test('mapRows: {REF:...} aus fremden Dateien wird zu Text und gezaehlt', () => {
+    const { entries, refs } = mapRows(parseCsv('Title,Username,Password,URL,Notes\nX,u,{REF:P@T:Bank},https://e.example/?p={ref:P@T:Bank},n\nY,u,pw,,'));
+    assert.equal(refs, 1);
+    assert.deepEqual([entries[0].password, entries[0].url], ['{ REF:P@T:Bank}', 'https://e.example/?p={ REF:P@T:Bank}']);
+    assert.equal(entries[1].password, 'pw');
+});
+
 test('otpUri: Feld "otp" geht vor, alte Felder (auch Steam) werden zur otpauth-URI', () => {
     assert.equal(otpUri('A', 'otpauth://totp/A?secret=X', 'Y', ''), 'otpauth://totp/A?secret=X');
     assert.equal(otpUri('Mein Konto', '', 'JBSW Y3DP', '60;8'), 'otpauth://totp/Mein%20Konto?secret=JBSWY3DP&period=60&digits=8');

@@ -228,7 +228,11 @@ async function main() {
         expect(await link('[data-testid=custom-KP2A_URL_1]') === 'https://alt.example.org', 'URL-Zusatzfeld');
         expect(await link('[data-testid=custom-Server]') === 'https://srv.example.org', 'Zusatzfeld mit https');
         expect(await link('[data-testid=custom-Notiz]') === null, 'nackter Hostname in einem Nicht-URL-Feld bleibt Text');
-        await page.click('#edit-btn'); await page.fill('#e-url', 'cmd://putty.exe'); await page.click('#apply-btn');
+        await page.click('#edit-btn');
+        const names = await page.locator('#field-suggestions option').evaluateAll((os) => os.map((o) => o.value));
+        expect(names.includes('Server') && names.includes('Notiz') && !names.includes('Title'), 'Vorschlaege fuer Feldnamen: ' + names);
+        expect(await page.locator('.c-name').first().getAttribute('list') === 'field-suggestions', 'Feldname hat die Vorschlagsliste');
+        await page.fill('#e-url', 'cmd://putty.exe'); await page.click('#apply-btn');
         await page.waitForFunction(() => /cmd:/.test(document.querySelector('[data-testid=f-url]')?.textContent || ''));
         expect(await link('[data-testid=f-url]') === null, 'cmd:// darf kein Link sein');
     });
