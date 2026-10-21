@@ -580,6 +580,31 @@ async function main() {
         expect(/carol/.test(await rows(p).filter({ hasText: 'Platzhalter' }).innerText()), 'Liste zeigt den Platzhalter statt carol');
         await p.click('#edit-btn');
         expect(await p.inputValue('#e-user') === '{S:Login}' && await p.inputValue('#e-url') === 'https://{S:Host}/{USERNAME}', 'Editor muss die Platzhalter zeigen');
+        await p.click('#cancel-btn');
+        // An entry (imported, say) whose URL would insert another entry's password: link, display, list and "copy URL" keep the
+        // placeholder, the user name next to it still resolves
+        const mailField = (a) => xc(['show', '-s', '-a', a, path.join(davRoot, 'platzhalter.kdbx'), 'Web/Mail']).trim().split('\n').pop();
+        const mailPw = mailField('Password'), mailUser = mailField('UserName');
+        await p.click('#new-btn');
+        await p.fill('#e-title', 'Fremd'); await p.fill('#e-url', 'https://evil.example/?p={REF:P@T:Mail}&u={REF:U@T:Mail}');
+        await p.click('#apply-btn');
+        const evil = p.locator('[data-testid=f-url]');
+        const want = `https://evil.example/?p={REF:P@T:Mail}&u=${mailUser}`;
+        expect(await evil.innerText() === want && await evil.getAttribute('href') === want, 'URL mit fremdem Passwort: ' + await evil.getAttribute('href'));
+        expect(!(await p.content()).includes(mailPw), 'Passwort von Mail steht im DOM');
+        // The entry's own {PASSWORD} (old ?pass=… logins): display and href keep the placeholder, click, Ctrl+Shift+U and copy insert
+        // it. window.open and the clipboard are intercepted so nothing goes out
+        await p.evaluate(() => { window.opened = []; window.open = (u) => { window.opened.push(u); return null; }; navigator.clipboard.writeText = async (x) => { window.copied = x; }; });
+        await p.click('#new-btn');
+        await p.fill('#e-title', 'Eigenes'); await p.fill('#e-pass', 'pw-eigen-42'); await p.fill('#e-url', 'https://old.example/?pass={PASSWORD}&p2={REF:P@T:Mail}');
+        await p.click('#apply-btn');
+        const shown = 'https://old.example/?pass={PASSWORD}&p2={REF:P@T:Mail}', real = 'https://old.example/?pass=pw-eigen-42&p2={REF:P@T:Mail}';
+        const ownLink = p.locator('[data-testid=f-url]');
+        expect(await ownLink.innerText() === shown && await ownLink.getAttribute('href') === shown, 'Anzeige mit eigenem Passwort: ' + await ownLink.getAttribute('href'));
+        await ownLink.click(); await p.keyboard.press('Control+Shift+U');
+        await p.click('[data-testid=url-copy]');
+        const got = await p.evaluate(() => ({ opened: window.opened, copied: window.copied }));
+        expect(got.opened.length === 2 && got.opened.every((u) => u === real) && got.copied === real, 'Oeffnen/Kopieren: ' + JSON.stringify(got));
         await p.context().close();
     });
 

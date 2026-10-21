@@ -1,7 +1,7 @@
 // Shared UI helpers: avatars, filtering/sorting of the entry list, strength cache.
 import { estimateBits, strengthLabel } from '../core/entropy.js';
 import { parseQuery, matches } from '../core/search.js';
-import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolvePlaceholders } from '../core/util.js';
+import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolvePlaceholders, openableUrl } from '../core/util.js';
 import { excluded } from '../core/audit.js';
 import { t } from '../i18n.js';
 import { ctx } from './ctx.js';
@@ -19,6 +19,13 @@ export function bitsOf(pw) {
  * copying and rating need it; unresolvable ones stay as they are. The editor keeps working with the raw value so they are preserved.
  */
 export const resolvedField = (e, name) => { const v = fieldOf(e, name); return v.includes('{') ? resolvePlaceholders(v, e, allRealEntries()) : v; };
+/**
+ * URL for display: placeholders for passwords and protected fields stay as they are (see resolvePlaceholders).
+ * own: true (opening, copying) inserts the entry's own secrets, but not those of other entries.
+ */
+export const resolvedUrl = (e, { own = false } = {}) => { const v = fieldOf(e, 'URL'); return v.includes('{') ? resolvePlaceholders(v, e, allRealEntries(), { secrets: own ? 'own' : false }) : v; };
+/** Opens an entry's URL in a new tab, with its own secrets (link click, Ctrl+Shift+U). */
+export const openEntryUrl = (e) => { const u = openableUrl(resolvedUrl(e, { own: true })); if (u) window.open(u, '_blank', 'noopener,noreferrer'); };
 export const isWeak = (e) => { const pw = resolvedField(e, 'Password'); return !!pw && !pw.includes('{REF:') && !excluded(e) && bitsOf(pw) < 75; };
 export { strengthLabel };
 

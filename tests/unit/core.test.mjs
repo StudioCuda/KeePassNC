@@ -241,6 +241,36 @@ test('Platzhalter: eigene Felder, {S:…}, URL-Teile, gemischt mit {REF:…}, Un
     assert.equal(resolveRefs('{USERNAME}', all), '{USERNAME}', 'ohne eigenen Eintrag nur {REF:…}');
     assert.equal(r('{URL:RMVSCM}', entry({ URL: 'nas.local/x' })), 'nas.local/x', 'URL ohne Schema');
 });
+test('Platzhalter mit secrets: false (URL-Feld): Passwoerter und geschuetzte Felder bleiben stehen, der Rest wird aufgeloest', () => {
+    const A = 'B2D4F6A8C0E1F3A5B7C9D1E3F5A7B9C1';
+    const prot = { getText: () => 'pin-1234' }; // like ProtectedValue: not a string
+    const bank = withUuid(entry({ Title: 'Bank', UserName: 'alice', Password: 'Kl4r-und-l4ng!', URL: 'https://bank.example', PIN: prot, Host: 'example.org' }), A);
+    const evil = entry({ Title: 'Importiert', UserName: 'eve', Password: 'x', URL: 'https://evil.example/?p={REF:P@T:}&u={REF:U@T:}', Pin: prot, Host: 'evil.example' });
+    const all = [bank, evil];
+    const safe = (text, e = evil) => resolvePlaceholders(text, e, all, { secrets: false });
+    assert.equal(safe('{URL}'), 'https://evil.example/?p={REF:P@T:}&u=alice', 'fremdes Passwort per {REF:P@…} bleibt stehen, Benutzername nicht');
+    assert.equal(safe('https://x/?a={PASSWORD}&b={password}&c={S:Pin}&d={S:Host}&e={USERNAME}'), 'https://x/?a={PASSWORD}&b={password}&c={S:Pin}&d=evil.example&e=eve');
+    assert.equal(safe(`{REF:A@I:${A}}`), 'https://bank.example', 'ungeschuetzte Felder anderer Eintraege gehen weiter');
+    const nested = entry({ UserName: '{PASSWORD}', Password: 'geheim', URL: 'https://x/{USERNAME}' });
+    assert.equal(safe('{URL}', nested), 'https://x/{PASSWORD}', 'auch geschachtelt ueber ein ungeschuetztes Feld');
+    assert.equal(resolvePlaceholders('{REF:P@T:bank} {S:PIN}', bank, all), 'Kl4r-und-l4ng! pin-1234', 'ohne Option wie bisher (Passwortfeld, Kopieren)');
+});
+test('Platzhalter mit secrets: own (URL oeffnen/kopieren): eigene Geheimnisse ja, fremde nicht', () => {
+    const A = 'B2D4F6A8C0E1F3A5B7C9D1E3F5A7B9C1';
+    const prot = { getText: () => 'pin-1234' };
+    const bank = withUuid(entry({ Title: 'Bank', UserName: 'alice', Password: 'Kl4r-und-l4ng!', PIN: prot }), A);
+    const old = entry({ Title: 'Altes Login', UserName: 'bob', Password: 'pw-alt', PIN: prot, URL: 'https://old.example/?u={USERNAME}&p={PASSWORD}&pin={S:PIN}' });
+    const sneaky = entry({ Title: 'Importiert', Password: '{REF:P@T:Bank}', URL: 'https://evil.example/?p={PASSWORD}' });
+    const viaUser = entry({ Title: 'Umweg', UserName: '{REF:U@T:Bank}', URL: 'https://evil.example/{USERNAME}' });
+    const all = [bank, old, sneaky, viaUser];
+    const own = (e) => resolvePlaceholders('{URL}', e, all, { secrets: 'own' });
+    assert.equal(own(old), 'https://old.example/?u=bob&p=pw-alt&pin=pin-1234', 'eigenes Passwort und eigenes geschuetztes Feld');
+    assert.equal(own(sneaky), 'https://evil.example/?p={REF:P@T:Bank}', 'eigenes Passwort, das auf ein fremdes zeigt, bleibt ein Verweis');
+    assert.equal(resolvePlaceholders('{URL}', viaUser, all, { secrets: 'own' }), 'https://evil.example/alice', 'fremder Benutzername geht weiter');
+    assert.equal(resolvePlaceholders('?p={REF:P@T:Bank}&q={REF:P@T:Altes}', old, all, { secrets: 'own' }), '?p={REF:P@T:Bank}&q=pw-alt', 'Verweis auf sich selbst ja, auf andere nein');
+    const nested = entry({ Title: 'Kette', UserName: '{REF:P@T:Bank}', URL: 'https://x/{USERNAME}' });
+    assert.equal(resolvePlaceholders('{URL}', nested, [...all, nested], { secrets: 'own' }), 'https://x/{REF:P@T:Bank}', 'auch geschachtelt ueber ein eigenes Feld');
+});
 test('Bericht: Referenz-Passwoerter zaehlen mit dem Ziel, aber nicht als Wiederverwendung', () => {
     const A = 'B2D4F6A8C0E1F3A5B7C9D1E3F5A7B9C1';
     const weak = withUuid(entry({ Title: 'alt', Password: 'Sommer2020' }), A);
