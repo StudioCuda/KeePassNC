@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Added
+- Chinese (zh-CN) as a third language. The app follows the browser or the Nextcloud language, and the language list offers 中文 next to Deutsch and English.
 ### Changed
 - The dice icon (password generator) has fuller pips, so they no longer look so thin next to the other toolbar icons.
 - "Key file & offline options" on the open-vault screen now always starts folded, even with the offline copy switched on. One click away, a lot less card.

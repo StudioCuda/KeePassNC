@@ -5,7 +5,7 @@ export const AUTOLOCK_OPTIONS = [1, 2, 5, 15, 30, 60];
 export const CLIPBOARD_OPTIONS = [10, 20, 30, 60, 120];
 export const THEME_OPTIONS = ['nextcloud', 'auto', 'light', 'dark']; // 'nextcloud' only in Nextcloud; standalone it behaves like 'auto'
 export const BACKUPKEEP_OPTIONS = [3, 10, 30, 0];
-export const LANG_OPTIONS = ['auto', 'de', 'en'];
+export const LANG_OPTIONS = ['auto', 'de', 'en', 'zh-CN'];
 
 export const DEFAULTS = {
     autosync: 'change', // 'change' | '1' | '2' | '5' | '10' | 'off'

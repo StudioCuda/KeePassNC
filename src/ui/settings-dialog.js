@@ -47,7 +47,7 @@ export function openSettings({ loginMode = false } = {}) {
         sec(t('set.appearance'),
             h('div', { class: 'grid2' },
                 h('label', {}, h('span', { text: t('set.theme') }), select('s-theme', themeOptions, themeValue, (v) => t('theme.' + v), (v) => update({ theme: v }))),
-                h('label', {}, h('span', { text: t('set.lang') }), select('s-lang', LANG_OPTIONS, ctx.settings.lang, (v) => (v === 'auto' ? t('lang.auto') : v === 'de' ? 'Deutsch' : 'English'), (v) => update({ lang: v }, { relang: true })))),
+                h('label', {}, h('span', { text: t('set.lang') }), select('s-lang', LANG_OPTIONS, ctx.settings.lang, (v) => (v === 'auto' ? t('lang.auto') : t('lang.name.' + v)), (v) => update({ lang: v }, { relang: true })))),
             check('s-compact', t('set.compact'), 'compact'),
             ctx.NC ? check('s-ncaccent', t('set.ncAccent'), 'ncAccent') : null),
         loginMode ? null : sec(t('set.sync'),
