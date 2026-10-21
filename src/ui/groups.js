@@ -1,4 +1,4 @@
-// Seitenleiste: Bibliotheks-Filter, Gruppenbaum (auf-/zuklappen, Kontextmenue, Drag&Drop), Tags, Papierkorb.
+// Sidebar: library filters, group tree (expand/collapse, context menu, drag & drop), tags, recycle bin.
 import { VaultError } from '../vault.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
@@ -22,7 +22,7 @@ export function startEntryDrag(ev, entry) {
     ev.target.addEventListener('dragend', () => { dragging = null; document.body.classList.remove('dragging'); }, { once: true });
 }
 
-/** refresh: false, wenn gleich danach ohnehin neu gezeichnet wird (z. B. changed()). */
+/** refresh: false if a redraw follows right after anyway (e.g. changed()). */
 export function setFilter(f, { refresh = true } = {}) {
     state.filter = f;
     state.query = '';
@@ -32,7 +32,7 @@ export function setFilter(f, { refresh = true } = {}) {
     if (refresh) ctx.ui.refresh();
 }
 
-/** <select> mit allen Gruppen (eingerueckt); exclude: Gruppe samt Nachkommen ausblenden. */
+/** <select> with all groups (indented); exclude: hide a group along with its descendants. */
 export function groupSelect({ value, exclude, includeRoot = true, id }) {
     const v = state.vault;
     const sel = h('select', { id });
@@ -68,7 +68,7 @@ export async function editGroup(g) {
         const sel = await pickIcon({ kind: 'group', sel: iconSel, onRemoved: () => { ctx.ui.renderSidebar(); ctx.ui.renderList(); refreshDirtyIndicator(); } });
         if (sel) { iconSel = sel; iconEl.replaceChildren(iconPreview(iconSel, 'group')); }
     } }, iconPreview(iconSel, 'group'));
-    // Wie "Symbol anwenden auf ..." in KeePassXC
+    // Like "Apply icon to ..." in KeePassXC
     const scope = h('select', { id: 'g-icon-scope' }, ['self', 'groups', 'entries', 'all'].map((k) => h('option', { value: k, text: t('icon.scope.' + k) })));
     const m = modal({ title: t('group.edit'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); v.updateGroup(g, { name: name.value, notes: notes.value, ...commitIconSel(iconSel), iconScope: scope.value }); m.close(); changed(); } },
         h('div', { class: 'title-row' }, iconEl, h('label', { class: 'grow' }, h('span', { text: t('group.name') }), name)),
@@ -130,7 +130,7 @@ export function renderSidebar(host) {
     const entries = allRealEntries();
     const exp = entries.filter((e) => { const x = entryExpiry(e); return x && daysUntil(x) <= 30; }).length;
     const lib = h('div', { class: 'nav-section' }, navItem('all', 'list', t('nav.all'), entries.length, { type: 'all' }, f.type === 'all' && !state.query));
-    // Filter unter Gruppen und Tags: die Gruppen sind der Hauptweg, die Filter ein Nebenweg (auch ueber "Datenbank" und Strg+K erreichbar)
+    // Filters below groups and tags: groups are the main way, filters a side path (also reachable via "Database" and Ctrl+K)
     const filters = h('div', { class: 'nav-section', id: 'nav-filters' }, h('div', { class: 'nav-head' }, h('span', { text: t('nav.filters') })),
         navItem('expiring', 'clock', t('nav.expiring'), exp, { type: 'expiring' }, f.type === 'expiring'),
         navItem('weak', 'alert', t('nav.weak'), entries.filter(isWeak).length, { type: 'weak' }, f.type === 'weak'),
@@ -175,7 +175,7 @@ export function renderSidebar(host) {
 
     const rb = v.recycleBin;
     const binCount = rb ? [...rb.allEntries()].length : 0;
-    // Ohne Papierkorb (Datenbank-Einstellung) kein Eintrag dafuer; eine alte Papierkorb-Gruppe erscheint dann als normale Gruppe.
+    // Without a recycle bin (database setting) no item for it; an old recycle bin group then shows up as a normal group.
     const bin = !v.binEnabled ? null : h('div', { class: 'nav-section' }, h('div', { class: 'tree-row bin' + (f.type === 'bin' ? ' active' : '') },
         h('span', { class: 'twisty' }),
         h('button', { type: 'button', class: 'tree-label', id: 'nav-bin', onclick: () => setFilter({ type: 'bin' }) }, icon('trash'), h('span', { class: 'grow', text: t('nav.bin') }), h('span', { class: 'count', text: String(binCount) })),
@@ -191,7 +191,7 @@ export function renderSidebar(host) {
         h('button', { type: 'button', class: 'nav-item', id: 'nav-gen', onclick: () => { document.querySelector('.shell').dataset.drawer = '0'; openGenerator(); } }, icon('dice'), h('span', { class: 'grow', text: t('generator') })),
         h('button', { type: 'button', class: 'nav-item', id: 'nav-settings', onclick: () => { document.querySelector('.shell').dataset.drawer = '0'; openSettings(); } }, icon('settings'), h('span', { class: 'grow', text: t('settings') })),
         ctx.NC?.filesUrl ? h('a', { class: 'nav-item', href: ctx.NC.filesUrl }, icon('folderOpen'), h('span', { class: 'grow', text: t('files') })) : null);
-    // append() statt replaceChildren(..., tagBox, ...): ohne Tags ist tagBox null, und replaceChildren macht daraus den Text "null"
+    // append() instead of replaceChildren(..., tagBox, ...): without tags tagBox is null, and replaceChildren turns that into the text "null"
     host.replaceChildren();
     append(host, [lib,
         h('div', { class: 'nav-section grow-section' }, h('div', { class: 'nav-head' }, h('span', { text: t('nav.groups') }), iconBtn('plus', t('group.new'), () => newGroup(null), { id: 'new-group-btn', class: 'small' })), tree),

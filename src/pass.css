@@ -1,6 +1,6 @@
-/* Generator-Seite (web-generator/): baut auf den Variablen und Bausteinen aus keepassnc.css auf (Generator, Karten, Knoepfe). */
-.login.pass-wrap { display: block; } /* Hintergrund: .login.solo aus keepassnc.css */
-/* Etwas mehr Farbe als in Nextcloud: das Schild kraeftiger */
+/* Generator page (web-generator/): builds on the variables and building blocks from keepassnc.css (generator, cards, buttons). */
+.login.pass-wrap { display: block; } /* Background: .login.solo from keepassnc.css */
+/* A bit more colour than in Nextcloud: the shield bolder */
 .pass-wrap > .login-mark { opacity: calc(var(--solo-mark) * 1.9); }
 .pass { min-height: 100vh; max-width: 560px; margin: 0 auto; padding: 40px 16px 24px; display: flex; flex-direction: column; gap: 20px; }
 .pass-head { display: flex; flex-direction: column; gap: 12px; }

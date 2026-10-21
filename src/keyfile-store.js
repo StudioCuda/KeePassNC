@@ -1,22 +1,22 @@
-// "Schluesseldatei merken" (optional, standardmaessig AUS): legt die Schluesseldatei verschluesselt auf diesem Geraet ab, damit sie nicht bei
-// jeder Anmeldung neu gewaehlt werden muss.
+// "Remember key file" (optional, off by default): stores the key file encrypted on this device so it doesn't have to be picked again on
+// every login.
 //
-// Sicherheitsentwurf (ausfuehrlich: docs/KEYFILE-MEMORY.md):
-//  * Der Schluessel zum Entschluesseln wird aus dem MASTER-PASSWORT abgeleitet (Argon2id). Die Kosten je Passwort-Tipp sind MINDESTENS so hoch
-//    wie bei der Datenbank-KDF (Arbeit = Speicher x Durchlaeufe; ist der Speicher nach oben begrenzt, werden die Durchlaeufe erhoeht),
-//    mindestens 64 MiB / 3 Durchlaeufe. Bei AES-KDF (nicht vergleichbar) fest 64 MiB / 16.
-//    Es gibt KEINEN geraetegebundenen Schluessel, der ohne Master-Passwort nutzbar waere (ein nicht-exportierbarer WebCrypto-Schluessel schuetzt
-//    nicht vor Skripten derselben Herkunft und nicht vor einer kopierten Browser-Profil-Datei).
-//  * Verschluesselung: AES-256-GCM, zufaelliger 96-Bit-IV, zufaelliges 128-Bit-Salz (=> je Datensatz eigener Schluessel), AAD = Format + Datei-Kennung.
-//  * Gespeichert werden nur: Kennung, Anzeigename, Zeitstempel, KDF-Parameter, Salz, IV, Chiffrat. Nie: Master-Passwort, abgeleiteter Schluessel, Klartext.
-//  * Restrisiko (bewusst, dokumentiert): Wer eine Kopie des Browser-Profils hat (oder ein Skript derselben Herkunft den Datensatz auslesen laesst),
-//    kann das Master-Passwort OFFLINE raten und prueft jeden Tipp am GCM-Tag - OHNE dass die Schluesseldatei als zweiter Faktor noetig waere.
-//    Fuer dieses Geraet ist die Schluesseldatei dann kein zweiter Faktor mehr; das Master-Passwort muss das allein tragen.
+// Security design (details: docs/KEYFILE-MEMORY.md):
+//  * The decryption key is derived from the MASTER PASSWORD (Argon2id). The cost per password guess is AT LEAST as high as for the database
+//    KDF (work = memory x iterations; if memory is capped, iterations are raised),
+//    at least 64 MiB / 3 iterations. For AES-KDF (not comparable) a fixed 64 MiB / 16.
+//    There is NO device-bound key that would work without the master password (a non-exportable WebCrypto key doesn't protect
+//    against scripts from the same origin or against a copied browser profile file).
+//  * Encryption: AES-256-GCM, random 96-bit IV, random 128-bit salt (=> separate key per record), AAD = format + file ID.
+//  * Only stored: ID, display name, timestamp, KDF parameters, salt, IV, ciphertext. Never: master password, derived key, plaintext.
+//  * Residual risk (deliberate, documented): anyone with a copy of the browser profile (or a same-origin script that gets to read the record)
+//    can guess the master password OFFLINE and checks each guess against the GCM tag - WITHOUT needing the key file as a second factor.
+//    For this device the key file is then no longer a second factor; the master password has to carry that alone.
 import { argon2 } from './argon2.js';
 
-// min*: Untergrenzen beim Anlegen. max*: Obergrenzen beim Anlegen UND Lesen (Schutz vor Speicher-/Zeitbomben aus manipulierten Datensaetzen).
-// acceptMin*: Untergrenzen beim Lesen - bewusst niedriger als min*, damit ein spaeteres Anheben der Untergrenzen alte Datensaetze nicht unbrauchbar macht
-// (ein Datensatz mit zu schwachen Parametern laesst sich ohne Master-Passwort ohnehin nicht gueltig erzeugen).
+// min*: lower bounds when creating. max*: upper bounds when creating AND reading (protection against memory/time bombs from tampered records).
+// acceptMin*: lower bounds when reading - deliberately lower than min*, so raising the lower bounds later doesn't make old records unusable
+// (a record with too-weak parameters can't be forged without the master password anyway).
 export const limits = {
     minMemoryKiB: 65536, minIterations: 3,
     maxMemoryKiB: 1048576, maxIterations: 64,
@@ -24,8 +24,8 @@ export const limits = {
     aesKdf: { memoryKiB: 65536, iterations: 16 },
     maxBytes: 8 * 1024 * 1024
 };
-const FORMAT = 'kpnc-keyfile-v1'; // nur Master-Passwort (eigenstaendige Seite ohne Server-Geheimwert)
-const FORMAT2 = 'kpnc-keyfile-v2'; // Master-Passwort + Server-Geheimwert (Nextcloud); Anzeigename authentisiert
+const FORMAT = 'kpnc-keyfile-v1'; // only master password (standalone page without a server secret)
+const FORMAT2 = 'kpnc-keyfile-v2'; // master password + server secret (Nextcloud); display name authenticated
 const PREFIX = 'kf:';
 
 export class KeyfileStoreError extends Error {
@@ -36,7 +36,7 @@ const enc = new TextEncoder();
 const aad = (id) => enc.encode(`${FORMAT}\0${id}`);
 const aad2 = (id, pepperId, name) => enc.encode(`${FORMAT2}\0${pepperId}\0${id}\0${name}`);
 
-/** pepper = {id, key: Uint8Array(32)} oder null. Mit Pepper: AES-Schluessel = HKDF-SHA256(Argon2id(Passwort), salt = Pepper). */
+/** pepper = {id, key: Uint8Array(32)} or null. With pepper: AES key = HKDF-SHA256(Argon2id(password), salt = pepper). */
 async function deriveKey(password, salt, { memoryKiB, iterations }, pepper = null) {
     const raw = await argon2({ type: 'id', password: enc.encode(password), salt, parallelism: 1, iterations, memoryKiB, hashLength: 32 });
     try {
@@ -51,7 +51,7 @@ const validPepper = (p) => p && /^[0-9a-f]{32}$/.test(String(p.id)) && p.key?.by
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, Number.isFinite(v) ? Math.round(v) : lo));
 
 /**
- * Argon2id-Parameter fuer den Datensatz aus den Parametern der Datenbank-KDF: gleiche oder hoehere Arbeit (Speicher x Durchlaeufe).
+ * Argon2id parameters for the record, derived from the database KDF parameters: same or higher work (memory x iterations).
  * db = {kdf: 'Argon2d'|'Argon2id'|'AES-KDF', memoryKiB, iterations} (siehe Vault.kdfParams()).
  */
 export function chooseKdfParams(db = {}) {
@@ -61,19 +61,19 @@ export function chooseKdfParams(db = {}) {
     const iterations = clamp(Math.ceil((m * t) / memoryKiB), limits.minIterations, limits.maxIterations);
     return { memoryKiB, iterations };
 }
-/** true, wenn ein Datensatz mit diesen Parametern weniger Arbeit je Tipp kostet als heute fuer die Datenbank gewaehlt wuerde (-> neu verschluesseln). */
+/** true if a record with these parameters costs less work per guess than would be chosen for the database today (-> re-encrypt). */
 export function isWeakerThan(recKdf, db) {
     const want = chooseKdfParams(db);
     return !(recKdf?.memoryKiB * recKdf?.iterations >= want.memoryKiB * want.iterations) || !(recKdf.memoryKiB >= Math.min(want.memoryKiB, limits.maxMemoryKiB));
 }
 const inRange = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
 
-/** backend: {get(key), put(key, value), delete(key), keys()} - in der App IndexedDB (cache.js), im Test eine Map. */
+/** backend: {get(key), put(key, value), delete(key), keys()} - IndexedDB in the app (cache.js), a Map in tests. */
 export function createKeyfileStore(backend) {
     return {
         /**
-         * Verschluesselt und speichert. params = {kdf, memoryKiB, iterations} der Datenbank-KDF (siehe chooseKdfParams).
-         * pepper = {id, key} vom Server (Nextcloud) -> Format v2; ohne -> v1 (nur Master-Passwort).
+         * Encrypts and stores. params = {kdf, memoryKiB, iterations} of the database KDF (see chooseKdfParams).
+         * pepper = {id, key} from the server (Nextcloud) -> format v2; without -> v1 (master password only).
          */
         async remember({ id, name, keyfile, password, params = {}, pepper = null }) {
             if (!id) throw new KeyfileStoreError('id');
@@ -89,9 +89,9 @@ export function createKeyfileStore(backend) {
             await backend.put(PREFIX + id, { format: pepper ? FORMAT2 : FORMAT, id, name: nm, created: Date.now(), kdf, iv, ct, ...(pepper ? { pepperId: pepper.id } : {}) });
         },
         /**
-         * null = nichts gemerkt. Fehler (KeyfileStoreError.code): 'wrong' = Master-Passwort passt nicht (oder Datensatz verfaelscht),
-         * 'format' = unbrauchbarer Datensatz, 'pepper' = v2-Datensatz braucht den Server-Geheimwert (pepper fehlt),
-         * 'revoked' = Server-Geheimwert wurde erneuert -> Datensatz ist auf allen Geraeten ungueltig.
+         * null = nothing remembered. Errors (KeyfileStoreError.code): 'wrong' = master password doesn't match (or record tampered with),
+         * 'format' = unusable record, 'pepper' = v2 record needs the server secret (pepper missing),
+         * 'revoked' = server secret was renewed -> record is invalid on all devices.
          */
         async recall({ id, password, pepper = null }) {
             const rec = await backend.get(PREFIX + id);
@@ -102,7 +102,7 @@ export function createKeyfileStore(backend) {
             if (v2 && !pepper) throw new KeyfileStoreError('pepper');
             if (v2 && !validPepper(pepper)) throw new KeyfileStoreError('pepper');
             if (v2 && pepper.id !== rec.pepperId) throw new KeyfileStoreError('revoked');
-            // Parameter aus einem manipulierten Datensatz duerfen den Browser nicht lahmlegen
+            // parameters from a tampered record must not be able to cripple the browser
             const kdf = { memoryKiB: rec.kdf.memoryKiB, iterations: rec.kdf.iterations };
             if (!inRange(kdf.memoryKiB, limits.acceptMinMemoryKiB, limits.maxMemoryKiB) || !inRange(kdf.iterations, limits.acceptMinIterations, limits.maxIterations)) throw new KeyfileStoreError('format');
             if (!(rec.kdf.salt?.byteLength >= 16) || rec.iv?.byteLength !== 12) throw new KeyfileStoreError('format');
@@ -118,7 +118,7 @@ export function createKeyfileStore(backend) {
             return rec ? { id, name: rec.name, created: rec.created, format: rec.format, server: rec.format === FORMAT2, pepperId: rec.pepperId || null, kdf: { memoryKiB: rec.kdf?.memoryKiB, iterations: rec.kdf?.iterations } } : null;
         },
         forget: (id) => backend.delete(PREFIX + id),
-        /** scope(id) -> boolean: nur passende Datensaetze (z. B. nur die des angemeldeten Nextcloud-Benutzers). */
+        /** scope(id) -> boolean: only matching records (e.g. only those of the signed-in Nextcloud user). */
         async list(scope = () => true) {
             const out = [];
             for (const k of await backend.keys()) if (typeof k === 'string' && k.startsWith(PREFIX) && scope(k.slice(PREFIX.length))) { const r = await backend.get(k); if (r) out.push({ id: r.id, name: r.name, created: r.created, server: r.format === FORMAT2 }); }

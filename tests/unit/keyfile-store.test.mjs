@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createKeyfileStore, chooseKdfParams, isWeakerThan, limits, KeyfileStoreError } from '../../src/keyfile-store.js';
 
 const REAL = structuredClone(limits);
-limits.minMemoryKiB = 64; limits.minIterations = 1; limits.acceptMinMemoryKiB = 8; limits.acceptMinIterations = 1; // nur fuer die Tests: schnelle Parameter
+limits.minMemoryKiB = 64; limits.minIterations = 1; limits.acceptMinMemoryKiB = 8; limits.acceptMinIterations = 1; // only for the tests: fast parameters
 const mem = () => { const m = new Map(); return { m, get: async (k) => m.get(k), put: async (k, v) => { m.set(k, structuredClone(v)); }, delete: async (k) => { m.delete(k); }, keys: async () => [...m.keys()] }; };
 const KEY = new TextEncoder().encode('<?xml version="1.0"?><KeyFile><Key><Data>ABCDEF</Data></Key></KeyFile>');
 const P = { memoryKiB: 64, iterations: 1 };
@@ -18,7 +18,7 @@ test('falsches Master-Passwort -> Fehler "wrong"; nichts gemerkt -> null', async
     assert.equal(await s.recall({ id: 'x', password: 'egal' }), null);
     await s.remember({ id: 'x', name: 'k', keyfile: KEY, password: 'richtig', params: P });
     await assert.rejects(s.recall({ id: 'x', password: 'falsch' }), (e) => e instanceof KeyfileStoreError && e.code === 'wrong');
-    await assert.rejects(s.recall({ id: 'x', password: 'richtig ' }), (e) => e.code === 'wrong'); // schon ein Leerzeichen genuegt
+    await assert.rejects(s.recall({ id: 'x', password: 'richtig ' }), (e) => e.code === 'wrong'); // a single space is enough
 });
 test('im Speicher liegt weder Klartext noch Passwort noch abgeleiteter Schluessel', async () => {
     const b = mem(), s = createKeyfileStore(b);
@@ -111,7 +111,7 @@ test('Datensatz unter fremder Kennung / falsches Format / falsche Kennung im Dat
     const b = mem(), s = createKeyfileStore(b);
     await s.remember({ id: 'nc:anna:/a.kdbx', name: 'k', keyfile: KEY, password: 'p', params: P });
     const rec = structuredClone(b.m.get('kf:nc:anna:/a.kdbx'));
-    b.m.set('kf:nc:bert:/a.kdbx', rec); // unveraendert umkopiert (rec.id zeigt noch auf anna)
+    b.m.set('kf:nc:bert:/a.kdbx', rec); // copied over unchanged (rec.id still points to anna)
     await assert.rejects(s.recall({ id: 'nc:bert:/a.kdbx', password: 'p' }), (e) => e.code === 'format');
     b.m.set('kf:z', { ...rec, id: 'z', format: 'kpnc-keyfile-v0' });
     await assert.rejects(s.recall({ id: 'z', password: 'p' }), (e) => e.code === 'format');

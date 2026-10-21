@@ -1,6 +1,11 @@
-// TOTP (RFC 6238) per WebCrypto. Unterstuetzt otpauth://-URLs (KeePassXC-Standard) und die aelteren
-// KeePass-Felder "TOTP Seed" / "TOTP Settings" ("30;6").
-// Steam Guard: gleiche Rechnung, aber 5 Zeichen aus einem eigenen Alphabet. Erkannt an "encoder=steam" (otpauth) bzw. "30;S" (alt).
+// TOTP (RFC 6238) via WebCrypto. Supports otpauth:// URLs (KeePassXC standard) and the older
+// KeePass fields "TOTP Seed" / "TOTP Settings" ("30;6").
+// Steam Guard: same calculation, but 5 characters from its own alphabet. Detected by "encoder=steam" (otpauth) or "30;S" (old).
+
+/** Error with an i18n key (like VaultError): the UI shows it via errText() in the chosen language. */
+export class OtpError extends Error {
+    constructor(message, key, vars) { super(message); this.key = key; this.vars = vars; }
+}
 
 const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
 const STEAM = '23456789BCDFGHJKMNPQRTVWXY';
@@ -12,7 +17,7 @@ export function base32Decode(str) {
     const out = [];
     for (const ch of s) {
         const idx = B32.indexOf(ch);
-        if (idx < 0) throw new Error('Ungueltiges Base32-Zeichen im TOTP-Geheimnis');
+        if (idx < 0) throw new OtpError('Invalid Base32 character in the TOTP secret', 'e.otp.base32');
         value = (value << 5) | idx;
         bits += 5;
         if (bits >= 8) {
@@ -27,9 +32,9 @@ export function parseOtpConfig(otpField, seedField, settingsField) {
     if (otpField && /^otpauth:\/\//i.test(otpField.trim())) {
         const u = new URL(otpField.trim());
         const p = u.searchParams;
-        if (u.hostname.toLowerCase() !== 'totp') throw new Error('Nur TOTP wird unterstuetzt');
+        if (u.hostname.toLowerCase() !== 'totp') throw new OtpError('Only TOTP is supported', 'e.otp.type');
         const secret = p.get('secret');
-        if (!secret) throw new Error('otpauth-URL ohne secret');
+        if (!secret) throw new OtpError('otpauth URL without a secret', 'e.otp.secret');
         const steam = (p.get('encoder') || '').toLowerCase() === 'steam';
         return {
             secret: base32Decode(secret),
@@ -53,7 +58,7 @@ export function parseOtpConfig(otpField, seedField, settingsField) {
     return null;
 }
 
-/** 31-Bit-Wert aus der RFC-4226-Kuerzung -> 5 Zeichen, niedrigste "Stelle" zuerst. */
+/** 31-bit value from the RFC 4226 truncation -> 5 characters, lowest "digit" first. */
 export function steamCode(bin) {
     let s = '';
     for (let i = 0; i < 5; i++) { s += STEAM[bin % STEAM.length]; bin = Math.floor(bin / STEAM.length); }
@@ -62,7 +67,7 @@ export function steamCode(bin) {
 
 export async function totp(config, nowMs = Date.now()) {
     const algo = { SHA1: 'SHA-1', SHA256: 'SHA-256', SHA512: 'SHA-512' }[config.algorithm];
-    if (!algo) throw new Error('Nicht unterstuetzter TOTP-Algorithmus: ' + config.algorithm);
+    if (!algo) throw new OtpError('Unsupported TOTP algorithm: ' + config.algorithm, 'e.otp.algo', { algo: config.algorithm });
     const counter = Math.floor(nowMs / 1000 / config.period);
     const msg = new ArrayBuffer(8);
     const dv = new DataView(msg);

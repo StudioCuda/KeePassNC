@@ -1,5 +1,5 @@
-// Wird in der Nextcloud-Dateien-App geladen: oeffnet .kdbx-Dateien per Klick mit KeePassNC und legt ueber "+ Neu" neue an.
-// Erkennung ueber die Dateiendung (nicht ueber den MIME-Typ), damit keine Datenbank- oder Konfigurationsaenderungen noetig sind.
+// Loaded in the Nextcloud Files app: opens .kdbx files with KeePassNC on click and creates new ones via "+ New".
+// Detection is by file extension (not MIME type), so no database or config changes are needed.
 import { registerFileAction, addNewFileMenuEntry, Permission, DefaultType } from '@nextcloud/files';
 import { generateUrl } from '@nextcloud/router';
 
@@ -7,11 +7,13 @@ const KEEPASS_ICON = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24
 
 const isKdbx = (node) => /\.kdbx$/i.test(node.basename || node.path || '');
 
+const de = /^de\b/i.test(document.documentElement.lang || '');
+
 registerFileAction({
     id: 'keepassnc-open',
     order: -10,
     default: DefaultType.DEFAULT,
-    displayName: () => (typeof window.t === 'function' ? window.t('keepassnc', 'Mit KeePassNC öffnen') : 'Mit KeePassNC öffnen'),
+    displayName: () => (de ? 'Mit KeePassNC öffnen' : 'Open with KeePassNC'),
     iconSvgInline: () => KEEPASS_ICON,
     enabled: ({ nodes }) => nodes.length === 1 && isKdbx(nodes[0]) && (nodes[0].permissions & Permission.READ) !== 0,
     async exec({ nodes }) {
@@ -20,9 +22,8 @@ registerFileAction({
     }
 });
 
-// "+ Neu" -> "KeePass-Datenbank": die Datei entsteht erst in KeePassNC, wenn das Master-Passwort feststeht (eine leere .kdbx waere
-// kaputt). Hier nur ein freier Name im aktuellen Ordner; die App fragt nach den Zugangsdaten und ueberschreibt nie eine vorhandene Datei.
-const de = /^de\b/i.test(document.documentElement.lang || '');
+// "+ New" -> "KeePass database": the file is only created in KeePassNC once the master password is set (an empty .kdbx would be
+// broken). Here just a free name in the current folder; the app asks for the credentials and never overwrites an existing file.
 const NEW_NAME = de ? 'Passwörter' : 'Passwords';
 addNewFileMenuEntry({
     id: 'keepassnc-new',

@@ -1,4 +1,4 @@
-// Einstellungen als Dialog (auch schon vor der Anmeldung erreichbar: nur Darstellung/Sprache).
+// Settings as a dialog (also reachable before login: appearance/language only).
 import { saveSettings, loadSettings, AUTOSYNC_OPTIONS, BACKUPKEEP_OPTIONS, AUTOLOCK_OPTIONS, CLIPBOARD_OPTIONS, THEME_OPTIONS, LANG_OPTIONS } from '../settings.js';
 import { t, setLang, detectLang, fmtDate, errText } from '../i18n.js';
 import { ctx, applyTheme, kfStore, kfScope } from './ctx.js';
@@ -25,7 +25,7 @@ export function openSettings({ loginMode = false } = {}) {
     };
     const sec = (title, ...rows) => h('section', { class: 'card stack' }, h('h3', { text: title }), ...rows);
     const check = (id, label, key, hint) => h('label', { class: 'check' }, h('input', { type: 'checkbox', id, checked: !!ctx.settings[key], onchange: (e) => update({ [key]: e.target.checked }) }), h('span', {}, label, hint ? h('small', { class: 'muted', text: ' ' + hint }) : null));
-    // "Wie Nextcloud" gibt es nur in Nextcloud; eigenstaendig wirkt der Wert wie "Automatisch".
+    // "Like Nextcloud" only exists in Nextcloud; standalone the value behaves like "Automatic".
     const themeOptions = ctx.NC ? THEME_OPTIONS : THEME_OPTIONS.filter((v) => v !== 'nextcloud');
     const themeValue = !ctx.NC && ctx.settings.theme === 'nextcloud' ? 'auto' : ctx.settings.theme;
     const kfBox = h('div', { class: 'stack tight', id: 'kf-list' });

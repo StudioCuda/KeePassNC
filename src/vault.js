@@ -1,5 +1,5 @@
-// Tresor-Logik ohne DOM: Laden, Aendern, Speichern (inkl. Sicherungskopie und Merge bei Konflikt).
-// Alles Kryptografische passiert hier im Browser; der Server sieht nur die verschluesselte Datei.
+// Vault logic without DOM: load, change, save (incl. backup copy and merge on conflict).
+// All the cryptography happens here in the browser; the server only ever sees the encrypted file.
 import * as kdbxweb from '../vendor/kdbxweb/lib/index';
 import { argon2 } from './argon2.js';
 import { ConflictError, DavError, isOffline } from './webdav.js';
@@ -23,7 +23,7 @@ kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, le
             hashLength: length
         });
     } catch (e) {
-        // Reicht der Arbeitsspeicher (Handy, Browser-Grenze) nicht, verstaendlich melden statt "RangeError ..."
+        // If memory runs out (phone, browser limit), report it in plain words instead of "RangeError ..."
         if (isOutOfMemory(e)) throw new VaultError('Nicht genug Arbeitsspeicher fuer die Schluesselableitung (Argon2).', 'e.argonmem', { mb: Math.ceil(memory / 1024) });
         throw e;
     }
@@ -31,9 +31,9 @@ kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, le
 });
 
 /**
- * Verschluesselungs-Einstellungen aus dem Dateikopf als vergleichbarer Text: Format, Chiffre, Kompression, KDF samt Parametern.
- * Salze, IVs und Startwerte bleiben aussen vor, die sind bei jedem Speichern neu. header: KdbxHeader oder die Bytes einer Datei
- * (der Kopf ist unverschluesselt, dafuer braucht es kein Passwort).
+ * Encryption settings from the file header as comparable text: format, cipher, compression, KDF with its parameters.
+ * Salts, IVs and seeds are left out, they change on every save. header: KdbxHeader or the bytes of a file
+ * (the header is unencrypted, so no password is needed).
  */
 export function cryptoSettings(header) {
     const bytes = ArrayBuffer.isView(header) ? header.buffer.slice(header.byteOffset, header.byteOffset + header.byteLength) : header;
@@ -43,20 +43,20 @@ export function cryptoSettings(header) {
     return JSON.stringify([h.versionMajor, h.versionMinor, h.dataCipherUuid?.toString() ?? null, h.compression ?? null, h.keyEncryptionRounds ?? null, kdf]);
 }
 
-/** Anzeigenamen zu Vault.securitySettings(); KDF_LABEL ist auch das Format, das keyfile-store.js erwartet. */
+/** Display names for Vault.securitySettings(); KDF_LABEL is also the format keyfile-store.js expects. */
 export const KDF_LABEL = { argon2d: 'Argon2d', argon2id: 'Argon2id', aes: 'AES-KDF' };
 export const CIPHER_LABEL = { aes: 'AES-256', chacha20: 'ChaCha20', twofish: 'Twofish' };
 const CIPHER_ID = { aes: Consts.CipherId.Aes, chacha20: Consts.CipherId.ChaCha20, twofish: Consts.CipherId.Twofish };
 
-/** Neue Schluesseldatei im XML-Format 2.0 (wie KeePassXC, .keyx), Schluessel: 256 Bit aus crypto.getRandomValues. */
+/** New key file in XML format 2.0 (like KeePassXC, .keyx), key: 256 bits from crypto.getRandomValues. */
 export async function createKeyfile() {
     const key = crypto.getRandomValues(new Uint8Array(32));
     try { return await Credentials.createKeyFileWithHash(key.buffer, 2); } finally { key.fill(0); }
 }
 
 /**
- * Dieselbe Schluesseldatei? Verglichen wird der Schluessel, den KeePass aus ihr liest, nicht die Bytes: eine unter Windows
- * gespeicherte Kopie mit anderen Zeilenenden zaehlt als gleich. Eine unlesbare Datei (XML mit falscher Pruefsumme) wirft.
+ * Same key file? This compares the key KeePass reads from it, not the bytes: a copy saved on Windows with different line endings
+ * counts as the same. An unreadable file (XML with a wrong checksum) throws.
  */
 export async function sameKeyfile(a, b) {
     const hash = async (x) => { const c = new Credentials(null, x); await c.ready; return c.keyFileHash.getBinary(); };
@@ -66,7 +66,7 @@ export async function sameKeyfile(a, b) {
 
 export const STANDARD_FIELDS = ['Title', 'UserName', 'Password', 'URL', 'Notes'];
 
-/** message: deutscher Ersatztext; key/vars: Schluessel der Uebersetzung (siehe errText in i18n.js). */
+/** message: German fallback text; key/vars: translation key (see errText in i18n.js). */
 export class VaultError extends Error {
     constructor(message, key, vars) { super(message); this.name = 'VaultError'; this.key = key; this.vars = vars; }
 }
@@ -77,7 +77,7 @@ export function isProtected(v) {
     return v instanceof ProtectedValue;
 }
 
-/** data:-URL fuer Bilddaten (PNG, JPEG, GIF, sonst als PNG versucht); SVG nie, das koennte Skripte enthalten. */
+/** data: URL for image data (PNG, JPEG, GIF, otherwise tried as PNG); never SVG, it could contain scripts. */
 export function imageUrl(data) {
     const bytes = new Uint8Array(data.buffer ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength) : data);
     const mime = bytes[0] === 0x89 ? 'image/png' : bytes[0] === 0xff ? 'image/jpeg' : bytes[0] === 0x47 ? 'image/gif' : bytes[0] === 0x3c ? null : 'image/png';
@@ -99,7 +99,7 @@ export function generatePassword(length = 24) {
     const sets = ['abcdefghijkmnopqrstuvwxyz', 'ABCDEFGHJKLMNPQRSTUVWXYZ', '23456789', '!@#$%^&*-_=+?'];
     const all = sets.join('');
     const pick = (chars) => {
-        // Rejection Sampling gegen Modulo-Verzerrung
+        // Rejection sampling against modulo bias
         const limit = Math.floor(0x100000000 / chars.length) * chars.length;
         const buf = new Uint32Array(1);
         do crypto.getRandomValues(buf); while (buf[0] >= limit);
@@ -115,9 +115,9 @@ export function generatePassword(length = 24) {
 }
 
 /**
- * Laedt buf mit Passwort und Schluesseldatei. Leeres Feld mit Schluesseldatei: wie KeePassXC erst ganz ohne Passwort (Datenbank nur mit
- * Schluesseldatei), dann mit leerem. Das sind zwei verschiedene Schluessel: "kein Passwort" laesst den Passwort-Anteil weg, "" steuert
- * den Hash von "" bei. Liefert {db, pw} (pw: das passende ProtectedValue oder null); Fehler als VaultError (e.badkey, e.badfile).
+ * Loads buf with password and key file. Empty field with a key file: like KeePassXC, first without any password (database with key
+ * file only), then with an empty one. These are two different keys: "no password" leaves the password part out, "" contributes
+ * the hash of "". Returns {db, pw} (pw: the matching ProtectedValue or null); errors as VaultError (e.badkey, e.badfile).
  */
 async function loadWith(buf, password, kf) {
     const tries = password === '' && kf ? [null, ProtectedValue.fromString('')] : [ProtectedValue.fromString(password)];
@@ -134,7 +134,7 @@ async function loadWith(buf, password, kf) {
     }
 }
 
-/** Fehler von Kdbx.load als verstaendliche VaultError (falsche Zugangsdaten, keine/unbekannte KDBX-Datei), sonst unveraendert. */
+/** Errors from Kdbx.load as understandable VaultErrors (wrong credentials, no/unknown KDBX file), otherwise unchanged. */
 function loadError(e) {
     if (e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) {
         return new VaultError('Falsches Master-Passwort oder falsche Schluesseldatei.', 'e.badkey');
@@ -149,8 +149,8 @@ export class Vault {
     /**
      * @param {{buf: ArrayBuffer, password: string, keyfile?: Uint8Array|ArrayBuffer, dav?: import('./webdav.js').DavFile, etag?: string|null,
      *   cache?: {key: string, name: string}, unsynced?: boolean, remoteBuf?: ArrayBuffer, fromCache?: boolean}} o
-     * cache: Schluessel der lokalen Offline-Kopie; unsynced: buf enthaelt lokale Aenderungen, die der Server noch nicht hat (etag = Basisstand);
-     * remoteBuf: aktueller Server-Stand (fuer die Sicherungskopie); fromCache: buf stammt aus dem Cache (nicht erneut dorthin schreiben).
+     * cache: key of the local offline copy; unsynced: buf holds local changes the server doesn't have yet (etag = base version);
+     * remoteBuf: current server version (for the backup copy); fromCache: buf came from the cache (don't write it back there).
      */
     static async open({ buf, password, keyfile, dav, etag, cache, unsynced, remoteBuf, fromCache }) {
         const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile : toArrayBuffer(keyfile)) : undefined;
@@ -162,10 +162,10 @@ export class Vault {
     }
 
     /**
-     * Neue Datenbank: name (Datenbank-Name und Wurzelgruppe), password (leer mit keyfile: nur Schluesseldatei, wie KeePassXC),
-     * security wie updateSecuritySettings (siehe NEW_DB in core/kdf-policy.js). Mit dav wird die Datei angelegt, aber nie eine
-     * vorhandene ueberschrieben (DavFile.create); sonst liegen die Bytes nur in bytes (lokale Datei: herunterladen).
-     * Danach ist die Datenbank offen wie nach open(). Liefert {vault, bytes}.
+     * New database: name (database name and root group), password (empty with keyfile: key file only, like KeePassXC),
+     * security like updateSecuritySettings (see NEW_DB in core/kdf-policy.js). With dav the file is created, but an existing one
+     * is never overwritten (DavFile.create); otherwise the bytes only live in bytes (local file: download).
+     * Afterwards the database is open as after open(). Returns {vault, bytes}.
      */
     static async create({ name, password, keyfile, security, dav, cache }) {
         const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
@@ -179,7 +179,7 @@ export class Vault {
         const bytes = await db.save();
         v.dirty = false;
         v._remoteBytes = bytes;
-        v._backedUp = true; // eine Sicherungskopie der leeren Datenbank braucht niemand
+        v._backedUp = true; // nobody needs a backup copy of the empty database
         if (dav) v.etag = await dav.create(bytes);
         await v._cacheWrite(bytes, false);
         return { vault: v, bytes };
@@ -189,15 +189,15 @@ export class Vault {
         this.db = db;
         this._pw = pw;
         this._kf = kf;
-        this._base = { pw, kf }; // Zugangsdaten des letzten bekannten Server-Stands (weichen nach changeCredentials bis zum Hochladen ab)
+        this._base = { pw, kf }; // credentials of the last known server version (differ after changeCredentials until the upload)
         this.dav = dav || null;
         this.etag = etag;
         this._remoteBytes = remoteBytes;
         this._backedUp = false;
-        this.backupKeep = 10; // Anzahl behaltener Sicherungskopien je Art (0 = nie loeschen)
-        this.dirty = false; // Aenderungen nur im Arbeitsspeicher (noch nicht serialisiert)
+        this.backupKeep = 10; // number of backup copies kept per kind (0 = never delete)
+        this.dirty = false; // changes in memory only (not serialized yet)
         this.cache = cache || null;
-        this.unsynced = false; // lokal gesichert (Offline-Kopie), Server hat den Stand noch nicht
+        this.unsynced = false; // saved locally (offline copy), the server doesn't have this version yet
         this._pending = null;
         this._chain = Promise.resolve();
     }
@@ -208,14 +208,14 @@ export class Vault {
         return run;
     }
 
-    /** Schreibt die Offline-Kopie; liefert true, wenn sie sicher abgelegt wurde. */
+    /** Writes the offline copy; returns true if it was stored safely. */
     async _cacheWrite(bytes, modified) {
         if (!this.cache) return false;
         try {
             await cachePut(this.cache.key, { bytes, etag: this.etag, modified, name: this.cache.name, syncDate: Date.now() });
             return true;
         } catch (e) {
-            console.warn('Offline-Kopie konnte nicht geschrieben werden', e);
+            console.warn('Could not write the offline copy', e);
             return false;
         }
     }
@@ -224,12 +224,12 @@ export class Vault {
         return `KDBX ${this.db.header.versionMajor}.${this.db.header.versionMinor}`;
     }
 
-    /** Zum Lesen des Server-Stands (Zusammenfuehren, Abholen): dessen Zugangsdaten, nicht unbedingt die eigenen. */
+    /** For reading the server version (merging, pulling): its credentials, not necessarily our own. */
     _baseCredentials() {
         return new Credentials(this._base.pw, this._base.kf);
     }
 
-    /** Stimmt pw mit dem Master-Passwort dieser Datenbank ueberein? Vergleicht nur Hashes, ohne Schluesselableitung. Ohne Passwort: nur "". */
+    /** Does pw match this database's master password? Compares hashes only, no key derivation. Without a password: only "". */
     async checkPassword(pw) {
         if (!this._pw) return pw === '';
         const [a, b] = await Promise.all([ProtectedValue.fromString(pw).getHash(), this._pw.getHash()]);
@@ -237,17 +237,17 @@ export class Vault {
     }
 
     get hasKeyfile() { return !!this._kf; }
-    /** false: Datenbank nur mit Schluesseldatei (kein Passwort-Anteil, auch kein leeres Passwort). */
+    /** false: database with key file only (no password part, not even an empty password). */
     get hasPassword() { return !!this._pw; }
-    /** Kopie der Schluesseldatei (zum Neu-Merken nach changeCredentials) oder null; der Aufrufer ueberschreibt sie danach mit Nullen. */
+    /** Copy of the key file (to remember it again after changeCredentials) or null; the caller overwrites it with zeros afterwards. */
     keyfileCopy() { return this._kf ? new Uint8Array(this._kf.slice(0)) : null; }
 
     /**
-     * Neues Master-Passwort und/oder neue Schluesseldatei, und gleich speichern. password: neuer Text oder undefined (bleibt);
-     * keyfile: undefined (bleibt), null (entfaellt) oder die Bytes der neuen Datei. Bis zum ersten erfolgreichen Hochladen liest die
-     * Vault den Server weiter mit den alten Zugangsdaten (Konflikt mit einem anderen Geraet -> Zusammenfuehren klappt).
-     * Scheitert das Speichern, gelten wieder die alten Zugangsdaten; Aenderungen bleiben ungespeichert bzw. werden mit den alten
-     * Zugangsdaten lokal abgelegt. Ergebnis wie save().
+     * New master password and/or new key file, saved right away. password: new text or undefined (stays);
+     * keyfile: undefined (stays), null (dropped) or the bytes of the new file. Until the first successful upload the
+     * vault keeps reading the server with the old credentials (conflict with another device -> merging works).
+     * If saving fails, the old credentials apply again; changes stay unsaved or are stored locally with the old
+     * credentials. Result like save().
      */
     changeCredentials({ password, keyfile }) {
         return this._exclusive(async () => {
@@ -255,7 +255,7 @@ export class Vault {
             const kf = keyfile === undefined ? this._kf : keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
             if (!pw && !kf) throw new VaultError('Ohne Passwort und Schluesseldatei liesse sich die Datenbank von jedem oeffnen.', 'e.cred.empty');
             const creds = new Credentials(pw, kf);
-            // unlesbare Schluesseldatei (z. B. XML mit falscher Pruefsumme) jetzt melden, nicht erst beim Speichern
+            // report an unreadable key file (e.g. XML with a wrong checksum) now, not only on save
             try { await creds.ready; } catch { throw new VaultError('Diese Schluesseldatei ist unlesbar.', 'e.keyfile.bad'); }
             const prev = { pw: this._pw, kf: this._kf, creds: this.db.credentials, keyChanged: this.db.meta.keyChanged };
             this._pw = pw; this._kf = kf; this.db.credentials = creds;
@@ -264,7 +264,7 @@ export class Vault {
                 return await this._save();
             } catch (e) {
                 this._pw = prev.pw; this._kf = prev.kf; this.db.credentials = prev.creds; this.db.meta.keyChanged = prev.keyChanged;
-                if (this._pending) { // lokal schon mit den neuen Zugangsdaten abgelegt: mit den alten neu ablegen, Hochladen folgt spaeter
+                if (this._pending) { // already stored locally with the new credentials: store again with the old ones, upload follows later
                     try { this._pending = await this.db.save(); await this._cacheWrite(this._pending, true); } catch { this.dirty = true; }
                 } else this.dirty = true;
                 throw e;
@@ -273,10 +273,10 @@ export class Vault {
     }
 
     /**
-     * Der Server-Stand oeffnet nicht mehr mit den bekannten Zugangsdaten, weil sie auf einem anderen Geraet geaendert wurden
-     * (e.merge.pw, e.pull.pw): mit den neuen pruefen, sie uebernehmen und gleich abgleichen. Lokale Aenderungen werden dabei wie
-     * sonst zusammengefuehrt und mit den neuen Zugangsdaten gespeichert. Passen sie nicht: VaultError e.badkey, nichts geaendert.
-     * Ergebnis wie save() bzw. sync().
+     * The server version no longer opens with the known credentials because they were changed on another device
+     * (e.merge.pw, e.pull.pw): check with the new ones, adopt them and sync right away. Local changes are merged as usual
+     * and saved with the new credentials. If they don't fit: VaultError e.badkey, nothing changed.
+     * Result like save() or sync().
      */
     adoptCredentials({ password, keyfile }) {
         return this._exclusive(async () => {
@@ -287,7 +287,7 @@ export class Vault {
             this.db.credentials = new Credentials(pw, kf);
             if (this.dirty) return this._save();
             if (this.unsynced) return this._push();
-            this.db = remoteDb; // nichts Lokales: der Server-Stand gilt (wie _pull)
+            this.db = remoteDb; // nothing local: the server version wins (like _pull)
             this.etag = remote.etag;
             this._remoteBytes = remote.buf;
             await this._cacheWrite(remote.buf, false);
@@ -296,10 +296,10 @@ export class Vault {
     }
 
     /**
-     * Holt eine andere Kopie dieser Datenbank herein (z. B. "(conflicted copy)" der Nextcloud-Clients oder eine Kopie vom Handy), wie
-     * "Datenbank zusammenfuehren" in KeePassXC: je Eintrag gewinnt der neuere Stand, der aeltere landet im Verlauf; Loeschungen
-     * kommen mit. Dateikopf und Zugangsdaten bleiben die eigenen. creds fehlt: es wird mit den eigenen Zugangsdaten geoeffnet.
-     * Liefert {added, changed, removed} (Eintraege). Fehler: e.badkey, e.badfile, e.merge.other (andere Datenbank).
+     * Pulls in another copy of this database (e.g. a "(conflicted copy)" from the Nextcloud clients or a copy from the phone), like
+     * "Merge database" in KeePassXC: per entry the newer version wins, the older one goes to the history; deletions
+     * come along. File header and credentials stay our own. creds missing: it is opened with our own credentials.
+     * Returns {added, changed, removed} (entries). Errors: e.badkey, e.badfile, e.merge.other (different database).
      */
     async mergeFrom(buf, creds) {
         let other;
@@ -314,7 +314,7 @@ export class Vault {
             removed: [...before.keys()].filter((id) => !after.has(id)).length
         });
         const entries = snapshot(this.root.allEntries()), groups = snapshot(this.root.allGroups());
-        const { keyChanged, settingsChanged } = this.db.meta; // Zugangsdaten und Dateikopf bleiben die eigenen, ihre Zeitstempel also auch
+        const { keyChanged, settingsChanged } = this.db.meta; // credentials and file header stay our own, so do their timestamps
         try {
             this.db.merge(other);
             Object.assign(this.db.meta, { keyChanged, settingsChanged });
@@ -322,14 +322,14 @@ export class Vault {
             if (e instanceof KdbxError && e.code === Consts.ErrorCodes.MergeError) throw new VaultError('Das ist eine andere Datenbank, keine Kopie dieser.', 'e.merge.other');
             throw e;
         }
-        const count = diff(entries, snapshot(this.root.allEntries())); // die Meldung zaehlt Eintraege; Gruppen aendern sich meist nur mit
+        const count = diff(entries, snapshot(this.root.allEntries())); // the message counts entries; groups usually only change along with
         if (Object.values(count).some(Boolean) || Object.values(diff(groups, snapshot(this.root.allGroups()))).some(Boolean)) this.dirty = true;
         return count;
     }
 
     /**
-     * Loescht alle Sicherungskopien dieser Datei auf dem Server (nach changeCredentials: die oeffnen mit den alten Zugangsdaten).
-     * Nur sinnvoll, wenn der neue Stand hochgeladen ist. Liefert die Namen der geloeschten Dateien.
+     * Deletes all backup copies of this file on the server (after changeCredentials: they open with the old credentials).
+     * Only makes sense once the new version is uploaded. Returns the names of the deleted files.
      */
     deleteBackups() { return this._exclusive(() => (this.dav && !this.unsynced ? this.dav.deleteBackups() : [])); }
 
@@ -348,7 +348,7 @@ export class Vault {
         return false;
     }
 
-    /** Alle Eintraege ausser dem Papierkorb, optional gefiltert. */
+    /** All entries except the recycle bin, optionally filtered. */
     search(query) {
         const q = (query || '').trim().toLowerCase();
         const out = [];
@@ -363,11 +363,11 @@ export class Vault {
     }
 
     /**
-     * Wendet Formularwerte auf einen Eintrag an (neuer Eintrag: entry === null -> in group anlegen).
+     * Applies form values to an entry (new entry: entry === null -> create in group).
      * data: {Title, UserName, Password, URL, Notes, tags: string[], custom: [{name, value, protect}], expires?: boolean, expiryTime?: Date|null, otp?: string,
-     *   icon?: number, customIcon?: string|null, excludeReports?: boolean, color?: string} (Symbol: siehe _setIcon; color: "#rrggbb" oder "")
-     * Unveraendert bleibt alles, was der Editor nicht anzeigt (Passkey-Felder, Browser-Daten, Farben, Auto-Type ...). Ohne tatsaechliche Aenderung
-     * entsteht kein Verlaufseintrag (wie in KeePassXC).
+     *   icon?: number, customIcon?: string|null, excludeReports?: boolean, color?: string} (icon: see _setIcon; color: "#rrggbb" or "")
+     * Everything the editor doesn't show stays unchanged (passkey fields, browser data, colors, auto-type ...). Without an actual change
+     * no history entry is created (like in KeePassXC).
      */
     applyEntry(entry, group, data) {
         const isNew = !entry;
@@ -401,7 +401,7 @@ export class Vault {
         }
         this._setIcon(entry, data);
         if (data.color !== undefined && data.color !== (entryColor(entry) || '')) entry.bgColor = data.color || undefined;
-        if (data.excludeReports !== undefined && data.excludeReports !== excluded(entry)) { // beide Schreibweisen, damit KeePass 2 und KeePassXC es sehen
+        if (data.excludeReports !== undefined && data.excludeReports !== excluded(entry)) { // both spellings, so KeePass 2 and KeePassXC see it
             entry.qualityCheck = data.excludeReports ? false : undefined;
             if (data.excludeReports) (entry.customData ??= new Map()).set('KnownBad', { value: 'True' });
             else entry.customData?.delete('KnownBad');
@@ -411,7 +411,7 @@ export class Vault {
         return entry;
     }
 
-    /** true, wenn die Formularwerte vom gespeicherten Eintrag abweichen. */
+    /** true if the form values differ from the stored entry. */
     entryDiffers(entry, data) {
         const same = (k, v) => valueText(entry.fields.get(k)) === (v ?? '');
         if (!(same('Title', data.Title) && same('UserName', data.UserName) && same('Password', data.Password) && same('URL', data.URL) && same('Notes', data.Notes))) return true;
@@ -430,16 +430,16 @@ export class Vault {
             || (data.color !== undefined && data.color !== (entryColor(entry) || ''));
     }
 
-    /** Verlaufseintrag anlegen und gemaess Datenbank-Einstellungen kuerzen (Standard 10 Staende / 6 MiB, aelteste zuerst). */
+    /** Create a history entry and trim it per the database settings (default 10 versions / 6 MiB, oldest first). */
     _pushHistory(entry) {
         entry.pushHistory();
         this._trimHistory(entry);
     }
 
     /**
-     * Kuerzt den Verlauf eines Eintrags auf die Grenzen der Datenbank (oder die uebergebenen), aelteste Staende zuerst.
-     * Grenzen wie in KDBX: -1 = unbegrenzt, 0 Staende = kein Verlauf; die Groessengrenze laesst den neuesten Stand immer stehen.
-     * dryRun: nur zaehlen. Liefert die Zahl der (zu) entfernenden Staende.
+     * Trims an entry's history to the database limits (or the given ones), oldest versions first.
+     * Limits as in KDBX: -1 = unlimited, 0 versions = no history; the size limit always keeps the newest version.
+     * dryRun: only count. Returns the number of versions to be (or that were) removed.
      */
     _trimHistory(entry, limits = {}, dryRun = false) {
         const maxItems = limits.historyMaxItems ?? this.db.meta.historyMaxItems ?? 10;
@@ -459,7 +459,7 @@ export class Vault {
         return k;
     }
 
-    // ---------------------------------------------------------------- Sicherheits-Einstellungen (Dateikopf)
+    // ---------------------------------------------------------------- Security settings (file header)
     /** {version, cipher: 'aes'|'chacha20'|'twofish'|null, kdf: 'argon2d'|'argon2id'|'aes', memoryKiB, iterations, parallelism, rounds} */
     securitySettings() {
         const h = this.db.header, kp = h.kdfParameters;
@@ -476,16 +476,16 @@ export class Vault {
         return out;
     }
 
-    /** Schluesselableitung im Format, das keyfile-store.js erwartet (siehe chooseKdfParams). */
+    /** Key derivation in the format keyfile-store.js expects (see chooseKdfParams). */
     kdfParams() {
         const k = this.securitySettings();
         return { kdf: KDF_LABEL[k.kdf], memoryKiB: k.memoryKiB ?? 0, iterations: k.iterations ?? k.rounds };
     }
 
     /**
-     * Aendert Format, Verschluesselung und Schluesselableitung. Argon2 und ChaCha20 gibt es erst ab KDBX 4: eine KDBX-3.1-Datei wird dafuer
-     * umgestellt (ein Zurueck gibt es nicht). Neue Salze und IVs erzeugt kdbxweb beim Speichern ohnehin. "Einstellungen geaendert" wird
-     * gesetzt, damit das Zusammenfuehren mit einem anderen Geraet (Vault._mergedHeader) den neueren Kopf erkennt.
+     * Changes format, encryption and key derivation. Argon2 and ChaCha20 only exist from KDBX 4: a KDBX 3.1 file is converted
+     * for that (there is no way back). kdbxweb generates new salts and IVs on save anyway. "Settings changed" is set so that
+     * merging with another device (Vault._mergedHeader) recognizes the newer header.
      */
     updateSecuritySettings({ cipher, kdf, memoryKiB, iterations, parallelism, rounds, upgrade = false }) {
         const cur = this.securitySettings();
@@ -509,10 +509,10 @@ export class Vault {
         this.dirty = true;
     }
 
-    // ---------------------------------------------------------------- Datenbank-Einstellungen (Metadaten, nicht der Dateikopf)
+    // ---------------------------------------------------------------- Database settings (metadata, not the file header)
     get binEnabled() { return this.db.meta.recycleBinEnabled !== false; }
 
-    /** Loeschen ist hier endgueltig: Element liegt schon im Papierkorb, oder die Datenbank hat keinen. */
+    /** Deleting is permanent here: the item is already in the recycle bin, or the database has none. */
     deletesForever(item) { return !this.binEnabled || this.isInRecycleBin(item); }
 
     generalSettings() {
@@ -521,7 +521,7 @@ export class Vault {
             historyMaxItems: m.historyMaxItems ?? 10, historyMaxSize: m.historyMaxSize ?? 6 * 1024 * 1024 };
     }
 
-    /** So viele Verlaufsstaende fielen mit diesen Grenzen weg (fuer die Rueckfrage vor dem Uebernehmen). */
+    /** This many history versions would be dropped with these limits (for the confirmation before applying). */
     historyTrimCount(limits) {
         let n = 0;
         for (const e of this.root.allEntries()) n += this._trimHistory(e, limits, true);
@@ -529,8 +529,8 @@ export class Vault {
     }
 
     /**
-     * Uebernimmt die allgemeinen Einstellungen. Ueber die Setter von kdbxweb, damit die Aenderungszeiten stimmen und das Zusammenfuehren
-     * mit einem anderen Geraet sie richtig zuordnet. Neue Verlaufsgrenzen gelten sofort fuer alle Eintraege (wie in KeePassXC).
+     * Applies the general settings. Via the kdbxweb setters, so the change times are right and merging with another device assigns
+     * them correctly. New history limits apply immediately to all entries (like in KeePassXC).
      */
     updateGeneralSettings({ name, desc, defaultUser, recycleBin, historyMaxItems, historyMaxSize }) {
         const m = this.db.meta;
@@ -549,15 +549,15 @@ export class Vault {
     }
 
     removeEntry(entry) {
-        if (this.isInRecycleBin(entry)) this.db.move(entry, null); // endgueltig loeschen
+        if (this.isInRecycleBin(entry)) this.db.move(entry, null); // delete permanently
         else this.db.remove(entry);
         this.dirty = true;
     }
 
     /**
-     * Kopie mit neuer UUID, neuen Zeitstempeln und ohne Verlauf, in derselben Gruppe. Ein Passkey wird NICHT mitkopiert:
-     * zwei Eintraege mit demselben privaten Schluessel und derselben Credential-ID verwirren die Browser-Erweiterung.
-     * linked: Benutzername und Passwort zeigen per Feldreferenz ({REF:U@I:…}, {REF:P@I:…}) auf das Original, wie "Klonen" in KeePassXC.
+     * Copy with a new UUID, new timestamps and no history, in the same group. A passkey is NOT copied:
+     * two entries with the same private key and the same credential ID confuse the browser extension.
+     * linked: username and password point to the original via field references ({REF:U@I:…}, {REF:P@I:…}), like "Clone" in KeePassXC.
      */
     duplicateEntry(entry, suffix = ' - Kopie', { linked = false } = {}) {
         const copy = this.db.createEntry(entry.parentGroup);
@@ -585,7 +585,7 @@ export class Vault {
         this.dirty = true;
     }
 
-    // ---------------------------------------------------------------- Gruppen
+    // ---------------------------------------------------------------- Groups
     allGroups() {
         const out = [];
         const walk = (g, depth) => { out.push({ group: g, depth }); for (const c of g.groups) walk(c, depth + 1); };
@@ -594,8 +594,8 @@ export class Vault {
     }
     createGroup(parent, name) { const g = this.db.createGroup(parent, name.trim() || 'Neue Gruppe'); this.dirty = true; return g; }
     /**
-     * icon/customIcon: Symbol wie bei applyEntry. iconScope gibt es wie in KeePassXC: 'groups' (alle Untergruppen), 'entries' (Eintraege
-     * direkt in der Gruppe) oder 'all' (alles darunter) bekommen dasselbe Symbol, ohne Verlaufseintrag.
+     * icon/customIcon: icon as with applyEntry. iconScope exists like in KeePassXC: 'groups' (all subgroups), 'entries' (entries
+     * directly in the group) or 'all' (everything below) get the same icon, without a history entry.
      */
     updateGroup(group, { name, notes, icon, customIcon, iconScope }) {
         if (name !== undefined) group.name = name.trim() || group.name;
@@ -604,14 +604,14 @@ export class Vault {
         group.times.update();
         if (iconScope && iconScope !== 'self') {
             const sel = { icon: group.icon, customIcon: group.customIcon?.id ?? null };
-            const inBin = (g) => g === this.recycleBin || this.isInRecycleBin(g); // der Papierkorb unter der Wurzel bleibt, wie er ist
+            const inBin = (g) => g === this.recycleBin || this.isInRecycleBin(g); // the recycle bin under the root stays as it is
             const groups = iconScope === 'entries' ? [] : [...group.allGroups()].filter((g) => g !== group && (inBin(group) || !inBin(g)));
             const entries = iconScope === 'groups' ? [] : iconScope === 'entries' ? group.entries : [group, ...groups].flatMap((g) => g.entries);
             for (const item of [...groups, ...entries]) if (this._iconDiffers(item, sel)) { this._setIcon(item, sel); item.times.update(); }
         }
         this.dirty = true;
     }
-    /** Papierkorb ist aktiv -> Gruppe wandert hinein; sonst endgueltig. */
+    /** Recycle bin is active -> group moves into it; otherwise permanent. */
     removeGroup(group) {
         if (group === this.root) throw new VaultError('Die Wurzelgruppe kann nicht geloescht werden.', 'e.root.delete');
         if (group === this.recycleBin) throw new VaultError('Der Papierkorb kann nicht geloescht werden - nur leeren.', 'e.bin.delete');
@@ -620,7 +620,7 @@ export class Vault {
     }
     canMoveGroup(group, target) {
         if (group === this.root || !target || group === target || group.parentGroup === target) return false;
-        for (let g = target; g; g = g.parentGroup) if (g === group) return false; // nicht in sich selbst/Nachkommen
+        for (let g = target; g; g = g.parentGroup) if (g === group) return false; // not into itself/descendants
         return true;
     }
     moveGroup(group, target) {
@@ -631,8 +631,8 @@ export class Vault {
     }
     // ---------------------------------------------------------------- CSV
     /**
-     * Legt Eintraege aus einem CSV-Import (core/csv.js mapRows) in einer neuen Gruppe `name` unter der Wurzel an, Unterordner als
-     * Untergruppen. So bleibt der Import beisammen und laesst sich mit einem Klick wieder loswerden. Liefert die neue Gruppe.
+     * Creates entries from a CSV import (core/csv.js mapRows) in a new group `name` under the root, subfolders as
+     * subgroups. This keeps the import together and lets you get rid of it again with one click. Returns the new group.
      */
     importEntries(entries, name) {
         const top = this.db.createGroup(this.root, name);
@@ -648,7 +648,7 @@ export class Vault {
         return top;
     }
 
-    /** Alle Eintraege ausser dem Papierkorb als CSV-Zeilen im Format von KeePassXC; Platzhalter und Feldreferenzen aufgeloest, damit andere Programme sie verstehen. */
+    /** All entries except the recycle bin as CSV rows in KeePassXC's format; placeholders and field references resolved so other programs understand them. */
     csvRows() {
         const all = [...this.root.allEntries()].filter((e) => !this.isInRecycleBin(e));
         const val = (e, k) => resolvePlaceholders(fieldText(e.fields.get(k)), e, all);
@@ -668,8 +668,8 @@ export class Vault {
         return n;
     }
 
-    // ---------------------------------------------------------------- Verlauf
-    /** Stellt einen frueheren Stand wieder her; der aktuelle Stand wird dabei selbst zum Verlaufseintrag. */
+    // ---------------------------------------------------------------- History
+    /** Restores an earlier version; the current version itself becomes a history entry. */
     restoreHistory(entry, index) {
         const old = entry.history[index];
         if (!old) return;
@@ -685,7 +685,7 @@ export class Vault {
     deleteHistory(entry, index) { entry.removeHistory(index, 1); entry.times.update(); this.dirty = true; }
     clearHistory(entry) { entry.removeHistory(0, entry.history.length); this.dirty = true; }
 
-    // ---------------------------------------------------------------- Anhaenge
+    // ---------------------------------------------------------------- Attachments
     async addAttachment(entry, name, buffer) {
         if (!name || entry.binaries.has(name)) throw new VaultError(`Ein Anhang namens "${name}" existiert bereits.`, 'e.att.exists', { name });
         const bin = await this.db.createBinary(buffer);
@@ -694,7 +694,7 @@ export class Vault {
         entry.times.update();
         this.dirty = true;
     }
-    /** Passkey aus dem Eintrag entfernen; der Stand davor bleibt im Verlauf (zurueckholbar, bis der Verlauf geleert wird). */
+    /** Remove the passkey from the entry; the previous version stays in the history (recoverable until the history is cleared). */
     removePasskey(entry) {
         const keys = [...entry.fields.keys()].filter(isPasskeyField);
         if (!keys.length) return false;
@@ -712,10 +712,10 @@ export class Vault {
         this.dirty = true;
     }
 
-    // ---------------------------------------------------------------- Symbole
-    // Wie KeePass/KeePassXC: jedes Element hat ein Standard-Symbol (IconID 0-68) und optional ein eigenes (UUID in meta.customIcons), das in
-    // der Anzeige gewinnt. Wer ein eigenes waehlt, behaelt die IconID als Rueckfall fuer Programme ohne eigene Symbole.
-    /** sel: {icon?: number, customIcon?: string|null}; undefined laesst den jeweiligen Teil unveraendert. */
+    // ---------------------------------------------------------------- Icons
+    // Like KeePass/KeePassXC: every item has a standard icon (IconID 0-68) and optionally a custom one (UUID in meta.customIcons), which wins in
+    // the display. Whoever picks a custom one keeps the IconID as a fallback for programs without custom icons.
+    /** sel: {icon?: number, customIcon?: string|null}; undefined leaves the respective part unchanged. */
     _setIcon(item, { icon, customIcon }) {
         if (Number.isInteger(icon) && icon >= 0 && icon < 69) item.icon = icon;
         if (customIcon === null) item.customIcon = undefined;
@@ -726,13 +726,13 @@ export class Vault {
         return icon !== undefined && icon !== (item.icon ?? (item instanceof kdbxweb.KdbxGroup ? 48 : 0));
     }
 
-    /** Alle eigenen Symbole der Datei: [{id, name, url}] (url null, wenn das Format nicht angezeigt wird). */
+    /** All custom icons of the file: [{id, name, url}] (url null if the format isn't displayed). */
     customIcons() {
         return [...this.db.meta.customIcons].map(([id, ic]) => ({ id, name: ic.name || '', url: this.iconUrl(id) }));
     }
     /**
-     * Neues eigenes Symbol (PNG-Bytes, schon verkleinert). Gibt es dieselben Bytes schon, wird das vorhandene benutzt (wie KeePassXC).
-     * @returns {string} UUID des Symbols
+     * New custom icon (PNG bytes, already scaled down). If the same bytes exist already, the existing one is used (like KeePassXC).
+     * @returns {string} UUID of the icon
      */
     addCustomIcon(bytes, name = '') {
         const u8 = new Uint8Array(bytes);
@@ -743,7 +743,7 @@ export class Vault {
         this.dirty = true;
         return id;
     }
-    /** UUID des eigenen Symbols mit genau diesen Bytes (oder null). */
+    /** UUID of the custom icon with exactly these bytes (or null). */
     findCustomIcon(bytes) {
         const u8 = new Uint8Array(bytes);
         for (const [id, ic] of this.db.meta.customIcons) {
@@ -752,15 +752,15 @@ export class Vault {
         }
         return null;
     }
-    /** Wie viele Eintraege und Gruppen (ohne Verlauf) das Symbol benutzen. */
+    /** How many entries and groups (without history) use the icon. */
     customIconUsage(id) {
         let n = 0;
         for (const item of this.root.allGroupsAndEntries()) if (item.customIcon?.id === id) n++;
         return n;
     }
     /**
-     * Symbol aus der Datei entfernen; wer es benutzt, zeigt wieder sein Standard-Symbol (auch im Verlauf). Der Loeschvermerk verhindert,
-     * dass es beim Zusammenfuehren mit einem anderen Stand zurueckkommt (wie kdbxweb beim Aufraeumen).
+     * Remove an icon from the file; whatever used it shows its standard icon again (also in the history). The deletion marker prevents
+     * it from coming back when merging with another version (like kdbxweb when cleaning up).
      */
     removeCustomIcon(id) {
         if (!this.db.meta.customIcons.has(id)) return;
@@ -774,7 +774,7 @@ export class Vault {
         this.dirty = true;
     }
 
-    /** data:-URL eines eigenen Icons (oder null). */
+    /** data: URL of a custom icon (or null). */
     customIconUrl(entryOrGroup) {
         const id = entryOrGroup.customIcon?.id;
         return id ? this.iconUrl(id) : null;
@@ -787,7 +787,7 @@ export class Vault {
         return this._iconCache.get(id);
     }
 
-    /** Eckdaten der Datei fuer die Info-Ansicht (Kopfdaten aus securitySettings, als Anzeigetext). */
+    /** Key facts of the file for the info view (header data from securitySettings, as display text). */
     info() {
         const s = this.securitySettings(), argon = s.kdf !== 'aes';
         return {
@@ -798,18 +798,18 @@ export class Vault {
     }
 
     /**
-     * Speichert: serialisiert, legt (falls aktiv) die Offline-Kopie an und schiebt den Stand zum Server (Sicherungskopie des zuletzt
-     * gelesenen Standes einmal pro Sitzung, PUT mit If-Match, bei Konflikt Server-Stand sichern + zusammenfuehren, max. 3 Versuche).
-     * Ist der Server nicht erreichbar und eine Offline-Kopie vorhanden, ist das kein Fehler: {offline: true}, Sync folgt spaeter.
+     * Saves: serializes, writes the offline copy (if active) and pushes the version to the server (backup copy of the last
+     * read version once per session, PUT with If-Match, on conflict back up the server version + merge, max. 3 attempts).
+     * If the server is unreachable and an offline copy exists, that's no error: {offline: true}, sync follows later.
      * @returns {Promise<{merged?: boolean, offline?: boolean, bytes?: ArrayBuffer}>}
      */
     save() { return this._exclusive(() => this._save()); }
 
-    /** Gleicht mit dem Server ab: ungesyncte Staende hochladen, sonst Aenderungen anderer Geraete holen. */
+    /** Syncs with the server: upload unsynced versions, otherwise pull changes from other devices. */
     sync() { return this._exclusive(() => this._sync()); }
 
     async _save() {
-        this.dirty = false; // Aenderungen waehrend des Serialisierens setzen das Merkmal erneut
+        this.dirty = false; // changes during serialization set the flag again
         let out;
         try { out = await this.db.save(); } catch (e) { this.dirty = true; throw e; }
         if (!this.dav) return { merged: false, bytes: out };
@@ -819,7 +819,7 @@ export class Vault {
         try {
             return await this._push();
         } catch (e) {
-            if (!stored) { this.unsynced = false; this._pending = null; this.dirty = true; throw e; } // ohne lokale Kopie darf nichts "als gesichert" gelten
+            if (!stored) { this.unsynced = false; this._pending = null; this.dirty = true; throw e; } // without a local copy nothing may count as "saved"
             if (isOffline(e)) return { offline: true };
             throw e;
         }
@@ -837,8 +837,8 @@ export class Vault {
     }
 
     /**
-     * Sicherungskopie neben der Datei. Darf man im Ordner keine neuen Dateien anlegen (Nextcloud-Freigabe "Bearbeiten" ohne
-     * "Erstellen", 403), wird ohne Kopie weitergespeichert und das gemeldet (noBackup), statt das Speichern ganz zu blockieren.
+     * Backup copy next to the file. If new files can't be created in the folder (Nextcloud share "Edit" without
+     * "Create", 403), saving continues without a copy and reports that (noBackup) instead of blocking the save entirely.
      */
     async _backup(buf, suffix) {
         try {
@@ -849,7 +849,7 @@ export class Vault {
         }
     }
 
-    /** Alte Sicherungskopien aufraeumen; Fehler hier duerfen nie das Speichern stoeren. */
+    /** Clean up old backup copies; errors here must never disturb saving. */
     async _prune() {
         try { await this.dav.pruneBackups(this.backupKeep); } catch { /* best effort */ }
     }
@@ -896,17 +896,17 @@ export class Vault {
     }
 
     /**
-     * Welcher Dateikopf (Format, Verschluesselung, Schluesselableitung) nach dem Zusammenfuehren gilt. merge() von kdbxweb uebernimmt
-     * nur Inhalt und Metadaten; ohne diese Wahl wuerde ein Speichern hier eine auf einem anderen Geraet geaenderte, z. B. verstaerkte
-     * Schluesselableitung still auf den alten Stand zuruecksetzen. Verglichen wird mit dem letzten gemeinsamen Server-Stand:
-     * Hat nur der Server ihn geaendert, gilt seiner; nur lokal: der lokale; beide: der mit dem neueren "Einstellungen geaendert".
+     * Which file header (format, encryption, key derivation) applies after merging. kdbxweb's merge() only takes over
+     * content and metadata; without this choice, saving here would silently reset a header changed on another device, e.g. a strengthened
+     * key derivation, to the old version. The comparison is against the last common server version:
+     * If only the server changed it, its header applies; only local: the local one; both: the one with the newer "settings changed".
      */
     _mergedHeader(remoteDb) {
         const local = this.db.header, remote = remoteDb.header;
         const remoteSet = cryptoSettings(remote);
         if (remoteSet === cryptoSettings(local)) return local;
         let base = null;
-        try { base = cryptoSettings(this._remoteBytes); } catch { /* unlesbarer Basisstand: wie "beide geaendert" behandeln */ }
+        try { base = cryptoSettings(this._remoteBytes); } catch { /* unreadable base version: treat like "both changed" */ }
         if (remoteSet === base) return local;
         if (cryptoSettings(local) === base) return remote;
         return (this.db.meta.settingsChanged?.getTime() ?? 0) > (remoteDb.meta.settingsChanged?.getTime() ?? 0) ? local : remote;
@@ -916,7 +916,7 @@ export class Vault {
         const etag = await this.dav.head();
         if (etag && etag === this.etag) return { pulled: false };
         const remote = await this.dav.get();
-        if (this.dirty || this.unsynced) return { pulled: false }; // waehrenddessen lokal geaendert: Zusammenfuehrung beim naechsten Speichern
+        if (this.dirty || this.unsynced) return { pulled: false }; // changed locally in the meantime: merge on the next save
         if (remote.etag && remote.etag === this.etag) return { pulled: false };
         let remoteDb;
         try {
@@ -927,7 +927,7 @@ export class Vault {
             }
             throw e;
         }
-        this.db = remoteDb; // keine lokalen Aenderungen: der Server-Stand ist massgeblich
+        this.db = remoteDb; // no local changes: the server version is authoritative
         this.etag = remote.etag;
         this._remoteBytes = remote.buf;
         await this._cacheWrite(remote.buf, false);

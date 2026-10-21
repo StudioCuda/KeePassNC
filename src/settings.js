@@ -1,25 +1,25 @@
-// Einstellungen (nur Komfortwerte, keine Geheimnisse) in localStorage. URL-Parameter ueberschreiben fuer Tests/Verknuepfungen.
-// Beschriftungen der Auswahllisten stehen in der Uebersetzung (autosync.<wert>, autolock.<wert>, clip.<wert>).
+// Settings (convenience values only, no secrets) in localStorage. URL parameters override them for tests/shortcuts.
+// Labels of the select lists live in the translations (autosync.<value>, autolock.<value>, clip.<value>).
 export const AUTOSYNC_OPTIONS = ['change', '1', '2', '5', '10', 'off'];
 export const AUTOLOCK_OPTIONS = [1, 2, 5, 15, 30, 60];
 export const CLIPBOARD_OPTIONS = [10, 20, 30, 60, 120];
-export const THEME_OPTIONS = ['nextcloud', 'auto', 'light', 'dark']; // 'nextcloud' nur in Nextcloud; eigenstaendig wirkt es wie 'auto'
+export const THEME_OPTIONS = ['nextcloud', 'auto', 'light', 'dark']; // 'nextcloud' only in Nextcloud; standalone it behaves like 'auto'
 export const BACKUPKEEP_OPTIONS = [3, 10, 30, 0];
 export const LANG_OPTIONS = ['auto', 'de', 'en'];
 
 export const DEFAULTS = {
     autosync: 'change', // 'change' | '1' | '2' | '5' | '10' | 'off'
-    autolock: 5, // Minuten
-    clipboard: 20, // Sekunden
-    lockOnHide: false, // Sperren, wenn der Tab laenger als 60 s im Hintergrund ist
-    offline: false, // verschluesselte Kopie + App-Seite in diesem Browser vorhalten
-    backupKeep: 10, // Sicherungskopien auf dem Server (0 = alle behalten)
-    theme: 'nextcloud', // wie die Hell/Dunkel-Wahl in Nextcloud
-    themeV: 2, // 2 = 'nextcloud' gibt es (alte, automatisch gespeicherte 'auto' werden einmalig umgestellt)
-    ncAccent: true, // Akzentfarbe der Instanz uebernehmen (nur in Nextcloud)
+    autolock: 5, // minutes
+    clipboard: 20, // seconds
+    lockOnHide: false, // lock when the tab has been in the background for more than 60 s
+    offline: false, // keep an encrypted copy + app page in this browser
+    backupKeep: 10, // backups on the server (0 = keep all)
+    theme: 'nextcloud', // like the light/dark choice in Nextcloud
+    themeV: 2, // 2 = 'nextcloud' exists (old, automatically saved 'auto' values are migrated once)
+    ncAccent: true, // take over the instance's accent colour (Nextcloud only)
     lang: 'auto',
     sort: 'title',
-    compact: false, // dichtere Eintragsliste
+    compact: false, // denser entry list
     showPasswordsInList: false
 };
 
@@ -30,11 +30,11 @@ export function loadSettings(search = location.search) {
     let s = { ...DEFAULTS };
     try {
         const saved = JSON.parse(localStorage.getItem(KEY) || '{}');
-        // Bis 0.7 war 'auto' der Standard und wurde mit allen Werten gespeichert: einmalig auf 'wie Nextcloud' umstellen.
-        // Fuer alle, die in Nextcloud "System" haben (Standard), sieht das genauso aus wie vorher.
+        // Up to 0.7 'auto' was the default and got saved with all values: switch once to 'like Nextcloud'.
+        // For everyone with "System" in Nextcloud (the default), that looks exactly the same as before.
         if (saved && saved.themeV !== 2 && saved.theme === 'auto') saved.theme = 'nextcloud';
         Object.assign(s, saved, { themeV: 2 });
-    } catch { /* defekter Eintrag: Standardwerte */ }
+    } catch { /* broken entry: defaults */ }
     s.autosync = String(oneOf(AUTOSYNC_OPTIONS, s.autosync, DEFAULTS.autosync));
     s.autolock = Number(oneOf(AUTOLOCK_OPTIONS, s.autolock, DEFAULTS.autolock));
     s.clipboard = Number(oneOf(CLIPBOARD_OPTIONS, s.clipboard, DEFAULTS.clipboard));
@@ -54,6 +54,6 @@ export function loadSettings(search = location.search) {
 }
 
 export function saveSettings(s) {
-    const { autolockSeconds, ...persist } = s; // abgeleiteter Wert wird nicht gespeichert
-    try { localStorage.setItem(KEY, JSON.stringify(persist)); } catch { /* Speicher nicht verfuegbar */ }
+    const { autolockSeconds, ...persist } = s; // derived value is not saved
+    try { localStorage.setItem(KEY, JSON.stringify(persist)); } catch { /* storage not available */ }
 }

@@ -44,7 +44,7 @@ test('Gespeicherte Adresse: Nextcloud erkannt, Pfad dekodiert, andere WebDAV-Ser
     assert.equal(parseNcUrl(''), null);
 });
 test('Datei-Adresse: eine gespeicherte bleibt Zeichen fuer Zeichen gleich (Kennung), sonst neu gebaut', () => {
-    const typed = 'https://x.org/remote.php/dav/files/anna/Passwörter/a b.kdbx'; // so von Hand eingetippt, unkodiert
+    const typed = 'https://x.org/remote.php/dav/files/anna/Passwörter/a b.kdbx'; // as typed by hand, unencoded
     const legacy = parseNcUrl(typed);
     assert.equal(ncFileUrl('https://x.org/remote.php/dav/files/anna', '/Passwörter/a b.kdbx', legacy), typed);
     assert.equal(ncFileUrl('https://x.org/remote.php/dav/files/anna', 'Passwörter//a b.kdbx', legacy), typed);

@@ -1,7 +1,7 @@
-// Test eigenstaendige Seite gegen eine Nextcloud: Nextcloud-Adresse, Benutzername und App-Passwort statt WebDAV-Adresse, dann
-// Pfad/Durchsuchen beim Oeffnen und Name + Ordner beim Anlegen. Der Testserver bildet dafuer /remote.php/dav/ nach, mit einer
-// Konto-ID, die nicht der Anmeldename ist (Anmeldung per E-Mail). Dazu: eine gespeicherte WebDAV-Adresse von frueher bleibt die
-// Kennung (gemerkte Schluesseldatei, Offline-Kopie), und eine Seite auf anderer Herkunft meldet fehlendes CORS verstaendlich.
+// Test of the standalone page against a Nextcloud: Nextcloud address, username and app password instead of a WebDAV address, then
+// path/browse when opening and name + folder when creating. The test server mimics /remote.php/dav/ for this, with an
+// account ID that isn't the login name (login by email). Also: a previously saved WebDAV address stays the
+// identifier (remembered key file, offline copy), and a page on a different origin reports missing CORS in an understandable way.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -29,20 +29,20 @@ const expect = (c, m) => { if (!c) throw new Error(m); };
 
 async function main() {
     const { stop, port, log, options } = await startServer({ webRoot: path.join(root, 'web'), davRoot, ncId: 'tester-id' });
-    const base = `http://127.0.0.1:${port}`, other = `http://localhost:${port}`; // gleicher Server, andere Herkunft
+    const base = `http://127.0.0.1:${port}`, other = `http://localhost:${port}`; // same server, different origin
     const files = `${base}/remote.php/dav/files/tester-id`;
     const browser = await launchBrowser();
     const errors = [];
-    // Ohne bisherige Wahl startet die Seite mit "Lokale Datei"; die Tests hier gehen von Nextcloud/WebDAV aus (fresh: so wie beim allerersten Besuch)
+    // With no previous choice the page starts with "Local file"; the tests here assume Nextcloud/WebDAV (fresh: like on the very first visit)
     const newPage = async ({ fresh = false } = {}) => {
         const c = await browser.newContext({ locale: 'de-DE', viewport: { width: 1400, height: 950 }, serviceWorkers: 'block' });
         await c.addInitScript(uncaughtWatch);
         await c.addInitScript(() => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'off' })); } catch {} });
         if (!fresh) await c.addInitScript(() => { try { if (!localStorage.getItem('kpnc.mode')) localStorage.setItem('kpnc.mode', 'dav'); } catch {} });
         const p = await c.newPage();
-        // Blockiert CORS eine Anfrage, meldet WebKit das als Seitenfehler, obwohl die App ihn abfaengt (knownFetchNoise); nicht
-        // abgefangene Fehler kommen ueber uncaughtWatch trotzdem an. Playwright teilt diese Meldung am ersten ":" ("http:") in name
-        // und message, deshalb zaehlt der ganze Text.
+        // When CORS blocks a request, WebKit reports it as a page error even though the app catches it (knownFetchNoise); uncaught
+        // errors still arrive via uncaughtWatch. Playwright splits this message at the first ":" ("http:") into name
+        // and message, so the whole text counts.
         p.on('pageerror', (e) => { if (!knownFetchNoise(String(e)) && !knownFetchNoise(e.message)) errors.push(String(e)); });
         p.on('console', (m) => { if (m.type() === 'error' && m.text().startsWith('UNCAUGHT: ')) errors.push(m.text()); });
         return p;
@@ -75,7 +75,7 @@ async function main() {
         await p1.click('#dav-browse');
         await loginError(p1, /zuerst Nextcloud-Adresse, Benutzername und App-Passwort/);
         const before = log.length;
-        await p1.fill('#dav-server', `127.0.0.1:${port}`); // Host der Seite ohne Schema: deren Schema (http) statt https
+        await p1.fill('#dav-server', `127.0.0.1:${port}`); // host of the page without scheme: use its scheme (http) instead of https
         await p1.fill('#dav-user', 'tester'); await p1.fill('#dav-pass', 'falsch');
         await p1.waitForTimeout(500);
         expect(!log.slice(before).some((l) => l.includes('/remote.php/')), 'Anfragen beim Tippen: ' + log.slice(before).join(', '));
@@ -137,15 +137,15 @@ async function main() {
     });
 
     const p2 = await newPage();
-    const legacyUrl = `${files}/Privat/Team Tresor.kdbx`; // so von Hand eingetippt (Leerzeichen statt %20): die Kennung muss Zeichen fuer Zeichen bleiben
+    const legacyUrl = `${files}/Privat/Team Tresor.kdbx`; // typed in by hand like this (space instead of %20): the identifier has to stay exactly the same, character for character
     await step('Bisherige Nutzung: WebDAV-Adresse, Schluesseldatei gemerkt, Offline-Kopie an', async () => {
         await p2.goto(base); await p2.locator('#login-form').waitFor();
         await p2.click('#dav-davmode');
         await p2.fill('#dav-url', legacyUrl); await p2.fill('#dav-user', 'tester'); await p2.fill('#dav-pass', 'app-secret');
-        await p2.fill('#master', PW); await p2.setInputFiles('#keyfile', KEY); await p2.check('#kf-remember'); await p2.check('#offline-opt'); // die Datei hat die Optionen schon aufgeklappt
+        await p2.fill('#master', PW); await p2.setInputFiles('#keyfile', KEY); await p2.check('#kf-remember'); await p2.check('#offline-opt'); // the file has already expanded the options
         await p2.click('#open-btn'); await waitOpened(p2, 60000);
         await p2.click('#lock-btn'); await p2.locator('#login-form').waitFor();
-        await p2.evaluate(() => localStorage.removeItem('kpnc.davmode')); // wie vor diesem Update: da gab es die Einstellung noch nicht
+        await p2.evaluate(() => localStorage.removeItem('kpnc.davmode')); // like before this update: the setting didn't exist yet
     });
 
     await step('Nach dem Update: gespeicherte Adresse fuellt Nextcloud-Adresse und Pfad vor, gemerkte Schluesseldatei greift, ohne Konto-Abfrage; Adresse bleibt gleich', async () => {
@@ -184,7 +184,7 @@ async function main() {
     await step('Andere Herkunft mit CORS: Durchsuchen, Oeffnen und Speichern (ETag ueber Expose-Headers) klappen', async () => {
         options.cors = true;
         await p3.click('#dav-browse');
-        await pick(p3, 'Passwörter.kdbx'); // startet im Ordner des Pfads im Feld
+        await pick(p3, 'Passwörter.kdbx'); // starts in the folder of the path in the field
         await p3.click('#open-btn'); await waitOpened(p3, 60000);
         await p3.click('#new-group-btn'); await p3.fill('#prompt-input', 'Von woanders'); await p3.keyboard.press('Enter');
         await p3.click('#save-btn');

@@ -1,4 +1,4 @@
-// Web Worker fuer die Schluesselableitung (siehe argon2.js). Rechnet genau eine Ableitung; die Seite beendet ihn danach.
+// Web worker for key derivation (see argon2.js). Computes exactly one derivation; the page ends it afterwards.
 import { argon2Here } from './argon2.js';
 import { isOutOfMemory } from './core/util.js';
 

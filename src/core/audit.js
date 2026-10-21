@@ -1,20 +1,20 @@
-// Passwort-Gesundheitsbericht (Regeln angelehnt an KeePassXC): Staerke, Wiederverwendung, Ablauf, kurze/fehlende Passwoerter.
+// Password health report (rules modelled on KeePassXC): strength, reuse, expiry, short/missing passwords.
 import { estimateBits, strengthLabel } from './entropy.js';
 import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolvePlaceholders } from './util.js';
 
-/** "Aus Berichten ausschliessen": KeePass 2 schreibt QualityCheck = False (KDBX 4.1), KeePassXC das CustomData-Item KnownBad. */
+/** "Exclude from reports": KeePass 2 writes QualityCheck = False (KDBX 4.1), KeePassXC the CustomData item KnownBad. */
 export const excluded = (e) => e.qualityCheck === false || e.customData?.get?.('KnownBad')?.value === 'True';
 
 /**
- * entries: nur "echte" Eintraege (ohne Papierkorb). Liefert {items, stats}; items sind nach Score aufsteigend sortiert.
- * Ein Passwort mit Feldreferenz ({REF:P@I:…}) wird wie das Passwort bewertet, auf das es zeigt (wie KeePassXC 2.8), zaehlt aber nicht
- * als Wiederverwendung: es ist ja dasselbe Konto. Laesst sich die Referenz nicht aufloesen, gibt es keine Aussage zur Staerke.
- * stats.old: Passwoerter, die seit ueber einem Jahr gleich sind (nur gezaehlt, ohne Einfluss auf die Note); stats.ok: ohne Befund.
- * stats.health: Durchschnitt der Eintrags-Scores in Prozent (unauffaellige Eintraege zaehlen 100).
+ * entries: only "real" entries (without recycle bin). Returns {items, stats}; items are sorted by score, ascending.
+ * A password with a field reference ({REF:P@I:…}) is rated like the password it points to (as in KeePassXC 2.8), but doesn't count
+ * as reuse: it is the same account, after all. If the reference can't be resolved, there is no statement about strength.
+ * stats.old: passwords that have been the same for over a year (only counted, no effect on the grade); stats.ok: no findings.
+ * stats.health: average of the entry scores in percent (entries without findings count as 100).
  */
 /**
- * Seit wann das Passwort unveraendert ist: die aelteste Version am Stueck (Historie + aktueller Stand) mit diesem Passwort. Ohne
- * Historie zaehlt die letzte Aenderung des Eintrags, das unterschaetzt das Alter eher, als dass es falsch Alarm schlaegt.
+ * Since when the password has been unchanged: the oldest stretch of versions (history + current state) with this password. Without
+ * history the entry's last change counts; that rather underestimates the age than raising a false alarm.
  */
 export function passwordSince(e) {
     const pw = fieldOf(e, 'Password');
@@ -70,7 +70,7 @@ export function auditEntries(entries, now = Date.now()) {
     }
     stats.unique = byPw.size;
     stats.avgLength = lenCount ? Math.round((lenSum / lenCount) * 10) / 10 : 0;
-    // Gerundet, aber nie 0 % solange etwas Punkte hat und nie 100 % solange es Treffer gibt
+    // Rounded, but never 0 % while there are any points and never 100 % while there are findings
     if (checked) stats.health = Math.min(items.length ? 99 : 100, Math.max(scoreSum ? 1 : 0, Math.round(scoreSum / checked)));
     items.sort((a, b) => a.score - b.score || fieldOf(a.entry, 'Title').localeCompare(fieldOf(b.entry, 'Title')));
     return { items, stats };

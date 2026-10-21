@@ -9,7 +9,7 @@ test('parseCsv: Anfuehrungszeichen, Kommas und Zeilenumbrueche in Feldern, CRLF,
 
 test('toCsv -> parseCsv ergibt dasselbe', () => {
     const rows = [['Group', 'Title'], ['Root/Web', 'Mail "privat", alt\nzweite Zeile'], ['', '']];
-    assert.deepEqual(parseCsv(toCsv(rows)), rows.slice(0, 2)); // eine ganz leere Zeile faellt beim Lesen weg
+    assert.deepEqual(parseCsv(toCsv(rows)), rows.slice(0, 2)); // a completely empty line is dropped when reading
     assert.equal(toCsv([['a"b']]), '"a""b"\r\n');
 });
 

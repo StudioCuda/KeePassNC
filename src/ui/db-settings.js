@@ -1,6 +1,6 @@
-// Datenbank-Einstellungen. "Allgemein": Name, Beschreibung, Standard-Benutzername, Papierkorb, Verlaufsgrenzen (Metadaten).
-// "Sicherheit": Format, Verschluesselung, Schluesselableitung (Dateikopf). Nur browser-taugliche Werte, mit Ampel fuer den Speicher,
-// Rueckfrage vor allem, was schwaecher macht, und einem Probelauf auf diesem Geraet, bevor etwas uebernommen wird.
+// Database settings. "General": name, description, default username, recycle bin, history limits (metadata).
+// "Security": format, encryption, key derivation (file header). Only browser-suitable values, with a traffic light for memory,
+// a confirmation prompt for anything that makes it weaker, and a trial run on this device before anything is applied.
 import { t } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
 import { h, modal, confirmDialog } from './dom.js';
@@ -12,7 +12,7 @@ import { MEMORY_PRESETS_MIB, PARALLELISM_OPTIONS, MAX_ITERATIONS, SLOW_MS, memor
 
 const MiB = 1024 * 1024;
 
-/** Eine Argon2-Ableitung mit Zufallswerten und diesen Parametern, wie beim Entsperren (im Worker); liefert die Dauer in ms. */
+/** One Argon2 derivation with random values and these parameters, like when unlocking (in the worker); returns the duration in ms. */
 export async function trialRun(s, iterations = s.iterations) {
     const rnd = () => crypto.getRandomValues(new Uint8Array(32));
     const t0 = performance.now();
@@ -37,9 +37,9 @@ export function openDbSettings({ onApplied } = {}) {
         items: h('input', { id: 'db-hist-items', type: 'number', class: 'num', min: 0, max: 999, step: 1, value: cur.historyMaxItems >= 0 ? cur.historyMaxItems : 10, 'aria-label': t('dbset.hist.items.post') }),
         sizeOn: h('input', { id: 'db-hist-size-on', type: 'checkbox', checked: cur.historyMaxSize >= 0 }),
         size: h('input', { id: 'db-hist-size', type: 'number', class: 'num', min: 1, max: 1024, step: 1, value: cur.historyMaxSize >= 0 ? Math.max(1, Math.round(cur.historyMaxSize / MiB)) : 6, 'aria-label': t('dbset.hist.size.post') }),
-        // Sicherheit
+        // Security
         upgrade: sec.version < 4 ? h('input', { id: 'db-upgrade', type: 'checkbox' }) : null,
-        // Twofish und AES-KDF nur, wenn die Datei sie schon nutzt: oeffnen und behalten ja, neu waehlen soll sie niemand mehr
+        // Twofish and AES-KDF only if the file already uses them: opening and keeping them is fine, but nobody should newly choose them anymore
         cipher: select('db-cipher', Object.keys(CIPHER_LABEL).filter((c) => c !== 'twofish' || sec.cipher === 'twofish'), sec.cipher ?? 'aes', (c) => CIPHER_LABEL[c]),
         kdf: select('db-kdf', isArgon ? ['argon2id', 'argon2d'] : ['argon2id', 'argon2d', 'aes'], sec.kdf, (k) => t('dbsec.kdf.' + k)),
         memory: select('db-memory', withCurrent(MEMORY_PRESETS_MIB, isArgon ? sec.memoryKiB / 1024 : null), isArgon ? sec.memoryKiB / 1024 : 64,
@@ -73,7 +73,7 @@ export function openDbSettings({ onApplied } = {}) {
         i.items.disabled = !i.itemsOn.checked; i.size.disabled = !i.sizeOn.checked;
         const argon = i.kdf.value !== 'aes';
         argonRows.hidden = !argon; aesRows.hidden = argon;
-        if (i.upgrade) { // Argon2 und ChaCha20 gibt es nur in KDBX 4
+        if (i.upgrade) { // Argon2 and ChaCha20 only exist in KDBX 4
             const needs4 = argon || i.cipher.value === 'chacha20';
             if (needs4) i.upgrade.checked = true;
             i.upgrade.disabled = needs4;
@@ -112,7 +112,7 @@ export function openDbSettings({ onApplied } = {}) {
         if (changeSec) {
             if (isWeaker(sn, sec) && !(await ask(t('dbsec.weaker.title'), t('dbsec.weaker.msg'), true, t('dbsec.weaker.ok')))) return;
             if (sn.kdf !== 'aes' && memoryLevel(sn.memoryKiB / 1024) === 'bad' && sn.memoryKiB !== sec.memoryKiB && !(await ask(t('dbsec.big.title'), t('dbsec.big.msg', { mb: sn.memoryKiB / 1024 }), true))) return;
-            if (sn.kdf !== 'aes') { // Probelauf: klappt die Ableitung hier ueberhaupt, und wie lange dauert sie?
+            if (sn.kdf !== 'aes') { // trial run: does the derivation work here at all, and how long does it take?
                 const btn = body.querySelector('#db-apply');
                 btn.disabled = true; benchNote.textContent = t('dbsec.testing');
                 let ms;

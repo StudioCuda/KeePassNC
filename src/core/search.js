@@ -1,6 +1,6 @@
-// Suchsyntax angelehnt an KeePassXC:  [Modifier][feld:]wert  - Begriffe durch Leerzeichen (UND), "in Anfuehrungszeichen" mit Leerzeichen.
-// Modifier: - oder ! (ausschliessen), + (exakt, Gross-/Kleinschreibung), * (regulaerer Ausdruck). Platzhalter ohne *-Modifier: * ? |
-// Felder (Anfang genuegt): title, username, url, notes, password, tag, group, attribute/_name, attachment, is, has, uuid.
+// Search syntax modelled on KeePassXC:  [modifier][field:]value  - terms separated by spaces (AND), "in quotes" to include spaces.
+// Modifiers: - or ! (exclude), + (exact, case-sensitive), * (regular expression). Wildcards without the * modifier: * ? |
+// Fields (a prefix is enough): title, username, url, notes, password, tag, group, attribute/_name, attachment, is, has, uuid.
 import { fieldOf, groupPath, entryExpiry, daysUntil, hasTotp, isPasskey } from './util.js';
 
 const FIELDS = ['attachment', 'attribute', 'notes', 'password', 'title', 'username', 'url', 'group', 'tag', 'is', 'has', 'uuid'];

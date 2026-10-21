@@ -1,7 +1,7 @@
-// CSV lesen und schreiben (RFC 4180: Kommas, Anfuehrungszeichen, Zeilenumbrueche in Feldern) und die Spalten der ueblichen
-// Passwort-Manager auf KeePass-Felder abbilden. Exportiert wird im Format von KeePassXC, das KeePass, Bitwarden & Co. lesen.
+// Read and write CSV (RFC 4180: commas, quotes, line breaks inside fields) and map the columns of the usual
+// password managers to KeePass fields. Export uses the KeePassXC format, which KeePass, Bitwarden & co. can read.
 
-/** Text -> Zeilen aus Feldern. Leere Zeilen fallen weg; ein BOM am Anfang auch. */
+/** Text -> rows of fields. Empty rows are dropped; so is a leading BOM. */
 export function parseCsv(text) {
     const rows = [];
     let row = [], field = '', quoted = false;
@@ -26,10 +26,10 @@ export function parseCsv(text) {
     return rows;
 }
 
-/** Zeilen -> CSV, jedes Feld in Anfuehrungszeichen (wie KeePassXC), Zeilenende CRLF. */
+/** Rows -> CSV, every field quoted (like KeePassXC), CRLF line endings. */
 export const toCsv = (rows) => rows.map((r) => r.map((f) => `"${String(f ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n') + '\r\n';
 
-// Spaltennamen der bekannten Exporte (klein geschrieben): KeePassXC, KeePass 2, Bitwarden, 1Password, Chrome/Edge/Brave, Firefox, LastPass
+// Column names of the known exports (lower case): KeePassXC, KeePass 2, Bitwarden, 1Password, Chrome/Edge/Brave, Firefox, LastPass
 const COLUMNS = {
     group: ['group', 'folder', 'grouping'],
     title: ['title', 'name', 'account'],
@@ -42,9 +42,9 @@ const COLUMNS = {
 };
 
 /**
- * Ordnet die Kopfzeile zu und liefert {entries, ignored}. entries: [{path: string[], title, user, password, url, notes, totp, tags: string[]}],
- * ignored: Spalten, die nirgends hinpassen. Bei KeePassXC steht der Name der Wurzelgruppe vorn im Pfad; der faellt weg.
- * Ohne Titel (Firefox) gilt der Rechnername der URL.
+ * Maps the header row and returns {entries, ignored}. entries: [{path: string[], title, user, password, url, notes, totp, tags: string[]}],
+ * ignored: columns that fit nowhere. With KeePassXC the root group name leads the path; it is dropped.
+ * Without a title (Firefox), the hostname of the URL is used.
  */
 export function mapRows([head = [], ...rows]) {
     const names = head.map((x) => x.trim().toLowerCase());
@@ -67,7 +67,7 @@ export function mapRows([head = [], ...rows]) {
     return { entries, ignored };
 }
 
-/** otpauth-URI eines Eintrags: das Feld "otp" oder aus den alten Feldern "TOTP Seed"/"TOTP Settings" gebaut; sonst ''. */
+/** otpauth URI of an entry: the "otp" field, or built from the old "TOTP Seed"/"TOTP Settings" fields; otherwise ''. */
 export function otpUri(title, otp, seed, settings) {
     if (otp) return otp;
     if (!seed) return '';

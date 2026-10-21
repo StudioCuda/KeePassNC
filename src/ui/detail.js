@@ -1,4 +1,4 @@
-// Detailansicht eines Eintrags: Felder, Passwort (Staerke, Grossansicht), TOTP-Ring, Passkey-Info, Anhaenge, Verlauf.
+// Detail view of an entry: fields, password (strength, large view), TOTP ring, passkey info, attachments, history.
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
 import { parseOtpConfig, totp } from '../totp.js';
 import { entryExpiry, daysUntil, domainOf, openableUrl, isSystemField, isPasskey, groupPath, fieldOf, previewKind, previewOf } from '../core/util.js';
@@ -40,7 +40,7 @@ export function renderDetail(host) {
     const pwText = resolvedField(e, 'Password');
     const title = fieldText(e.fields.get('Title')) || t('entry.untitled');
 
-    // --- Kopf
+    // --- Header
     const head = h('header', { class: 'detail-head' },
         iconBtn('chevronLeft', t('back'), () => { state.view = 'list'; ctx.ui.applyView(); }, { class: 'back-btn' }),
         avatar(e, { size: 'lg' }),
@@ -51,7 +51,7 @@ export function renderDetail(host) {
             iconBtn('more', t('more'), (ev) => entryMenu(ev.currentTarget, e), { id: 'entry-more' }),
             h('button', { id: 'del-btn', type: 'button', class: 'danger-ghost', onclick: () => deleteEntry(e), title: forever ? t('delete.forever') : t('delete') }, icon('trash'), h('span', { class: 'sr-or-wide', text: forever ? t('delete.forever') : t('delete') }))));
 
-    // --- Felder
+    // --- Fields
     const cards = [];
     const user = resolvedField(e, 'UserName');
     const url = resolvedUrl(e);
@@ -69,7 +69,7 @@ export function renderDetail(host) {
         iconBtn('search', t('pw.large'), () => largeType(pwText, title), { 'data-testid': 'pw-large' }), copyBtn(pwText, t('f.password'), { 'data-testid': 'pw-copy' })], 'pw'));
 
     if (url) {
-        // Link und Anzeige behalten {PASSWORD} & Co.; erst Klick und Kopieren setzen die eigenen Geheimnisse ein
+        // Link and display keep {PASSWORD} & co.; only clicking and copying insert the entry's own secrets
         const own = () => resolvedUrl(e, { own: true }), secret = own() !== url;
         const openOwn = (ev) => { if (ev.button > 1) return; ev.preventDefault(); openEntryUrl(e); };
         main.push(field(t('f.url'), linkOrText(url, openableUrl(url), { 'data-testid': 'f-url', onclick: secret ? openOwn : null, onauxclick: secret ? openOwn : null }),
@@ -78,7 +78,7 @@ export function renderDetail(host) {
 
     // TOTP
     let otpCfg = null;
-    try { otpCfg = parseOtpConfig(fieldText(e.fields.get('otp')), fieldText(e.fields.get('TOTP Seed')), fieldText(e.fields.get('TOTP Settings'))); } catch (err) { main.push(field('TOTP', h('span', { class: 'error', text: err.message }))); }
+    try { otpCfg = parseOtpConfig(fieldText(e.fields.get('otp')), fieldText(e.fields.get('TOTP Seed')), fieldText(e.fields.get('TOTP Settings'))); } catch (err) { main.push(field('TOTP', h('span', { class: 'error', text: errText(err) }))); }
     if (otpCfg) {
         const codeEl = h('span', { class: 'totp', 'data-testid': 'totp-code', text: '------' });
         const NSs = 'http://www.w3.org/2000/svg';
@@ -97,7 +97,7 @@ export function renderDetail(host) {
         };
         tick(); totpTimer = setInterval(tick, 1000);
         main.push(field('TOTP', h('div', { class: 'totp-box' }, codeEl, h('span', { class: 'ring-wrap' }, ring, remEl)), [copyBtn(async () => (await totp(otpCfg)).code, 'TOTP', { 'data-testid': 'totp-copy' })], 'totp'));
-        // copyBtn mit async: eigenes Verhalten
+        // copyBtn with async: own behaviour
         main[main.length - 1].querySelector('[data-testid=totp-copy]').onclick = async () => copy((await totp(otpCfg)).code, 'TOTP');
     }
     cards.push(h('section', { class: 'card' }, ...main));
@@ -109,7 +109,7 @@ export function renderDetail(host) {
     for (const [k, val] of e.fields) {
         if (STANDARD_FIELDS.includes(k) || isSystemField(k)) continue;
         const text = fieldText(val);
-        // ungeschuetzte Zusatzfelder mit http(s)-Adresse (oder URL im Namen, etwa KP2A_URL_1) sind Links wie das URL-Feld
+        // unprotected extra fields with an http(s) address (or URL in the name, e.g. KP2A_URL_1) are links like the URL field
         const href = isProtected(val) ? null : openableUrl(text, { bare: /url/i.test(k) });
         const span = href ? linkOrText(text, href, { 'data-testid': 'custom-' + k }) : h('span', { 'data-testid': 'custom-' + k, class: 'multiline', text: isProtected(val) ? DOTS : text });
         const actions = isProtected(val) ? [iconBtn('eye', t('show'), (ev) => { const on = span.dataset.on !== '1'; span.dataset.on = on ? '1' : '0'; span.textContent = on ? text : DOTS; ev.currentTarget.replaceChildren(icon(on ? 'eyeOff' : 'eye')); })] : [];
@@ -247,7 +247,7 @@ function duplicate(e, linked = false) {
     const c = state.vault.duplicateEntry(e, t('duplicate.suffix'), { linked });
     state.selEntry = c; changed(); toast(t(isPasskey(e) ? 'duplicated.nopasskey' : 'duplicated'));
 }
-/** Duplizieren mit der Wahl, Benutzername und Passwort mit dem Original zu verknuepfen (Feldreferenzen); die Wahl bleibt gemerkt. */
+/** Duplicating with the choice to link username and password to the original (field references); the choice is remembered. */
 function duplicateDialog(e) {
     const link = h('input', { id: 'dup-link', type: 'checkbox', checked: pref('dupLinked') === '1' });
     const ok = h('button', { type: 'submit', class: 'primary', id: 'dup-ok', text: t('duplicate') });

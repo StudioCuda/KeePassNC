@@ -1,6 +1,6 @@
-// Ausfall-Tests (eigenstaendige Seite): Der WebDAV-Server wird wirklich beendet und neu gestartet.
-// Prueft: App startet ohne Server (Service Worker), Oeffnen aus der Offline-Kopie, Aendern ohne Server, Neustart, Hochladen,
-// Zusammenfuehrung bei zwischenzeitlicher Fremdaenderung, Abholen von Fremdaenderungen, Loeschen der lokalen Daten.
+// Outage tests (standalone page): the WebDAV server really is stopped and restarted.
+// Checks: app starts without a server (service worker), opening from the offline copy, changing without a server, restart, upload,
+// merging after a foreign change in the meantime, pulling foreign changes, deleting the local data.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -40,8 +40,8 @@ async function main() {
     await ctx.addInitScript(uncaughtWatch);
     await ctx.addInitScript(() => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'change', offline: true })); } catch {} });
     const page = await ctx.newPage();
-    // Der Server wird absichtlich mitten in Anfragen beendet; WebKit meldet das gelegentlich als Seitenfehler (knownFetchNoise).
-    // Echte, nicht abgefangene Fehler kommen trotzdem an: ueber uncaughtWatch als "UNCAUGHT:"-Konsolenmeldung.
+    // The server is deliberately stopped in the middle of requests; WebKit occasionally reports that as a page error (knownFetchNoise).
+    // Real, uncaught errors still get through: via uncaughtWatch as an "UNCAUGHT:" console message.
     page.on('pageerror', (e) => { if (!knownFetchNoise(e.message)) pageErrors.push(String(e)); });
     page.on('console', (m) => { if (m.type() === 'error' && m.text().startsWith('UNCAUGHT: ')) pageErrors.push(m.text()); });
     const url = (q = '') => `${base}/?syncretry=2${q}`;
@@ -94,7 +94,7 @@ async function main() {
     });
 
     await step('Fremdaenderung auf dem Server waehrend des Ausfalls + Wiederkehr: automatische Zusammenfuehrung, beide Aenderungen vorhanden', async () => {
-        xc(['edit', '-q', f4, 'Bank/Konto', '--url', 'https://extern.example']); // anderes Geraet, Server steht
+        xc(['edit', '-q', f4, 'Bank/Konto', '--url', 'https://extern.example']); // another device, server is down
         await recover();
         await waitStatus(/zusammengef|abgeglichen/, 30000);
         await page.waitForFunction(() => document.querySelector('#sync-state')?.dataset.state === 'synced', null, { timeout: 15000 });

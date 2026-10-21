@@ -1,4 +1,4 @@
-// Hauptansicht: Kopfzeile, drei Spalten (Seitenleiste | Liste | Details), Mobil-Navigation, Tastenkuerzel, Befehlspalette.
+// Main view: header, three columns (sidebar | list | details), mobile navigation, keyboard shortcuts, command palette.
 import { t } from '../i18n.js';
 import { fieldOf, domainOf, hasTotp, isPasskey, entryColor } from '../core/util.js';
 import { SORTS } from './common.js';
@@ -64,7 +64,7 @@ export function refresh() {
     if (!state.vault || !$('.shell')) return;
     const entries = visibleEntries();
     if (state.selEntry && !entries.includes(state.selEntry) && !state.editing && !state.query) {
-        // Auswahl verlaesst die aktuelle Ansicht (z. B. nach Verschieben): Ansicht beibehalten, Auswahl nur loesen, wenn der Eintrag nicht mehr existiert
+        // selection leaves the current view (e.g. after moving): keep the view, only clear the selection if the entry no longer exists
         if (![...state.vault.root.allEntries()].includes(state.selEntry)) state.selEntry = null;
     }
     renderSidebar($('#groups'));
@@ -112,7 +112,7 @@ export function renderList(entries = visibleEntries()) {
             avatar(e), h('span', { class: 'et' }, h('span', { class: 'title', text: fieldOf(e, 'Title') || t('entry.untitled') }), h('span', { class: 'sub', text: [user, dom].filter(Boolean).join(' · ') })),
             h('span', { class: 'badges' }, expiryBadge(e), hasTotp(e) ? h('span', { class: 'mini', title: 'TOTP' }, icon('totp')) : null, isPasskey(e) ? h('span', { class: 'mini', title: t('passkey') }, icon('passkey')) : null, e.binaries?.size ? h('span', { class: 'mini', title: t('attachments') }, icon('clip')) : null));
         const color = entryColor(e);
-        if (color) { main.classList.add('tinted'); main.style.setProperty('--entry-color', color); } // CSSOM, kein style-Attribut (CSP)
+        if (color) { main.classList.add('tinted'); main.style.setProperty('--entry-color', color); } // CSSOM, no style attribute (CSP)
         const wrap = h('div', { class: 'entry-wrap', draggable: 'true' }, main,
             h('div', { class: 'row-actions' }, iconBtn('user', t('copy') + ': ' + t('f.user'), () => copy(user, t('f.user')), { tabindex: '-1' }), iconBtn('key', t('copy') + ': ' + t('f.password'), () => copy(resolvedField(e, 'Password'), t('f.password')), { tabindex: '-1' })));
         wrap.addEventListener('dragstart', (ev) => startEntryDrag(ev, e));
@@ -132,7 +132,7 @@ function listKeys(ev) {
     else if (ev.key === 'ArrowUp') $('#search')?.focus();
 }
 
-// ---------------------------------------------------------------- Befehlspalette
+// ---------------------------------------------------------------- Command palette
 export function openPalette() {
     const v = state.vault;
     const input = h('input', { id: 'palette-input', type: 'search', placeholder: t('palette.placeholder'), autocomplete: 'off', spellcheck: 'false', autofocus: true });
@@ -167,7 +167,7 @@ export function openPalette() {
     draw();
 }
 
-// ---------------------------------------------------------------- Tastenkuerzel
+// ---------------------------------------------------------------- Keyboard shortcuts
 export function installShortcuts() {
     document.addEventListener('keydown', (e) => {
         if (!state.vault || document.querySelector('.backdrop')) return;
