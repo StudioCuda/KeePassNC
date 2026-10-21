@@ -9,8 +9,10 @@ import { parseCsv, toCsv, mapRows } from '../core/csv.js';
 
 const { state } = ctx;
 
-export function openCsv() {
+/** `onBack`: called when the dialog is closed without importing or exporting (cancel, x, Esc). */
+export function openCsv({ onBack } = {}) {
     const v = state.vault;
+    let finished = false;
     let found = null; // {entries, ignored, name}
 
     const fileInput = h('input', { id: 'csv-file', type: 'file', accept: '.csv,text/csv' });
@@ -32,6 +34,7 @@ export function openCsv() {
     });
     importBtn.addEventListener('click', () => {
         const group = v.importEntries(found.entries, t('csv.group', { name: found.name }));
+        finished = true;
         m.close();
         setFilter({ type: 'group', group }, { refresh: false });
         changed(); // redraws once, with the new filter
@@ -43,6 +46,7 @@ export function openCsv() {
     sure.addEventListener('change', () => { exportBtn.disabled = !sure.checked; });
     exportBtn.addEventListener('click', () => {
         download(state.source.name.replace(/\.kdbx$/i, '') + '.csv', toCsv(v.csvRows()));
+        finished = true;
         m.close();
     });
 
@@ -54,5 +58,7 @@ export function openCsv() {
         h('section', { class: 'stack tight' }, h('span', { class: 'group-title', text: t('csv.export.title') }),
             h('p', { class: 'level-note bad', text: t('csv.export.warn') }),
             h('label', { class: 'check' }, sure, h('span', { text: t('csv.export.sure') })),
-            h('div', {}, exportBtn))) });
+            h('div', {}, exportBtn)),
+        h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', id: 'csv-cancel', text: t('cancel'), onclick: () => m.close() }))),
+    onClose: () => { if (!finished) onBack?.(); } });
 }
