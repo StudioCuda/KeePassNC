@@ -16,6 +16,8 @@ class LoadAdditionalScriptsListener implements IEventListener {
 		if (!$event instanceof LoadAdditionalScriptsEvent) {
 			return;
 		}
+		// Die Adresse baut Nextcloud selbst. Liefert eine Instanz App-Pfade mit doppeltem webroot (siehe PageController), laedt das Skript
+		// dort nicht; das laesst sich nur in der config.php der Instanz beheben.
 		Util::addScript(Application::APP_ID, 'files-action');
 	}
 }
