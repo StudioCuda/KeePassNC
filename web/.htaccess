@@ -1,0 +1,18 @@
+# Apache (e.g. Netcup shared hosting). Upload this file together with the rest of web/.
+
+# WebCrypto needs HTTPS, so send everyone there.
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteCond %{HTTP:X-Forwarded-Proto} !https
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# connect-src is wide because WebDAV can live on any HTTPS host. Narrow it to yours if you only use one.
+<IfModule mod_headers.c>
+Header always set Content-Security-Policy "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+Header always set Referrer-Policy "no-referrer"
+Header always set X-Content-Type-Options "nosniff"
+</IfModule>
+
+Options -Indexes
