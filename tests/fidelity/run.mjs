@@ -1,6 +1,6 @@
-// Round-Trip-Test mit der synthetischen Alltags-Datei: hartes Master-Passwort + XML-v2-Schluesseldatei + Argon2 (256 MiB).
-// KeePassNC (Browser) oeffnet, aendert genau einen Eintrag, speichert; danach wird per KeePassXC-XML-Export Feld fuer Feld
-// verglichen: ausser dem geaenderten Eintrag (und der erwarteten Verlaufs-/Zeitaenderung) darf sich NICHTS veraendert haben.
+// Round-trip test with the synthetic everyday file: strong master password + XML v2 key file + Argon2 (256 MiB).
+// KeePassNC (browser) opens it, changes exactly one entry, saves; then a KeePassXC XML export is compared field by field:
+// apart from the changed entry (and the expected history/time change), NOTHING may have changed.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -29,9 +29,9 @@ const exportXml = (file, dest) => {
     if (r.status !== 0) throw new Error('KeePassXC kann die Datei nicht lesen: ' + r.stderr);
     fs.writeFileSync(dest, r.stdout);
 };
-// Bekannte, harmlose Unterschiede (jeweils begruendet):
-//  - Meta/Generator und _LAST_MODIFIED-Zeitstempel in CustomData: werden bei jedem Speichern neu gesetzt
-//  - leere AutoType-Zuordnungen (Association mit leerem Window/KeystrokeSequence) werden nicht mehr geschrieben (ohne Wirkung)
+// Known, harmless differences (each with a reason):
+//  - Meta/Generator and _LAST_MODIFIED timestamps in CustomData: are reset on every save
+//  - empty AutoType associations (Association with empty Window/KeystrokeSequence) are no longer written (no effect)
 const KNOWN = ['--allow', '^R/Meta/Generator$', '--allow', 'CustomData/Item\\[_LAST_MODIFIED\\]/Value$', '--empty-drop', 'AutoType/Association/(Window|KeystrokeSequence)$'];
 const compare = (a, b, entries = []) => spawnSync('python3', ['-I', path.join(root, 'tests/fidelity/compare.py'), a, b, ...KNOWN, ...entries.flatMap((t) => ['--entry', t])], { encoding: 'utf8' });
 
@@ -75,7 +75,7 @@ async function main() {
         await page.waitForFunction(() => /^Gespeichert\./.test(document.querySelector('#status')?.textContent || ''), null, { timeout: 60000 });
         const xml1 = path.join(tmp, 'v1.xml'); exportXml(dbOnServer, xml1);
         const r = compare(xml0, xml1, ['Fidelity-Probe']);
-        // erlaubt: alles am Probe-Eintrag (Notiz, Zeit, Verlauf) plus Zeitstempel der Datenbank/Wurzel-Metadaten
+        // allowed: everything on the probe entry (notes, time, history) plus timestamps of the database/root metadata
         fs.writeFileSync(path.join(tmp, 'diff1.txt'), r.stdout);
         expect(r.status === 0, 'Unerlaubte Unterschiede:\n   ' + r.stdout.split('\n').filter((l) => l.startsWith('ABWEICHUNG')).slice(0, 25).join('\n   ') + '\n   ' + r.stdout.trim().split('\n').pop());
         return r.stdout.trim().split('\n').pop();
@@ -94,7 +94,7 @@ async function main() {
         const xml2 = path.join(tmp, 'v2.xml'); exportXml(dbOnServer, xml2);
         const r = compare(path.join(tmp, 'v1.xml'), xml2, ['Fidelity-Probe']);
         expect(r.status === 0, 'Unerlaubte Unterschiede:\n   ' + r.stdout.split('\n').filter((l) => l.startsWith('ABWEICHUNG')).slice(0, 25).join('\n   '));
-        // KDF-Parameter bleiben erhalten
+        // KDF parameters are preserved
         const hdr = fs.readFileSync(dbOnServer);
         await p.close();
         return `Dateigroesse ${hdr.length} Bytes`;

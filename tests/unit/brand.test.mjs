@@ -1,4 +1,4 @@
-// Die Marke hat eine Quelle (src/brand.js, gezeichnet von tools/brand-geometry.mjs); die Dateien daraus (node tools/make-brand.mjs) duerfen nicht davon abweichen.
+// The brand mark has one source (src/brand.js, drawn by tools/brand-geometry.mjs); the files derived from it (node tools/make-brand.mjs) must not deviate from it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -23,7 +23,7 @@ test('favicon and web icon are the same tile, generated from src/brand.js', () =
 test('touch icon is a 180 px PNG and identical in web/ and the Nextcloud app', () => {
     const a = fs.readFileSync(path.join(root, 'web/apple-touch-icon.png')), b = fs.readFileSync(path.join(root, img + 'apple-touch-icon.png'));
     assert.deepEqual(a, b);
-    assert.equal(a.readUInt32BE(16), 180); assert.equal(a.readUInt32BE(20), 180); // IHDR: Breite, Hoehe
+    assert.equal(a.readUInt32BE(16), 180); assert.equal(a.readUInt32BE(20), 180); // IHDR: width, height
 });
 
 test('brand-paths.js is what tools/brand-geometry.mjs draws', () => {
@@ -41,16 +41,16 @@ test('the mark draws the same in every use: one filled path, no inline colours',
 test('the paths are sound: closed contours, finite numbers, only the commands we write', () => {
     for (const [name, d] of Object.entries(MARK)) {
         assert.ok(d.startsWith('M') && d.endsWith('z'), name);
-        assert.match(d.replace(/[-\d. ]/g, ''), /^[Mlhvcaz]+$/, name); // sonst nur Zahlen: kein NaN, kein Exponent
+        assert.match(d.replace(/[-\d. ]/g, ''), /^[Mlhvcaz]+$/, name); // otherwise only numbers: no NaN, no exponent
         assert.ok(d.length < 1000, `${name} should stay small (${d.length} bytes)`);
     }
-    // Konturen (je eine pro M): fein = Schildrand aussen/innen + Schluesselring aussen/innen, kraeftig = Schildrand aussen/innen + gefuellter Schluessel
+    // Contours (one per M): fine = shield edge outer/inner + key ring outer/inner, bold = shield edge outer/inner + filled key
     assert.equal(MARK.fine.split('M').length - 1, 4);
     assert.equal(MARK.bold.split('M').length - 1, 3);
 });
 
 test('the corners are soft where they should be: the tips are arcs, not points', () => {
-    // Scheitel und Spitze des Schilds, Aussenspitze des Schluessels: je ein Bogen mit Radius .6 (innen und aussen), nirgends eine scharfe Spitze
+    // Apex and tip of the shield, outer tip of the key: one arc each with radius .6 (inner and outer), no sharp tip anywhere
     for (const d of Object.values(MARK)) assert.ok((d.match(/a\.6\.6 0 0 1/g) || []).length >= 6);
     assert.ok(mark({ w: 1.3, filledKey: false }) === MARK.fine && mark({ w: 2.1, filledKey: true }) === MARK.bold);
 });

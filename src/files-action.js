@@ -1,5 +1,5 @@
-// Wird in der Nextcloud-Dateien-App geladen: oeffnet .kdbx-Dateien per Klick mit KeePassNC und legt ueber "+ Neu" neue an.
-// Erkennung ueber die Dateiendung (nicht ueber den MIME-Typ), damit keine Datenbank- oder Konfigurationsaenderungen noetig sind.
+// Loaded in the Nextcloud Files app: opens .kdbx files with KeePassNC on click and creates new ones via "+ New".
+// Detection is by file extension (not MIME type), so no database or config changes are needed.
 import { registerFileAction, addNewFileMenuEntry, Permission, DefaultType } from '@nextcloud/files';
 import { generateUrl } from '@nextcloud/router';
 
@@ -22,8 +22,8 @@ registerFileAction({
     }
 });
 
-// "+ Neu" -> "KeePass-Datenbank": die Datei entsteht erst in KeePassNC, wenn das Master-Passwort feststeht (eine leere .kdbx waere
-// kaputt). Hier nur ein freier Name im aktuellen Ordner; die App fragt nach den Zugangsdaten und ueberschreibt nie eine vorhandene Datei.
+// "+ New" -> "KeePass database": the file is only created in KeePassNC once the master password is set (an empty .kdbx would be
+// broken). Here just a free name in the current folder; the app asks for the credentials and never overwrites an existing file.
 const NEW_NAME = de ? 'Passwörter' : 'Passwords';
 addNewFileMenuEntry({
     id: 'keepassnc-new',

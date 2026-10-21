@@ -14,14 +14,14 @@ use OCP\IRequest;
 use OCP\IUserSession;
 
 /**
- * Server-Geheimwert ("Pepper") fuer gemerkte Schluesseldateien (siehe docs/KEYFILE-MEMORY.md).
+ * Server secret ("pepper") for remembered key files (see docs/KEYFILE-MEMORY.md).
  *
- * Der Browser leitet den Schluessel fuer den lokal gespeicherten Datensatz aus Master-Passwort (Argon2id) UND diesem Wert ab (HKDF).
- * Der Server kennt weder Passwort noch Schluesseldatei noch den Datensatz - der Wert allein ist wertlos. Ein Dieb mit einer Kopie des
- * Browser-Profils kann ohne gueltige Nextcloud-Sitzung nicht offline raten. "Erneuern" macht alle gemerkten Schluesseldateien dieses
- * Benutzers auf allen Geraeten auf einen Schlag ungueltig (z. B. Laptop verloren).
+ * The browser derives the key for the locally stored record from the master password (Argon2id) AND this value (HKDF).
+ * The server knows neither the password nor the key file nor the record - the value alone is worthless. A thief with a copy of the
+ * browser profile can't guess offline without a valid Nextcloud session. "Renew" invalidates all remembered key files of this
+ * user on all devices at once (e.g. lost laptop).
  *
- * Beide Aufrufe verlangen eine angemeldete Sitzung und das CSRF-Token (requesttoken, Standard des AppFrameworks).
+ * Both calls require a logged-in session and the CSRF token (requesttoken, AppFramework default).
  */
 class PepperController extends Controller {
 	private const KEY = 'kf_pepper';
@@ -67,7 +67,7 @@ class PepperController extends Controller {
 		$d = json_decode($raw, true);
 		if (!is_array($d) || !is_string($d['id'] ?? null) || !is_string($d['pepper'] ?? null)
 			|| !preg_match('/^[0-9a-f]{32}$/', $d['id']) || strlen((string)base64_decode($d['pepper'], true)) !== 32) {
-			return null; // unbrauchbar -> neu erzeugen (gemerkte Datensaetze werden dadurch ungueltig, nichts sonst)
+			return null; // unusable -> regenerate (remembered records become invalid as a result, nothing else)
 		}
 		return ['v' => 1, 'id' => $d['id'], 'pepper' => $d['pepper']];
 	}

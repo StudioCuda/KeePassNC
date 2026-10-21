@@ -1,9 +1,9 @@
-// Bildschirmfotos der Oberflaeche (Desktop/Mobil, hell/dunkel). Datenbank: <name>.kdbx + <name>.json (Passwort, optional "picks"),
-// optional <name>.keyx als Schluesseldatei. README-Bilder:
+// Screenshots of the UI (desktop/mobile, light/dark). Database: <name>.kdbx + <name>.json (password, optional "picks"),
+// optional <name>.keyx as key file. README images:
 //   python3 -I tools/make-showcase.py <dir> && npm run build && SHOTS_DB=showcase SHOTS_LANG=en node tools/shots.mjs <dir> <out-dir>
-// Mit der Test-Alltagsdatei: python3 -I tests/fixtures/make-daily.py <dir> && node tools/shots.mjs <dir> <out-dir>
-// Nextcloud-Modus (Kopfleiste und Theming der Instanz): SHOTS_NC=http://127.0.0.1:18080 SHOTS_NC_USER=… SHOTS_NC_PASS=… vor den Aufruf
-// setzen. Die Datei wird per WebDAV nach /KeePassNC/<name>.kdbx geladen; die App muss in dieser Nextcloud aktiviert sein.
+// With the test daily-use file: python3 -I tests/fixtures/make-daily.py <dir> && node tools/shots.mjs <dir> <out-dir>
+// Nextcloud mode (header bar and theming of the instance): set SHOTS_NC=http://127.0.0.1:18080 SHOTS_NC_USER=… SHOTS_NC_PASS=… before the call.
+// The file is uploaded via WebDAV to /KeePassNC/<name>.kdbx; the app must be enabled in that Nextcloud.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -60,7 +60,7 @@ async function session(name, viewport, { scheme = 'light', lang = LANG } = {}) {
     await page.waitForTimeout(400);
     return page;
 }
-// Eintrag nach Titel (meta.picks) oder sonst nach Position in der Liste anklicken
+// Click an entry by title (meta.picks) or otherwise by position in the list
 const pick = async (page, key, nth) => {
     const title = meta.picks?.[key];
     const row = title ? page.locator('[data-testid=entry-row]', { hasText: title }).first() : page.locator('[data-testid=entry-row]').nth(nth);
@@ -96,7 +96,7 @@ await m.click('.menu-btn.in-list');
 await m.waitForTimeout(300);
 await shot(m, 'mobile-drawer.png');
 
-const other = LANG === 'de' ? 'en' : 'de'; // Tablet in der jeweils anderen Sprache
+const other = LANG === 'de' ? 'en' : 'de'; // tablet in the other language respectively
 const t = await session('tablet', { width: 1024, height: 768 }, { lang: other });
 await shot(t, `tablet-${other}.png`);
 await browser.close(); server?.close();

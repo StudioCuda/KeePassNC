@@ -1,6 +1,6 @@
-// Test "Master-Passwort / Schluesseldatei aendern" und Datenbanken nur mit Schluesseldatei: Pruefungen im Dialog, Ergebnis mit keepassxc-cli gegengeprueft, Konflikt direkt nach
-// dem Aendern (Zusammenfuehren mit den alten Zugangsdaten), neue Schluesseldatei nur nach Kontrolle, gemerkte Schluesseldatei,
-// Sicherungskopien loeschen, lokale Datei, und dass ein gescheitertes Speichern die alten Zugangsdaten stehen laesst.
+// Test "change master password / key file" and databases with a key file only: checks in the dialog, result cross-checked with keepassxc-cli, conflict right after
+// the change (merging with the old credentials), new key file only after a check, remembered key file,
+// deleting backup copies, local file, and that a failed save leaves the old credentials in place.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -21,12 +21,12 @@ function mkDb(file, keyfile) {
 }
 mkDb(dav('pw.kdbx')); mkDb(dav('kf.kdbx'), KEY_A); mkDb(path.join(tmp, 'local.kdbx'));
 mkDb(dav('remote.kdbx')); mkDb(dav('remote2.kdbx'));
-/** Wie ein anderes Geraet: neues Passwort setzen und einen Eintrag anlegen (KeePassXC). */
+/** Like another device: set a new password and create an entry (KeePassXC). */
 const elsewhere = (file, from, to, title) => {
     execFileSync('keepassxc-cli', ['db-edit', '-q', '-p', file], { input: `${from}\n${to}\n${to}\n`, stdio: 'pipe' });
     execFileSync('keepassxc-cli', ['add', '-q', '-u', 'eve', file, title], { input: to + '\n', stdio: 'pipe' });
 };
-// nur Schluesseldatei, ganz ohne Passwort-Anteil (KeePassXC: --no-password)
+// key file only, no password part at all (KeePassXC: --no-password)
 const KEY_ONLY = path.join(tmp, 'only.keyx');
 execFileSync('keepassxc-cli', ['db-create', '-q', '--set-key-file', KEY_ONLY, '-t', '100', dav('only.kdbx')], { stdio: 'pipe' });
 execFileSync('keepassxc-cli', ['add', '-q', '--no-password', '-k', KEY_ONLY, '-u', 'alice', dav('only.kdbx'), 'Mail'], { stdio: 'pipe' });
@@ -34,7 +34,7 @@ const xcLsNoPw = (file, keyfile) => {
     const r = spawnSync('keepassxc-cli', ['ls', '-q', '-R', '--no-password', '-k', keyfile, file]);
     return r.status === 0 ? r.stdout.toString('utf8') : null;
 };
-/** Oeffnet KeePassXC die Datei mit diesen Zugangsdaten? Mit Eintragsliste, falls ja. */
+/** Does KeePassXC open the file with these credentials? With an entry list if so. */
 const xcLs = (file, pw, keyfile) => {
     const r = spawnSync('keepassxc-cli', ['ls', '-q', '-R', ...(keyfile ? ['-k', keyfile] : []), file], { input: pw + '\n' });
     return r.status === 0 ? r.stdout.toString('utf8') : null;
@@ -55,7 +55,7 @@ async function main() {
     const browser = await launchBrowser();
     const errors = [];
     const newPage = async (settings = { autosync: 'off' }) => {
-        // Ohne Service Worker: Anfragen ueber ihn sieht page.route nicht (WebKit), und die Offline-Kopie liegt ohnehin in IndexedDB
+        // Without a service worker: page.route doesn't see requests that go through it (WebKit), and the offline copy lives in IndexedDB anyway
         const c = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport: { width: 1400, height: 950 }, serviceWorkers: 'block' });
         await c.addInitScript(plainWebdav);
         await c.addInitScript((s) => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify(s)); } catch {} }, settings);
@@ -139,7 +139,7 @@ async function main() {
         await p1.unrouteAll();
         await p1.click('#save-btn'); await waitStatus(p1, /^Gespeichert/);
         expect(xcLs(dav('pw.kdbx'), N2) && !xcLs(dav('pw.kdbx'), N3), 'Datei soll mit N2 aufgehen, nicht mit N3');
-        await openCred(p1); await fillCred(p1, { current: N3 }); await credError(p1, /stimmt nicht/); // auch in der Vault gilt wieder N2
+        await openCred(p1); await fillCred(p1, { current: N3 }); await credError(p1, /stimmt nicht/); // N2 applies again in the vault too
         await p1.keyboard.press('Escape');
         await lock(p1);
     });
@@ -169,7 +169,7 @@ async function main() {
         await p2.setInputFiles('#cred-kf-verify', KEY_A);
         await p2.waitForFunction(() => /nicht die neue/.test(document.querySelector('#cred-kf-check')?.textContent || ''));
         await credError(p2, /zur Kontrolle/);
-        // Kopie mit Windows-Zeilenenden zaehlt als dieselbe Datei
+        // Copy with Windows line endings counts as the same file
         const crlf = path.join(tmp, 'neu-crlf.keyx'); fs.writeFileSync(crlf, fs.readFileSync(fresh, 'utf8').replace(/\n/g, '\r\n'));
         await p2.setInputFiles('#cred-kf-verify', crlf);
         await p2.waitForFunction(() => /^Passt/.test(document.querySelector('#cred-kf-check')?.textContent || ''));
@@ -182,7 +182,7 @@ async function main() {
         await lock(p2);
         await p2.fill('#dav-url', `${base}/dav/kf.kdbx`); await p2.fill('#dav-pass', 'app-secret'); await p2.fill('#master', OLD);
         await p2.locator('#kf-remembered').waitFor({ state: 'visible' });
-        await p2.click('#open-btn'); await waitOpened(p2, 60000); // gemerkte (neue) Schluesseldatei, ohne Auswahl
+        await p2.click('#open-btn'); await waitOpened(p2, 60000); // remembered (new) key file, without picking one
     });
 
     await step('Schluesseldatei entfernen und Passwort aendern: Rueckfrage, KeePassXC oeffnet ohne Datei, gemerkter Datensatz weg', async () => {
@@ -224,7 +224,7 @@ async function main() {
         await p3.keyboard.press('Escape');
         await p3.unrouteAll();
         await lock(p3);
-        await login(p3, 'pw.kdbx', N2); // oeffnet die lokale (ungesyncte) Kopie: die muss mit N2 aufgehen
+        await login(p3, 'pw.kdbx', N2); // opens the local (unsynced) copy: it has to open with N2
         for (let i = 0; i < 60 && !(await p3.locator('#sync-state[data-state=synced]').count()); i++) await p3.waitForTimeout(500);
         expect(xcLs(dav('pw.kdbx'), N2) && !xcLs(dav('pw.kdbx'), N3), 'Server-Stand soll mit N2 aufgehen');
         await p3.context().close();
@@ -241,11 +241,11 @@ async function main() {
         await p4.click('#open-btn'); await waitOpened(p4, 60000);
         expect(await p4.locator('.toast', { hasText: 'nicht merken' }).count() === 1, 'Hinweis: ohne Passwort wird nicht gemerkt');
         expect(((await kfRecord(p4)) || []).length === 0, 'ohne Passwort darf nichts gemerkt werden');
-        // speichern bleibt "nur Schluesseldatei"
+        // saving stays "key file only"
         await p4.click('#new-group-btn'); await p4.fill('#prompt-input', 'Neu'); await p4.keyboard.press('Enter');
         await p4.click('#save-btn'); await waitStatus(p4, /^Gespeichert/);
         expect(xcLsNoPw(dav('only.kdbx'), KEY_ONLY)?.includes('Neu/'), 'KeePassXC oeffnet nicht mehr ohne Passwort');
-        // Dialog: kein aktuelles Passwort zu bestaetigen; Schluesseldatei entfernen ohne neues Passwort geht nicht
+        // Dialog: no current password to confirm; removing the key file without a new password doesn't work
         await openCred(p4);
         expect(await p4.locator('#cred-current').count() === 0, 'ohne Passwort gibt es nichts zu bestaetigen');
         await p4.locator('#cred-form input[value=none]').check();
@@ -281,7 +281,7 @@ async function main() {
         elsewhere(dav('remote.kdbx'), N1, N2, 'Extern2');
         await p6.locator('#rcred-form').waitFor({ timeout: 30000 });
         await p6.click('#rcred-later');
-        await rcredSubmit(p6, N2); // naechster Abgleich fragt wieder
+        await rcredSubmit(p6, N2); // next sync asks again
         await waitStatus(p6, /aktueller Stand geholt/);
         expect(await p6.locator('[data-testid=entry-row]', { hasText: 'Extern2' }).count() === 1, 'neuer Stand sichtbar');
         expect(await p6.locator('#rcred-form').count() === 0, 'Dialog zu');

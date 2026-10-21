@@ -1,4 +1,4 @@
-// Kleine, DOM-freie Hilfen (auch in Node-Tests verwendbar).
+// Small DOM-free helpers (also usable in Node tests).
 export function valueText(v) {
     if (v === undefined || v === null) return '';
     return typeof v === 'string' ? v : v.getText();
@@ -9,8 +9,8 @@ export function domainOf(url) {
     try { return new URL(/^[a-z][a-z0-9+.-]*:/i.test(url) ? url : 'https://' + url).hostname.replace(/^www\./, ''); } catch { return ''; }
 }
 
-/** Link-Ziel fuer einen URL-Feldwert: http(s) wie eingegeben, ein nackter Hostname wie "example.com/login" mit https://;
- *  alles andere (cmd://, javascript:, {REF:…}, freier Text) bleibt Text. bare=false nimmt nur Werte mit http(s)-Schema. */
+/** Link target for a URL field value: http(s) as entered, a bare hostname like "example.com/login" with https://;
+ *  everything else (cmd://, javascript:, {REF:…}, free text) stays text. bare=false only accepts values with an http(s) scheme. */
 export function openableUrl(text, { bare = true } = {}) {
     const s = String(text ?? '').trim();
     if (!s || /\s/.test(s)) return null;
@@ -30,26 +30,26 @@ export function groupPath(group) {
     for (let g = group; g && g.parentGroup; g = g.parentGroup) parts.unshift(g.name || '');
     return parts.join('/');
 }
-/** Felder, aus denen ein Passkey besteht (KeePassXC: KPEX_PASSKEY_*; KPXC_PASSKEY_* wie in isSystemField mitgefuehrt). */
+/** Fields that make up a passkey (KeePassXC: KPEX_PASSKEY_*; KPXC_PASSKEY_* carried along as in isSystemField). */
 export const isPasskeyField = (name) => /^(KPEX|KPXC)_PASSKEY_/.test(name);
 export const isPasskey = (entry) => entry.fields.has('KPEX_PASSKEY_CREDENTIAL_ID') || entry.fields.has('KPEX_PASSKEY_PRIVATE_KEY_PEM');
 export const hasTotp = (entry) => entry.fields.has('otp') || entry.fields.has('TOTP Seed') || [...entry.fields.keys()].some((k) => k.startsWith('TimeOtp-'));
-/** Felder, die der Editor nicht als freie Zusatzfelder zeigt (eigene Darstellung bzw. Programmdaten); sie bleiben beim Bearbeiten unveraendert erhalten. */
-/** Erkennt "Arbeitsspeicher reicht nicht" aus WebAssembly/Argon2; die Browser melden das uneinheitlich (RangeError, RuntimeError, Textmeldungen). */
+/** Fields the editor doesn't show as free extra fields (own display or program data); they are kept unchanged when editing. */
+/** Detects "not enough memory" from WebAssembly/Argon2; browsers report it inconsistently (RangeError, RuntimeError, text messages). */
 export const isOutOfMemory = (e) => !!e && (e instanceof RangeError
     || (typeof WebAssembly !== 'undefined' && e instanceof WebAssembly.RuntimeError)
     || /out of memory|could not allocate|allocation failed|maximum memory|memory.*(grow|alloc)/i.test(String(e.message || e)));
 const REF_FIELDS = { T: 'Title', U: 'UserName', P: 'Password', A: 'URL', N: 'Notes' };
 const STANDARD_FIELDS = new Set(Object.values(REF_FIELDS));
-/** UUID eines Eintrags als Hex in Grossbuchstaben, wie sie in Feldreferenzen steht. */
+/** UUID of an entry as uppercase hex, as it appears in field references. */
 export const uuidHex = (uuid) => [...atob(String(uuid))].map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('').toUpperCase();
 /**
- * Loest Platzhalter auf wie KeePass und KeePassXC, auch geschachtelt (bis Tiefe 10, Zyklen enden dort):
- * - {REF:<Feld>@<Suchfeld>:<Text>}: Feld eines anderen Eintrags. Feld: T U P A N oder I (UUID); Suchfeld zusaetzlich O (eigene Felder).
- *   @I sucht die UUID, sonst gilt der erste Eintrag, dessen Feld den Text enthaelt (ohne Gross-/Kleinschreibung).
- * - {TITLE} {USERNAME} {PASSWORD} {URL} {NOTES} und {S:Name} (eigenes Feld): aus `entry` selbst.
- * - {URL:RMVSCM} {URL:SCM} {URL:HOST} {URL:PORT} {URL:PATH} {URL:QUERY} {URL:USERINFO} {URL:USERNAME} {URL:PASSWORD}: Teile der eigenen URL.
- * Gross-/Kleinschreibung der Namen egal. Was sich nicht aufloesen laesst, bleibt stehen. Ohne entry gelten nur die {REF:…}.
+ * Resolves placeholders like KeePass and KeePassXC, also nested (up to depth 10, cycles end there):
+ * - {REF:<field>@<search field>:<text>}: field of another entry. Field: T U P A N or I (UUID); search field additionally O (custom fields).
+ *   @I looks up the UUID, otherwise the first entry whose field contains the text applies (case-insensitive).
+ * - {TITLE} {USERNAME} {PASSWORD} {URL} {NOTES} and {S:Name} (custom field): from `entry` itself.
+ * - {URL:RMVSCM} {URL:SCM} {URL:HOST} {URL:PORT} {URL:PATH} {URL:QUERY} {URL:USERINFO} {URL:USERNAME} {URL:PASSWORD}: parts of the entry's own URL.
+ * Names are case-insensitive. Whatever can't be resolved stays as it is. Without entry only the {REF:…} apply.
  */
 export function resolvePlaceholders(text, entry, entries, depth = 0) {
     if (!text.includes('{') || depth >= 10) return text;
@@ -77,7 +77,7 @@ export function resolvePlaceholders(text, entry, entries, depth = 0) {
         return all;
     });
 }
-/** Nur die {REF:…} (wie resolvePlaceholders ohne eigenen Eintrag). */
+/** Only the {REF:…} (like resolvePlaceholders without an own entry). */
 export const resolveRefs = (text, entries) => resolvePlaceholders(text, null, entries);
 const OWN_FIELDS = { TITLE: 'Title', USERNAME: 'UserName', PASSWORD: 'Password', URL: 'URL', NOTES: 'Notes' };
 function urlPart(url, part) {
@@ -92,7 +92,7 @@ function urlPart(url, part) {
 }
 function findRefTarget(entries, by, needle) {
     if (by === 'I' && !/^[0-9a-f]{32}$/i.test(needle)) return null;
-    const id = by === 'I' ? btoa(needle.match(/../g).map((x) => String.fromCharCode(parseInt(x, 16))).join('')) : null; // KdbxUuid.id ist Base64
+    const id = by === 'I' ? btoa(needle.match(/../g).map((x) => String.fromCharCode(parseInt(x, 16))).join('')) : null; // KdbxUuid.id is Base64
     const n = needle.toLowerCase(), has = (v) => valueText(v).toLowerCase().includes(n);
     for (const e of entries) {
         if (id ? String(e.uuid) === id
@@ -104,15 +104,15 @@ export const isSystemField =(name) => /^(KPEX_PASSKEY_|KPXC_PASSKEY_|KPH: |TimeO
 
 const IMAGE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', ico: 'image/x-icon', svg: 'image/svg+xml' };
 const TEXT_FILE = /\.(txt|md|log|csv|tsv|json|xml|ya?ml|ini|conf|cfg|toml|pem|crt|cer|key|pub|asc|ovpn|env|sh)$/i;
-/** Welche Vorschau ein Anhang bekommt: 'image', 'text' oder null (zu gross oder unbekannte Art). Nur nach Name und Groesse. */
+/** Which preview an attachment gets: 'image', 'text' or null (too large or unknown kind). Based on name and size only. */
 export function previewKind(name, size) {
     const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
     if (IMAGE_TYPES[ext]) return size <= 8 * 1024 * 1024 ? 'image' : null;
     return (TEXT_FILE.test(name) || !ext) && size <= 1024 * 1024 ? 'text' : null;
 }
 /**
- * Inhalt fuer die Vorschau: {image: data:-URL} oder {text}; null, wenn ein "Text" doch keiner ist (kein gueltiges UTF-8, Nullbytes).
- * SVG landet nur in einem <img>, wo es keine Skripte ausfuehrt.
+ * Content for the preview: {image: data: URL} or {text}; null if a "text" turns out not to be one (invalid UTF-8, null bytes).
+ * SVG only ends up in an <img>, where it doesn't run scripts.
  */
 export function previewOf(name, bytes) {
     const kind = previewKind(name, bytes.byteLength);
@@ -130,7 +130,7 @@ export function previewOf(name, bytes) {
     return null;
 }
 
-/** Hintergrundfarbe eines Eintrags (KeePass: "#RRGGBB" in BackgroundColor) in Kleinbuchstaben, sonst null. */
+/** Background colour of an entry (KeePass: "#RRGGBB" in BackgroundColor) in lowercase, otherwise null. */
 export const entryColor = (entry) => (/^#[0-9a-f]{6}$/i.test(entry?.bgColor || '') ? entry.bgColor.toLowerCase() : null);
-/** Farben zur Auswahl im Editor; eine andere, schon gesetzte Farbe bleibt zusaetzlich waehlbar. */
+/** Colours to choose from in the editor; another colour that is already set stays selectable as well. */
 export const ENTRY_COLORS = ['#e53935', '#fb8c00', '#fdd835', '#43a047', '#1e88e5', '#8e24aa'];

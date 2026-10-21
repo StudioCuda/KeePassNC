@@ -1,4 +1,4 @@
-// Web Worker: liest einen QR-Code aus Bildpunkten (jsQR, Apache-2.0). Eigene Datei neben keepassnc.js, damit das Haupt-Skript schlank bleibt.
+// Web Worker: reads a QR code from pixels (jsQR, Apache-2.0). Separate file next to keepassnc.js to keep the main script lean.
 import jsQR from 'jsqr';
 
 self.onmessage = ({ data }) => {

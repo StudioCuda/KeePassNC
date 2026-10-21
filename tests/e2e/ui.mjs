@@ -1,6 +1,6 @@
-// UI-Funktionstest mit der synthetischen Alltags-Datei (hartes Passwort + Schluesseldatei + Argon2 256 MiB):
-// Gruppen, Duplizieren/Verschieben/Loeschen/Rueckgaengig, Anhaenge, Verlauf, Suche (KeePassXC-Syntax), Generator, Datenbank-Dialog, Befehlspalette,
-// Papierkorb, Ablauf, TOTP, Passkey-Erhalt, Zwischenablage, Mobil-Layout, Sprache/Theme. Ergebnis wird per KeePassXC-XML-Export geprueft.
+// UI functional test with the synthetic everyday file (hard password + key file + Argon2 256 MiB):
+// groups, duplicate/move/delete/undo, attachments, history, search (KeePassXC syntax), generator, database dialog, command palette,
+// recycle bin, expiry, TOTP, passkey preservation, clipboard, mobile layout, language/theme. The result is checked via KeePassXC XML export.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -50,7 +50,7 @@ async function main() {
     const browser = await launchBrowser();
     const pageErrors = [], external = [];
     async function newPage(viewport = { width: 1500, height: 950 }, settings = { autosync: 'off', clipboard: 10 }) {
-        const ctx = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport, permissions: browserName === 'chromium' ? ['clipboard-read', 'clipboard-write'] : [] }); // Firefox/WebKit kennen diese Rechtenamen nicht
+        const ctx = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport, permissions: browserName === 'chromium' ? ['clipboard-read', 'clipboard-write'] : [] }); // Firefox/WebKit don't know these permission names
         await ctx.addInitScript(plainWebdav);
         await ctx.addInitScript((s) => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify(s)); } catch {} }, settings);
         const page = await ctx.newPage();
@@ -79,7 +79,7 @@ async function main() {
         expect(await count(page, 'nav-all') === meta.entries, `Eintragszahl ${await count(page, 'nav-all')} != ${meta.entries}`);
         const c = { weak: await count(page, 'nav-weak'), exp: await count(page, 'nav-expiring'), totp: await count(page, 'nav-totp'), pk: await count(page, 'nav-passkey') };
         expect(c.weak >= 5 && c.exp === 2 && c.totp === 2 && c.pk === 1, JSON.stringify(c));
-        // Reihenfolge: Alle Eintraege, Gruppen, (Tags), Filter; die Werkzeuge gibt es auf breitem Fenster nur oben rechts
+        // Order: all entries, groups, (tags), filters; on a wide window the tools only exist at the top right
         const order = await page.evaluate(() => [...document.querySelectorAll('#groups > .nav-section')].map((s) => s.querySelector('#nav-all') ? 'all' : s.querySelector('.tree') ? 'groups' : s.id === 'nav-filters' ? 'filters' : s.classList.contains('nav-tools') ? 'tools' : s.querySelector('#nav-bin') ? 'bin' : 'tags'));
         expect(order.indexOf('all') === 0 && order.indexOf('groups') === 1 && order.indexOf('filters') > order.indexOf('groups') && order.indexOf('filters') < order.indexOf('bin'), 'Reihenfolge ' + order);
         expect(!(await page.locator('#nav-reports').isVisible()) && await page.locator('#reports-btn').isVisible(), 'Werkzeuge in der Seitenleiste nur bei schmalem Fenster');
@@ -110,16 +110,16 @@ async function main() {
         await row('UI-Testgruppe').hover(); await row('UI-Testgruppe').locator('.row-more').click();
         await menuItem(page, 'Gruppe bearbeiten').click(); await page.fill('#g-name', 'UI-Gruppe-neu'); await page.click('#g-ok');
         await row('UI-Gruppe-neu').waitFor();
-        // Eintrag "Amazon" per Drag&Drop in die neue Gruppe
+        // Drag entry "Amazon" into the new group
         await page.locator('.tree-row', { hasText: 'Shopping' }).first().locator('.tree-label').click();
         await page.dragAndDrop('.entry-wrap:has-text("Amazon")', '.tree-row:has-text("UI-Gruppe-neu")');
         expect(await row('UI-Gruppe-neu').locator('.count').first().innerText() === '1', 'Drag&Drop: Zaehler');
-        // Untergruppe verschieben
+        // Move subgroup
         await row('Unter-1').hover(); await row('Unter-1').locator('.row-more').click();
         await menuItem(page, 'Gruppe verschieben').click();
         await page.locator('.modal select').selectOption({ label: 'Lizenzen' }); await page.locator('.modal button[type=submit]').click();
         await page.locator('.tree-row', { hasText: 'Lizenzen' }).waitFor();
-        // zweite Gruppe anlegen und loeschen
+        // create and delete a second group
         await page.click('#new-group-btn'); await page.fill('#prompt-input', 'Weg-Gruppe'); await page.keyboard.press('Enter');
         await row('Weg-Gruppe').hover(); await row('Weg-Gruppe').locator('.row-more').click(); await menuItem(page, 'Löschen').click(); await page.click('#confirm-ok');
         await page.waitForFunction(() => ![...document.querySelectorAll('.tree-row')].some((r) => /Weg-Gruppe/.test(r.textContent)));
@@ -128,7 +128,7 @@ async function main() {
 
     await step('Menue: Punkt gewaehlt, bevor das Menue fertig ist -> das naechste Menue reagiert trotzdem auf Klicks', async () => {
         const row = page.locator('.tree-row', { hasText: 'UI-Gruppe-neu' }).first();
-        // Oeffnen und Waehlen in einem Task, also vor dem setTimeout(0) in popupMenu (so wie auf einem ueberlasteten CI-Runner)
+        // Open and pick in one task, i.e. before the setTimeout(0) in popupMenu (like on an overloaded CI runner)
         await row.evaluate((r) => {
             r.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 }));
             [...document.querySelectorAll('.menu-item')].find((b) => /Gruppe bearbeiten/.test(b.textContent)).click();
@@ -150,13 +150,13 @@ async function main() {
         await page.click('#entry-more'); await menuItem(page, 'Verschieben').click();
         await page.locator('.modal select').selectOption({ label: 'Lizenzen' }); await page.locator('.modal button[type=submit]').click();
         await page.waitForFunction(() => /Lizenzen/.test(document.querySelector('.crumbs')?.textContent || ''));
-        // Loeschen mit Rueckgaengig
+        // Delete with undo
         await pick(page, 'Posteo');
         await page.click('#del-btn');
         expect(await count(page, 'nav-all') === total, 'nach Loeschen');
         await page.locator('.toast-action', { hasText: 'Rückgängig' }).click();
         expect(await count(page, 'nav-all') === total + 1, 'Rueckgaengig stellt wieder her');
-        // Posteo bleibt im Papierkorb; Etsy wird geloescht und wiederhergestellt
+        // Posteo stays in the recycle bin; Etsy is deleted and restored
         await pick(page, 'Posteo'); await page.click('#del-btn');
         await pick(page, 'Etsy'); await page.click('#del-btn');
         await page.click('#nav-bin');
@@ -181,7 +181,7 @@ async function main() {
         expect(/Verlauf \(5\)/.test(await det.locator('summary').innerText()), await det.locator('summary').innerText());
         await det.locator('summary').click();
         expect(await page.locator('[data-testid=history-row]').count() === 5, 'fuenf Zeilen');
-        await page.locator('[data-testid=history-row]').last().locator('[data-testid=history-restore]').click(); // aeltester Stand "v0"
+        await page.locator('[data-testid=history-row]').last().locator('[data-testid=history-restore]').click(); // oldest revision "v0"
         await page.click('[data-testid=pw-toggle]');
         expect(await page.locator('[data-testid=pw-value]').innerText() === 'v0', 'Passwort v0 wiederhergestellt: ' + await page.locator('[data-testid=pw-value]').innerText());
         expect(/Verlauf \(6\)/.test(await page.locator('[data-testid=history] summary').innerText()), 'jetzt 6 Staende');
@@ -225,11 +225,11 @@ async function main() {
 
     await step('TOTP-Ring/-Code fuer otpauth (SHA256, 8 Stellen, 45 s) und alte Felder (TOTP Seed)', async () => {
         await pick(page, 'Mit TOTP (otp)');
-        // Erst den ersten berechneten Code abwarten (vorher steht "------" da)
+        // First wait for the first computed code (before that it shows "------")
         await page.waitForFunction(() => /^\d+$/.test(document.querySelector('[data-testid=totp-code]')?.textContent || ''));
-        // Gegen KeePassXC vergleichen wie in tests/e2e/run.mjs: bis zu 3 Versuche im Abstand von 1,2 s. Die App erneuert den Code
-        // nur jede Sekunde, und keepassxc-cli braucht fuer die 256-MiB-Datei selbst bis zu einige Sekunden; an der 45-s-Grenze koennen
-        // beide Lesungen deshalb in verschiedenen Fenstern liegen.
+        // Compare against KeePassXC as in tests/e2e/run.mjs: up to 3 tries 1.2 s apart. The app only refreshes the code
+        // once a second, and keepassxc-cli itself needs up to a few seconds for the 256 MiB file; at the 45 s boundary
+        // both readings can therefore land in different windows.
         let ok = false, a, exp;
         for (let i = 0; i < 3 && !ok; i++) {
             a = (await page.locator('[data-testid=totp-code]').innerText()).trim();
@@ -253,7 +253,7 @@ async function main() {
     });
 
     await step('Generator: Laenge/Klassen, Passphrase (Woerter/Trenner), Verwenden im Editor', async () => {
-        // Gespeicherte Einstellungen von 0.9: "-" war nur die alte Vorgabe und wird einmalig zum Leerzeichen
+        // Saved settings from 0.9: "-" was just the old default and turns into a space once
         await page.evaluate(() => localStorage.setItem('kpnc.gen', JSON.stringify({ mode: 'ph', ph: { words: 6, separator: '-', casing: 'lower' } })));
         await page.click('#tool-gen');
         expect(await page.locator('#gen-tab-ph.active').count() === 1 && await page.inputValue('#gen-list') === 'de' && await page.inputValue('#gen-sep') === ' ', 'Passphrase mit deutscher Wortliste und Leerzeichen vorne');
@@ -330,7 +330,7 @@ async function main() {
 
     await step('Tastenkuerzel + Zwischenablage: Strg+B (Benutzer), Strg+C (Passwort), automatisches Leeren nach 10 s', async () => {
         await pick(page, 'Amazon');
-        await page.locator('#list .entry.active').focus(); // Fokus in die Liste, nicht ins Suchfeld
+        await page.locator('#list .entry.active').focus(); // focus in the list, not in the search field
         await page.keyboard.press('Control+b');
         const user = (await page.locator('[data-testid=f-user]').innerText()).trim();
         if (browserName === 'webkit') return 'Kuerzel ausgeloest; Inhalt der Zwischenablage NICHT geprueft (WebKit verweigert dem Test das Lesen)';
@@ -368,13 +368,13 @@ async function main() {
         const picker = async (title) => { await pick(page, title); await page.click('#edit-btn'); await page.click('#e-icon'); await page.locator('#icon-std').waitFor(); };
         const customCells = () => page.locator('[data-testid=icon-custom-cell]');
         const logo = await shot(300, 200), small = await shot(90, 60);
-        // Standard-Symbol 37 (Bank): Vorschau im Editor, danach in der Liste
+        // Default icon 37 (bank): preview in the editor, then in the list
         await picker('Amazon');
         await page.click('#icon-std [data-icon="37"]'); await page.click('#icon-ok');
         expect(await page.locator('#e-icon .avatar.glyph').count() === 1, 'Vorschau im Editor');
         await page.click('#apply-btn');
         expect(await row('Amazon').locator('.avatar.glyph').count() === 1, 'Liste zeigt das Standard-Symbol');
-        // Eigenes Bild 300x200 -> 128x85
+        // Custom image 300x200 -> 128x85
         await picker('Gmail');
         const n0 = await customCells().count();
         await page.setInputFiles('#icon-file', { name: 'logo.png', mimeType: 'image/png', buffer: logo });
@@ -382,13 +382,13 @@ async function main() {
         expect(await customCells().count() === n0 + 1, 'neues Bild in der Liste');
         await page.click('#icon-ok'); await page.click('#apply-btn');
         expect(await row('Gmail').locator('img.avatar').count() === 1, 'Liste zeigt das eigene Bild');
-        // Dasselbe Bild noch einmal: wird erkannt und ausgewaehlt; ein SVG und ein kleines Bild kommen dazu, nur das gewaehlte landet in der Datei und wird wieder entfernt
+        // Same image again: it is recognised and selected; an SVG and a small image are added, only the selected one ends up in the file and is removed again
         await picker('Etsy');
         const before = await customCells().count();
         await page.setInputFiles('#icon-file', { name: 'logo-again.png', mimeType: 'image/png', buffer: logo });
         await page.locator('.toast', { hasText: 'gibt es schon' }).waitFor();
         expect(await customCells().count() === before && await page.locator('[data-testid=icon-custom-cell][aria-checked=true]').count() === 1, 'Duplikat ausgewaehlt statt neu angelegt');
-        // SVG mit Skript und externem Bild: wird als Bild gezeichnet (128x64), das Skript laeuft nicht, nichts wird nachgeladen (letzter Schritt)
+        // SVG with script and external image: drawn as an image (128x64), the script doesn't run, nothing gets loaded (last step)
         const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 10"><script>window.__svgRan = 1</script><image href="https://example.org/x.png" width="5" height="5"/><rect width="20" height="10" fill="#c33"/></svg>';
         await page.setInputFiles('#icon-file', { name: 'vektor.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) });
         await page.waitForFunction((n) => document.querySelectorAll('[data-testid=icon-custom-cell]').length === n, before + 1);
@@ -405,7 +405,7 @@ async function main() {
         expect(await page.locator('#icon-std [aria-checked=true]').count() === 1, 'nach dem Entfernen wieder Standard-Symbol');
         await page.click('#icon-ok'); await page.click('#cancel-btn');
         expect(await row('Etsy').locator('img.avatar').count() === 0, 'Etsy zeigt kein eigenes Bild mehr');
-        // Gruppe: Symbol 60 (Zuhause) fuer die Gruppe und alle Untergruppen, Eintraege bleiben
+        // Group: icon 60 (home) for the group and all subgroups, entries stay
         const g = page.locator('.tree-row', { hasText: 'Lizenzen' }).first();
         await g.hover(); await g.locator('.row-more').click(); await menuItem(page, 'Gruppe bearbeiten').click();
         await page.click('#g-icon'); await page.click('#icon-std [data-icon="60"]'); await page.click('#icon-ok');
@@ -444,7 +444,7 @@ async function main() {
         const linkedPath = [...find('Amazon - Kopie')[0].path.split('/').slice(1), 'Amazon - Kopie'].join('/');
         expect(xc(['show', '-s', dbFile, linkedPath]).includes('Password: ' + text(strOf(find('Amazon')[0].entry, 'Password'))), 'KeePassXC loest die Verknuepfung auf');
         expect(es.length >= meta.entries, 'Eintragszahl ' + es.length);
-        // Symbole
+        // Icons
         const iconOf = (el) => text(kids(el, 'IconID')[0]), customOf = (el) => text(kids(el, 'CustomIconUUID')[0]);
         expect(iconOf(find('Amazon')[0].entry) === '37', 'Amazon IconID ' + iconOf(find('Amazon')[0].entry));
         const iconBox = kids(doc.getElementsByTagName('Meta')[0], 'CustomIcons')[0];
@@ -479,7 +479,7 @@ async function main() {
         await page.uncheck('#db-bin');
         await page.check('#db-hist-items-on'); await page.fill('#db-hist-items', '2');
         await page.click('#db-apply');
-        await page.locator('#confirm-ok').waitFor(); // "Mit Verlauf" hat 6 Staende -> Rueckfrage
+        await page.locator('#confirm-ok').waitFor(); // "With history" has 6 revisions -> confirmation prompt
         expect(/\d+ ältere Stände/.test(await page.locator('.modal', { has: page.locator('#confirm-ok') }).innerText()), 'Rueckfrage nennt die Zahl');
         await page.click('#confirm-ok');
         await page.waitForFunction(() => !document.querySelector('#db-settings'));

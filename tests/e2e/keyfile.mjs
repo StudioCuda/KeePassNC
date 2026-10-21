@@ -1,4 +1,4 @@
-// Test "Schluesseldatei merken": Opt-in, Wiederverwenden nur mit richtigem Master-Passwort, nichts im Klartext in IndexedDB, Vergessen/Loeschen, Manipulation.
+// Test "remember key file": opt-in, reuse only with the right master password, nothing in plain text in IndexedDB, forgetting/deleting, tampering.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -119,7 +119,7 @@ async function main() {
         await p1.click('#kf-forget-all');
         await p1.waitForFunction(() => /keine Schl/i.test(document.querySelector('#kf-list')?.textContent || ''));
         await p1.click('#settings-close'); await p1.click('#lock-btn'); await p1.locator('#login-form').waitFor();
-        // erneut merken, dann "Lokale Daten loeschen"
+        // remember again, then wipe the local data
         await fillLogin(p1, { withKey: true, remember: true }); await p1.click('#open-btn'); await waitOpened(p1, 120000);
         expect((await kfRecords(p1)).length === 1, 'wieder gemerkt');
         await p1.click('#lock-btn'); await p1.locator('#login-form').waitFor();
@@ -131,7 +131,7 @@ async function main() {
     await step('Eingaben waehrend des Oeffnens geaendert: Datensatz gilt fuer die beim Absenden gewaehlte Datei/Schluesseldatei', async () => {
         await fillLogin(p1, { withKey: true, remember: true });
         await p1.click('#open-btn');
-        await p1.fill('#dav-url', `${base}/dav/andere.kdbx`); // waehrend Download/KDF
+        await p1.fill('#dav-url', `${base}/dav/andere.kdbx`); // during download/KDF
         await p1.setInputFiles('#keyfile', []);
         await waitOpened(p1, 120000);
         const recs = await kfRecords(p1);
@@ -163,7 +163,7 @@ async function main() {
     });
 
     await step('Aelterer, schwaecherer Datensatz (8 MiB / 1) wird nach erfolgreichem Oeffnen mit Datenbank-Kosten neu verschluesselt', async () => {
-        // Datensatz wie von einer aelteren Version: in Node mit dem echten Modul, aber absichtlich schwachen Parametern erzeugt
+        // Record like from an older version: created in Node with the real module, but with deliberately weak parameters
         const saved = { ...kfLimits }; kfLimits.minMemoryKiB = 8192; kfLimits.minIterations = 1;
         let rec;
         const id = `dav:${base}/dav/daily.kdbx`;
@@ -183,7 +183,7 @@ async function main() {
         for (let i = 0; i < 60; i++) { k = (await kfRecords(p1))[0]?.[1]?.kdf; if (k && k.memoryKiB !== 8192) break; await p1.waitForTimeout(500); }
         expect(k && k.memoryKiB === 256 * 1024 && k.iterations === 8, 'nicht aufgewertet: ' + JSON.stringify({ ...k, salt: undefined }));
         await p1.click('#lock-btn'); await p1.locator('#login-form').waitFor();
-        await fillLogin(p1); await p1.click('#open-btn'); await waitOpened(p1, 120000); // aufgewerteter Datensatz funktioniert
+        await fillLogin(p1); await p1.click('#open-btn'); await waitOpened(p1, 120000); // upgraded record works
         await p1.click('#lock-btn'); await p1.locator('#login-form').waitFor();
         await p1.click('#kf-forget'); await p1.locator('#kf-remembered').waitFor({ state: 'hidden' });
         return '8 MiB / 1 -> 256 MiB / 8';

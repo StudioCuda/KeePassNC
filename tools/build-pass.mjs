@@ -1,5 +1,5 @@
-// Baut die Generator-Seite web-generator/: Passwort-Generator allein (ohne kdbxweb, Argon2, WebDAV). Stylesheet, Marke und Icons kommen
-// unveraendert aus src/ und web/, damit die Seite genauso aussieht wie die App.
+// Builds the generator page web-generator/: the password generator alone (without kdbxweb, Argon2, WebDAV). Stylesheet, brand and icons come
+// unchanged from src/ and web/, so the page looks just like the app.
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';

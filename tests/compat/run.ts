@@ -1,5 +1,5 @@
-// KDBX-Kompatibilitaetstests: kdbxweb (vendor/, Git-Stand 2.2.0) gegen KeePassXC (keepassxc-cli) als Referenz.
-// Aufruf: npm run test:compat (KDBXWEB=/pfad/zu/kdbxweb testet einen anderen kdbxweb-Stand)
+// KDBX compatibility tests: kdbxweb (vendor/, git state 2.2.0) against KeePassXC (keepassxc-cli) as the reference.
+// Usage: npm run test:compat (KDBXWEB=/path/to/kdbxweb tests a different kdbxweb state)
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -23,7 +23,7 @@ kdbxweb.CryptoEngine.setArgon2Impl(async (password: ArrayBuffer, salt: ArrayBuff
 });
 const ab = (b: Buffer) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
 
-// ---------- KeePassXC als Referenz ----------
+// ---------- KeePassXC as reference ----------
 function exportAttachment(file: string, entry: string, name: string, keyfile?: string): Buffer {
     const out = path.join(TMP, `att-${crypto.randomBytes(4).toString('hex')}.bin`);
     xc(['attachment-export', file, entry, name, out], file, keyfile);
@@ -34,9 +34,9 @@ function xc(args: string[], file: string, keyfile?: string, binary = false): str
     const run = () => execFileSync('keepassxc-cli', a, { input: PW + '\n', stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 });
     let out: Buffer;
     try { out = run(); } catch (e: any) {
-        // keepassxc-cli 2.7 scheitert beim Schreiben ("Writing the database failed ... Cannot process 0 length data"), wenn es einen
-        // Eintrag in derselben Sekunde aendert, in der er zuletzt geaendert wurde (lokal 19 von 150 ohne Pause, 0 von 150 mit).
-        // Nur genau dann einmal wiederholen, und zwar erst in der naechsten Sekunde; jeder andere Fehler bleibt ein Fehler.
+        // keepassxc-cli 2.7 fails when writing ("Writing the database failed ... Cannot process 0 length data") if it changes an
+        // entry in the same second in which it was last modified (locally 19 of 150 without a pause, 0 of 150 with).
+        // Retry once only in exactly that case, and only in the next second; any other error stays an error.
         if (!/Writing the database failed|Cannot process 0 length data/.test(String(e.stderr || e.message))) throw e;
         execFileSync('sleep', ['1.1']);
         out = run();
@@ -45,7 +45,7 @@ function xc(args: string[], file: string, keyfile?: string, binary = false): str
 }
 const kdbxVersion = (f: string) => { const d = fs.readFileSync(f); return `${d.readUInt16LE(10)}.${d.readUInt16LE(8)}`; };
 
-// ---------- Testdaten ----------
+// ---------- Test data ----------
 const SECRET_ATTACH = crypto.randomBytes(2048);
 async function populate(db: any, bigAttach?: Buffer) {
     const root = db.getDefaultGroup();
@@ -74,7 +74,7 @@ async function makeDb(opts: { version: 3 | 4; minor?: number; cipher: string; kd
     if (opts.version === 4) {
         db.setKdf(opts.kdf);
         const kp = db.header.kdfParameters;
-        if (opts.kdf !== Consts.KdfId.Aes) { // kleine Argon2-Parameter fuer schnelle Tests
+        if (opts.kdf !== Consts.KdfId.Aes) { // small Argon2 parameters for fast tests
             kp.set('M', 5 /* UInt64 */, new Int64(8 * 1024)); kp.set('I', 5, new Int64(2));
         } else { kp.set('R', 5, new Int64(20000)); }
         if (opts.minor !== undefined) db.header.versionMinor = opts.minor;
@@ -99,7 +99,7 @@ function verify(file: string, keyfile: string | undefined, label: string, expect
     if (!/^\d{6}$/.test(totp)) throw new Error(`${label}: TOTP unplausibel: ${totp}`);
 }
 
-// ---------- Test-Runner ----------
+// ---------- Test runner ----------
 const results: { name: string; ok: boolean; info: string; known?: boolean }[] = [];
 async function t(name: string, fn: () => Promise<string | void>, known = false) {
     const t0 = Date.now();
@@ -111,7 +111,7 @@ async function main() {
     const keyfileBytes = await Credentials.createRandomKeyFile();
     const kfPath = path.join(TMP, 'test.keyx'); fs.writeFileSync(kfPath, Buffer.from(keyfileBytes));
 
-    // 1) Schreib-Matrix: Cipher x KDF x Schluesseldatei, danach 5 Re-Saves
+    // 1) Write matrix: cipher x KDF x key file, then 5 re-saves
     for (const [cn, cipher] of Object.entries({ AES: Consts.CipherId.Aes, ChaCha20: Consts.CipherId.ChaCha20, Twofish: Consts.CipherId.Twofish }))
       for (const [kn, kdf] of Object.entries({ Argon2d: Consts.KdfId.Argon2d, Argon2id: Consts.KdfId.Argon2id, AES_KDF: Consts.KdfId.Aes }))
         for (const useKey of [false, true]) {
@@ -144,10 +144,10 @@ async function main() {
             verify(file, useKey ? kfPath : undefined, 'v3', 'pw-eins-v2'); return `v${kdbxVersion(file)}`;
         });
 
-    // 2b) Twofish: Testvektoren aus der Spezifikation, dann KeePassXC als Gegenstelle (bearbeitet und verschluesselt selbst neu)
+    // 2b) Twofish: test vectors from the spec, then KeePassXC as counterpart (edits and re-encrypts itself)
     await t('Twofish: Testvektoren der Spezifikation, KeePassXC bearbeitet, kdbxweb liest, falsches Passwort wird erkannt', async () => {
         const { Twofish } = require(path.join(process.env.KDBXWEB || '../../vendor/kdbxweb', 'lib/crypto/twofish'));
-        const vectors = [ // Schluessel, Klartext, Geheimtext (256 Bit, ecb_tbl.txt / ecb_ival.txt)
+        const vectors = [ // key, plaintext, ciphertext (256 bit, ecb_tbl.txt / ecb_ival.txt)
             ['00'.repeat(32), '00'.repeat(16), '57FF739D4DC92C1BD7FC01700CC8216F'],
             ['D43BB7556EA32E46F2A282B7D45B4E0D57FF739D4DC92C1BD7FC01700CC8216F', '90AFE91BB288544F2C32DC239B2635E6', '6CB4561C40BF0A9705931CB6D408E7FA'],
             ['0123456789ABCDEFFEDCBA987654321000112233445566778899AABBCCDDEEFF', '00'.repeat(16), '37527BE0052334B89F0CFCCAE87CFA20']
@@ -163,7 +163,7 @@ async function main() {
             const file = path.join(TMP, `twofish-cross-${version}.kdbx`);
             const { db } = await makeDb({ version, cipher: Consts.CipherId.Twofish, kdf: version === 4 ? Consts.KdfId.Argon2id : Consts.KdfId.Aes });
             await populate(db); await save(db, file);
-            await new Promise(r => setTimeout(r, 1100)); // siehe xc
+            await new Promise(r => setTimeout(r, 1100)); // see xc
             xc(['edit', file, 'Web äöü/Mail', '--notes', 'von KeePassXC geändert'], file);
             const back = await Kdbx.load(ab(fs.readFileSync(file)), new Credentials(ProtectedValue.fromString(PW)));
             if (back.header.dataCipherUuid.toString() !== Consts.CipherId.Twofish) throw new Error('KeePassXC hat die Verschluesselung gewechselt');
@@ -175,7 +175,7 @@ async function main() {
         }
     });
 
-    // 3) Grosser Anhang
+    // 3) Large attachment
     await t('Grosser Anhang (8 MB) bleibt byte-identisch', async () => {
         const file = path.join(TMP, 'big.kdbx'); const big = crypto.randomBytes(8 * 1024 * 1024);
         const { db } = await makeDb({ version: 4, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2id });
@@ -184,7 +184,7 @@ async function main() {
         if (!back.equals(big)) throw new Error('8-MB-Anhang weicht ab'); return `${(fs.statSync(file).size / 1e6).toFixed(1)} MB Datei`;
     });
 
-    // 4) KDBX 4.1-Funktionen (Gruppen-Tags, PreviousParentGroup)
+    // 4) KDBX 4.1 features (group tags, PreviousParentGroup)
     await t('KDBX 4.1: Gruppen-Tags + PreviousParentGroup, KeePassXC liest und kdbxweb liest zurueck', async () => {
         const file = path.join(TMP, 'k41.kdbx');
         const { db } = await makeDb({ version: 4, minor: 1, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2d });
@@ -199,8 +199,8 @@ async function main() {
         return 'v4.1';
     });
 
-    // 4b) KDBX 4.1: LastModificationTime von Custom Icons und CustomData-Items muss wie alle KDBX-4-Zeiten binaer (Base64) in
-    // der Datei stehen; upstream schrieb ISO-Text, an dem KeePass scheitert (keeweb/kdbxweb#49, #62). Im XML-Export bleibt es Text.
+    // 4b) KDBX 4.1: LastModificationTime of custom icons and CustomData items must be stored as binary (Base64) in the file,
+    // like all KDBX 4 times; upstream wrote ISO text, which KeePass chokes on (keeweb/kdbxweb#49, #62). In the XML export it stays text.
     await t('KDBX 4.1: LastModificationTime von Custom Icon + CustomData binaer, im XML-Export als Text', async () => {
         const file = path.join(TMP, 'k41-lastmod.kdbx');
         const { db } = await makeDb({ version: 4, minor: 1, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2d });
@@ -211,7 +211,7 @@ async function main() {
         db.meta.customData.set('KPNC.Test', { value: 'eins', lastModified: when });
         await save(db, file);
         verify(file, undefined, '4.1', 'pw-eins-v2');
-        // Kdbx.load verwirft das entschluesselte XML am Ende (cleanXml); fuer diesen Test behalten wir es
+        // Kdbx.load discards the decrypted XML at the end (cleanXml); for this test we keep it
         const cleanXml = kdbxweb.KdbxFormat.prototype.cleanXml; kdbxweb.KdbxFormat.prototype.cleanXml = () => {};
         let back: any;
         try { back = await Kdbx.load(ab(fs.readFileSync(file)), new Credentials(ProtectedValue.fromString(PW))); }
@@ -229,8 +229,8 @@ async function main() {
         return 'v4.1';
     });
 
-    // 4c) CustomData und QualityCheck gehoeren zum Stand eines Eintrags: Verlaufseintraege und Zusammenfuehren muessen sie mitnehmen
-    // (upstream liess sie in KdbxEntry.copyFrom weg; KeePassXC 2.8 behob dasselbe fuer seinen eigenen Verlauf, #13573).
+    // 4c) CustomData and QualityCheck are part of an entry's state: history entries and merging must carry them along
+    // (upstream dropped them in KdbxEntry.copyFrom; KeePassXC 2.8 fixed the same for its own history, #13573).
     await t('KDBX 4.1: CustomData + QualityCheck landen im Verlauf (KeePassXC liest sie) und kommen beim Zusammenfuehren mit', async () => {
         const file = path.join(TMP, 'k41-history-customdata.kdbx');
         const { db, cred } = await makeDb({ version: 4, minor: 1, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2d });
@@ -250,7 +250,7 @@ async function main() {
         const items = Array.from(snaps[0].getElementsByTagName('Item')).map((it) => `${text(it, 'Key')}=${text(it, 'Value')}`);
         if (!items.includes('KeePassXC-Browser Settings={"Allow":["example.org"]}')) throw new Error('CustomData fehlt im Verlauf: ' + items);
         if (text(snaps[0], 'QualityCheck') !== 'False') throw new Error('QualityCheck im Verlauf: ' + text(snaps[0], 'QualityCheck'));
-        // Zusammenfuehren: ist die andere Kopie neuer, uebernimmt der Eintrag auch deren CustomData und QualityCheck
+        // Merging: if the other copy is newer, the entry also takes its CustomData and QualityCheck
         const local = await Kdbx.load(ab(fs.readFileSync(file)), cred), remote = await Kdbx.load(ab(fs.readFileSync(file)), cred);
         const r = mail(remote);
         r.customData.set('KeePassXC-Browser Settings', { value: '{"Allow":["example.com"]}' }); r.qualityCheck = true;
@@ -262,12 +262,12 @@ async function main() {
         return 'v4.1';
     });
 
-    // 5) Wechselseitiges Bearbeiten: kdbxweb -> KeePassXC (edit) -> kdbxweb
+    // 5) Editing back and forth: kdbxweb -> KeePassXC (edit) -> kdbxweb
     await t('Wechselseitig: kdbxweb schreibt, KeePassXC bearbeitet+speichert, kdbxweb liest und speichert erneut', async () => {
         const file = path.join(TMP, 'cross.kdbx');
         const { db } = await makeDb({ version: 4, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2id });
         await populate(db); await save(db, file);
-        await new Promise(r => setTimeout(r, 1100)); // KeePassXC nicht in der Sekunde der letzten Aenderung bearbeiten lassen (siehe xc)
+        await new Promise(r => setTimeout(r, 1100)); // don't let KeePassXC edit in the second of the last change (see xc)
         xc(['edit', file, 'Web äöü/Mail', '--notes', 'von KeePassXC geändert'], file);
         const back = await Kdbx.load(ab(fs.readFileSync(file)), new Credentials(ProtectedValue.fromString(PW)));
         const m = [...back.getDefaultGroup().allEntries()].find((x: any) => x.fields.get('Title') === 'Mail');
@@ -277,7 +277,7 @@ async function main() {
         if (!show.includes('von KeePassXC geändert')) throw new Error('Notiz fehlt nach erneutem kdbxweb-Save');
     });
 
-    // 6) Merge: zwei divergierende Kopien
+    // 6) Merge: two diverging copies
     await t('Merge: Aenderung in kdbxweb-Kopie A + Aenderung in KeePassXC-Kopie B werden zusammengefuehrt', async () => {
         const base = path.join(TMP, 'base.kdbx'), fa = path.join(TMP, 'A.kdbx'), fb = path.join(TMP, 'B.kdbx');
         const { db } = await makeDb({ version: 4, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2id });
@@ -294,7 +294,7 @@ async function main() {
         if (!s1.includes('bob-aus-A') || !s2.includes('aus-B.example')) throw new Error('Merge unvollstaendig:\n' + s1 + s2);
     });
 
-    // 7) Bekannter Randfall: Datei ohne EnableSearching-Felder (z.B. von pykeepass)
+    // 7) Known edge case: file without EnableSearching fields (e.g. from pykeepass)
     await t('Randfall: Gruppen ohne EnableSearching/EnableAutoType (pykeepass-Datei) -> KeePassXC liest Ergebnis', async () => {
         const src = path.join(TMP, 'py.kdbx');
         execFileSync('python3', ['-I', path.join(__dirname, 'make-pykeepass-ref.py')], { cwd: TMP });
@@ -304,7 +304,7 @@ async function main() {
         xc(['ls', '-R', path.join(TMP, 'py-out.kdbx')], path.join(TMP, 'py-out.kdbx'));
     }, true);
 
-    // 5) Schluesseldatei-Formate, wie sie KeePassXC/KeePass in der Praxis erzeugen: DB von KeePassXC angelegt, von kdbxweb gelesen
+    // 5) Key file formats as KeePassXC/KeePass produce them in practice: DB created by KeePassXC, read by kdbxweb
     const kfVariants: Record<string, Buffer> = {
         'XML v1 (Base64)': Buffer.from(`<?xml version="1.0" encoding="UTF-8"?>\n<KeyFile><Meta><Version>1.00</Version></Meta><Key><Data>${crypto.randomBytes(32).toString('base64')}</Data></Key></KeyFile>\n`),
         '32 Rohbytes': crypto.randomBytes(32),
@@ -312,7 +312,7 @@ async function main() {
         'beliebige Datei (z. B. Bild, Hash ueber alles)': Buffer.concat([Buffer.from('\x89PNG\r\n\x1a\n'), crypto.randomBytes(5000)]),
         'leere Zeilen/Windows-Zeilenenden in XML v2': Buffer.alloc(0)
     };
-    // XML v2 von KeePassXC selbst erzeugen lassen und mit Windows-Zeilenenden umschreiben (Datei auf Windows bearbeitet)
+    // have KeePassXC itself create XML v2 and rewrite it with Windows line endings (file edited on Windows)
     const v2Path = path.join(TMP, 'gen.keyx');
     execFileSync('keepassxc-cli', ['db-create', '-q', '-p', '--set-key-file', v2Path, '-t', '100', path.join(TMP, 'gen.kdbx')], { input: PW + '\n' + PW + '\n' });
     kfVariants['leere Zeilen/Windows-Zeilenenden in XML v2'] = Buffer.from(fs.readFileSync(v2Path, 'utf8').replace(/\n/g, '\r\n'));
@@ -325,7 +325,7 @@ async function main() {
             const db = await Kdbx.load(ab(fs.readFileSync(dbf)), new Credentials(ProtectedValue.fromString(PW), ab(bytes)));
             const titles = [...db.getDefaultGroup().allEntries()].map((e: any) => e.fields.get('Title'));
             if (titles.join() !== 'Eintrag') throw new Error('Eintraege: ' + titles.join());
-            // und umgekehrt: kdbxweb speichert, KeePassXC liest mit derselben Datei
+            // and the other way round: kdbxweb saves, KeePassXC reads the same file
             const out = path.join(TMP, 'kfout.kdbx'); fs.writeFileSync(out, Buffer.from(await db.save()));
             xc(['ls', out], out, kf);
         });
@@ -350,13 +350,13 @@ async function main() {
         const db = await Kdbx.load(ab(fs.readFileSync(dbf)), new Credentials(ProtectedValue.fromString(hard)));
         const out = path.join(TMP, 'hardpw2.kdbx'); fs.writeFileSync(out, Buffer.from(await db.save()));
         execFileSync('keepassxc-cli', ['ls', '-q', out], { input: hard + '\n' });
-        // NFC statt NFD darf NICHT oeffnen (KeePass normalisiert nicht) - sonst waeren Passwoerter zwischen Geraeten nicht eindeutig
+        // NFC instead of NFD must NOT open (KeePass doesn't normalize) - otherwise passwords would be ambiguous between devices
         let opened = true;
         try { await Kdbx.load(ab(fs.readFileSync(dbf)), new Credentials(ProtectedValue.fromString(hard.normalize('NFC')))); } catch { opened = false; }
         if (opened) throw new Error('NFC-Variante oeffnet - unerwartet');
     });
 
-    // Bericht
+    // Report
     const w = Math.max(...results.map(r => r.name.length));
     for (const r of results) console.log(`${r.ok ? 'OK  ' : r.known ? 'KNWN' : 'FAIL'}  ${r.name.padEnd(w)}  ${r.info}`);
     const failed = results.filter(r => !r.ok && !r.known).length;

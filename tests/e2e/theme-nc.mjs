@@ -1,6 +1,6 @@
-// Theming und Kopfleiste im Nextcloud-Modus gegen eine NACHBILDUNG der App-Seite (templates/page.html mit derselben strengen CSP wie
-// der PHP-Controller): Instanzfarbe, Hell/Dunkel aus Nextcloud, Vorrang der App-Einstellung, Fallback, App- und Benutzermenue.
-// Der echte Controller (OCP\Defaults, INavigationManager) wird in tests/nextcloud/run.mjs gegen eine echte Nextcloud geprueft.
+// Theming and header bar in Nextcloud mode against a REPLICA of the app page (templates/page.html with the same strict CSP as
+// the PHP controller): instance colour, light/dark from Nextcloud, precedence of the app setting, fallback, app and account menu.
+// The real controller (OCP\Defaults, INavigationManager) is checked against a real Nextcloud in tests/nextcloud/run.mjs.
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
@@ -78,7 +78,7 @@ async function main() {
         const c = await browser.newContext({ locale: 'de-DE', colorScheme, viewport });
         await c.addInitScript((s) => {
             try { localStorage.setItem('kpnc.settings', JSON.stringify({ themeV: 2, ...s })); } catch {}
-            // WebKit meldet jedes <select> als style-src-attr-Verstoss (tests/browser.mjs); alles andere zaehlt.
+            // WebKit reports every <select> as a style-src-attr violation (tests/browser.mjs); everything else counts.
             document.addEventListener('securitypolicyviolation', (e) => { if (!(e.target instanceof HTMLSelectElement) && !window.__expectViolation) console.error(`CSP: ${e.violatedDirective} ${e.blockedURI}`); }, true);
         }, settings);
         const p = await c.newPage();

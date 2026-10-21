@@ -1,5 +1,5 @@
-// Mehrsprachigkeit (de/en). t('schluessel', {name: wert}) ersetzt {name}. Fehlende englische Schluessel fallen auf Deutsch zurueck.
-// Ein Unit-Test stellt sicher, dass beide Woerterbuecher dieselben Schluessel haben und alle im Code benutzten Schluessel existieren.
+// Multilingual (de/en). t(key, {name: value}) replaces {name}. Missing English keys fall back to German.
+// A unit test makes sure both dictionaries have the same keys and that all keys used in the code exist.
 import de from './i18n-de.js';
 import en from './i18n-en.js';
 
@@ -21,6 +21,6 @@ export function t(key, vars) {
     if (vars) s = s.replace(/\{(\w+)\}/g, (m, k) => (k in vars ? String(vars[k]) : m));
     return s;
 }
-/** Fehlertext in der Oberflaechensprache (Fehler tragen key/vars; sonst deren Meldung). */
+/** Error text in the UI language (errors carry key/vars; otherwise their message). */
 export const errText = (e) => (e && e.key ? t(e.key, e.vars) : (e && e.message) || String(e));
 export const fmtDate = (d, withTime = false) => (d ? new Date(d).toLocaleString(locale(), withTime ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' }) : '');

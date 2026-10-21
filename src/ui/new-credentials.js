@@ -1,5 +1,5 @@
-// Bausteine fuer neue Zugangsdaten, gemeinsam fuer "Master-Passwort aendern" und "Neue Datenbank": neues Passwort mit Wiederholung,
-// Staerkeanzeige und Generator; neue Schluesseldatei, die erst gilt, wenn sie heruntergeladen UND zur Kontrolle wieder ausgewaehlt wurde.
+// Building blocks for new credentials, shared by "Change master password" and "New database": new password with repeat field,
+// strength indicator and generator; new key file, which only counts once it has been downloaded AND selected again as a check.
 import { t } from '../i18n.js';
 import { download } from './ctx.js';
 import { h, icon, iconBtn } from './dom.js';
@@ -9,7 +9,7 @@ import { createKeyfile, sameKeyfile } from '../vault.js';
 
 export const readFile = async (input) => (input.files[0] ? new Uint8Array(await input.files[0].arrayBuffer()) : null);
 
-/** Felder #<p>-new und #<p>-repeat mit Anzeigen-Knopf (#<p>-show), Generator (#<p>-gen) und Staerkeanzeige. */
+/** Fields #<p>-new and #<p>-repeat with show button (#<p>-show), generator (#<p>-gen) and strength indicator. */
 export function newPasswordFields(p) {
     const pw = (id) => h('input', { id, type: 'password', autocomplete: 'new-password', spellcheck: 'false', autocapitalize: 'off' });
     const next = pw(`${p}-new`), repeat = pw(`${p}-repeat`);
@@ -27,8 +27,8 @@ export function newPasswordFields(p) {
 }
 
 /**
- * Neue Schluesseldatei (.keyx): Knopf #<p>-kf-download, danach Kontrolle ueber #<p>-kf-verify (Ergebnis in #<p>-kf-check).
- * fileName(): Name der Datei beim Herunterladen. keyfile(): die Bytes, sobald kontrolliert, sonst 'download' bzw. 'verify' (was fehlt).
+ * New key file (.keyx): button #<p>-kf-download, then the check via #<p>-kf-verify (result in #<p>-kf-check).
+ * fileName(): name of the file when downloading. keyfile(): the bytes once checked, otherwise 'download' or 'verify' (whichever is missing).
  */
 export function newKeyfileFlow(p, fileName) {
     let fresh = null, verified = false, name = '';
@@ -57,7 +57,7 @@ export function newKeyfileFlow(p, fileName) {
     });
     return {
         box: h('div', { class: 'stack tight cred-sub', hidden: true }, h('small', { class: 'hint', text: t('cred.kf.new.hint') }), h('div', {}, downloadBtn), verifyBox),
-        /** Beschriftung des Knopfs nachziehen, solange noch nichts heruntergeladen ist (der Dateiname aendert sich). */
+        /** Update the button label as long as nothing has been downloaded yet (the file name changes). */
         relabel() { if (!fresh) label.textContent = t('cred.kf.download', { name: fileName() }); },
         keyfile: () => (!fresh ? 'download' : !verified ? 'verify' : fresh.slice()),
         get name() { return name; },

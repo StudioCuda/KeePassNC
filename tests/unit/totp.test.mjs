@@ -1,4 +1,4 @@
-// RFC-6238-Testvektoren (Anhang B) fuer src/totp.js
+// RFC 6238 test vectors (appendix B) for src/totp.js
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseOtpConfig, totp, base32Decode, steamCode } from '../../src/totp.js';
@@ -32,8 +32,8 @@ test('Altes KeePass-Format (TOTP Seed/Settings)', async () => {
     const cfg = parseOtpConfig('', 'JBSWY3DPEHPK3PXP', '60;8');
     assert.equal(cfg.period, 60); assert.equal(cfg.digits, 8);
 });
-// Steam Guard: RFC 4226 Anhang D nennt fuer diesen Schluessel bei Zaehler 1 (t=59) den gekuerzten Wert 1094287082.
-// Daraus ergibt sich mit dem Steam-Alphabet "PV9M4" (unabhaengig in Python nachgerechnet).
+// Steam Guard: RFC 4226 appendix D gives the truncated value 1094287082 for this key at counter 1 (t=59).
+// With the Steam alphabet that yields "PV9M4" (independently recomputed in Python).
 test('Steam Guard: encoder=steam (otpauth) und "30;S" (alt) liefern 5 Zeichen', async () => {
     assert.equal(steamCode(1094287082), 'PV9M4');
     const cfg = parseOtpConfig(`otpauth://totp/Steam:anna?secret=${b32(seed('1234567890', 20))}&issuer=Steam&encoder=steam`);

@@ -1,6 +1,6 @@
-// Test "Schluesseldatei merken" im Nextcloud-Modus mit Server-Geheimwert (Format v2) - gegen eine NACHBILDUNG der Nextcloud-Schnittstellen,
-// die KeePassNC nutzt (App-Seite aus templates/page.html, /csrftoken, WebDAV unter /remote.php/dav/files/<user>/, /apps/keepassnc/api/kf-pepper).
-// Der echte PHP-Controller wird in tests/nextcloud/run.mjs gegen eine echte Nextcloud geprueft.
+// Test "Remember key file" in Nextcloud mode with a server secret (format v2) - against a MOCK of the Nextcloud interfaces
+// that KeePassNC uses (app page from templates/page.html, /csrftoken, WebDAV under /remote.php/dav/files/<user>/, /apps/keepassnc/api/kf-pepper).
+// The real PHP controller is checked against a real Nextcloud in tests/nextcloud/run.mjs.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,7 +20,7 @@ const KEY = path.join(tmp, 'fix/daily.keyx');
 const DB = fs.readFileSync(path.join(tmp, 'fix/daily.kdbx'));
 const FILE = '/Passwörter/daily.kdbx';
 
-// ---------- Nachbildung der Nextcloud-Schnittstellen ----------
+// ---------- Mock of the Nextcloud interfaces ----------
 const srv = { peppers: {}, pepperDown: false, davDown: false, log: [] };
 const newPepper = () => ({ v: 1, id: crypto.randomBytes(16).toString('hex'), pepper: crypto.randomBytes(32).toString('base64') });
 const esc = (v) => String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
@@ -175,7 +175,7 @@ async function main() {
         let code = null;
         try { await s.recall({ id: ID, password: meta.password }); } catch (e) { code = e.code; }
         expect(code === 'pepper', 'ohne Geheimwert: ' + code);
-        const wrong = { id: srv.peppers.anna.id, key: crypto.randomBytes(32) }; // geratener Geheimwert mit richtiger Kennung
+        const wrong = { id: srv.peppers.anna.id, key: crypto.randomBytes(32) }; // guessed secret with the correct ID
         try { await s.recall({ id: ID, password: meta.password, pepper: wrong }); code = 'ok'; } catch (e) { code = e.code; }
         expect(code === 'wrong', 'falscher Geheimwert: ' + code);
         const right = { id: srv.peppers.anna.id, key: Buffer.from(srv.peppers.anna.pepper, 'base64') };

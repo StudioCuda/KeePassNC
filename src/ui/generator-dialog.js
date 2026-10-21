@@ -1,4 +1,4 @@
-// Passwort-/Passphrasen-Generator als Dialog (aus dem Editor mit "Verwenden", sonst nur Kopieren).
+// Password/passphrase generator as a dialog (from the editor with "Use", otherwise copy only).
 import { t } from '../i18n.js';
 import { pref, copy } from './ctx.js';
 import { h, modal } from './dom.js';

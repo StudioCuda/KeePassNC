@@ -1,8 +1,8 @@
-// Nextcloud-Theming ohne Abhaengigkeiten und ohne DOM (unit-testbar): Farbe pruefen, Kontraste nach WCAG 2.x rechnen,
-// aus der Instanzfarbe die Akzenttoene fuer hell/dunkel ableiten und die Hell/Dunkel-Wahl der Benutzerin uebersetzen.
-// Die Flaechenfarben muessen zu den Variablen oben in keepassnc.css passen (prueft tests/unit/theme.test.mjs).
+// Nextcloud theming without dependencies and without DOM (unit-testable): validate a colour, compute contrasts per WCAG 2.x,
+// derive the accent tones for light/dark from the instance colour and translate the user's light/dark choice.
+// The surface colours must match the variables at the top of keepassnc.css (checked by tests/unit/theme.test.mjs).
 
-/** Standard-Primaerfarbe von Nextcloud (BackgroundService::DEFAULT_COLOR): gilt als "keine eigene Instanzfarbe". */
+/** Nextcloud's default primary colour (BackgroundService::DEFAULT_COLOR): counts as "no custom instance colour". */
 export const NC_DEFAULT_COLOR = '#00679e';
 
 export const SURFACES = {
@@ -10,7 +10,7 @@ export const SURFACES = {
     dark: { bg: '#0b1422', surface: '#111c2d', surface2: '#152134', surface3: '#1b293e' }
 };
 
-/** '#abc' / '#AABBCC' -> '#aabbcc'; alles andere -> null. */
+/** '#abc' / '#AABBCC' -> '#aabbcc'; anything else -> null. */
 export function parseHex(v) {
     const s = String(v ?? '').trim().toLowerCase();
     if (/^#[0-9a-f]{3}$/.test(s)) return '#' + s[1] + s[1] + s[2] + s[2] + s[3] + s[3];
@@ -19,7 +19,7 @@ export function parseHex(v) {
 
 const rgb = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
 const hex = (a) => '#' + a.map((v) => Math.round(Math.max(0, Math.min(255, v))).toString(16).padStart(2, '0')).join('');
-/** Mischt a mit b; t = Anteil von b (0..1). */
+/** Mixes a with b; t = share of b (0..1). */
 export const mix = (a, b, t) => { const x = rgb(a), y = rgb(b); return hex(x.map((v, i) => v + (y[i] - v) * t)); };
 
 export function luminance(h) {
@@ -30,15 +30,15 @@ export function contrast(a, b) {
     const x = luminance(a), y = luminance(b);
     return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05);
 }
-/** Schwarz oder Weiss, je nachdem, was auf c mehr Kontrast hat (mindestens ~4.58:1). */
+/** Black or white, whichever has more contrast on c (at least ~4.58:1). */
 export const textOn = (c) => (contrast(c, '#ffffff') >= contrast(c, '#000000') ? '#ffffff' : '#000000');
-/** Schriftfarbe der Nextcloud-Kopfleiste, wie Nextcloud sie waehlt (Util::invertTextColor: Weiss nur ab 4.5:1). */
+/** Text colour of the Nextcloud header, chosen the way Nextcloud does (Util::invertTextColor: white only from 4.5:1). */
 export const headerText = (c) => (contrast(c, '#ffffff') < 4.5 ? '#000000' : '#ffffff');
 
 /**
- * Akzenttoene fuer einen Modus: die Farbe wird schrittweise Richtung Schwarz (hell) bzw. Weiss (dunkel) geschoben, bis sie
- * als Schrift auf allen Flaechen und auf --accent-soft mindestens `min` erreicht (4.5:1, bei hohem Kontrast 7:1).
- * @returns {{accent: string, soft: string, on: string}|null} null bei ungueltiger Farbe
+ * Accent tones for one mode: the colour is nudged step by step towards black (light) or white (dark) until it reaches
+ * at least `min` as text on all surfaces and on --accent-soft (4.5:1, 7:1 with high contrast).
+ * @returns {{accent: string, soft: string, on: string}|null} null for an invalid colour
  */
 export function deriveAccent(color, mode, { min = 4.5 } = {}) {
     const p = parseHex(color);
@@ -53,7 +53,7 @@ export function deriveAccent(color, mode, { min = 4.5 } = {}) {
     return null;
 }
 
-/** Hintergrund der Anmeldeseite (weisse Schrift, teils leicht transparent): dunkel genug fuer 7:1. */
+/** Background of the login page (white text, partly slightly transparent): dark enough for 7:1. */
 export function deriveHero(color) {
     const p = parseHex(color);
     if (!p) return null;
@@ -65,8 +65,8 @@ export function deriveHero(color) {
 }
 
 /**
- * Uebersetzt die Theme-Liste von Nextcloud (Benutzerwert theming/enabled-themes, ein erzwungenes Theme vorne) in unsere Begriffe.
- * 'default' ist "System" in Nextcloud, also unser 'auto'. Zusatz-Themes (Schrift, Bewegung) werden uebersprungen.
+ * Translates Nextcloud's theme list (user value theming/enabled-themes, a forced theme first) into our terms.
+ * 'default' is "system" in Nextcloud, i.e. our 'auto'. Extra themes (font, motion) are skipped.
  * @returns {{theme: 'auto'|'light'|'dark', contrast: boolean}}
  */
 export function ncThemeFrom(list) {
@@ -84,9 +84,9 @@ export function ncThemeFrom(list) {
 export const THEME_VARS = ['--nch-bg', '--nch-fg', '--nc-accent-l', '--nc-accent-soft-l', '--nc-on-accent-l', '--nc-accent-d', '--nc-accent-soft-d', '--nc-on-accent-d', '--nc-hero', '--nc-hero-2'];
 
 /**
- * Alle CSS-Variablen fuer die Instanzfarbe. Kopfleiste folgt immer Nextcloud; der Akzent der App nur, wenn gewuenscht und die
- * Instanz eine eigene Farbe hat (beim Nextcloud-Standardblau bleibt unser Nachtblau/Gold).
- * @returns {{vars: Record<string, string>, accent: boolean}} leer bei ungueltiger Farbe
+ * All CSS variables for the instance colour. The header always follows Nextcloud; the app accent only if wanted and the
+ * instance has a custom colour (with Nextcloud's default blue our midnight blue/gold stays).
+ * @returns {{vars: Record<string, string>, accent: boolean}} empty for an invalid colour
  */
 export function themeVars(color, { useAccent = true, highContrast = false } = {}) {
     const p = parseHex(color);

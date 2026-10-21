@@ -1,6 +1,6 @@
-"""Vergleicht zwei KeePassXC-XML-Exporte (vorher/nachher) feldgenau. Aufruf: compare.py vorher.xml nachher.xml [erlaubt-Praefix ...]
-Gibt jede Abweichung als "pfad: vorher -> nachher" aus (Exit 1, wenn es unerlaubte gibt). Eintraege/Gruppen werden ueber die UUID zugeordnet,
-Anhaenge ueber ihren Inhalt (SHA-256). Zeitstempel zaehlen NICHT als ignoriert - jede ungewollte Aenderung faellt auf."""
+"""Compares two KeePassXC XML exports (before/after) field by field. Usage: compare.py before.xml after.xml [allowed-prefix ...]
+Prints every difference as "path: before -> after" (exit 1 if there are disallowed ones). Entries/groups are matched by UUID,
+attachments by their content (SHA-256). Timestamps do NOT count as ignored - every unwanted change stands out."""
 import base64, hashlib, sys
 from lxml import etree
 
@@ -29,7 +29,7 @@ def flat(el, path, out, bins):
         return
     counts = {}
     for c in kids:
-        if c.tag == 'Binaries': continue  # Binaerdaten laufen ueber Inhalts-Hash
+        if c.tag == 'Binaries': continue  # binary data goes through the content hash
         key = None
         if c.tag in KEYED:
             k = c.find(KEYED[c.tag])
@@ -45,7 +45,7 @@ def main(a, b, opts):
     fa, fb = {}, {}
     flat(ra, 'R', fa, ba); flat(rb, 'R', fb, bb)
     allow = [re.compile(x) for x in opts['allow']]
-    for title in opts['entry']:  # erwartete Aenderungen an diesem Eintrag (inkl. Verlauf)
+    for title in opts['entry']:  # expected changes to this entry (incl. history)
         for e in ra.iter('Entry'):
             t = [s.findtext('Value') for s in e.findall('String') if s.findtext('Key') == 'Title']
             if t and t[0] == title:

@@ -1,5 +1,5 @@
-// Passwort-/Passphrasen-Generator als Baustein: Vorschau, Staerke, Reiter und Optionen. Kennt weder Dialog noch App-Zustand; Speicher und
-// Kopieren kommen von aussen (generator-dialog.js in der App, pass-main.js auf der Generator-Seite).
+// Password/passphrase generator as a building block: preview, strength, tabs and options. Knows neither the dialog nor the app state; storage and
+// copying come from outside (generator-dialog.js in the app, pass-main.js on the generator page).
 import { generatePassword, generatePassphrase, generateSimple, DEFAULT_PASSWORD_OPTIONS, DEFAULT_PASSPHRASE_OPTIONS, DEFAULT_SIMPLE_OPTIONS, SEPARATORS, CLASSES, migratePasswordOptions } from '../core/generator.js';
 import { t, getLang } from '../i18n.js';
 import { h, icon } from './dom.js';
@@ -8,26 +8,26 @@ import { colorizedPassword, strengthBar } from './pwview.js';
 const CLASS_KEYS = ['lower', 'upper', 'digits', 'special1', 'special2'];
 const SEP_KEYS = { ' ': 'space', '.': 'dot', '-': 'dash', ',': 'comma', '_': 'underscore', '@': 'at', '!': 'excl' };
 
-// Version der gespeicherten Einstellungen; ab 2 ist ein gespeichertes "-" eine bewusste Wahl
+// Version of the saved settings; from 2 on, a saved "-" is a deliberate choice
 const PREFS_VERSION = 2;
 
-/** pref(key, value?) liest/schreibt einen Komfortwert, copy(text, label) kopiert. Mit onUse gibt es "Verwenden" (Aufrufer schliesst danach).
- * Liefert body und die beiden Knoepfe; start() erst aufrufen, wenn body im Dokument haengt (die Hoehenmessung braucht das). */
+/** pref(key, value?) reads/writes a convenience value, copy(text, label) copies. With onUse there is a "Use" button (the caller closes afterwards).
+ * Returns body and the two buttons; only call start() once body is in the document (the height measurement needs that). */
 export function createGenerator({ pref, copy, onUse, copyOnClick = false } = {}) {
     let saved;
     try { saved = JSON.parse(pref('gen') || '{}'); } catch { saved = {}; }
     const pwOpts = { ...DEFAULT_PASSWORD_OPTIONS, ...migratePasswordOptions(saved.pw) };
-    // Ohne gespeicherte Wahl passt die Wortliste zur Oberflaechensprache
+    // Without a saved choice, the word list matches the UI language
     const phOpts = { ...DEFAULT_PASSPHRASE_OPTIONS, list: getLang() === 'de' ? 'de' : 'en', ...(saved.ph || {}) };
-    // Die Schreibweise ist ab 0.15 nur noch "Erster Buchstabe gross" an oder aus
+    // Since 0.15 the capitalization is just "capitalize first letter", on or off
     if (phOpts.casing !== 'title') phOpts.casing = 'lower';
     const siOpts = { ...DEFAULT_SIMPLE_OPTIONS, ...(saved.si || {}) };
-    // Frei eingegebene Trennzeichen von frueher, die nicht mehr zur Auswahl stehen
+    // Free-form separators from earlier versions that are no longer offered
     for (const o of [phOpts, siOpts]) if (!SEPARATORS.includes(o.separator)) o.separator = SEPARATORS[0];
-    // Bis 0.9 war "-" die Vorgabe und wurde bei jedem Oeffnen mitgespeichert, also meist keine bewusste Wahl: einmalig auf die neue
-    // Vorgabe umstellen.
+    // Up to 0.9 "-" was the default and got saved on every open, so mostly not a deliberate choice: switch once to the new
+    // default.
     if (!(saved.v >= PREFS_VERSION) && phOpts.separator === '-') phOpts.separator = DEFAULT_PASSPHRASE_OPTIONS.separator;
-    // 'pr' war bis 0.9 "Aussprechbar", daraus wurde "Simpel"
+    // 'pr' was "Pronounceable" up to 0.9, which became "Simple"
     let mode = saved.mode === 'pr' ? 'si' : ['pw', 'si'].includes(saved.mode) ? saved.mode : 'ph';
     let current = '';
     let currentBits = 0;
@@ -36,8 +36,8 @@ export function createGenerator({ pref, copy, onUse, copyOnClick = false } = {})
     const optsBox = h('div', { class: 'stack' });
     const tabs = h('div', { class: 'seg-group', role: 'tablist' });
 
-    // Passphrasen brechen nur zwischen den Woertern um (CSS .gen-preview.phrase). Nach Leerzeichen und "-" darf der Browser das
-    // ohnehin, nach den anderen Trennzeichen nicht, also bekommen die eine Bruchstelle.
+    // Passphrases only wrap between words (CSS .gen-preview.phrase). After spaces and "-" the browser may do that anyway,
+    // after the other separators it may not, so those get a break opportunity.
     function phraseNode(pw, sep) {
         const node = colorizedPassword(pw);
         if (sep !== ' ') for (const c of [...node.children]) if (c.textContent === sep) c.after(h('wbr'));
@@ -58,7 +58,7 @@ export function createGenerator({ pref, copy, onUse, copyOnClick = false } = {})
         useBtn.disabled = !current; copyBtn.disabled = !current;
         persist();
     }
-    // Erklaerungen (Wortliste, Bits je Block) stehen als Tooltip an der Beschriftung statt als Zeile im Dialog
+    // Explanations (word list, bits per block) are a tooltip on the label instead of a line in the dialog
     const tip = (node, text) => { node.title = text; node.classList.add('has-tip'); return node; };
     const num = (id, label, min, max, o, key, hint) => {
         const range = h('input', { type: 'range', min, max, value: o[key], 'aria-label': label });
@@ -85,17 +85,17 @@ export function createGenerator({ pref, copy, onUse, copyOnClick = false } = {})
             h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('gen.separator') }), sep), h('label', {}, listLabel, list)),
             h('div', { class: 'grid2' }, h('div', { class: 'gen-side' }, chk('gen-digit', t('gen.digit'), phOpts, 'digit')), h('div', { class: 'gen-side' }, capital))];
     }
-    // Die Passphrasen-Optionen entstehen nur einmal und werden ausgeblendet: so laesst sich die Passwort-Vorschau messen, ohne
-    // <select>-Elemente neu zu bauen (WebKit meldet dabei CSP-Verstoesse, siehe tests/browser.mjs).
+    // The passphrase options are built only once and hidden: that way the password preview can be measured without
+    // rebuilding <select> elements (WebKit reports CSP violations when doing so, see tests/browser.mjs).
     const phBox = h('div', { class: 'stack' }, ...phraseOpts());
-    // Im Passwort-Modus ist die Vorschau so hoch, dass der Dialog genau so hoch ist wie im Passphrasen-Modus: dafuer kurz die
-    // Passphrasen-Optionen einblenden und messen (synchron, also ohne sichtbares Flackern).
+    // In password mode the preview is tall enough that the dialog is exactly as tall as in passphrase mode: to get that, briefly
+    // show the passphrase options and measure (synchronous, so no visible flicker).
     function fitPasswordPreview() {
         if (mode !== 'pw' || !body.isConnected) return;
         preview.classList.replace('pw', 'ph'); phBox.hidden = false; optsBox.hidden = true;
         const target = body.offsetHeight;
         preview.classList.replace('ph', 'pw'); phBox.hidden = true; optsBox.hidden = false;
-        preview.style.setProperty('--gen-pw-h', Math.max(0, target - (body.offsetHeight - preview.offsetHeight)) + 'px'); // CSSOM, kein style-Attribut (CSP)
+        preview.style.setProperty('--gen-pw-h', Math.max(0, target - (body.offsetHeight - preview.offsetHeight)) + 'px'); // CSSOM, no style attribute (CSP)
     }
 
     function renderOpts() {
@@ -105,11 +105,11 @@ export function createGenerator({ pref, copy, onUse, copyOnClick = false } = {})
         if (mode === 'pw') {
             const classChk = (k) => {
                 const c = chk('gen-' + k, t('gen.class.' + k), pwOpts, k);
-                // Sonderzeichen mit Abstand, damit man sie einzeln erkennt; die beiden Gruppen bekommen je eine eigene Zeile
+                // Special characters spaced out so they can be told apart; the two groups each get their own row
                 if (k.startsWith('special')) { c.classList.add('wide'); c.append(h('span', { class: 'gen-chars', text: [...CLASSES[k]].join(' ') })); }
                 return c;
             };
-            // Selten gebraucht, deshalb unter "Mehr"; offen, sobald dort etwas eingestellt ist, damit nichts unsichtbar mitwirkt
+            // Rarely needed, hence under "More"; open as soon as something is set there, so nothing takes effect invisibly
             const moreUsed = pwOpts.extended || pwOpts.custom || pwOpts.exclude;
             optsBox.replaceChildren(
                 num('gen-length', t('gen.length'), 4, 128, pwOpts, 'length'),
@@ -135,7 +135,7 @@ export function createGenerator({ pref, copy, onUse, copyOnClick = false } = {})
     const body = h('div', { class: 'stack gen' }, preview, h('div', { class: 'gen-meter' }, meter, regen), tabs, phBox, optsBox);
     if (!onUse) useBtn.hidden = true;
     if (copyOnClick) {
-        // Ein Klick auf die Vorschau kopiert (nicht, wenn gerade Text markiert wurde); der Knopf bleibt der Weg fuer die Tastatur
+        // A click on the preview copies (not if text was just selected); the button remains the route for the keyboard
         preview.classList.add('click-copy'); preview.title = t('gen.click.copy');
         preview.addEventListener('click', () => {
             if (!current || String(getSelection()).length) return;
