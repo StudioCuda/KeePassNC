@@ -133,7 +133,8 @@ export function renderDetail(host) {
             } }))));
     }
 
-    cards.push(attachmentsCard(e));
+    const attCard = attachmentsCard(e);
+    if (attCard) cards.push(attCard);
     if (e.history?.length) cards.push(historyCard(e));
     cards.push(h('section', { class: 'card meta' },
         h('span', {}, `${t('meta.created')}: ${fmtDate(e.times.creationTime, true)}`), h('span', {}, `${t('meta.modified')}: ${fmtDate(e.times.lastModTime, true)}`),
@@ -142,27 +143,15 @@ export function renderDetail(host) {
 }
 
 function attachmentsCard(e) {
-    const v = state.vault;
     const rows = [];
     for (const [name, bin] of e.binaries || []) {
         const data = binData(bin);
         rows.push(h('div', { class: 'att-row' }, icon('clip'), h('span', { class: 'grow', text: name }), h('span', { class: 'muted', text: sizeLabel(data?.byteLength ?? 0) }),
             data && previewKind(name, data.byteLength) ? iconBtn('eye', t('preview'), () => showPreview(name, data), { 'data-testid': 'attachment-preview' }) : null,
-            h('button', { type: 'button', class: 'small', 'data-testid': 'attachment', onclick: () => download(name, data) }, icon('download'), h('span', { text: t('download') })),
-            iconBtn('trash', t('remove'), async () => { if (await confirmDialog({ title: t('attachment.remove'), message: t('attachment.remove.msg', { name }), confirmLabel: t('remove'), cancelLabel: t('cancel'), danger: true })) { v.removeAttachment(e, name); changed(); } }, { 'data-testid': 'attachment-remove' })));
+            h('button', { type: 'button', class: 'small', 'data-testid': 'attachment', onclick: () => download(name, data) }, icon('download'), h('span', { text: t('download') }))));
     }
-    const input = h('input', { type: 'file', id: 'att-input', multiple: true, class: 'sr-only', onchange: async () => {
-        for (const f of input.files) {
-            try {
-                if (f.size > 64 * 1024 * 1024) { setStatus(t('attachment.toolarge', { name: f.name }), 'error'); continue; }
-                await v.addAttachment(e, f.name, await f.arrayBuffer());
-            } catch (err) { setStatus(errText(err), 'error'); }
-        }
-        input.value = '';
-        changed();
-    } });
-    return h('section', { class: 'card' }, h('div', { class: 'card-title' }, icon('clip'), h('span', { class: 'grow', text: t('attachments') }),
-        h('label', { class: 'btn small', for: 'att-input' }, icon('upload'), t('attachment.add')), input), rows.length ? h('div', {}, ...rows) : h('p', { class: 'hint', text: t('attachments.none') }));
+    // adding and removing happens in the editor
+    return rows.length ? h('section', { class: 'card' }, h('div', { class: 'card-title' }, icon('clip'), h('span', { class: 'grow', text: t('attachments') })), h('div', {}, ...rows)) : null;
 }
 function showPreview(name, data) {
     const p = previewOf(name, new Uint8Array(data));

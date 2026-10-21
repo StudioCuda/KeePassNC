@@ -365,7 +365,8 @@ export class Vault {
     /**
      * Applies form values to an entry (new entry: entry === null -> create in group).
      * data: {Title, UserName, Password, URL, Notes, tags: string[], custom: [{name, value, protect}], expires?: boolean, expiryTime?: Date|null, otp?: string,
-     *   icon?: number, customIcon?: string|null, excludeReports?: boolean, color?: string} (icon: see _setIcon; color: "#rrggbb" or "")
+     *   icon?: number, customIcon?: string|null, excludeReports?: boolean, color?: string, attachments?: {remove: string[], add: Map<name, binary from makeBinary>}}
+     *   (icon: see _setIcon; color: "#rrggbb" or ""; attachments: removals first, then additions, so a name can be replaced)
      * Everything the editor doesn't show stays unchanged (passkey fields, browser data, colors, auto-type ...). Without an actual change
      * no history entry is created (like in KeePassXC).
      */
@@ -399,6 +400,8 @@ export class Vault {
             entry.times.expires = !!data.expires;
             if (data.expires) entry.times.expiryTime = data.expiryTime || new Date(Date.now() + 365 * 86400000);
         }
+        for (const name of data.attachments?.remove || []) entry.binaries.delete(name);
+        for (const [name, bin] of data.attachments?.add || []) entry.binaries.set(name, bin);
         this._setIcon(entry, data);
         if (data.color !== undefined && data.color !== (entryColor(entry) || '')) entry.bgColor = data.color || undefined;
         if (data.excludeReports !== undefined && data.excludeReports !== excluded(entry)) { // both spellings, so KeePass 2 and KeePassXC see it
@@ -426,6 +429,7 @@ export class Vault {
             if (!!data.expires !== !!entry.times.expires) return true;
             if (data.expires && (data.expiryTime?.getTime() ?? 0) !== (entry.times.expiryTime?.getTime() ?? 0)) return true;
         }
+        if (data.attachments?.add?.size || (data.attachments?.remove || []).some((n) => entry.binaries.has(n))) return true;
         return this._iconDiffers(entry, data) || (data.excludeReports !== undefined && data.excludeReports !== excluded(entry))
             || (data.color !== undefined && data.color !== (entryColor(entry) || ''));
     }
@@ -686,14 +690,8 @@ export class Vault {
     clearHistory(entry) { entry.removeHistory(0, entry.history.length); this.dirty = true; }
 
     // ---------------------------------------------------------------- Attachments
-    async addAttachment(entry, name, buffer) {
-        if (!name || entry.binaries.has(name)) throw new VaultError(`Ein Anhang namens "${name}" existiert bereits.`, 'e.att.exists', { name });
-        const bin = await this.db.createBinary(buffer);
-        this._pushHistory(entry);
-        entry.binaries.set(name, bin);
-        entry.times.update();
-        this.dirty = true;
-    }
+    /** Stores file contents in the database for applyEntry's `attachments.add` (nothing is attached until the entry is applied). */
+    makeBinary(buffer) { return this.db.createBinary(buffer); }
     /** Remove the passkey from the entry; the previous version stays in the history (recoverable until the history is cleared). */
     removePasskey(entry) {
         const keys = [...entry.fields.keys()].filter(isPasskeyField);
@@ -703,13 +701,6 @@ export class Vault {
         entry.times.update();
         this.dirty = true;
         return true;
-    }
-    removeAttachment(entry, name) {
-        if (!entry.binaries.has(name)) return;
-        this._pushHistory(entry);
-        entry.binaries.delete(name);
-        entry.times.update();
-        this.dirty = true;
     }
 
     // ---------------------------------------------------------------- Icons

@@ -2,11 +2,11 @@
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
 import { isSystemField, entryExpiry, entryColor, ENTRY_COLORS } from '../core/util.js';
 import { excluded } from '../core/audit.js';
-import { t } from '../i18n.js';
+import { t, errText } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
 import { h, icon, iconBtn, toast } from './dom.js';
 import { changed, refreshDirtyIndicator } from './session.js';
-import { strengthBar } from './detail.js';
+import { strengthBar, binData, sizeLabel } from './detail.js';
 import { groupSelect, selectedGroup } from './groups.js';
 import { openGenerator } from './generator-dialog.js';
 import { allRealEntries } from './common.js';
@@ -104,6 +104,36 @@ export function renderEditor(host) {
     };
     if (entry) for (const [k, vv] of entry.fields) if (!STANDARD_FIELDS.includes(k) && !isSystemField(k)) addCustom(k, fieldText(vv), isProtected(vv));
 
+    // Attachments: changes stay in this draft (files added, names removed) and only reach the entry with "Apply", like every other field
+    const att = { add: new Map(), remove: new Set() };
+    const attRows = h('div', { id: 'e-att-list' });
+    const attNames = () => new Set([...(entry?.binaries.keys() || [])].filter((n) => !att.remove.has(n)).concat([...att.add.keys()]));
+    const renderAtt = () => {
+        const row = (name, size, isNew, onRemove) => h('div', { class: 'att-row' + (isNew ? ' new' : ''), 'data-testid': 'e-att-row' }, icon('clip'), h('span', { class: 'grow', text: name }),
+            isNew ? h('span', { class: 'badge', text: t('attachment.new') }) : null, h('span', { class: 'muted', text: sizeLabel(size) }),
+            iconBtn('trash', t('attachment.remove'), onRemove, { type: 'button', 'data-testid': 'e-att-remove' }));
+        const rows = [];
+        for (const [name, bin] of entry?.binaries || []) if (!att.remove.has(name)) rows.push(row(name, binData(bin)?.byteLength ?? 0, false, () => { att.remove.add(name); renderAtt(); }));
+        for (const [name, f] of att.add) rows.push(row(name, f.size, true, () => { att.add.delete(name); renderAtt(); }));
+        attRows.replaceChildren(...(rows.length ? rows : [h('p', { class: 'hint', text: t('attachments.none') })]));
+    };
+    const addFiles = (files) => {
+        for (const f of files) {
+            if (f.size > 64 * 1024 * 1024) { toast(t('attachment.toolarge', { name: f.name }), { kind: 'warn' }); continue; }
+            if (attNames().has(f.name)) { toast(t('e.att.exists', { name: f.name }), { kind: 'warn' }); continue; }
+            att.add.set(f.name, f);
+        }
+        renderAtt();
+    };
+    const attInput = h('input', { type: 'file', id: 'att-input', multiple: true, class: 'sr-only', tabindex: -1, onchange: () => { addFiles([...attInput.files]); attInput.value = ''; } });
+    const dropZone = h('div', { class: 'dropzone', id: 'e-att-drop', role: 'button', tabindex: 0, 'aria-label': t('attachment.add') }, icon('upload'), h('span', { text: t('attachment.drop') }));
+    dropZone.addEventListener('click', () => attInput.click());
+    dropZone.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); attInput.click(); } });
+    for (const type of ['dragenter', 'dragover']) dropZone.addEventListener(type, (ev) => { ev.preventDefault(); dropZone.classList.add('drop'); });
+    for (const type of ['dragleave', 'drop']) dropZone.addEventListener(type, () => dropZone.classList.remove('drop'));
+    dropZone.addEventListener('drop', (ev) => { ev.preventDefault(); addFiles([...ev.dataTransfer.files]); });
+    renderAtt();
+
     const tagSugg = h('datalist', { id: 'tag-suggestions' });
     const allTags = new Set(); for (const e of allRealEntries()) for (const tg of e.tags || []) allTags.add(tg);
     for (const tg of [...allTags].sort()) tagSugg.append(h('option', { value: tg }));
@@ -128,10 +158,13 @@ export function renderEditor(host) {
             h('section', { class: 'card stack' }, h('div', { class: 'stack tight' }, h('span', { class: 'group-title', text: t('f.color') }), colorBox)),
             h('section', { class: 'card stack' }, h('label', {}, h('span', { text: t('f.totp') }), h('div', { class: 'input-group' }, i.otp, qrLabel, qrInput)), h('p', { class: 'hint', text: t('f.totp.hint') })),
             h('section', { class: 'card stack' }, h('div', { class: 'flabel', text: t('fields.more') }), customBox,
-                h('div', {}, h('button', { type: 'button', class: 'btn small', id: 'add-custom', onclick: () => addCustom().querySelector('.c-name').focus() }, icon('plus'), t('field.add'))))));
+                h('div', {}, h('button', { type: 'button', class: 'btn small', id: 'add-custom', onclick: () => addCustom().querySelector('.c-name').focus() }, icon('plus'), t('field.add')))),
+            h('section', { class: 'card stack' }, h('div', { class: 'card-title' }, icon('clip'), h('span', { class: 'grow', text: t('attachments') })), attRows, dropZone, attInput)));
 
-    form.addEventListener('submit', (ev) => {
+    form.addEventListener('submit', async (ev) => {
         ev.preventDefault();
+        const added = new Map();
+        try { for (const [name, f] of att.add) added.set(name, await v.makeBinary(await f.arrayBuffer())); } catch (err) { setStatus(errText(err), 'error'); return; }
         const custom = [...customBox.querySelectorAll('.custom-row')].map((r) => ({ name: r.querySelector('.c-name').value, value: r.customValue(), protect: r.querySelector('.c-protect').checked }));
         const data = {
             Title: i.Title.value, UserName: i.UserName.value, Password: i.Password.value, URL: i.URL.value, Notes: i.Notes.value,
@@ -139,6 +172,7 @@ export function renderEditor(host) {
             expires: i.expires.checked, expiryTime: i.expires.checked && i.expiry.value ? new Date(i.expiry.value + 'T23:59:59') : null,
             ...commitIconSel(iconSel),
             excludeReports: i.excludeReports.checked,
+            attachments: { remove: [...att.remove], add: added },
             color: colorBox.querySelector(':checked')?.value ?? ''
         };
         if (i.expires.checked && entry?.times.expires && i.expiry.value === dateStr(entry.times.expiryTime)) data.expiryTime = entry.times.expiryTime; // leave the time of day unchanged

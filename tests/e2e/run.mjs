@@ -618,7 +618,9 @@ async function main() {
         await login(p, 'extras.kdbx'); await rows(p).first().waitFor();
         await rows(p).filter({ hasText: 'Konto' }).click();
         const png = fs.readFileSync(path.join(root, 'tests/fixtures/totp-qr.png'));
+        await p.click('#edit-btn');
         await p.setInputFiles('#att-input', { name: 'bild.png', mimeType: 'image/png', buffer: png });
+        await p.click('#apply-btn');
         await p.locator('.att-row', { hasText: 'anhang.txt' }).locator('[data-testid=attachment-preview]').click();
         expect(/anhang-inhalt/.test(await p.locator('.att-preview-text').innerText()), 'Text-Vorschau');
         await p.keyboard.press('Escape');
