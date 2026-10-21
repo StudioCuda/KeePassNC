@@ -4,7 +4,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Fixed
-- On phones, the Database and Settings dialogs no longer run past the right edge of the screen. The Database dialog got more compact tabs and tiles, and the issue chips sit under the entry name. The status line at the bottom wraps to two lines instead of cutting the message off.
+- On phones, the Database and Settings dialogs no longer run past the right edge of the screen. The Database dialog got more compact tabs and tiles, and the issue chips sit under the entry name. The status line at the bottom wraps to two lines instead of cutting the message off. The password strength ("Good · 98 bit") in the entry view stays on one line.
 
 ## [0.16.0] - 2026-10-21
 ### Added
