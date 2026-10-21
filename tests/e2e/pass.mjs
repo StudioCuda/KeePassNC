@@ -56,9 +56,13 @@ await step('German browser: German page; switch to English sticks after reload',
     expect(await page.locator('html').getAttribute('lang') === 'de', 'lang nicht de');
     await page.locator('#pass-lang').click();
     expect(await page.locator('h1').innerText() === 'Password generator', 'Umschalten auf Englisch hat nicht gewirkt');
-    expect(await page.locator('#pass-lang').innerText() === 'Deutsch', 'Umschalter zeigt nicht die andere Sprache');
+    expect(await page.locator('#pass-lang').innerText() === '中文', 'Umschalter zeigt nicht die naechste Sprache');
     await page.reload(); await page.locator('#gen-preview').waitFor();
     expect(await page.locator('h1').innerText() === 'Password generator', 'Wahl nicht gemerkt');
+    await page.locator('#pass-lang').click();
+    expect(await page.locator('h1').innerText() === '口令生成器', 'Umschalten auf Chinesisch hat nicht gewirkt');
+    expect(await page.locator('html').getAttribute('lang') === 'zh-CN', 'lang nicht zh-CN');
+    expect(await page.locator('#pass-lang').innerText() === 'Deutsch', 'Umschalter springt nicht zurueck auf Deutsch');
     await ctx.close();
 });
 await step('Other languages fall back to English', async () => {

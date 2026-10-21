@@ -450,7 +450,7 @@ export default {
     'palette.placeholder': 'Find an entry or run a command …',
     'palette.theme': 'Toggle light/dark',
     'pass.lead': 'Random, and made right here in your browser. Nothing leaves this page.',
-    'pass.lang.other': 'Deutsch',
+    'lang.name.de': 'Deutsch', 'lang.name.en': 'English', 'lang.name.zh-CN': '中文',
     'pass.powered': 'powered by {app}',
     'pass.tagline': 'The easygoing KDBX password manager for Nextcloud and Web.',
     'pass.title': 'Password generator',

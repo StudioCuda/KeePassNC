@@ -4,17 +4,23 @@ import fs from 'node:fs';
 import path from 'node:path';
 import de from '../../src/i18n-de.js';
 import en from '../../src/i18n-en.js';
+import zhCN from '../../src/i18n-zh-CN.js';
+import { detectLang } from '../../src/i18n.js';
+
+const DICTS = { de, en, 'zh-CN': zhCN };
 
 const root = path.resolve(import.meta.dirname, '../../src');
 const files = [];
 (function walk(d) { for (const f of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, f.name); if (f.isDirectory()) walk(p); else if (/\.js$/.test(f.name) && !/i18n-/.test(f.name)) files.push(p); } })(root);
 
-test('de und en haben dieselben Schluessel', () => {
-    assert.deepEqual(Object.keys(de).sort(), Object.keys(en).sort());
+test('alle Woerterbuecher haben dieselben Schluessel', () => {
+    for (const [name, d] of Object.entries(DICTS)) assert.deepEqual(Object.keys(d).sort(), Object.keys(de).sort(), name);
 });
 test('Platzhalter stimmen ueberein', () => {
     const ph = (s) => (s.match(/\{\w+\}/g) || []).sort().join();
-    for (const k of Object.keys(de)) assert.equal(ph(de[k]), ph(en[k]), k);
+    for (const [name, d] of Object.entries(DICTS)) {
+        for (const k of Object.keys(de)) assert.equal(ph(d[k]), ph(de[k]), `${name}: ${k}`);
+    }
 });
 test('alle im Code benutzten Schluessel existieren', () => {
     const keys = new Set(Object.keys(de));
@@ -25,6 +31,15 @@ test('alle im Code benutzten Schluessel existieren', () => {
         for (const m of src.matchAll(/\bt\('([a-zA-Z0-9_.]+\.)' \+/g)) if (![...keys].some((k) => k.startsWith(m[1]))) missing.push(`${path.basename(f)}: ${m[1]}*`);
     }
     assert.deepEqual(missing, []);
+});
+test('Sprache: Nextcloud sagt "zh", der Browser "zh-CN" - beides ist Chinesisch', () => {
+    assert.equal(detectLang('auto', 'zh', ''), 'zh-CN');
+    assert.equal(detectLang('auto', 'zh_CN', ''), 'zh-CN');
+    assert.equal(detectLang('auto', '', 'zh-CN'), 'zh-CN');
+    assert.equal(detectLang('zh-CN', '', ''), 'zh-CN');
+    assert.equal(detectLang('auto', 'de', ''), 'de');
+    assert.equal(detectLang('auto', 'en-US', ''), 'en');
+    assert.equal(detectLang('auto', '', ''), 'de');
 });
 test('keine toten Schluessel (ungenutzt)', () => {
     const all = files.map((f) => fs.readFileSync(f, 'utf8')).join('\n');
