@@ -11,7 +11,7 @@ let lang = 'de';
 export function detectLang(pref, htmlLang = '', navLang = '') {
     if (pref && DICTS[pref]) return pref;
     const l = String(htmlLang || navLang || '').toLowerCase();
-    // Nextcloud nennt die Sprache "zh" (z. B. zh_CN), der Browser "zh-CN" - beides ist Chinesisch.
+    // Nextcloud says "zh" (or zh_CN), browsers say "zh-CN" - both mean Chinese.
     if (l.startsWith('zh')) return 'zh-CN';
     return l.startsWith('de') ? 'de' : l ? 'en' : 'de';
 }

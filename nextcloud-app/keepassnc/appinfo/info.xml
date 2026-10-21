@@ -26,7 +26,7 @@
 - Merge a "conflicted copy" back in, and import or export CSV (KeePassXC, Bitwarden, 1Password, browsers …)
 - Password generator and a health report
 - Follows your Nextcloud's accent color and light or dark theme, with a layout that works on phones and big screens alike
-- English and German
+- English, German and Chinese
 
 **Still just a KeePass file**
 
@@ -52,7 +52,7 @@ KeePassXC, KeePassDX and Strongbox keep working on it, no lock-in.]]></descripti
 - Eine „Konfliktkopie“ wieder zusammenführen, CSV importieren und exportieren (KeePassXC, Bitwarden, 1Password, Browser …)
 - Passwortgenerator und Gesundheitsbericht
 - Übernimmt Akzentfarbe und helles oder dunkles Design von Nextcloud, für Smartphone und großen Bildschirm
-- Deutsch und Englisch
+- Deutsch, Englisch und Chinesisch
 
 **Bleibt eine normale KeePass-Datei**
 
