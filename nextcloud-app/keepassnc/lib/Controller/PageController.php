@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\Keepassnc\Controller;
 
 use OCA\Keepassnc\AppInfo\Application;
+use OCA\Keepassnc\Util\UrlHelper;
 use OCP\App\IAppManager;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -88,6 +89,18 @@ class PageController extends Controller {
 		}
 		$lang = preg_match('/^[a-z]{2,3}/i', $lang, $m) ? strtolower($m[0]) : 'en';
 
+		// Paths into app folders (css, js, img) are built from apps_paths[].url. If that carries the webroot (e.g. "/nc/apps" instead of
+		// "/apps"), Nextcloud hands it out twice ("/nc/nc/apps/..."), the browser finds nothing and the page would stay empty. The page
+		// reports it (data-url-fix); all other addresses on the page are routes and not affected. The paths stay relative (see $davBase).
+		$webroot = $this->urlGenerator->getWebroot();
+		$urlFixed = false;
+		$fixUrl = static function (string $u) use ($webroot, &$urlFixed): string {
+			$fixed = UrlHelper::withoutDuplicateWebroot($u, $webroot);
+			$urlFixed = $urlFixed || $fixed !== $u;
+			return $fixed;
+		};
+		$appUrl = fn (string $file): string => $fixUrl($this->urlGenerator->linkTo(Application::APP_ID, $file));
+
 		[$ncColor, $ncThemes] = $this->theming($uid);
 
 		$vars = [
@@ -99,14 +112,15 @@ class PageController extends Controller {
 			'__USER__' => $uid,
 			'__FILE__' => $file,
 			'__NEW__' => $newFile,
-			'__CSS__' => $this->urlGenerator->linkTo(Application::APP_ID, 'css/keepassnc.css') . '?v=' . $version,
-			'__JS__' => $this->urlGenerator->linkTo(Application::APP_ID, 'js/keepassnc.js') . '?v=' . $version,
-			'__ICON__' => $this->urlGenerator->linkTo(Application::APP_ID, 'img/favicon.svg') . '?v=' . $version,
-			'__TOUCH__' => $this->urlGenerator->linkTo(Application::APP_ID, 'img/apple-touch-icon.png') . '?v=' . $version,
+			'__CSS__' => $appUrl('css/keepassnc.css') . '?v=' . $version,
+			'__JS__' => $appUrl('js/keepassnc.js') . '?v=' . $version,
+			'__ICON__' => $appUrl('img/favicon.svg') . '?v=' . $version,
+			'__TOUCH__' => $appUrl('img/apple-touch-icon.png') . '?v=' . $version,
+			'__URL_FIX__' => $urlFixed ? '1' : '',
 			'__LANG__' => $lang,
 			'__NC_COLOR__' => $ncColor,
 			'__NC_THEMES__' => $ncThemes,
-			'__NC_NAV__' => $this->navigation($uid, $indexPhp),
+			'__NC_NAV__' => $this->navigation($uid, $indexPhp, $fixUrl),
 		];
 		$template = file_get_contents(__DIR__ . '/../../templates/page.html');
 		$html = strtr($template, array_map(static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8'), $vars));
@@ -172,7 +186,7 @@ class PageController extends Controller {
 	 * The browser checks the values once more (src/nextcloud.js). The logout link comes without requesttoken: the page sits in the
 	 * offline cache, the browser fetches a fresh token on click.
 	 */
-	private function navigation(string $uid, string $indexPhp): string {
+	private function navigation(string $uid, string $indexPhp, \Closure $fixUrl): string {
 		if ($uid === '') {
 			return '';
 		}
@@ -184,14 +198,14 @@ class PageController extends Controller {
 					'id' => (string)($e['id'] ?? ''),
 					'name' => (string)($e['name'] ?? ''),
 					'href' => (string)($e['href'] ?? ''),
-					'icon' => (string)($e['icon'] ?? ''),
+					'icon' => $fixUrl((string)($e['icon'] ?? '')),
 					'active' => ($e['active'] ?? false) === true,
 				];
 			}
 			// Navigation actions only exist from Nextcloud 35 (INavigationManager::TYPE_ACTION); in 34 'action' returns nothing.
 			$actions = [];
 			foreach ($this->navigationManager->getAll('action') as $e) {
-				$entry = ['id' => (string)($e['id'] ?? ''), 'name' => (string)($e['name'] ?? ''), 'href' => (string)($e['href'] ?? ''), 'icon' => (string)($e['icon'] ?? '')];
+				$entry = ['id' => (string)($e['id'] ?? ''), 'name' => (string)($e['name'] ?? ''), 'href' => (string)($e['href'] ?? ''), 'icon' => $fixUrl((string)($e['icon'] ?? ''))];
 				if (isset($e['color'])) {
 					$entry['color'] = (string)$e['color'];
 				}
@@ -206,7 +220,7 @@ class PageController extends Controller {
 					$href = rtrim($href, '?&');
 					$csrf = true;
 				}
-				$settings[] = ['id' => (string)($e['id'] ?? ''), 'name' => (string)($e['name'] ?? ''), 'href' => $href, 'icon' => (string)($e['icon'] ?? ''), 'csrf' => $csrf];
+				$settings[] = ['id' => (string)($e['id'] ?? ''), 'name' => (string)($e['name'] ?? ''), 'href' => $href, 'icon' => $fixUrl((string)($e['icon'] ?? '')), 'csrf' => $csrf];
 			}
 			try {
 				$avatar = $this->urlGenerator->linkToRoute('core.avatar.getAvatar', ['userId' => $uid, 'size' => 64]);
