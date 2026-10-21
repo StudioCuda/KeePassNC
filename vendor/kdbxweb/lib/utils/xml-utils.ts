@@ -11,6 +11,8 @@ import { KdbxBinaries, KdbxBinaryOrRef } from '../format/kdbx-binaries';
 
 const DateRegex = /\.\d\d\d/;
 const EpochSeconds = 62135596800;
+// The latest date .NET (KeePass) can represent; also within the range of Date.
+const LatestDateMs = Date.UTC(9999, 11, 31, 23, 59, 59);
 const TagsSplitRegex = /\s*[;,:]\s*/;
 
 declare global {
@@ -207,8 +209,9 @@ export function getDate(node: Node): Date | undefined {
         return new Date(text);
     }
     const bytes = new DataView(arrayToBuffer(base64ToBytes(text)));
-    const secondsFrom00 = new Int64(bytes.getUint32(0, true), bytes.getUint32(4, true)).value;
-    const diff = (secondsFrom00 - EpochSeconds) * 1000;
+    // Not Int64.value: some apps write huge "never" values (e.g. all bits set), which would throw.
+    const secondsFrom00 = bytes.getUint32(4, true) * 0x100000000 + bytes.getUint32(0, true);
+    const diff = Math.min((secondsFrom00 - EpochSeconds) * 1000, LatestDateMs);
     return new Date(diff);
 }
 

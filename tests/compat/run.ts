@@ -356,6 +356,17 @@ async function main() {
         if (opened) throw new Error('NFC-Variante oeffnet - unerwartet');
     });
 
+    await t('Zeitstempel "never" (alle Bits gesetzt, wie ihn manche Apps schreiben) wird gelesen statt "too large number"', async () => {
+        const node = new (require('@xmldom/xmldom').DOMParser)().parseFromString('<ExpiryTime/>', 'application/xml').documentElement;
+        for (const bytes of [new Uint8Array(8).fill(0xff), new Uint8Array([0, 0, 0, 0, 0, 0, 0x20, 0])]) {
+            node.textContent = Buffer.from(bytes).toString('base64');
+            const d = kdbxweb.XmlUtils.getDate(node);
+            if (!(d instanceof Date) || isNaN(d.getTime())) throw new Error('kein gueltiges Datum: ' + d);
+        }
+        node.textContent = Buffer.from([0, 0, 0, 0, 0, 0, 0, 0]).toString('base64');
+        if (kdbxweb.XmlUtils.getDate(node).getUTCFullYear() !== 1) throw new Error('Jahr 1 falsch');
+    });
+
     // Report
     const w = Math.max(...results.map(r => r.name.length));
     for (const r of results) console.log(`${r.ok ? 'OK  ' : r.known ? 'KNWN' : 'FAIL'}  ${r.name.padEnd(w)}  ${r.info}`);

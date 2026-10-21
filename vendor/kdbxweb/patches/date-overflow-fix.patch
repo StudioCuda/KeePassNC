@@ -1,0 +1,13 @@
+diff --git a/vendor/kdbxweb/lib/utils/xml-utils.ts b/vendor/kdbxweb/lib/utils/xml-utils.ts
+index ed62e6b..dd96a1e 100644
+--- a/vendor/kdbxweb/lib/utils/xml-utils.ts
++++ b/vendor/kdbxweb/lib/utils/xml-utils.ts
+@@ -13,0 +14,2 @@ const EpochSeconds = 62135596800;
++// The latest date .NET (KeePass) can represent; also within the range of Date.
++const LatestDateMs = Date.UTC(9999, 11, 31, 23, 59, 59);
+@@ -210,2 +212,3 @@ export function getDate(node: Node): Date | undefined {
+-    const secondsFrom00 = new Int64(bytes.getUint32(0, true), bytes.getUint32(4, true)).value;
+-    const diff = (secondsFrom00 - EpochSeconds) * 1000;
++    // Not Int64.value: some apps write huge "never" values (e.g. all bits set), which would throw.
++    const secondsFrom00 = bytes.getUint32(4, true) * 0x100000000 + bytes.getUint32(0, true);
++    const diff = Math.min((secondsFrom00 - EpochSeconds) * 1000, LatestDateMs);
