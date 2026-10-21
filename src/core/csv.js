@@ -29,11 +29,12 @@ export function parseCsv(text) {
 /** Rows -> CSV, every field quoted (like KeePassXC), CRLF line endings. */
 export const toCsv = (rows) => rows.map((r) => r.map((f) => `"${String(f ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n') + '\r\n';
 
-// Column names of the known exports (lower case): KeePassXC, KeePass 2, Bitwarden, 1Password, Chrome/Edge/Brave, Firefox, LastPass
+// Column names of the known exports (lower case): KeePassXC, KeePass 2, Bitwarden, 1Password, Chrome/Edge/Brave, Firefox, LastPass, Proton Pass
 const COLUMNS = {
-    group: ['group', 'folder', 'grouping'],
+    group: ['group', 'folder', 'grouping', 'vault'],
     title: ['title', 'name', 'account'],
     user: ['username', 'login_username', 'login name', 'user', 'login'],
+    email: ['email'], // only used when there is no user name (Proton Pass)
     password: ['password', 'login_password'],
     url: ['url', 'login_uri', 'web site', 'website', 'uri'],
     notes: ['notes', 'note', 'comments', 'extra'],
@@ -42,8 +43,10 @@ const COLUMNS = {
 };
 
 /**
- * Maps the header row and returns {entries, ignored}. entries: [{path: string[], title, user, password, url, notes, totp, tags: string[]}],
+ * Maps the header row and returns {entries, ignored, refs}. entries: [{path: string[], title, user, password, url, notes, totp, tags: string[]}],
  * ignored: columns that fit nowhere. With KeePassXC the root group name leads the path; it is dropped.
+ * refs: entries with a {REF:…} to another entry. A file from elsewhere has no business pointing at your other entries (it could
+ * pull their password into a login form), so the reference is broken up to plain text; KeePassXC's own export resolves them anyway.
  * Without a title (Firefox), the hostname of the URL is used.
  */
 export function mapRows([head = [], ...rows]) {
@@ -55,16 +58,25 @@ export function mapRows([head = [], ...rows]) {
     }
     const ignored = head.filter((_, i) => !Object.values(col).includes(i) && rows.some((r) => (r[i] || '').trim()));
     const keepassxc = names[col.group] === 'group';
+    let refs = 0;
     const entries = rows.map((r) => {
-        const get = (f) => (col[f] === undefined ? '' : r[col[f]] ?? '');
+        let hit = false;
+        const get = (f) => {
+            const v = col[f] === undefined ? '' : r[col[f]] ?? '';
+            if (!/\{REF:/i.test(v)) return v;
+            hit = true;
+            return v.replace(/\{REF:/gi, '{ REF:');
+        };
         const path = get('group').split('/').map((p) => p.trim()).filter(Boolean);
         if (keepassxc) path.shift();
         const url = get('url').trim();
         let title = get('title').trim();
         if (!title && url) try { title = new URL(/^[a-z][a-z0-9+.-]*:/i.test(url) ? url : 'https://' + url).hostname; } catch { title = url; }
-        return { path, title, user: get('user'), password: get('password'), url, notes: get('notes'), totp: get('totp').trim(), tags: get('tags').split(/[,;]/).map((x) => x.trim()).filter(Boolean) };
+        const entry = { path, title, user: get('user') || get('email'), password: get('password'), url, notes: get('notes'), totp: get('totp').trim(), tags: get('tags').split(/[,;]/).map((x) => x.trim()).filter(Boolean) };
+        if (hit) refs++;
+        return entry;
     });
-    return { entries, ignored };
+    return { entries, ignored, refs };
 }
 
 /** otpauth URI of an entry: the "otp" field, or built from the old "TOTP Seed"/"TOTP Settings" fields; otherwise ''. */

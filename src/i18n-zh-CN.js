@@ -81,6 +81,7 @@ export default {
     'csv.found': '找到 {n} 个条目。',
     'csv.group': '导入到 {name}',
     'csv.ignored': '未导入：{cols}。',
+    'csv.refs': '含有 {REF:…} 并指向其他条目的条目：{n}。将作为普通文本导入，而不是引用。',
     'csv.import': '导入',
     'csv.import.hint': '来自 KeePassXC、KeePass、Bitwarden、1Password、LastPass、Chrome、Edge 或 Firefox。所有内容都会进入一个独立的新分组，之后便于整理或删除。',
     'csv.import.title': '导入',

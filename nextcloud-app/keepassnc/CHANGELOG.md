@@ -3,9 +3,15 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Added
+- The name of an extra field in the entry editor suggests the names already used in your database, like the tags do (KeePassXC 2.8 has the same).
+- CSV import understands Proton Pass: the vault becomes the group, and the `email` column fills in the user name when there is none.
 ### Changed
 - Generator dialog (opened from the tool bar, not from the editor): a click on the password copies it, like on the generator page.
 - Attachments are added and removed in the entry editor now, together with the other changes, and only land in the entry (and its history) when you press Apply. The entry view just shows them, with preview and download. The editor has a drop area: drag files onto it or click it to choose them. New entries can take attachments right away.
+
+### Fixed
+- CSV import no longer lets a file point at your other entries: a `{REF:…}` in an imported title, user name, password, URL or notes is imported as plain text (and the import summary says how many entries had one). Otherwise a CSV from elsewhere could slip another entry's password into an entry's login. KeePassXC 2.8 closed the same hole for its browser extension.
 
 ## [0.16.3] - 2026-10-21
 ### Fixed

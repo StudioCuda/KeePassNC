@@ -81,6 +81,7 @@ export default {
     'csv.found': 'Gefundene Einträge: {n}.',
     'csv.group': 'Import {name}',
     'csv.ignored': 'Nicht übernommen: {cols}.',
+    'csv.refs': 'Einträge mit {REF:…} auf andere Einträge: {n}. Sie werden als normaler Text übernommen, nicht als Verweis.',
     'csv.import': 'Importieren',
     'csv.import.hint': 'Aus KeePassXC, KeePass, Bitwarden, 1Password, LastPass, Chrome, Edge oder Firefox. Alles landet in einer eigenen neuen Gruppe, so lässt es sich leicht aufräumen oder wieder entfernen.',
     'csv.import.title': 'Import',

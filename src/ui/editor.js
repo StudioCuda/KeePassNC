@@ -92,7 +92,7 @@ export function renderEditor(host) {
         };
         const protectBox = h('input', { type: 'checkbox', class: 'c-protect', checked: protect, onchange: (ev) => { eye.hidden = !ev.target.checked; setMasked(ev.target.checked); } });
         const row = h('div', { class: 'custom-row' },
-            h('input', { placeholder: t('field.name'), value: name, class: 'c-name', 'aria-label': t('field.name') }),
+            h('input', { placeholder: t('field.name'), value: name, class: 'c-name', 'aria-label': t('field.name'), list: 'field-suggestions', autocomplete: 'off' }),
             h('div', { class: 'c-value-wrap' }, val, mask, eye),
             h('label', { class: 'check small' }, protectBox, h('span', { text: t('field.protected') })),
             iconBtn('x', t('remove'), () => row.remove(), { type: 'button' }));
@@ -137,6 +137,9 @@ export function renderEditor(host) {
     const tagSugg = h('datalist', { id: 'tag-suggestions' });
     const allTags = new Set(); for (const e of allRealEntries()) for (const tg of e.tags || []) allTags.add(tg);
     for (const tg of [...allTags].sort()) tagSugg.append(h('option', { value: tg }));
+    const fieldSugg = h('datalist', { id: 'field-suggestions' }); // names of the custom fields already used in this database
+    const allFields = new Set(); for (const e of allRealEntries()) for (const k of e.fields.keys()) if (!STANDARD_FIELDS.includes(k) && !isSystemField(k)) allFields.add(k);
+    for (const k of [...allFields].sort()) fieldSugg.append(h('option', { value: k }));
 
     const form = h('form', { class: 'editor', id: 'edit-form', novalidate: true },
         h('header', { class: 'detail-head' },
@@ -158,7 +161,7 @@ export function renderEditor(host) {
             h('section', { class: 'card stack' }, h('div', { class: 'stack tight' }, h('span', { class: 'group-title', text: t('f.color') }), colorBox)),
             h('section', { class: 'card stack' }, h('label', {}, h('span', { text: t('f.totp') }), h('div', { class: 'input-group' }, i.otp, qrLabel, qrInput)), h('p', { class: 'hint', text: t('f.totp.hint') })),
             h('section', { class: 'card stack' }, h('div', { class: 'flabel', text: t('fields.more') }), customBox,
-                h('div', {}, h('button', { type: 'button', class: 'btn small', id: 'add-custom', onclick: () => addCustom().querySelector('.c-name').focus() }, icon('plus'), t('field.add')))),
+                h('div', {}, h('button', { type: 'button', class: 'btn small', id: 'add-custom', onclick: () => addCustom().querySelector('.c-name').focus() }, icon('plus'), t('field.add')), fieldSugg)),
             h('section', { class: 'card stack' }, h('div', { class: 'card-title' }, icon('clip'), h('span', { class: 'grow', text: t('attachments') })), attRows, dropZone, attInput)));
 
     form.addEventListener('submit', async (ev) => {

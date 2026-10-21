@@ -25,10 +25,11 @@ export function openCsv({ onBack } = {}) {
         found = null; importBtn.disabled = true; summary.textContent = '';
         if (!f) return;
         try {
-            const { entries, ignored } = mapRows(parseCsv(await f.text()));
+            const { entries, ignored, refs } = mapRows(parseCsv(await f.text()));
             if (!entries.length) { summary.textContent = t('csv.empty'); return; }
             found = { entries, name: f.name.replace(/\.csv$/i, '') };
-            summary.textContent = t('csv.found', { n: entries.length }) + (ignored.length ? ' ' + t('csv.ignored', { cols: ignored.join(', ') }) : '');
+            summary.textContent = t('csv.found', { n: entries.length }) + (ignored.length ? ' ' + t('csv.ignored', { cols: ignored.join(', ') }) : '')
+                + (refs ? ' ' + t('csv.refs', { n: refs }) : '');
             importBtn.disabled = false;
         } catch (e) { summary.textContent = errText(e); }
     });
