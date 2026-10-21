@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [0.16.0] - 2026-10-21
 ### Added
 - Chinese (zh-CN) as a third language. The app follows the browser or the Nextcloud language, and the language list offers 中文 next to Deutsch and English.
 ### Changed
