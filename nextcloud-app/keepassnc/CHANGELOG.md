@@ -10,6 +10,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - The dice icon (password generator) has fuller pips, so they no longer look so thin next to the other toolbar icons.
 - The key icon (copy password on hover in the entry list) now sits centred in its button, and the hover icons are a touch larger.
+- "Key file & offline options" on the open-vault screen now always starts folded, even with the offline copy switched on. One click away, a lot less card.
 - The URL field no longer hands out other entries' secrets: `{REF:P@…}` and references to protected fields stay as they are when the URL is shown, opened (click, Ctrl+Shift+U) or copied. Otherwise an imported or merged entry with a URL like `https://evil.example/?p={REF:P@T:}` would hand you a link with another entry's password in it. The entry's own `{PASSWORD}` and protected fields still go in when you open or copy the URL (old-school `?pass=…` logins keep working), but the shown URL and the link keep the placeholder, so the password isn't on screen. Everything else (`{USERNAME}`, `{S:Host}`, `{REF:U@…}` …) resolves as before, and so does the password field.
 
 ### Fixed
