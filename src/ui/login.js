@@ -1,4 +1,4 @@
-// Anmeldung: Quelle waehlen (Nextcloud/WebDAV oder lokale Datei), Master-Passwort + optionale Schluesseldatei, Entschluesseln im Browser.
+// Login: pick a source (Nextcloud/WebDAV or local file), master password + optional key file, decrypt in the browser.
 import { Vault, VaultError } from '../vault.js';
 import { DavFile, DavError, NetworkError, isOffline, offlineFailKey } from '../webdav.js';
 import { cacheGet } from '../cache.js';
@@ -18,20 +18,20 @@ const { state } = ctx;
 
 export function showLogin(message) {
     stopTimers();
-    // Vor dem Leeren: offene Dialoge (haengen an <body>, nicht an #app) und der TOTP-Takt (haelt das Geheimnis) duerfen das Sperren nicht ueberleben
+    // Before clearing: open dialogs (attached to <body>, not #app) and the TOTP ticker (holds the secret) must not survive locking
     closeAllDialogs();
     stopDetailTimers();
     state.vault = null; state.selEntry = null; state.editing = null; state.query = '';
     document.body.classList.remove('in-vault');
     const NC = ctx.NC;
-    // Eigenstaendige Seite: ohne bisherige Wahl (und ohne ?url=) erst einmal eine lokale Datei, dafuer braucht es keinen Server
+    // Standalone page: with no previous choice (and no ?url=) start with a local file, that needs no server
     const mode = pref('mode') || (NC || params.get('url') ? 'dav' : 'file');
-    // Ohne Nextcloud-App: Nextcloud-Adresse + Pfad (oder ueber den Link die WebDAV-Adresse wie bisher)
+    // Without the Nextcloud app: Nextcloud address + path (or the WebDAV address via the link, as before)
     const remote = NC ? null : remoteFields('dav', { urlValue: params.get('url') || pref('url'), urlPlaceholder: t('login.dav.url.ph'),
         onMode: (m) => { pathBox.hidden = m !== 'nc'; refreshKf(); }, onFound: () => refreshKf() });
     const urlInput = remote?.url || h('input'), userInput = remote?.user || h('input'), passInput = remote?.pass || h('input');
     const fileInput = h('input', { id: 'local-file', type: 'file', accept: '.kdbx' });
-    const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off' }); // leer: Datenbank nur mit Schluesseldatei
+    const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off' }); // empty: database with key file only
     const keyInput = h('input', { id: 'keyfile', type: 'file' });
     const keyName = h('span', { class: 'muted', text: t('login.keyfile.none') });
     keyInput.addEventListener('change', () => { keyName.textContent = keyInput.files[0]?.name || t('login.keyfile.none'); if (keyInput.files[0]) more.open = true; });
@@ -43,7 +43,7 @@ export function showLogin(message) {
     const kfUseRow = h('div', { class: 'kf-used', id: 'kf-remembered', hidden: true }, h('label', { class: 'check small' }, kfUse, kfUseName), kfForget);
     const ncPathInput = h('input', { id: NC ? 'nc-path' : 'dav-path', type: 'text', placeholder: t('login.nc.path.ph'), value: NC ? NC.file || pref('ncfile') : remote.legacy?.path || '',
         autocomplete: 'off', readonly: !!NC?.file });
-    // [Durchsuchen]: Datei in der eigenen Nextcloud waehlen statt den Pfad zu tippen; startet im Ordner des Pfads im Feld
+    // [Browse]: pick a file in your own Nextcloud instead of typing the path; starts in the folder of the path in the field
     const browseBtn = !NC?.file ? h('button', { type: 'button', id: NC ? 'nc-browse' : 'dav-browse', class: 'btn' }, icon('folderOpen'), h('span', { text: t('login.nc.browse') })) : null;
     browseBtn?.addEventListener('click', async () => {
         err.textContent = '';
@@ -63,12 +63,12 @@ export function showLogin(message) {
         refreshKf();
         masterInput.focus();
     });
-    // Hinweis als Tooltip auf Beschriftung und Feld statt als eigene Zeile
+    // Hint as a tooltip on label and field instead of its own line
     const pathBox = h('label', NC && !NC.file ? { title: t('login.nc.tip') } : {}, h('span', { text: NC?.file ? t('login.nc.file') : t('login.nc.path') }), browseBtn ? h('div', { class: 'input-group' }, ncPathInput, browseBtn) : ncPathInput);
     const davBox = NC
         ? h('div', { id: 'dav-box', class: 'stack' }, NC.file ? fileChip(NC.file) : null, pathBox)
         : h('div', { id: 'dav-box', class: 'stack' }, remote.serverBox, remote.urlBox, remote.creds, pathBox, remote.foot);
-    pathBox.hidden = !!NC?.file; // aus Dateien geoeffnet: die Datei steht als Karte da, das schreibgeschuetzte Feld bleibt nur fuer die Logik
+    pathBox.hidden = !!NC?.file; // opened from Files: the file shows up as a card, the read-only field only stays for the logic
     const fileBox = h('div', { id: 'file-box', class: 'stack', hidden: true }, h('label', {}, h('span', { text: t('login.file') }), fileInput));
     const seg = (value, label, ic) => h('label', { class: 'seg' }, h('input', { type: 'radio', name: 'src', value, checked: mode === value, onchange: () => { davBox.hidden = value !== 'dav'; fileBox.hidden = value !== 'file'; pref('mode', value); } }), h('span', {}, icon(ic), label));
     davBox.hidden = mode !== 'dav'; fileBox.hidden = mode !== 'file';
@@ -76,7 +76,7 @@ export function showLogin(message) {
     const err = h('p', { class: 'error', id: 'login-error', role: 'alert', text: message || '' });
     const btn = h('button', { type: 'submit', id: 'open-btn', class: 'primary big' }, icon('lock'), h('span', { class: 'label', text: t('login.open') }));
     const showPw = iconBtn('eye', t('show'), () => { const on = masterInput.type === 'password'; masterInput.type = on ? 'text' : 'password'; showPw.setAttribute('aria-pressed', String(on)); showPw.replaceChildren(icon(on ? 'eyeOff' : 'eye')); }, { type: 'button', 'aria-pressed': 'false' });
-    // Schluesseldatei und Offline-Kopie braucht nur, wer sie braucht: immer eingeklappt, auch wenn die Offline-Kopie an ist
+    // Only those who need a key file and offline copy see them: always collapsed, even when the offline copy is on
     const more = h('details', { class: 'login-more', id: 'login-more' },
         h('summary', { text: t('login.more') }),
         h('div', { class: 'stack' },
@@ -89,14 +89,14 @@ export function showLogin(message) {
         h('label', {}, h('span', { text: t('login.master') }), h('div', { class: 'pw-field' }, masterInput, showPw)),
         kfUseRow, more,
         err, btn, NC ? h('p', { class: 'login-trust' }, icon('lock'), h('span', { text: t('login.trust.short') })) : null);
-    // --- gemerkte Schluesseldatei (siehe keyfile-store.js / docs/KEYFILE-MEMORY.md)
+    // --- remembered key file (see keyfile-store.js / docs/KEYFILE-MEMORY.md)
     const currentSrc = () => form.querySelector('input[name=src]:checked').value;
     const kfIdNow = () => {
         if (currentSrc() === 'file') return fileInput.files[0] ? kfFileId(fileInput.files[0].name) : null;
         if (NC) { const pth = normalizeUserPath(ncPathInput.value); return pth && !pth.endsWith('/') ? `nc:${NC.user}:${pth}` : null; }
         if (remote.mode() === 'nc') {
             const pth = normalizeUserPath(ncPathInput.value), base = remote.guess();
-            try { return base && pth && !pth.endsWith('/') ? `dav:${remote.fileUrl(base, pth)}` : null; } catch { return null; } // ".." im Pfad
+            try { return base && pth && !pth.endsWith('/') ? `dav:${remote.fileUrl(base, pth)}` : null; } catch { return null; } // ".." in the path
         }
         return urlInput.value.trim() ? `dav:${urlInput.value.trim()}` : null;
     };
@@ -117,21 +117,21 @@ export function showLogin(message) {
     form.addEventListener('submit', async (ev) => {
         ev.preventDefault();
         err.textContent = '';
-        if (btn.disabled) return; // laufender Versuch
+        if (btn.disabled) return; // attempt in progress
         btn.disabled = true; btn.classList.add('busy');
         let keyfile, kfId;
         btn.querySelector('.label').textContent = t('login.decrypting');
         try {
             const src = form.querySelector('input[name=src]:checked').value;
             pref('mode', src);
-            // Kennung, Schluesseldatei und Merk-Wunsch JETZT festhalten: Eingaben koennen sich waehrend Netz/KDF noch aendern
+            // Capture id, key file and remember choice NOW: inputs can still change during network/KDF
             kfId = kfIdNow();
             const kfPicked = keyInput.files[0] || null;
             const wantRemember = !!kfPicked && kfRemember.checked;
             const wantRecall = !kfPicked && kfUse.checked;
-            // Ohne Passwort braucht es eine gewaehlte Schluesseldatei; eine gemerkte entschluesselt nur das Master-Passwort
+            // Without a password a picked key file is required; a remembered one is only decrypted by the master password
             if (!masterInput.value && !kfPicked) throw new VaultError(t('err.login.empty'));
-            // Nextcloud: gemerkte Schluesseldateien zusaetzlich an einen Geheimwert auf dem Server gebunden (Format v2, siehe keyfile-store.js)
+            // Nextcloud: remembered key files are additionally bound to a secret on the server (format v2, see keyfile-store.js)
             const ncAuth = NC ? nextcloudAuth(NC) : null;
             const usePepper = !!(NC && NC.pepperUrl);
             let pepperP = null;
@@ -143,7 +143,7 @@ export function showLogin(message) {
                 if (NC) {
                     const userPath = normalizeUserPath(ncPathInput.value);
                     if (!userPath || userPath.endsWith('/')) throw new VaultError(t('err.nc.path'));
-                    pref('ncfile', userPath); // merken: der Offline-Start der App-Seite kennt den ?open=-Parameter nicht
+                    pref('ncfile', userPath); // remember it: the offline start of the app page doesn't know the ?open= parameter
                     dav = new DavFile({ url: davUrlFor(NC, userPath), auth: ncAuth });
                 } else {
                     const user = userInput.value, pass = passInput.value, davMode = remote.mode();
@@ -153,7 +153,7 @@ export function showLogin(message) {
                         if (!remote.root()) throw new VaultError(t('err.nc.server'));
                         if (!userPath || userPath.endsWith('/')) throw new VaultError(t('err.nc.path'));
                         url = remote.fileUrl(await remote.davBase({ offline: true }), userPath);
-                        kfId = `dav:${url}`; // dieselbe Kennung wie mit der WebDAV-Adresse; die Basis kann erst jetzt vom Server gekommen sein
+                        kfId = `dav:${url}`; // same id as with the WebDAV address; the base may only have come from the server just now
                     } else if (!url) throw new VaultError(t('err.dav.url'));
                     pref('url', url); pref('user', user); pref('davmode', davMode);
                     dav = new DavFile({ url, user, pass });
@@ -176,8 +176,8 @@ export function showLogin(message) {
                 if (!f) throw new VaultError(t('err.file.none'));
                 buf = await f.arrayBuffer(); name = f.name;
             }
-            if (kfPicked) keyfile = new Uint8Array(await kfPicked.arrayBuffer()); // File-Objekt ist unveraenderlich, auch wenn die Auswahl wechselt
-            await new Promise((r) => setTimeout(r, 30)); // UI-Text vor der KDF-Berechnung anzeigen
+            if (kfPicked) keyfile = new Uint8Array(await kfPicked.arrayBuffer()); // the File object is immutable, even if the selection changes
+            await new Promise((r) => setTimeout(r, 30)); // show the UI text before the KDF computation
             let usedRemembered = false;
             const kfRec = wantRecall && kfId ? await kfStore.info(kfId).catch(() => null) : null;
             if (kfRec) {
@@ -198,25 +198,25 @@ export function showLogin(message) {
                 vault = await Vault.open({ buf, password: masterInput.value, keyfile, dav, etag, cache: cacheInfo, unsynced, remoteBuf, fromCache });
             } catch (e) {
                 if (usedRemembered && e instanceof VaultError) throw new VaultError(t('err.kf.mismatch'));
-                // Ungesyncte lokale Kopie (alte Zugangsdaten), waehrend anderswo neue gesetzt wurden: der Weg fuehrt ueber die alten
+                // Unsynced local copy (old credentials) while new ones were set elsewhere: the way in goes through the old ones
                 if (unsynced && e instanceof VaultError && e.key === 'e.badkey') throw new VaultError(t('err.cache.oldcreds'));
                 throw e;
             }
             vault.backupKeep = ctx.settings.backupKeep;
-            // Nextcloud nennt die Rechte (Freigabe nur zum Lesen?); andere WebDAV-Server nicht, dann entscheidet erst das Speichern
+            // Nextcloud reports the permissions (share read-only?); other WebDAV servers don't, then saving decides
             const perms = NC && dav && !offlineOpen ? await dav.permissions() : null;
             const readOnly = perms !== null && !perms.includes('W');
             let kfNote = '';
             if (usedRemembered && (isWeakerThan(kfRec.kdf, vault.kdfParams()) || (usePepper && !kfRec.server))) {
-                // Aelterer/schwaecherer Datensatz (v0.4.0, Datenbank-KDF inzwischen erhoeht, in Nextcloud noch ohne Server-Geheimwert):
-                // im Hintergrund mit aktuellen Parametern neu verschluesseln. Klappt das nicht (Server weg), bleibt der alte Datensatz.
+                // Older/weaker record (v0.4.0, database KDF raised since, in Nextcloud still without server secret):
+                // re-encrypt in the background with current parameters. If that fails (server gone), the old record stays.
                 const copy = keyfile.slice(), pw = masterInput.value, params = vault.kdfParams();
                 state.kfBusy = (async () => {
                     const pepper = usePepper ? await getPepper() : null;
                     await kfStore.remember({ id: kfId, name: kfRec.name, keyfile: copy, password: pw, params, pepper });
                 })().catch(() => {}).finally(() => copy.fill(0));
             }
-            if (wantRemember && kfId && !vault.hasPassword) toast(t('err.kf.nopw'), { kind: 'warn' }); // ohne Passwort waere der Datensatz ungeschuetzt
+            if (wantRemember && kfId && !vault.hasPassword) toast(t('err.kf.nopw'), { kind: 'warn' }); // without a password the record would be unprotected
             else if (wantRemember && kfId) {
                 try {
                     let pepper = null;
@@ -232,7 +232,7 @@ export function showLogin(message) {
             masterInput.value = ''; passInput.value = '';
             state.vault = vault; state.source = { type: src, name, kfId, readOnly };
             state.filter = { type: 'all' }; state.lastActivity = Date.now(); state.offlineMode = offlineOpen; state.lastSyncFailed = false;
-            // Schloss springt auf, kurz durchatmen, dann blendet der Tresor ein (ohne Bewegungswunsch sofort)
+            // Lock pops open, a short breather, then the vault fades in (immediately if motion is reduced)
             const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
             if (!calm) { btn.classList.replace('busy', 'done'); btn.querySelector('.icon').replaceWith(icon('unlock')); await new Promise((r) => setTimeout(r, 260)); }
             ctx.ui.showMain();
@@ -247,7 +247,7 @@ export function showLogin(message) {
             err.textContent = known ? errText(e) : t('err.generic', { msg: e.message || e });
             if (!known) console.error(e);
         } finally {
-            keyfile?.fill(0); keyfile = undefined; // Vault.open arbeitet mit einer eigenen Kopie
+            keyfile?.fill(0); keyfile = undefined; // Vault.open works on its own copy
             btn.disabled = false; btn.classList.remove('busy', 'done');
             btn.querySelector('.label').textContent = t('login.open');
         }
@@ -266,14 +266,14 @@ export function showLogin(message) {
     (remote?.mode() === 'nc' && !remote.server.value ? remote.server : masterInput).focus();
 }
 
-/** Die Datei, die aus "Dateien" kam: Name gross, Ordner klein darunter. */
+/** The file that came from "Files": name large, folder small below it. */
 function fileChip(path) {
     const i = path.lastIndexOf('/');
     return h('div', { class: 'file-chip', id: 'nc-file-chip' }, icon('file'),
         h('span', {}, h('strong', { text: path.slice(i + 1) }), h('small', { class: 'muted', text: path.slice(0, i) || '/' })));
 }
 
-/** Rahmen der Anmeldung (auch "Neue Datenbank"): in Nextcloud schlicht die Karte unter der Kopfleiste, eigenstaendig mit der Hero-Flaeche daneben. */
+/** Frame of the login (also "New database"): in Nextcloud just the card under the header bar, standalone with the hero area next to it. */
 export function loginShell(card) {
     if (!ctx.NC) return h('div', { class: 'login' }, loginHero(), card);
     const title = card.querySelector('.login-top h2');
@@ -283,7 +283,7 @@ export function loginShell(card) {
     return h('div', { class: 'login solo' }, h('div', { class: 'login-mark', 'aria-hidden': 'true' }, icon('shield-fine')), card);
 }
 
-/** Linke Haelfte der Anmeldung (auch beim Anlegen einer neuen Datenbank). */
+/** Left half of the login (also when creating a new database). */
 export function loginHero() {
     return h('aside', { class: 'login-hero' },
         h('div', { class: 'login-mark', 'aria-hidden': 'true' }, icon('shield-fine')),

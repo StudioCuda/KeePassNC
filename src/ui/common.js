@@ -1,4 +1,4 @@
-// Gemeinsame Hilfen der Oberflaeche: Avatare, Filter/Sortierung der Eintragsliste, Staerke-Cache.
+// Shared UI helpers: avatars, filtering/sorting of the entry list, strength cache.
 import { estimateBits, strengthLabel } from '../core/entropy.js';
 import { parseQuery, matches } from '../core/search.js';
 import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolvePlaceholders } from '../core/util.js';
@@ -15,8 +15,8 @@ export function bitsOf(pw) {
     return b;
 }
 /**
- * Feldwert mit aufgeloesten Platzhaltern ({REF:P@I:…} auf andere Eintraege, {USERNAME}, {S:Feld}, {URL:HOST} …), wie ihn Anzeige,
- * Kopieren und Bewertung brauchen; nicht aufloesbare bleiben stehen. Der Editor arbeitet weiter mit dem Rohwert, damit sie erhalten bleiben.
+ * Field value with resolved placeholders ({REF:P@I:…} to other entries, {USERNAME}, {S:Field}, {URL:HOST} …), as display,
+ * copying and rating need it; unresolvable ones stay as they are. The editor keeps working with the raw value so they are preserved.
  */
 export const resolvedField = (e, name) => { const v = fieldOf(e, name); return v.includes('{') ? resolvePlaceholders(v, e, allRealEntries()) : v; };
 export const isWeak = (e) => { const pw = resolvedField(e, 'Password'); return !!pw && !pw.includes('{REF:') && !excluded(e) && bitsOf(pw) < 75; };
@@ -24,8 +24,8 @@ export { strengthLabel };
 
 const hueOf = (s) => { let x = 0; for (const c of s) x = (x * 31 + c.codePointAt(0)) >>> 0; return x % 12; };
 /**
- * Rundes Symbol eines Eintrags: eigenes Icon (Raster), sonst das gewaehlte Standard-Symbol auf farbigem Grund. Das Standard-Symbol 0
- * (Schluessel, die Vorgabe von KeePass) zeigt den Anfangsbuchstaben. sel ({icon, url}) ersetzt das Symbol des Eintrags (Vorschau im Editor).
+ * Round icon of an entry: custom icon (bitmap), otherwise the chosen standard icon on a coloured background. Standard icon 0
+ * (key, KeePass's default) shows the initial letter. sel ({icon, url}) replaces the entry's icon (preview in the editor).
  */
 export function avatar(item, { size = '', sel, title } = {}) {
     const url = sel ? sel.url : ctx.state.vault.customIconUrl(item);
@@ -37,7 +37,7 @@ export function avatar(item, { size = '', sel, title } = {}) {
     return h('span', { class: `avatar hue-${hueOf(title || '')} ${size}`, 'aria-hidden': 'true', text: ch });
 }
 
-/** Symbol einer Gruppe: Papierkorb, eigenes Icon, gewaehltes Standard-Symbol oder Ordner. sel wie bei avatar. */
+/** Icon of a group: recycle bin, custom icon, chosen standard icon or folder. sel as for avatar. */
 export function groupIcon(g, { sel } = {}) {
     const v = ctx.state.vault;
     if (g === v.recycleBin && !sel) return icon('trash');
@@ -62,7 +62,7 @@ const sorters = {
 };
 export const SORTS = Object.keys(sorters);
 
-/** Eintraege fuer die aktuelle Ansicht. Eine Suche gilt immer fuer die ganze Datenbank (ohne Papierkorb), wie in KeePassXC. */
+/** Entries for the current view. A search always covers the whole database (without recycle bin), like in KeePassXC. */
 export function visibleEntries() {
     const { state } = ctx;
     const v = state.vault;

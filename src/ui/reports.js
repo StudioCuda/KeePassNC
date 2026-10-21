@@ -1,5 +1,5 @@
-// Dialog "Datenbank": alles, was in der Datei steht. Passwort-Gesundheit (angelehnt an KeePassXC), Statistik, Infos mit Zugang zu den
-// Datenbank-Einstellungen. Was nur die App auf diesem Geraet betrifft, steht in den Einstellungen (settings-dialog.js).
+// "Database" dialog: everything that is in the file. Password health (modelled on KeePassXC), statistics, info with access to the
+// database settings. What only concerns the app on this device lives in the settings (settings-dialog.js).
 import { auditEntries } from '../core/audit.js';
 import { fieldOf } from '../core/util.js';
 import { t, fmtDate } from '../i18n.js';

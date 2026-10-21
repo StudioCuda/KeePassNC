@@ -1,11 +1,11 @@
-// Minimaler Testserver: liefert web/ statisch aus und stellt unter /dav/ eine WebDAV-aehnliche Dateiablage bereit
-// (GET/HEAD/PUT mit ETag, If-Match, If-None-Match, PROPFIND, MKCOL, HTTP-Basic-Auth). Nur fuer Tests, nicht fuer den Betrieb.
-// nc: zusaetzlich eine Nachbildung der App-Seite in Nextcloud unter /index.php/apps/keepassnc/ (templates/page.html, ?open= und ?new=)
-// mit /index.php/csrftoken; WebDAV nimmt dann statt Basic auch das CSRF-Token der Sitzung (wie Nextcloud fuer die eigene Seite).
-// Dieselbe Ablage liegt auch unter /remote.php/dav/files/<ncId>/ wie in einer Nextcloud, und PROPFIND auf /remote.php/dav/ nennt das
-// Konto (current-user-principal). ncId darf vom Anmeldenamen abweichen (Anmeldung per E-Mail). cors: Anfragen von anderen Herkuenften
-// erlauben (Preflight mit 204 beantworten); aus wie bei Nextcloud selbst, deren Preflight 401 ohne CORS-Header bekommt. Laesst sich
-// ueber das zurueckgegebene options-Objekt umschalten.
+// Minimal test server: serves web/ statically and provides a WebDAV-like file store under /dav/
+// (GET/HEAD/PUT with ETag, If-Match, If-None-Match, PROPFIND, MKCOL, HTTP basic auth). For tests only, not for production.
+// nc: additionally a replica of the app page in Nextcloud under /index.php/apps/keepassnc/ (templates/page.html, ?open= and ?new=)
+// with /index.php/csrftoken; WebDAV then accepts the session's CSRF token instead of Basic (like Nextcloud for its own page).
+// The same store is also available under /remote.php/dav/files/<ncId>/ as in a Nextcloud, and PROPFIND on /remote.php/dav/ names the
+// account (current-user-principal). ncId may differ from the login name (login by email). cors: allow requests from other origins
+// (answer preflight with 204); off like Nextcloud itself, whose preflight gets 401 without CORS headers. Can be
+// toggled via the returned options object.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -102,7 +102,7 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
             return;
         }
         if (nc && url.pathname === '/index.php/csrftoken') { res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ token: 'tok-test' })); return; }
-        // statische Dateien
+        // static files
         const rel = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
         const file = path.join(webRoot, path.normalize(rel).replace(/^(\.\.[\\/])+/, ''));
         if (!file.startsWith(webRoot) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404).end(); return; }
@@ -111,6 +111,6 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
     });
     return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve({
         server, port: server.address().port, log, user, pass, options,
-        stop: () => new Promise((r) => { server.close(() => r()); server.closeAllConnections?.(); }) // simuliert einen Serverausfall
+        stop: () => new Promise((r) => { server.close(() => r()); server.closeAllConnections?.(); }) // simulates a server outage
     })));
 }

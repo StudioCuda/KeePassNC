@@ -1,5 +1,5 @@
-// Minimaler WebDAV-Client fuer genau eine Datei. Schreibzugriffe laufen immer mit If-Match (ETag), damit
-// zwischenzeitliche Aenderungen anderer Geraete nie stillschweigend ueberschrieben werden.
+// Minimal WebDAV client for exactly one file. Writes always go out with If-Match (ETag), so changes made by
+// other devices in the meantime are never silently overwritten.
 
 export class ConflictError extends Error {
     constructor() {
@@ -9,7 +9,7 @@ export class ConflictError extends Error {
     }
 }
 
-/** message: deutscher Ersatztext; key/vars: Schluessel der Uebersetzung (siehe errText in i18n.js). */
+/** message: German fallback text; key/vars: translation key (see errText in i18n.js). */
 export class DavError extends Error {
     constructor(status, message, key, vars) {
         super(message);
@@ -21,8 +21,8 @@ export class DavError extends Error {
 }
 
 /**
- * Server nicht erreichbar (Netz, DNS, Verbindung abgelehnt, Zeitueberschreitung). host: Ziel auf einer anderen Herkunft als die
- * Seite. Dann kann es genauso gut CORS sein (der Browser sagt nicht, welches von beiden), und die Meldung nennt beides.
+ * Server not reachable (network, DNS, connection refused, timeout). host: target on a different origin than the
+ * page. Then it may just as well be CORS (the browser does not say which of the two), so the message names both.
  */
 export class NetworkError extends Error {
     constructor(cause, host = '') {
@@ -34,25 +34,25 @@ export class NetworkError extends Error {
     }
 }
 
-/** Host der Adresse, wenn sie auf einer anderen Herkunft liegt als die Seite; sonst ''. */
+/** Host of the address if it lives on a different origin than the page; otherwise ''. */
 function foreignHost(url) {
     if (typeof location === 'undefined') return '';
     try { const u = new URL(url, location.href); return u.origin !== location.origin ? u.host : ''; } catch { return ''; }
 }
 
-/** true, wenn der Fehler "Server gerade nicht verfuegbar" bedeutet (Ausfall, Wartungsmodus, Gateway-Fehler) - dann darf der lokale Cache einspringen. */
+/** true if the error means "server currently unavailable" (outage, maintenance mode, gateway error) - then the local cache may step in. */
 export function isOffline(e) {
     return e instanceof NetworkError || (e instanceof DavError && (e.status >= 500 || e.status === 0));
 }
 
 /**
- * Meldung, wenn der Server ausfaellt und keine Offline-Kopie einspringt. Ein 5xx nennt seinen Status: Wartungsmodus, Gateway-Fehler
- * und eine haengende Speicherquelle (503) sind etwas anderes als ein Server, den der Browser gar nicht erreicht (Issue #50).
- * cacheOn: Offline-Kopie eingeschaltet (aber fuer diese Datei noch keine vorhanden).
+ * Message for when the server is down and no offline copy steps in. A 5xx names its status: maintenance mode, gateway error
+ * and a hanging storage backend (503) are something different from a server the browser cannot reach at all (issue #50).
+ * cacheOn: offline copy is switched on (but none exists for this file yet).
  */
 export function offlineFailKey(e, cacheOn) {
     if (e instanceof DavError && e.status >= 500) return cacheOn ? 'err.offline.status.nocopy' : 'err.offline.status.nooption';
-    if (e instanceof NetworkError && e.vars?.host) return e.key; // fremde Herkunft: CORS ist genauso wahrscheinlich wie ein Ausfall
+    if (e instanceof NetworkError && e.vars?.host) return e.key; // foreign origin: CORS is just as likely as an outage
     return cacheOn ? 'err.offline.nocopy' : 'err.offline.nooption';
 }
 
@@ -60,7 +60,7 @@ function etagOf(res) {
     return res.headers.get('etag') || res.headers.get('oc-etag') || null;
 }
 
-/** Anmeldung per HTTP-Basic (Benutzer + App-Passwort), z. B. fuer die eigenstaendige Webseite. */
+/** Sign-in via HTTP Basic (user + app password), e.g. for the standalone page. */
 export function basicAuth(user, pass) {
     return {
         credentials: 'omit',
@@ -77,7 +77,7 @@ export function basicAuth(user, pass) {
 export class DavFile {
     /**
      * @param {{url: string, user?: string, pass?: string, auth?: {credentials: RequestCredentials, headers: () => Promise<Record<string,string>>, refresh?: () => Promise<void>}}} opts
-     * auth: wahlweise eigener Anbieter (z. B. Nextcloud-Sitzung); sonst Basic mit user/pass.
+     * auth: optionally a custom provider (e.g. Nextcloud session); otherwise Basic with user/pass.
      */
     constructor({ url, user, pass, auth }) {
         this.url = url;
@@ -91,11 +91,11 @@ export class DavFile {
             try {
                 res = await fetch(url, { ...init, headers, cache: 'no-store', credentials: this.auth.credentials });
             } catch (e) {
-                // Die Oberflaeche sagt nur "nicht erreichbar"; die eigentliche Ursache (Mixed Content, CSP, DNS ...) steht hier
+                // The UI only says "not reachable"; the actual cause (mixed content, CSP, DNS ...) is recorded here
                 console.warn('WebDAV request failed', init.method || 'GET', url, e);
                 throw new NetworkError(e, foreignHost(url));
             }
-            // Abgelaufenes Sitzungs-Token (Nextcloud): einmal erneuern und wiederholen
+            // Expired session token (Nextcloud): refresh once and retry
             if (res.status === 401 && this.auth.refresh && attempt === 0) {
                 await this.auth.refresh();
                 continue;
@@ -118,7 +118,7 @@ export class DavFile {
         return etagOf(res);
     }
 
-    /** Ueberschreibt die Datei nur, wenn sie noch dem erwarteten ETag entspricht. Liefert den neuen ETag. */
+    /** Overwrites the file only if it still matches the expected ETag. Returns the new ETag. */
     async put(buf, ifMatch) {
         const headers = { 'Content-Type': 'application/octet-stream' };
         if (ifMatch) headers['If-Match'] = ifMatch;
@@ -130,8 +130,8 @@ export class DavFile {
     }
 
     /**
-     * Legt die Datei neu an (neue Datenbank), ueberschreibt aber nie eine vorhandene: PUT mit If-None-Match: *. Liefert den ETag.
-     * 412: gibt es schon; 403: im Ordner darf man nichts anlegen; 404/409: den Ordner gibt es nicht.
+     * Creates the file (new database) but never overwrites an existing one: PUT with If-None-Match: *. Returns the ETag.
+     * 412: it already exists; 403: no permission to create in the folder; 404/409: the folder does not exist.
      */
     async create(buf) {
         const res = await this._fetch(this.url, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'If-None-Match': '*' }, body: buf });
@@ -144,23 +144,23 @@ export class DavFile {
     }
 
     /**
-     * Nextcloud-Rechte der Datei (oc:permissions, z. B. "SRGDNVW"; "W" = Inhalt aendern). null, wenn der Server sie nicht nennt
-     * (andere WebDAV-Server) oder die Abfrage scheitert - dann gilt die Datei als beschreibbar und erst das Speichern entscheidet.
+     * Nextcloud permissions of the file (oc:permissions, e.g. "SRGDNVW"; "W" = change content). null if the server does not report them
+     * (other WebDAV servers) or the query fails - the file then counts as writable and saving has the final say.
      */
     async permissions() {
         try {
             const res = await this._fetch(this.url, { method: 'PROPFIND', headers: { Depth: '0', 'Content-Type': 'application/xml' }, body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:prop><oc:permissions/></d:prop></d:propfind>' });
             if (res.status !== 207) return null;
             const el = new DOMParser().parseFromString(await res.text(), 'application/xml').getElementsByTagNameNS('http://owncloud.org/ns', 'permissions')[0];
-            return (el?.textContent || '').trim() || null; // leer = unbekannt (z. B. propstat 404), nicht "keine Rechte"
+            return (el?.textContent || '').trim() || null; // empty = unknown (e.g. propstat 404), not "no permissions"
         } catch {
             return null;
         }
     }
 
     /**
-     * Konto hinter den Zugangsdaten (current-user-principal), z. B. "/remote.php/dav/principals/users/anna/"; null, wenn der Server
-     * keines nennt. Antwortet unter der Adresse kein WebDAV: e.dav.nodav.
+     * Account behind the credentials (current-user-principal), e.g. "/remote.php/dav/principals/users/anna/"; null if the server
+     * reports none. If there is no WebDAV at the address: e.dav.nodav.
      */
     async principal() {
         const res = await this._fetch(this.url, { method: 'PROPFIND', headers: { Depth: '0', 'Content-Type': 'application/xml' }, body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:current-user-principal/></d:prop></d:propfind>' });
@@ -171,7 +171,7 @@ export class DavFile {
         return el?.getElementsByTagNameNS('DAV:', 'href')[0]?.textContent.trim() || null;
     }
 
-    /** Legt eine Sicherungskopie unter neuem Namen an (schlaegt nicht fehl, falls der Name schon existiert). */
+    /** Creates a backup under a new name (does not fail if the name already exists). */
     async putCopy(buf, suffix) {
         const url = `${this.url}.${suffix}.bak`;
         const res = await this._fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'If-None-Match': '*' }, body: buf });
@@ -180,21 +180,21 @@ export class DavFile {
     }
 
     /**
-     * Raeumt alte Sicherungskopien auf: behaelt je Art (normal / conflict) die neuesten `keep` Stueck.
-     * Beruehrt ausschliesslich Dateien, die exakt dem Muster "<Dateiname>.[conflict-]JJJJMMTT-HHMMSS.bak" entsprechen.
-     * keep <= 0 bedeutet: nichts loeschen. Liefert die Namen der geloeschten Dateien.
+     * Cleans up old backups: keeps the newest `keep` of each kind (normal / conflict).
+     * Only touches files that exactly match the pattern "<filename>.[conflict-]YYYYMMDD-HHMMSS.bak".
+     * keep <= 0 means: delete nothing. Returns the names of the deleted files.
      */
     async pruneBackups(keep) {
         if (!(keep > 0)) return [];
         return this._deleteBackups(keep);
     }
 
-    /** Loescht alle Sicherungskopien dieser Datei (gleiches Muster wie pruneBackups). Liefert die Namen der geloeschten Dateien. */
+    /** Deletes all backups of this file (same pattern as pruneBackups). Returns the names of the deleted files. */
     deleteBackups() { return this._deleteBackups(0); }
 
     /**
-     * Inhalt des Ordners unter this.url (mit oder ohne "/" am Ende): [{name, dir, modified}], ohne den Ordner selbst.
-     * Ordner fehlt: DavError 404 (e.dav.nofolder); keine Rechte: 401/403; ein Server, der nicht listet (kein 207): [].
+     * Contents of the folder at this.url (with or without trailing "/"): [{name, dir, modified}], without the folder itself.
+     * Folder missing: DavError 404 (e.dav.nofolder); no permission: 401/403; a server that does not list (no 207): [].
      */
     async list() {
         const url = this.url.replace(/\/?$/, '/');
@@ -202,7 +202,7 @@ export class DavFile {
         if (res.status === 404) throw new DavError(404, 'Diesen Ordner gibt es nicht - Pfad pruefen.', 'e.dav.nofolder');
         if (res.status === 401 || res.status === 403) throw new DavError(res.status, 'Zugriff verweigert - Anmeldung bzw. Zugangsdaten pruefen.', 'e.dav.denied');
         if (res.status !== 207) return [];
-        const abs = new URL(url, typeof location !== 'undefined' ? location.href : undefined); // Nextcloud: relative Adresse
+        const abs = new URL(url, typeof location !== 'undefined' ? location.href : undefined); // Nextcloud: relative address
         const self = decodeURIComponent(abs.pathname).replace(/\/+$/, '');
         const doc = new DOMParser().parseFromString(await res.text(), 'application/xml');
         const out = [];
@@ -219,7 +219,7 @@ export class DavFile {
         return out;
     }
 
-    /** Legt den Ordner unter this.url an. Gibt es ihn schon: e.dav.exists; keine Rechte: e.dav.nocreate; Elternordner fehlt: e.dav.nofolder. */
+    /** Creates the folder at this.url. Already exists: e.dav.exists; no permission: e.dav.nocreate; parent folder missing: e.dav.nofolder. */
     async mkdir() {
         const res = await this._fetch(this.url.replace(/\/+$/, ''), { method: 'MKCOL' });
         if (res.status === 405) throw new DavError(405, 'Diesen Ordner gibt es schon.', 'e.dav.exists');
@@ -228,7 +228,7 @@ export class DavFile {
         if (!res.ok) throw new DavError(res.status, `Server antwortete mit Status ${res.status}.`, 'e.dav.status', { status: res.status });
     }
 
-    /** Der Ordner der Datei: Adresse (mit "/" am Ende), eigener Dateiname und alle Eintraege [{name, dir, modified}] (leer, wenn der Server nicht listet). */
+    /** The file's folder: address (with trailing "/"), own file name and all entries [{name, dir, modified}] (empty if the server does not list). */
     async _listDir() {
         const u = new URL(this.url, typeof location !== 'undefined' ? location.href : undefined);
         const slash = u.pathname.lastIndexOf('/');
@@ -239,7 +239,7 @@ export class DavFile {
         return { dir, base, files };
     }
 
-    /** Andere .kdbx-Dateien im selben Ordner (z. B. "(conflicted copy)" der Nextcloud-Clients), neueste zuerst, je als DavFile. */
+    /** Other .kdbx files in the same folder (e.g. "(conflicted copy)" from the Nextcloud clients), newest first, each as DavFile. */
     async siblings() {
         const { dir, base, files } = await this._listDir();
         return files.filter((f) => !f.dir && /\.kdbx$/i.test(f.name) && f.name !== base)

@@ -1,4 +1,4 @@
-// DOM-Bausteine ohne innerHTML (Daten werden nie als HTML interpretiert) und ohne Inline-Styles/Handler (strikte CSP).
+// DOM building blocks without innerHTML (data is never interpreted as HTML) and without inline styles/handlers (strict CSP).
 import { MARK } from '../brand.js';
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -22,7 +22,7 @@ export function append(el, children) {
     return el;
 }
 
-// ---------------------------------------------------------------- Symbole (eigene, schlichte Linien-Symbole 24x24)
+// ---------------------------------------------------------------- Icons (our own plain line icons, 24x24)
 export const P = {
     search: 'M11 4a7 7 0 1 0 0 14 7 7 0 0 0 0-14ZM20 20l-4-4',
     plus: 'M12 5v14M5 12h14',
@@ -80,7 +80,7 @@ export const P = {
 };
 const NS = 'http://www.w3.org/2000/svg';
 export function icon(name, cls = '') { return name === 'shield' ? markIcon(MARK.bold, cls) : name === 'shield-fine' ? markIcon(MARK.fine, cls) : pathIcon(P[name] || P.file, cls); }
-/** Die Marke (brand.js): ein gefuellter Pfad; "shield" fuer Symbole, "shield-fine" mit duennerem Rand fuers grosse Wasserzeichen. */
+/** The brand mark (brand.js): a filled path; "shield" for icons, "shield-fine" with a thinner edge for the large watermark. */
 function markIcon(d, cls) {
     const svg = document.createElementNS(NS, 'svg'), path = document.createElementNS(NS, 'path');
     svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'currentColor'); svg.setAttribute('fill-rule', 'evenodd');
@@ -88,7 +88,7 @@ function markIcon(d, cls) {
     path.setAttribute('d', d); svg.append(path);
     return svg;
 }
-/** Linien-Symbol aus einem Pfad (fuer die KeePass-Standardsymbole in kpicons.js). */
+/** Line icon from a path (for the KeePass standard icons in kpicons.js). */
 export function pathIcon(d, cls = '') {
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', '0 0 24 24'); svg.setAttribute('fill', 'none'); svg.setAttribute('stroke', 'currentColor');
@@ -100,12 +100,12 @@ export function pathIcon(d, cls = '') {
     return svg;
 }
 
-/** Icon-Schaltflaeche mit Tooltip/Beschriftung (Screenreader). */
+/** Icon button with tooltip/label (screen reader). */
 export function iconBtn(name, label, onclick, extra = {}) {
     return h('button', { type: 'button', class: 'icon-btn ' + (extra.class || ''), title: label, 'aria-label': label, onclick, ...Object.fromEntries(Object.entries(extra).filter(([k]) => k !== 'class')) }, icon(name));
 }
 
-// ---------------------------------------------------------------- Hinweise (Toast)
+// ---------------------------------------------------------------- Notices (toast)
 let toastHost;
 export function toast(message, { kind = 'info', action, timeout = 4500 } = {}) {
     if (!toastHost) { toastHost = h('div', { class: 'toasts', 'aria-live': 'polite' }); document.body.append(toastHost); }
@@ -116,9 +116,9 @@ export function toast(message, { kind = 'info', action, timeout = 4500 } = {}) {
     return el;
 }
 
-// ---------------------------------------------------------------- Dialoge (ersetzen window.confirm/prompt)
+// ---------------------------------------------------------------- Dialogs (replace window.confirm/prompt)
 let modalDepth = 0;
-const openModals = new Set(); // close-Funktionen aller offenen Dialoge (fuer closeAllDialogs beim Sperren)
+const openModals = new Set(); // close functions of all open dialogs (for closeAllDialogs on lock)
 export function modal({ title, body, actions = [], size = 'md', onClose, labelledBy = true, cls = '' }) {
     const previouslyFocused = document.activeElement;
     const backdrop = h('div', { class: 'backdrop' });
@@ -139,7 +139,7 @@ export function modal({ title, body, actions = [], size = 'md', onClose, labelle
     }
     function onKey(e) {
         if (e.key === 'Escape') { e.stopPropagation(); e.preventDefault(); close(undefined); }
-        else if (e.key === 'Tab') { // Fokus im Dialog halten
+        else if (e.key === 'Tab') { // keep focus inside the dialog
             const f = $$('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', dlg).filter((x) => !x.disabled && x.offsetParent !== null);
             if (!f.length) return;
             const first = f[0], last = f[f.length - 1];
@@ -155,8 +155,8 @@ export function modal({ title, body, actions = [], size = 'md', onClose, labelle
     return { close, el: dlg };
 }
 
-/** Schliesst alle offenen Dialoge und Menues wie "Abbrechen". Dialoge haengen an <body>, nicht an #app: Ohne das blieben sie beim
- *  Sperren ueber der Anmeldung stehen, samt Klartext (Grosse Ansicht, Verlauf, Generator, Anhang-Vorschau). */
+/** Closes all open dialogs and menus like "Cancel". Dialogs hang off <body>, not #app: without this they would stay on top of the login
+ *  screen after locking, plaintext included (large view, history, generator, attachment preview). */
 export function closeAllDialogs() {
     for (const close of [...openModals].reverse()) close(undefined);
     closeMenus();
@@ -182,7 +182,7 @@ export function promptDialog({ title, label, value = '', multiline = false, conf
     });
 }
 
-/** Kleines Kontextmenue an einem Anker. items: [{label, icon?, onclick, danger?, disabled?} | 'sep'] */
+/** Small context menu at an anchor. items: [{label, icon?, onclick, danger?, disabled?} | 'sep'] */
 export function popupMenu(anchor, items, { align = 'start', x, y } = {}) {
     closeMenus();
     const menu = h('div', { class: 'menu', role: 'menu' });
@@ -202,9 +202,9 @@ export function popupMenu(anchor, items, { align = 'start', x, y } = {}) {
     menu.dataset.placed = '1';
     const off = (e) => { if (!menu.contains(e.target)) closeMenus(); };
     const key = (e) => { if (e.key === 'Escape') closeMenus(); };
-    // Erst nach dem oeffnenden Ereignis lauschen. Wird das Menue vorher geschlossen (Klick auf einen Punkt, waehrend der Timer
-    // noch wartet), darf der Timer nicht mehr feuern: sonst bleibt ein "off" fuer ein geloestes Menue haengen, das bei jedem
-    // spaeteren mousedown alle Menues schliesst, auch das gerade angeklickte, bevor dessen click ankommt.
+    // Only listen after the opening event. If the menu is closed before that (click on an item while the timer
+    // is still waiting), the timer must not fire anymore: otherwise an "off" lingers for a dissolved menu that closes
+    // all menus on every later mousedown, even the one just clicked, before its click arrives.
     const arm = setTimeout(() => { document.addEventListener('mousedown', off, true); document.addEventListener('keydown', key, true); }, 0);
     menu._cleanup = () => { clearTimeout(arm); document.removeEventListener('mousedown', off, true); document.removeEventListener('keydown', key, true); };
     menu.querySelector('.menu-item:not(:disabled)')?.focus();

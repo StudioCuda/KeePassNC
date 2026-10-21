@@ -24,10 +24,10 @@ use OCP\L10N\IFactory;
 use OCP\IUserSession;
 
 /**
- * Liefert die KeePassNC-Seite als eigenstaendiges HTML-Dokument aus (ohne Nextcloud-Layout und ohne Core-Skripte).
- * Das macht die Seite unabhaengig von Layout-/Frontend-Aenderungen zukuenftiger Nextcloud-Versionen und erlaubt
- * eine sehr strenge Content-Security-Policy. Der Server liefert nur die App und die verschluesselte Datei aus;
- * Entschluesselung findet ausschliesslich im Browser statt.
+ * Serves the KeePassNC page as a standalone HTML document (without the Nextcloud layout and without core scripts).
+ * That makes the page independent of layout/frontend changes in future Nextcloud versions and allows
+ * a very strict Content-Security-Policy. The server only serves the app and the encrypted file;
+ * decryption happens exclusively in the browser.
  */
 class PageController extends Controller {
 	public function __construct(
@@ -51,12 +51,12 @@ class PageController extends Controller {
 		$uid = $user?->getUID() ?? '';
 		$version = $this->appManager->getAppVersion(Application::APP_ID);
 
-		// Ohne abschliessenden "/": Mit Pretty URLs (htaccess.IgnoreFrontController, z. B. YunoHost) liefert linkTo() nur "/" bzw.
-		// "/unterordner/", und aus "/" . "/csrftoken" wurde "//csrftoken", fuer den Browser ein Host namens "csrftoken" (Issue #50).
+		// Without a trailing "/": with pretty URLs (htaccess.IgnoreFrontController, e.g. YunoHost) linkTo() returns only "/" or
+		// "/subfolder/", and "/" . "/csrftoken" turned into "//csrftoken", which the browser reads as a host named "csrftoken" (issue #50).
 		$indexPhp = rtrim($this->urlGenerator->linkTo('', 'index.php'), '/');
-		// Relativ wie alle anderen Adressen der Seite: linkToRemote() baut eine absolute URL aus Protokoll und Host, wie PHP sie sieht.
-		// Hinter einem Reverse-Proxy ohne overwriteprotocol wird daraus http://, und Browser (Mixed Content) wie CSP (connect-src 'self')
-		// blockieren den Abruf, bevor er den Server erreicht (Issue #50).
+		// Relative like all the other addresses of the page: linkToRemote() builds an absolute URL from protocol and host as PHP sees them.
+		// Behind a reverse proxy without overwriteprotocol that becomes http://, and browser (mixed content) and CSP (connect-src 'self')
+		// block the request before it reaches the server (issue #50).
 		$davBase = $this->urlGenerator->linkTo('', 'remote.php') . '/dav/files/' . rawurlencode($uid);
 		try {
 			$filesUrl = $this->urlGenerator->linkToRoute('files.view.index');
@@ -64,8 +64,8 @@ class PageController extends Controller {
 			$filesUrl = $indexPhp . '/apps/files/';
 		}
 
-		// Nur Pfade innerhalb des eigenen Benutzerverzeichnisses; Steuerzeichen entfernen. Weitere Pruefung im Browser und durch
-		// WebDAV selbst (Berechtigungen). $new: Vorschlag fuer eine neue Datenbank aus "+ Neu" in Dateien (die Datei gibt es noch nicht).
+		// Only paths inside the user's own directory; strip control characters. Further checks in the browser and by
+		// WebDAV itself (permissions). $new: suggestion for a new database from "+ New" in Files (the file doesn't exist yet).
 		$clean = static fn (?string $p): string => $p === null ? '' : (string)preg_replace('/[\x00-\x1F\x7F]/', '', $p);
 		$file = $clean($open);
 		$newFile = $clean($new);
@@ -89,9 +89,9 @@ class PageController extends Controller {
 		}
 		$lang = preg_match('/^[a-z]{2,3}/i', $lang, $m) ? strtolower($m[0]) : 'en';
 
-		// Pfade in App-Ordnern (css, js, img) bauen auf apps_paths[].url auf. Steht dort der webroot mit drin (z. B. "/nc/apps" statt "/apps"),
-		// liefert Nextcloud ihn doppelt ("/nc/nc/apps/..."), der Browser findet nichts und die Seite bliebe leer. Die Seite meldet es
-		// (data-url-fix); alle anderen Adressen der Seite sind Routen und davon nicht betroffen. Die Pfade bleiben relativ (siehe $davBase).
+		// Paths into app folders (css, js, img) are built from apps_paths[].url. If that carries the webroot (e.g. "/nc/apps" instead of
+		// "/apps"), Nextcloud hands it out twice ("/nc/nc/apps/..."), the browser finds nothing and the page would stay empty. The page
+		// reports it (data-url-fix); all other addresses on the page are routes and not affected. The paths stay relative (see $davBase).
 		$webroot = $this->urlGenerator->getWebroot();
 		$urlFixed = false;
 		$fixUrl = static function (string $u) use ($webroot, &$urlFixed): string {
@@ -133,9 +133,9 @@ class PageController extends Controller {
 	}
 
 	/**
-	 * Service Worker (haelt die App-Seite fuer den Offline-Start vor). Oeffentlich und ohne Anmeldung abrufbar, weil der Browser
-	 * Aktualisierungen ohne Weiterleitung auf die Login-Seite pruefen muss; der Inhalt ist reiner, fuer alle gleicher App-Code.
-	 * Er liegt unter demselben Pfad wie die Seite, damit sein Geltungsbereich die Seite umfasst.
+	 * Service worker (keeps the app page ready for offline start). Public and reachable without login, because the browser has to
+	 * check for updates without being redirected to the login page; the content is plain app code, the same for everyone.
+	 * It lives at the same path as the page so that its scope covers the page.
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
@@ -148,11 +148,11 @@ class PageController extends Controller {
 	}
 
 	/**
-	 * Primaerfarbe und Hell/Dunkel-Wahl fuer das Theming der Seite. Farbe ueber OCP\Defaults (beruecksichtigt die eigene Farbe der
-	 * Person); die Theme-Wahl hat keine oeffentliche PHP-Schnittstelle und steht als Benutzerwert theming/enabled-themes (JSON-Liste,
-	 * ein erzwungenes Theme aus enforce_theme kommt davor). Bei Fehlern oder ohne Theming-App: leer, die Seite behaelt ihren Look.
+	 * Primary colour and light/dark choice for theming the page. Colour via OCP\Defaults (respects the person's own colour);
+	 * the theme choice has no public PHP interface and is stored as the user value theming/enabled-themes (JSON list,
+	 * an enforced theme from enforce_theme comes first). On errors or without the theming app: empty, the page keeps its look.
 	 *
-	 * @return array{0: string, 1: string} [Farbe '#rrggbb' oder '', Theme-IDs durch Komma getrennt]
+	 * @return array{0: string, 1: string} [colour '#rrggbb' or '', theme IDs separated by comma]
 	 */
 	private function theming(string $uid): array {
 		try {
@@ -182,9 +182,9 @@ class PageController extends Controller {
 	}
 
 	/**
-	 * Inhalt der Kopfleiste (App-Menue und Benutzermenue) aus der oeffentlichen Navigation von Nextcloud, als JSON fuer data-nc-nav.
-	 * Der Browser prueft die Werte noch einmal (src/nextcloud.js). Der Abmelde-Link kommt ohne requesttoken: Die Seite liegt im
-	 * Offline-Cache, das Token holt der Browser beim Klick frisch.
+	 * Content of the header bar (app menu and account menu) from Nextcloud's public navigation, as JSON for data-nc-nav.
+	 * The browser checks the values once more (src/nextcloud.js). The logout link comes without requesttoken: the page sits in the
+	 * offline cache, the browser fetches a fresh token on click.
 	 */
 	private function navigation(string $uid, string $indexPhp, \Closure $fixUrl): string {
 		if ($uid === '') {
@@ -202,7 +202,7 @@ class PageController extends Controller {
 					'active' => ($e['active'] ?? false) === true,
 				];
 			}
-			// Navigations-Aktionen gibt es erst ab Nextcloud 35 (INavigationManager::TYPE_ACTION); in 34 liefert 'action' nichts.
+			// Navigation actions only exist from Nextcloud 35 (INavigationManager::TYPE_ACTION); in 34 'action' returns nothing.
 			$actions = [];
 			foreach ($this->navigationManager->getAll('action') as $e) {
 				$entry = ['id' => (string)($e['id'] ?? ''), 'name' => (string)($e['name'] ?? ''), 'href' => (string)($e['href'] ?? ''), 'icon' => $fixUrl((string)($e['icon'] ?? ''))];
@@ -233,7 +233,7 @@ class PageController extends Controller {
 				'avatar' => $avatar,
 				'name' => $this->userSession->getUser()?->getDisplayName() ?? $uid,
 				'apps' => $apps,
-				// Wie das App-Menue von Nextcloud: Admins bekommen am Ende die Kachel "Weitere Apps" (generateUrl('/settings/apps')).
+				// Like Nextcloud's app menu: admins get the "More apps" tile at the end (generateUrl('/settings/apps')).
 				'moreApps' => $this->groupManager->isAdmin($uid) ? $indexPhp . '/settings/apps' : '',
 				'settings' => $settings,
 				'actions' => $actions,
@@ -247,13 +247,13 @@ class PageController extends Controller {
 	private function contentSecurityPolicy(): EmptyContentSecurityPolicy {
 		$csp = new EmptyContentSecurityPolicy();
 		$csp->addAllowedScriptDomain("'self'");
-		$csp->allowEvalWasm(); // Argon2 laeuft als WebAssembly; kein 'unsafe-eval'
+		$csp->allowEvalWasm(); // Argon2 runs as WebAssembly; no 'unsafe-eval'
 		$csp->addAllowedStyleDomain("'self'");
 		$csp->addAllowedImageDomain("'self'");
 		$csp->addAllowedImageDomain('data:');
 		$csp->addAllowedConnectDomain("'self'");
-		// Kein addAllowedFrameAncestorDomain(): EmptyContentSecurityPolicy setzt dann frame-ancestors 'none'. Die Seite wird nie eingebettet;
-		// so koennen andere Apps derselben Nextcloud-Herkunft sie nicht unsichtbar einrahmen (Clickjacking, verdecktes Mitlesen).
+		// No addAllowedFrameAncestorDomain(): EmptyContentSecurityPolicy then sets frame-ancestors 'none'. The page is never embedded;
+		// so other apps on the same Nextcloud origin can't frame it invisibly (clickjacking, covert snooping).
 		return $csp;
 	}
 }

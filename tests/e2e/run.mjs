@@ -1,5 +1,5 @@
-// End-to-End-Test: echter Chromium-Browser gegen die gebaute App + WebDAV-Testserver; KeePassXC (keepassxc-cli) prueft,
-// was tatsaechlich auf dem "Server" gelandet ist. Aufruf: npm run test:e2e
+// End-to-end test: a real Chromium browser against the built app + WebDAV test server; KeePassXC (keepassxc-cli) checks
+// what actually ended up on the "server". Run with: npm run test:e2e
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,7 +15,7 @@ const PW = 'Test-Passwort-123';
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'kpnc-e2e-'));
 const davRoot = path.join(tmp, 'dav'); fs.mkdirSync(davRoot);
 
-// ---------- KeePassXC als Referenz ----------
+// ---------- KeePassXC as reference ----------
 function xc(args, file, input = PW + '\n') {
     return execFileSync('keepassxc-cli', [args[0], ...args.slice(1)], { input, stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 1 << 26 }).toString('utf8');
 }
@@ -24,18 +24,18 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 
 // ---------- Fixtures ----------
 function makeFixtures() {
-    // KDBX4 (Argon2, Anhang, TOTP, Tags, geschuetztes Feld) via pykeepass, danach von KeePassXC selbst gespeichert
+    // KDBX4 (Argon2, attachment, TOTP, tags, protected field) via pykeepass, then saved by KeePassXC itself
     execFileSync('python3', ['-I', path.join(root, 'tests/compat/make-pykeepass-ref.py')], { cwd: tmp });
     fs.renameSync(path.join(tmp, 'ref4.kdbx'), path.join(davRoot, 'vault4.kdbx'));
     xc(['edit', '-q', path.join(davRoot, 'vault4.kdbx'), 'Web/Mail', '--notes', 'Notiz äöü € (KeePassXC)'], null);
-    // KDBX3.1 (so legt keepassxc-cli 2.7.6 neue Datenbanken an)
+    // KDBX3.1 (that's how keepassxc-cli 2.7.6 creates new databases)
     const v3 = path.join(davRoot, 'vault3.kdbx');
     execFileSync('keepassxc-cli', ['db-create', '-p', v3], { input: `${PW}\n${PW}\n`, stdio: ['pipe', 'pipe', 'pipe'] });
     execFileSync('keepassxc-cli', ['add', '-p', '-u', 'alice', '--url', 'https://example.org', v3, 'Mail'], { input: `${PW}\npw-v3-eins\n`, stdio: ['pipe', 'pipe', 'pipe'] });
     execFileSync('keepassxc-cli', ['add', '-p', '-u', 'bob', v3, 'Konto'], { input: `${PW}\npw-v3-zwei\n`, stdio: ['pipe', 'pipe', 'pipe'] });
 }
 
-// ---------- Mini-Testrahmen ----------
+// ---------- Mini test harness ----------
 const results = [];
 async function step(name, fn) {
     const t0 = Date.now();
@@ -85,13 +85,13 @@ async function main() {
     });
 
     await step('Argon2 verlangt 4 GiB Arbeitsspeicher (mehr als WebAssembly je gibt) -> verstaendliche Meldung statt "RangeError"', async () => {
-        // Kopie von vault4 mit M = 4 GiB (Bytes) im Dateikopf, samt neuem Kopf-Hash. Der Schluessel wird nie fertig berechnet:
-        // die Speicheranforderung scheitert in jedem Browser, unabhaengig vom Geraet.
+        // Copy of vault4 with M = 4 GiB (bytes) in the file header, plus a new header hash. The key is never finished computing:
+        // the memory request fails in every browser, regardless of the device.
         const d = Buffer.from(fs.readFileSync(f4));
-        const pat = Buffer.from([0x05, 1, 0, 0, 0, 0x4d, 8, 0, 0, 0]); // VariantDictionary: UInt64, Name "M", 8 Byte Wert
+        const pat = Buffer.from([0x05, 1, 0, 0, 0, 0x4d, 8, 0, 0, 0]); // VariantDictionary: UInt64, name "M", 8-byte value
         const at = d.indexOf(pat); expect(at > 0, 'Argon2-Parameter M nicht im Kopf gefunden');
         d.writeBigUInt64LE(4n * 1024n * 1024n * 1024n, at + pat.length);
-        let o = 12; for (;;) { const id = d[o]; o += 5 + d.readUInt32LE(o + 1); if (id === 0) break; } // Kopffelder bis EndOfHeader
+        let o = 12; for (;;) { const id = d[o]; o += 5 + d.readUInt32LE(o + 1); if (id === 0) break; } // header fields up to EndOfHeader
         crypto.createHash('sha256').update(d.subarray(0, o)).digest().copy(d, o);
         fs.writeFileSync(path.join(davRoot, 'hungrig.kdbx'), d);
         const p = await newPage();
@@ -111,7 +111,7 @@ async function main() {
         for (let i = 0; i < 50 && !workers[0].closed; i++) await p.waitForTimeout(100);
         expect(workers[0].closed, 'Worker laeuft nach der Ableitung weiter');
         await p.context().close();
-        // Worker-Datei fehlt (z. B. offline, nie geladen): einmal versuchen, dann auf der Seite rechnen
+        // Worker file missing (e.g. offline, never loaded): try once, then compute on the page
         const q = await newPage();
         let tries = 0;
         await q.route('**/keepassnc-argon2.js', (r) => { tries++; return r.fulfill({ status: 404, body: '' }); });
@@ -133,7 +133,7 @@ async function main() {
         await p.context().close();
     });
 
-    // ---- Hauptlauf mit der KDBX4-Datei ----
+    // ---- Main run with the KDBX4 file ----
     const page = await newPage();
     await step('KDBX4 (von KeePassXC gespeichert) oeffnen: Eintraege, Version, Gruppen', async () => {
         await login(page, 'vault4.kdbx');
@@ -161,7 +161,7 @@ async function main() {
         expect(/äöü € \(KeePassXC\)/.test(await page.locator('#detail').innerText()), 'Notiz mit Umlauten');
         expect(/mail[\s,]+privat|privat[\s,]+mail/.test(await page.locator('[data-testid=f-tags]').innerText()), 'Tags');
         expect(!/1234/.test(await page.locator('[data-testid=custom-PIN]').innerText()), 'geschuetztes Feld darf nicht offen stehen');
-        // TOTP gegen KeePassXC vergleichen (bis zu 3 Versuche wegen Fenstergrenze)
+        // Compare TOTP against KeePassXC (up to 3 tries because of the window boundary)
         let ok = false, a, b;
         for (let i = 0; i < 3 && !ok; i++) {
             a = (await page.locator('[data-testid=totp-code]').innerText()).trim();
@@ -183,13 +183,13 @@ async function main() {
             'kp.save()'].join('\n')]);
         const p = await newPage();
         await login(p, 'steam.kdbx'); await rows(p).first().waitFor();
-        // Datei ohne Tags: die Tag-Leiste fehlt, und es darf kein "null" an ihrer Stelle stehen
+        // File without tags: the tag bar is missing, and there must be no "null" in its place
         const groups = await p.locator('#groups').innerText();
         expect(!/null/.test(groups), 'Seitenleiste zeigt "null": ' + groups);
         expect(await p.locator('#groups [data-testid=tag-chip]').count() === 0, 'Tag-Chips ohne Tags');
         await p.locator('[data-testid=entry-row]', { hasText: 'Steam' }).click();
         let ok = false, a, b;
-        for (let i = 0; i < 3 && !ok; i++) { // bis zu 3 Versuche wegen Fenstergrenze
+        for (let i = 0; i < 3 && !ok; i++) { // up to 3 tries because of the window boundary
             a = (await p.locator('[data-testid=totp-code]').innerText()).trim();
             b = xc(['show', '-t', fs3, 'Steam']).trim().split('\n').pop();
             ok = a === b;
@@ -264,7 +264,7 @@ async function main() {
         expect(fs.readFileSync(att, 'utf8') === 'anhang-inhalt\n', 'Anhang verloren');
         const baks = fs.readdirSync(davRoot).filter((n) => /^vault4\.kdbx\..*\.bak$/.test(n));
         expect(baks.length === 1, `genau 1 Sicherungskopie erwartet, gefunden: ${baks}`);
-        xc(['ls', '-R', path.join(davRoot, baks[0])]); // Sicherung ist selbst eine gueltige, oeffnbare Datenbank
+        xc(['ls', '-R', path.join(davRoot, baks[0])]); // the backup is itself a valid, openable database
         return `Version ${kdbxVersion(f4)}, Sicherung ${baks[0]}`;
     });
 
@@ -282,7 +282,7 @@ async function main() {
 
     await step('"Nicht in der Passwort-Gesundheit pruefen": KnownBad landet in der Datei, is:weak laesst den Eintrag weg, Abwaehlen nimmt es zurueck', async () => {
         const weakRows = async () => { await page.fill('#search', 'is:weak'); await page.waitForTimeout(300); return page.locator('[data-testid=entry-row]', { hasText: 'Neu E2E' }).count(); };
-        // KeePassXC liest KnownBad, gibt es im XML-Export aber nicht aus: deshalb pykeepass als zweite Meinung
+        // KeePassXC reads KnownBad but doesn't output it in the XML export: hence pykeepass as a second opinion
         const knownBad = () => execFileSync('python3', ['-I', '-c', ['from pykeepass import PyKeePass', `kp = PyKeePass(${JSON.stringify(f4)}, password=${JSON.stringify(PW)})`,
             "cd = kp.find_entries(title='Neu E2E', first=True)._element.find('CustomData')",
             "print(any(i.findtext('Key') == 'KnownBad' and i.findtext('Value') == 'True' for i in ([] if cd is None else cd)))"].join('\n')]).toString().trim() === 'True';
@@ -312,7 +312,7 @@ async function main() {
         expect(await page.locator('.c-value').last().isHidden(), 'geschuetzter Wert muss im Editor verdeckt sein');
         await page.click('#apply-btn');
         expect(await page.locator('[data-testid="custom-Codes"]').innerText() === plain, 'Anzeige ohne Umbrueche: ' + JSON.stringify(await page.locator('[data-testid="custom-Codes"]').innerText()));
-        // erneut bearbeiten und unveraendert uebernehmen: Umbrueche bleiben, auch im verdeckten Feld
+        // edit again and apply unchanged: line breaks stay, also in the hidden field
         await page.click('#edit-btn');
         const seedRow = page.locator('.custom-row').last();
         expect(await seedRow.locator('.c-name').inputValue() === 'Seed', 'Reihenfolge der Zusatzfelder');
@@ -338,7 +338,7 @@ async function main() {
         await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
         await p.click('#edit-btn'); await p.fill('#e-user', 'bob-aus-App'); await p.click('#apply-btn');
         await p.waitForTimeout(1100);
-        xc(['edit', '-q', f4, 'Web/Mail', '--url', 'https://extern.example'], null); // "anderes Geraet"
+        xc(['edit', '-q', f4, 'Web/Mail', '--url', 'https://extern.example'], null); // "other device"
         await p.click('#save-btn');
         await waitStatus(p, /zusammengef/);
         const k = xc(['show', f4, 'Bank/Konto']), m = xc(['show', f4, 'Web/Mail']);
@@ -356,7 +356,7 @@ async function main() {
         await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
         await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
         await p.click('#edit-btn'); await p.fill('#e-user', 'bob-trotz-KDF'); await p.click('#apply-btn');
-        // "anderes Geraet": doppelter Speicher, ein Durchlauf mehr, dazu eine Aenderung am Inhalt
+        // "other device": double memory, one more pass, plus a change to the content
         const want = py(['kdf.M.value, kdf.I.value = kdf.M.value * 2, kdf.I.value + 1', "e = kp.find_entries(title='Mail', first=True); e.url = 'https://kdf.example'; e.touch(modify=True)", 'kp.save()',
             'print(json.dumps([kdf.M.value, kdf.I.value]))']);
         expect(want[0] === before[0] * 2, 'Vorbereitung: KDF nicht geaendert ' + JSON.stringify([before, want]));
@@ -367,12 +367,12 @@ async function main() {
         expect(after[0] === want[0] && after[1] === want[1], `Schluesselableitung zurueckgesetzt: vorher ${before}, anderes Geraet ${want}, jetzt ${after.slice(0, 2)}`);
         expect(after[2] === 'bob-trotz-KDF' && after[3] === 'https://kdf.example', 'Aenderung verloren: ' + JSON.stringify(after.slice(2)));
         expect(xc(['show', f4, 'Bank/Konto']).includes('bob-trotz-KDF'), 'KeePassXC liest das Ergebnis nicht');
-        // und ohne Aenderung am Kopf auf dem Server bleibt der eigene (jetzt verstaerkte) Kopf: zweiter Konflikt nur mit Inhalt
+        // and without a change to the header on the server, our own (now strengthened) header stays: second conflict with content only
         await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
         await p.click('#edit-btn'); await p.fill('#e-user', 'bob-zweite-Runde'); await p.click('#apply-btn');
         await p.waitForTimeout(1100);
         xc(['edit', '-q', f4, 'Web/Mail', '--url', 'https://zweite.example'], null);
-        await p.evaluate(() => { document.querySelector('#status').textContent = ''; }); // Meldung der ersten Runde nicht mitzaehlen
+        await p.evaluate(() => { document.querySelector('#status').textContent = ''; }); // don't count the message from the first round
         await p.click('#save-btn');
         await waitStatus(p, /zusammengef/);
         const last = py(['k = kp.find_entries(title="Konto", first=True); m = kp.find_entries(title="Mail", first=True)', 'print(json.dumps([kdf.M.value, kdf.I.value, k.username, m.url]))']);
@@ -386,7 +386,7 @@ async function main() {
         await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
         await p.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
         await p.click('[data-testid=pw-toggle]');
-        // Grosse Ansicht offen lassen: der Dialog haengt an <body> und muss mit dem Sperren verschwinden
+        // Leave the large view open: the dialog is attached to <body> and has to disappear on lock
         await p.click('[data-testid=pw-large]'); await p.locator('[data-testid=large-type]').waitFor();
         await p.waitForFunction(() => /Automatisch gesperrt/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 15000 });
         const html = await p.content();
@@ -438,7 +438,7 @@ async function main() {
         await p.selectOption('#db-memory', '64'); await p.fill('#db-iterations', '3'); await p.selectOption('#db-parallelism', '2');
         expect(/Passt für Handy/.test(await p.locator('#db-level').innerText()), 'Ampel gruen bei 64 MiB');
         await p.click('#db-apply');
-        await p.waitForFunction(() => !document.querySelector('#db-settings'), null, { timeout: 30000 }); // Probelauf, keine Rueckfrage
+        await p.waitForFunction(() => !document.querySelector('#db-settings'), null, { timeout: 30000 }); // trial run, no confirmation prompt
         await p.keyboard.press('Escape');
         await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./, 30000);
         expect(kdbxVersion(fUp) === '4.0', 'Version: ' + kdbxVersion(fUp));
@@ -458,7 +458,7 @@ async function main() {
     await step('Sicherheit: Twofish-Datei (KDBX 3.1) bleibt Twofish, KeePassXC liest und bearbeitet, die App oeffnet das Ergebnis', async () => {
         const fTf = path.join(davRoot, 'twofish.kdbx');
         fs.copyFileSync(path.join(davRoot, 'vault3.kdbx'), fTf);
-        // Die App stellt nicht mehr auf Twofish um, also verschluesselt kdbxweb die Kopie neu
+        // The app no longer switches to Twofish, so kdbxweb re-encrypts the copy
         execFileSync(process.execPath, ['-r', 'ts-node/register/transpile-only', '-e', [
             `const k = require('./vendor/kdbxweb/lib/index'), fs = require('fs'), f = ${JSON.stringify(fTf)};`,
             `k.Kdbx.load(new Uint8Array(fs.readFileSync(f)).buffer, new k.Credentials(k.ProtectedValue.fromString(${JSON.stringify(PW)})))`,
@@ -477,7 +477,7 @@ async function main() {
         await p.context().close();
         expect(kdbxVersion(fTf) === '3.1', 'Version: ' + kdbxVersion(fTf));
         expect(/Cipher: Twofish/i.test(xc(['db-info', fTf])), 'KeePassXC db-info:\n' + xc(['db-info', fTf]));
-        await new Promise((r) => setTimeout(r, 1100)); // KeePassXC nicht in der Sekunde der letzten Aenderung bearbeiten lassen
+        await new Promise((r) => setTimeout(r, 1100)); // don't let KeePassXC edit within the second of the last change
         xc(['edit', fTf, 'Konto', '-u', 'von-keepassxc']);
         const q = await newPage();
         await login(q, 'twofish.kdbx'); await rows(q).first().waitFor();
@@ -517,7 +517,7 @@ async function main() {
         fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fM); fs.copyFileSync(fM, fC);
         xc(['add', '-q', '-u', 'handy', fC, 'Web/Vom Handy']);
         xc(['edit', '-q', fC, 'Bank/Konto', '-u', 'bob-handy']);
-        const otherPw = path.join(tmp, 'merge-anderes-pw.kdbx'); // Kopie mit anderem Master-Passwort und einem eigenen Eintrag
+        const otherPw = path.join(tmp, 'merge-anderes-pw.kdbx'); // copy with a different master password and an entry of its own
         execFileSync('python3', ['-I', '-c', ['from pykeepass import PyKeePass', `kp = PyKeePass(${JSON.stringify(fM)}, password=${JSON.stringify(PW)})`,
             "kp.add_entry(kp.find_groups(name='Web', first=True), 'Vom Laptop', 'carol', 'pw-laptop')", `kp.password = 'anderes-pw'`, 'from datetime import datetime, timezone', 'kp.credchange_date = datetime(2030, 1, 1, tzinfo=timezone.utc)', `kp.save(${JSON.stringify(otherPw)})`].join('\n')]);
         const foreign = path.join(tmp, 'fremd.kdbx');
@@ -543,7 +543,7 @@ async function main() {
         expect(/1 neu, 1 geändert/.test(await toastText()), 'Meldung: ' + await toastText());
 
         await openMerge();
-        await p.setInputFiles('#merge-file', foreign); await p.click('#merge-apply'); // gleiches Passwort, aber eine andere Datenbank
+        await p.setInputFiles('#merge-file', foreign); await p.click('#merge-apply'); // same password, but a different database
         await p.waitForFunction(() => /andere Datenbank/.test(document.querySelector('#merge-error')?.textContent || ''));
         await p.locator('#merge-form button', { hasText: 'Abbrechen' }).click();
 
@@ -639,7 +639,7 @@ async function main() {
         await p.check('#csv-sure');
         const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#csv-export')]);
         const ours = fs.readFileSync(await dl.path(), 'utf8');
-        // Vergleich mit KeePassXC: ohne Icon und Zeiten, TOTP nur das Geheimnis (KeePassXC schreibt die URI neu auf), ohne Papierkorb (lassen wir bewusst weg)
+        // Compare with KeePassXC: without icon and times, TOTP only the secret (KeePassXC rewrites the URI), without recycle bin (we leave that out on purpose)
         const cut = (csv) => parseCsv(csv).filter((r) => !r[0].includes('Recycle Bin'))
             .map((r) => [...r.slice(0, 6), r[6].match(/secret=([A-Z2-7]+)/)?.[1] || r[6]].join('|')).sort();
         const theirs = xc(['export', '-f', 'csv', fCsv]);
@@ -671,7 +671,7 @@ async function main() {
         const html = fs.readFileSync(path.join(root, 'web/index.html'), 'utf8');
         expect(/Content-Security-Policy/.test(html) && /default-src 'none'/.test(html), 'CSP fehlt');
         expect(!/unsafe-inline|unsafe-eval(?!')/.test(html.replace("'wasm-unsafe-eval'", '')), 'unsafe-inline/eval in CSP');
-        // Der Testserver hat nur verschluesselte Dateien gesehen; als Stichprobe darf der Master-Passwort-Text nirgends in den Server-Dateien stehen
+        // The test server only saw encrypted files; as a spot check, the master password text must appear nowhere in the server files
         for (const n of fs.readdirSync(davRoot)) expect(!fs.readFileSync(path.join(davRoot, n)).includes(Buffer.from(PW)), `Master-Passwort im Klartext in ${n}`);
         expect(!fs.readFileSync(path.join(davRoot, 'vault4.kdbx')).includes(Buffer.from('alice-neu')), 'Eintragsdaten im Klartext auf dem Server');
         expect(!log.some((l) => /innerHTML/.test(l)), 'n/a');

@@ -1,30 +1,30 @@
-// Nextcloud-Modus: Die Seite wird von der Nextcloud-App ausgeliefert (gleiche Herkunft). Anmeldung laeuft ueber die
-// bestehende Browser-Sitzung; fuer Schreibzugriffe auf WebDAV wird das CSRF-Token (requesttoken) benoetigt.
-// Es wird bewusst nur auf stabile, oeffentliche Schnittstellen zugegriffen: WebDAV unter /remote.php/dav und /csrftoken.
+// Nextcloud mode: the page is served by the Nextcloud app (same origin). Login goes through the
+// existing browser session; write access to WebDAV needs the CSRF token (requesttoken).
+// Only stable, public interfaces are used on purpose: WebDAV under /remote.php/dav and /csrftoken.
 
-/** Liest die vom PHP-Teil gesetzten data-Attribute; null, wenn die Seite nicht von der Nextcloud-App stammt. */
+/** Reads the data attributes set by the PHP part; null if the page doesn't come from the Nextcloud app. */
 import { DavError, NetworkError } from './webdav.js';
 import { parseHex } from './theme.js';
 
 export function readNextcloudContext(root) {
     if (!root || root.dataset.mode !== 'nextcloud') return null;
     return {
-        davBase: root.dataset.davBase, // z. B. /remote.php/dav/files/NAME (relativ, gleicher Origin wie die Seite)
+        davBase: root.dataset.davBase, // e.g. /remote.php/dav/files/NAME (relative, same origin as the page)
         csrfUrl: root.dataset.csrfUrl,
         filesUrl: root.dataset.filesUrl,
         swUrl: root.dataset.swUrl || '',
-        pepperUrl: root.dataset.pepperUrl || '', // Server-Geheimwert fuer gemerkte Schluesseldateien (leer = nicht verfuegbar)
+        pepperUrl: root.dataset.pepperUrl || '', // server secret for remembered key files (empty = not available)
         user: root.dataset.user || '',
-        file: root.dataset.file || '', // z. B. /Dokumente/Passwoerter.kdbx (relativ zum Benutzerverzeichnis)
-        newFile: root.dataset.new || '', // Vorschlag fuer eine neue Datenbank aus "+ Neu" in Dateien, z. B. /Dokumente/Passwoerter.kdbx
-        color: parseHex(root.dataset.ncColor) || '', // Primaerfarbe der Instanz (bzw. der Person), leer = unbekannt
-        themes: String(root.dataset.ncThemes || ''), // Theme-IDs aus Nextcloud, z. B. "dark,opendyslexic"
-        urlFix: root.dataset.urlFix === '1', // Instanz liefert App-Pfade mit doppeltem webroot (PHP-Teil hat sie korrigiert)
-        nav: parseNcNav(root.dataset.ncNav, globalThis.location?.origin) // Inhalt der Kopfleiste; null = keine Kopfleiste
+        file: root.dataset.file || '', // e.g. /Dokumente/Passwoerter.kdbx (relative to the user directory)
+        newFile: root.dataset.new || '', // suggestion for a new database from "+ New" in Files, e.g. /Dokumente/Passwoerter.kdbx
+        color: parseHex(root.dataset.ncColor) || '', // primary colour of the instance (or the person), empty = unknown
+        themes: String(root.dataset.ncThemes || ''), // theme IDs from Nextcloud, e.g. "dark,opendyslexic"
+        urlFix: root.dataset.urlFix === '1', // the instance hands out app paths with the webroot twice (the PHP part has fixed them)
+        nav: parseNcNav(root.dataset.ncNav, globalThis.location?.origin) // content of the header bar; null = no header bar
     };
 }
 
-// Nur Pfade derselben Herkunft ohne Zeichen, die in CSS url("...") oder einem Attribut stoeren koennten.
+// Only same-origin paths without characters that could break CSS url("...") or an attribute.
 const SAFE_PATH = /^\/(?!\/)[A-Za-z0-9\-._~!$&*+,;=:@%/?]*$/;
 function sameOriginPath(u, origin) {
     if (!u) return '';
@@ -40,15 +40,15 @@ function httpLink(u, origin) {
         return x.protocol === 'https:' || x.protocol === 'http:' ? x.href : '';
     } catch { return ''; }
 }
-// Office & Co. liefern ihre Aktions-Symbole als data:-URI (Base64, also ohne Zeichen, die url("...") stoeren); img-src erlaubt data:.
+// Office & co. deliver their action icons as data: URIs (Base64, so without characters that break url("...")); img-src allows data:.
 const DATA_ICON = /^data:image\/(?:svg\+xml|png|webp);base64,[A-Za-z0-9+/]+={0,2}$/;
 const actionIcon = (u, origin) => (typeof u === 'string' && u.length <= 32768 && DATA_ICON.test(u) ? u : sameOriginPath(u, origin));
 const hexColor = (v) => (typeof v === 'string' && /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i.test(v) ? v : '');
 const label = (v) => String(v ?? '').replace(/[\x00-\x1f\x7f]/g, '').trim().slice(0, 80);
 
 /**
- * Prueft die Navigation, die der PHP-Teil aus INavigationManager liefert (JSON). Links muessen http(s) sein, Symbole, Logo und
- * Avatar von derselben Herkunft (sonst blockiert die CSP sie). Der Abmelde-Link kommt ohne requesttoken; das holt der Browser frisch.
+ * Validates the navigation the PHP part gets from INavigationManager (JSON). Links must be http(s), icons, logo and
+ * avatar from the same origin (otherwise the CSP blocks them). The logout link comes without requesttoken; the browser fetches that fresh.
  */
 export function parseNcNav(json, origin) {
     if (!json || !origin) return null;
@@ -59,8 +59,8 @@ export function parseNcNav(json, origin) {
         .filter((a) => a.id && a.name && a.href);
     const settings = (Array.isArray(d.settings) ? d.settings : []).slice(0, 30).map((s) => ({ id: label(s?.id), name: label(s?.name), href: httpLink(s?.href, origin), icon: sameOriginPath(s?.icon, origin), csrf: s?.csrf === true }))
         .filter((s) => s.id && s.name && s.href);
-    // Navigations-Aktionen (Nextcloud 35, z. B. "Textdokument" von Office): nur echte Links. Aktionen ohne Link erledigt
-    // Nextcloud-JavaScript ueber den Event-Bus, das laeuft hier nicht.
+    // Navigation actions (Nextcloud 35, e.g. "Text document" from Office): real links only. Actions without a link are handled by
+    // Nextcloud JavaScript over the event bus, which doesn't run here.
     const actions = (Array.isArray(d.actions) ? d.actions : []).slice(0, 20).map((a) => ({ id: label(a?.id), name: label(a?.name), href: httpLink(a?.href, origin), icon: actionIcon(a?.icon, origin), color: hexColor(a?.color) }))
         .filter((a) => a.id && a.name && a.href && !/#$/.test(a.href));
     if (!apps.length) return null;
@@ -94,7 +94,7 @@ export function nextcloudAuth(ctx) {
         try {
             res = await fetch(ctx.csrfUrl, { credentials: 'same-origin', headers: { 'OCS-APIREQUEST': 'true' }, cache: 'no-store' });
         } catch (e) {
-            console.warn('CSRF token request failed', ctx.csrfUrl, e); // wie in webdav.js: die Oberflaeche sagt nur "nicht erreichbar"
+            console.warn('CSRF token request failed', ctx.csrfUrl, e); // as in webdav.js: the UI only says "not reachable"
             throw new NetworkError(e);
         }
         if (!res.ok) console.warn('CSRF token request: status', res.status, ctx.csrfUrl);
@@ -113,8 +113,8 @@ export function nextcloudAuth(ctx) {
 }
 
 /**
- * Holt (oder erneuert mit rotate=true) den Server-Geheimwert fuer gemerkte Schluesseldateien.
- * @returns {Promise<{id: string, key: Uint8Array}>} wirft NetworkError/DavError bei Ausfall bzw. abgelaufener Sitzung
+ * Fetches (or renews with rotate=true) the server secret for remembered key files.
+ * @returns {Promise<{id: string, key: Uint8Array}>} throws NetworkError/DavError on outage or expired session
  */
 export async function fetchPepper(ctx, auth, { rotate = false } = {}) {
     if (!ctx?.pepperUrl) throw new DavError(0, 'Kein Server-Geheimwert verfuegbar.', 'e.kf.nopepper');
@@ -123,13 +123,13 @@ export async function fetchPepper(ctx, auth, { rotate = false } = {}) {
         try {
             return await fetch(url, { method: rotate ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', headers: { ...(await auth.headers()), Accept: 'application/json' } });
         } catch (e) {
-            if (e instanceof DavError || e instanceof NetworkError) throw e; // aus auth.headers(), dort schon gemeldet
+            if (e instanceof DavError || e instanceof NetworkError) throw e; // from auth.headers(), already reported there
             console.warn('Server secret request failed', url, e);
             throw new NetworkError(e);
         }
     };
     let res = await send();
-    if ((res.status === 412 || res.status === 401 || res.status === 403) && auth.refresh) { await auth.refresh(); res = await send(); } // CSRF-Token abgelaufen
+    if ((res.status === 412 || res.status === 401 || res.status === 403) && auth.refresh) { await auth.refresh(); res = await send(); } // CSRF token expired
     if (res.status >= 500) throw new DavError(res.status, `Server antwortete mit Status ${res.status}.`, 'e.dav.status', { status: res.status });
     if (!res.ok) throw new DavError(res.status, 'Sitzung abgelaufen - bitte die Seite neu laden und erneut anmelden.', 'e.nc.session');
     const d = await res.json();

@@ -1,7 +1,7 @@
-// Test "Neue Datenbank": Pruefungen in der Maske, nie eine vorhandene Datei ueberschreiben, Anlegen ueber WebDAV, nur mit neuer
-// Schluesseldatei und als lokale Datei; im Nextcloud-Modus (Nachbildung der App-Seite) nur Name und Ordner, mit Ordner-Browser,
-// und derselbe Browser beim Oeffnen ([Durchsuchen] neben dem Pfadfeld).
-// Ergebnis jeweils mit keepassxc-cli gegengeprueft (oeffnet, AES-256, Argon2id mit 64 MiB).
+// Test "New database": checks in the form, never overwrite an existing file, creating via WebDAV, only with a new
+// key file and as a local file; in Nextcloud mode (mock of the app page) only name and folder, with folder browser,
+// and the same browser when opening ([Browse] next to the path field).
+// Each result is cross-checked with keepassxc-cli (opens, AES-256, Argon2id with 64 MiB).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -18,7 +18,7 @@ const dav = (name) => path.join(davRoot, name);
 execFileSync('keepassxc-cli', ['db-create', '-q', '-p', '-t', '100', dav('da.kdbx')], { input: OTHER + '\n' + OTHER + '\n', stdio: 'pipe' });
 const before = fs.readFileSync(dav('da.kdbx'));
 
-/** Oeffnet KeePassXC die Datei? Mit Eintragsliste, falls ja. pw === null: ohne Passwort (nur Schluesseldatei). */
+/** Does KeePassXC open the file? With the entry list if so. pw === null: without password (key file only). */
 const xcLs = (file, pw, keyfile) => {
     const r = spawnSync('keepassxc-cli', ['ls', '-q', '-R', ...(pw === null ? ['--no-password'] : []), ...(keyfile ? ['-k', keyfile] : []), file], { input: (pw ?? '') + '\n' });
     return r.status === 0 ? r.stdout.toString('utf8') : null;
@@ -27,7 +27,7 @@ const xcInfo = (file, pw, keyfile) => {
     const r = spawnSync('keepassxc-cli', ['db-info', '-q', ...(pw === null ? ['--no-password'] : []), ...(keyfile ? ['-k', keyfile] : []), file], { input: (pw ?? '') + '\n' });
     return r.status === 0 ? r.stdout.toString('utf8') : null;
 };
-/** Verschluesselung wie vorgesehen? Liest den unverschluesselten Dateikopf selbst, unabhaengig von der Ausgabe von keepassxc-cli. */
+/** Encryption as intended? Reads the unencrypted file header itself, independent of the keepassxc-cli output. */
 const expectDefaults = (file) => {
     const b = fs.readFileSync(file);
     expect(b.readUInt16LE(10) === 4, 'KDBX 4 erwartet, nicht ' + b.readUInt16LE(10));
@@ -35,7 +35,7 @@ const expectDefaults = (file) => {
     expect(hex.includes('31c1f2e6bf714350be5805216afc5aff'), 'AES-256 erwartet');
     expect(hex.includes('9e298b1956db4773b23dfc3ec6f0a1e6'), 'Argon2id erwartet');
     const mem = Buffer.alloc(18); mem.writeUInt8(0x05, 0); mem.writeInt32LE(1, 1); mem.write('M', 5); mem.writeInt32LE(8, 6); mem.writeBigUInt64LE(64n * 1024n * 1024n, 10);
-    expect(b.includes(mem), 'Argon2 mit 64 MiB erwartet'); // VarDictionary-Eintrag: Typ UInt64, Schluessel "M", 8 Bytes Wert
+    expect(b.includes(mem), 'Argon2 mit 64 MiB erwartet'); // VarDictionary entry: type UInt64, key "M", 8 bytes value
 };
 
 const results = [];
@@ -176,7 +176,7 @@ async function main() {
         await p5.context().close();
     });
 
-    // ---------- Nextcloud-Modus: Name + Ordner statt Pfad
+    // ---------- Nextcloud mode: name + folder instead of path
     const ncApp = `${base}/index.php/apps/keepassnc/`;
     fs.mkdirSync(dav('Privat/Alt'), { recursive: true });
     fs.copyFileSync(dav('da.kdbx'), dav('Privat/Passwörter.kdbx'));
@@ -229,7 +229,7 @@ async function main() {
         await p7.context().close();
     });
 
-    // ---------- Nextcloud-Modus, Anmeldung: [Durchsuchen] statt Pfad tippen (derselbe Browser, im Datei-Modus)
+    // ---------- Nextcloud mode, sign-in: [Browse] instead of typing the path (same browser, in file mode)
     const p8 = await newPage();
     const pressed = (p, name) => p.locator(`.folder-item[data-name="${name}"]`).getAttribute('aria-pressed');
     await step('Anmeldung mit ?open=: Feld schreibgeschuetzt, kein [Durchsuchen]', async () => {
@@ -254,7 +254,7 @@ async function main() {
         expect(!(await p8.locator('.folder-item[data-name="Passwörter.kdbx"]').isDisabled()), '.kdbx soll waehlbar sein');
         await p8.locator('.folder-item[data-name="Passwörter.kdbx"]').click();
         expect(await pressed(p8, 'Passwörter.kdbx') === 'true' && !(await p8.locator('#folder-ok').isDisabled()), 'Auswahl');
-        await p8.locator('.folder-item[data-name="Alt"]').click(); // Ordnerwechsel hebt die Auswahl auf
+        await p8.locator('.folder-item[data-name="Alt"]').click(); // changing folder clears the selection
         await p8.waitForFunction(() => /keine Datenbank/.test(document.querySelector('#folder-list')?.textContent || ''));
         expect(await p8.locator('#folder-ok').isDisabled(), 'Auswahl soll nach Ordnerwechsel weg sein');
         await p8.locator('#folder-crumbs button', { hasText: 'Privat' }).click();

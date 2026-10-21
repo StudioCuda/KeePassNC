@@ -1,5 +1,5 @@
-// Die 69 Standard-Symbole von KeePass (IconID 0-68), als eigene Linien-Symbole im Stil von dom.js. Reihenfolge und Bedeutung folgen
-// KeePass (PwIcon), damit KeePass, KeePassXC und Co. dasselbe Motiv zeigen; die Zeichnungen sind eigene.
+// The 69 standard icons of KeePass (IconID 0-68), as our own line icons in the style of dom.js. Order and meaning follow
+// KeePass (PwIcon), so KeePass, KeePassXC and co. show the same motif; the drawings are our own.
 import { P } from './dom.js';
 
 const doc = P.file;
@@ -77,5 +77,5 @@ export const KP_ICONS = [
     'M7 2.500h10v19H7ZM9 5h6v5H9ZM9.500 13h.01M12 13h.01M14.500 13h.01M9.500 15.500h.01M12 15.500h.01M14.500 15.500h.01M9.500 18h.01M12 18h.01M14.500 18h.01' // 68 BlackBerry
 ];
 
-export const ENTRY_DEFAULT_ICON = 0; // Schluessel; KeePassNC zeigt stattdessen den Anfangsbuchstaben
-export const GROUP_DEFAULT_ICON = 48; // Ordner
+export const ENTRY_DEFAULT_ICON = 0; // key; KeePassNC shows the first letter instead
+export const GROUP_DEFAULT_ICON = 48; // folder

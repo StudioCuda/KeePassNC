@@ -1,5 +1,5 @@
-// CSV-Import und -Export. Import: Datei waehlen, sehen was erkannt wurde, dann landet alles in einer eigenen neuen Gruppe.
-// Export: im Format von KeePassXC, nur nach ausdruecklicher Bestaetigung, denn die Datei ist unverschluesselt.
+// CSV import and export. Import: pick a file, see what was recognized, then everything lands in its own new group.
+// Export: in KeePassXC's format, only after explicit confirmation, because the file is unencrypted.
 import { t, errText } from '../i18n.js';
 import { ctx, download } from './ctx.js';
 import { h, icon, modal, toast } from './dom.js';
@@ -34,7 +34,7 @@ export function openCsv() {
         const group = v.importEntries(found.entries, t('csv.group', { name: found.name }));
         m.close();
         setFilter({ type: 'group', group }, { refresh: false });
-        changed(); // zeichnet einmal neu, mit dem neuen Filter
+        changed(); // redraws once, with the new filter
         toast(t('csv.imported', { n: found.entries.length, group: group.name }));
     });
 

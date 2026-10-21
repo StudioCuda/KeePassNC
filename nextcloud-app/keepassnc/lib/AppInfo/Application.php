@@ -19,7 +19,7 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function register(IRegistrationContext $context): void {
-		// Fuegt in der Dateien-App die Aktion "Mit KeePassNC oeffnen" fuer .kdbx-Dateien hinzu.
+		// Adds the action "Open with KeePassNC" for .kdbx files in the Files app.
 		$context->registerEventListener(LoadAdditionalScriptsEvent::class, LoadAdditionalScriptsListener::class);
 	}
 

@@ -1,5 +1,5 @@
-// Baut web/keepassnc.js (+ web/keepassnc-argon2.js, der Argon2-Worker): kdbxweb (vendored, TypeScript) + hash-wasm (Argon2) + App-Code zu einer einzigen Datei.
-// Keine externen Skripte zur Laufzeit; alles wird vom eigenen Server ausgeliefert.
+// Builds web/keepassnc.js (+ web/keepassnc-argon2.js, the Argon2 worker): kdbxweb (vendored, TypeScript) + hash-wasm (Argon2) + app code into a single file.
+// No external scripts at runtime; everything is served from the own server.
 import { build } from 'esbuild';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -7,7 +7,7 @@ import fs from 'node:fs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-// kdbxweb referenziert Node-Module nur in Zweigen, die im Browser nie laufen (WebCrypto ist immer vorhanden).
+// kdbxweb references Node modules only in branches that never run in the browser (WebCrypto is always available).
 const stubNodeModules = {
     name: 'stub-node-modules',
     setup(b) {
@@ -31,7 +31,7 @@ await build({
     logLevel: 'info'
 });
 
-// Web Worker fuer Argon2 (src/argon2.js): eigene Datei neben keepassnc.js, damit die strikte CSP keinen blob:-Worker braucht
+// Web worker for Argon2 (src/argon2.js): own file next to keepassnc.js, so the strict CSP doesn't need a blob: worker
 await build({
     entryPoints: [path.join(root, 'src/argon2-worker.js')],
     outfile: path.join(root, 'web/keepassnc-argon2.js'),
@@ -44,7 +44,7 @@ await build({
     logLevel: 'info'
 });
 
-// Web Worker fuer QR-Codes (src/qr.js): eigene Datei, damit jsQR nur geladen wird, wenn jemand ein Bild liest
+// Web worker for QR codes (src/qr.js): own file, so jsQR is only loaded when someone reads an image
 await build({
     entryPoints: [path.join(root, 'src/qr-worker.js')],
     outfile: path.join(root, 'web/keepassnc-qr.js'),
@@ -57,6 +57,6 @@ await build({
     logLevel: 'info'
 });
 
-// Service Worker und Stylesheet unveraendert nach web/ (Nextcloud-App: siehe build-nextcloud.mjs)
+// Service worker and stylesheet unchanged to web/ (Nextcloud app: see build-nextcloud.mjs)
 fs.copyFileSync(path.join(root, 'src/sw.js'), path.join(root, 'web/sw.js'));
 fs.copyFileSync(path.join(root, 'src/keepassnc.css'), path.join(root, 'web/keepassnc.css'));
