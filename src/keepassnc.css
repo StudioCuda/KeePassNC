@@ -312,8 +312,8 @@ body.has-nch .topbar .brand { display: none; } /* the name is already in the hea
 .file-name { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; padding: 3px 10px; border-radius: 999px; background: var(--surface-3); color: var(--muted); font-size: 12.5px; font-weight: 550; } .file-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .file-name .icon { width: 14px; height: 14px; }
 .searchbox { position: relative; flex: 0 1 460px; min-width: 120px; flex-direction: row; align-items: center; margin-left: 10px; }
 .searchbox > .icon { position: absolute; left: 12px; color: var(--muted); pointer-events: none; }
-.searchbox input { padding-left: 38px; padding-right: 64px; background: var(--surface-3); border-color: transparent; min-height: 38px; border-radius: 10px; }
-.searchbox input:focus { background: var(--surface); }
+.searchbox input { padding-left: 38px; padding-right: 64px; min-height: 38px; border-radius: 10px; }
+.searchbox input:hover:not(:focus) { border-color: var(--muted); }
 .searchbox kbd { position: absolute; right: 10px; pointer-events: none; }
 .spacer { flex: 1 1 0; }
 .topbar .btn.save[data-pending="1"] { border-color: var(--warn); color: var(--warn); }
