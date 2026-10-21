@@ -27,7 +27,7 @@ export function showLogin(message) {
     // Eigenstaendige Seite: ohne bisherige Wahl (und ohne ?url=) erst einmal eine lokale Datei, dafuer braucht es keinen Server
     const mode = pref('mode') || (NC || params.get('url') ? 'dav' : 'file');
     // Ohne Nextcloud-App: Nextcloud-Adresse + Pfad (oder ueber den Link die WebDAV-Adresse wie bisher)
-    const remote = NC ? null : remoteFields('dav', { urlValue: params.get('url') || pref('url'), urlPlaceholder: 'https://cloud.example.org/remote.php/dav/files/NAME/Passwoerter.kdbx',
+    const remote = NC ? null : remoteFields('dav', { urlValue: params.get('url') || pref('url'), urlPlaceholder: t('login.dav.url.ph'),
         onMode: (m) => { pathBox.hidden = m !== 'nc'; refreshKf(); }, onFound: () => refreshKf() });
     const urlInput = remote?.url || h('input'), userInput = remote?.user || h('input'), passInput = remote?.pass || h('input');
     const fileInput = h('input', { id: 'local-file', type: 'file', accept: '.kdbx' });
@@ -41,7 +41,7 @@ export function showLogin(message) {
     const kfUseName = h('span', {});
     const kfForget = h('button', { type: 'button', class: 'link', id: 'kf-forget', text: t('login.kf.forget') });
     const kfUseRow = h('div', { class: 'kf-used', id: 'kf-remembered', hidden: true }, h('label', { class: 'check small' }, kfUse, kfUseName), kfForget);
-    const ncPathInput = h('input', { id: NC ? 'nc-path' : 'dav-path', type: 'text', placeholder: '/Dokumente/Passwoerter.kdbx', value: NC ? NC.file || pref('ncfile') : remote.legacy?.path || '',
+    const ncPathInput = h('input', { id: NC ? 'nc-path' : 'dav-path', type: 'text', placeholder: t('login.nc.path.ph'), value: NC ? NC.file || pref('ncfile') : remote.legacy?.path || '',
         autocomplete: 'off', readonly: !!NC?.file });
     // [Durchsuchen]: Datei in der eigenen Nextcloud waehlen statt den Pfad zu tippen; startet im Ordner des Pfads im Feld
     const browseBtn = !NC?.file ? h('button', { type: 'button', id: NC ? 'nc-browse' : 'dav-browse', class: 'btn' }, icon('folderOpen'), h('span', { text: t('login.nc.browse') })) : null;

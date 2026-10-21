@@ -215,7 +215,7 @@ export class Vault {
             await cachePut(this.cache.key, { bytes, etag: this.etag, modified, name: this.cache.name, syncDate: Date.now() });
             return true;
         } catch (e) {
-            console.warn('Offline-Kopie konnte nicht geschrieben werden', e);
+            console.warn('Could not write the offline copy', e);
             return false;
         }
     }

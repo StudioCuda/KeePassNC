@@ -8,7 +8,7 @@ let dbPromise = null;
 function db() {
     if (!dbPromise) {
         dbPromise = new Promise((resolve, reject) => {
-            if (typeof indexedDB === 'undefined') return reject(new Error('IndexedDB nicht verfuegbar'));
+            if (typeof indexedDB === 'undefined') return reject(new Error('IndexedDB unavailable'));
             const req = indexedDB.open(DB_NAME, 1);
             req.onupgradeneeded = () => req.result.createObjectStore(STORE);
             req.onsuccess = () => resolve(req.result);
@@ -24,7 +24,7 @@ function tx(mode, fn) {
         const r = fn(t.objectStore(STORE));
         t.oncomplete = () => resolve(r && 'result' in r ? r.result : undefined);
         t.onerror = () => reject(t.error);
-        t.onabort = () => reject(t.error || new Error('Transaktion abgebrochen'));
+        t.onabort = () => reject(t.error || new Error('Transaction aborted'));
     }));
 }
 
