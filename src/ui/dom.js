@@ -158,9 +158,13 @@ export function modal({ title, body, actions = [], size = 'md', onClose, labelle
 /** Closes all open dialogs and menus like "Cancel". Dialogs hang off <body>, not #app: without this they would stay on top of the login
  *  screen after locking, plaintext included (large view, history, generator, attachment preview). */
 export function closeAllDialogs() {
-    for (const close of [...openModals].reverse()) close(undefined);
+    closingAll = true;
+    try { for (const close of [...openModals].reverse()) close(undefined); } finally { closingAll = false; }
     closeMenus();
 }
+let closingAll = false;
+/** True while closeAllDialogs() runs (locking): an onClose handler must not open a follow-up dialog then. */
+export const isClosingAll = () => closingAll;
 
 export function confirmDialog({ title, message, confirmLabel, cancelLabel, danger = false }) {
     return new Promise((resolve) => {

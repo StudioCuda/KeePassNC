@@ -73,8 +73,14 @@ async function main() {
     };
     const lock = async (p) => { await p.click('#lock-btn'); await p.locator('#login-form').waitFor(); };
     const openCred = async (p) => {
-        await p.click('#reports-btn'); await p.click('#rep-tab-info'); await p.click('#cred-btn');
+        if (!await p.locator('#cred-btn').isVisible()) { await p.click('#reports-btn'); await p.click('#rep-tab-info'); }
+        await p.click('#cred-btn');
         await p.locator('#cred-form').waitFor();
+    };
+    // Closing the dialog without changing anything leads back to Database > Settings (checked here), which is closed too
+    const closeCred = async (p) => {
+        await p.keyboard.press('Escape'); await p.locator('#cred-btn').waitFor();
+        await p.keyboard.press('Escape'); await p.locator('.reports-modal').waitFor({ state: 'detached' });
     };
     const fillCred = async (p, { current = '', next = '', repeat = next } = {}) => {
         await p.fill('#cred-current', current); await p.fill('#cred-new', next); await p.fill('#cred-repeat', repeat);
@@ -102,7 +108,7 @@ async function main() {
         expect(await p1.locator('#cred-form').isVisible(), 'Dialog soll nach Abbruch offen bleiben');
         expect(xcLs(dav('pw.kdbx'), OLD), 'Datei soll unveraendert mit dem alten Passwort aufgehen');
         expect(!(await p1.locator('#cred-del-backups').isChecked()), 'Sicherungskopien loeschen ist standardmaessig aus');
-        await p1.keyboard.press('Escape');
+        await closeCred(p1);
     });
 
     await step('Master-Passwort aendern: gespeichert, KeePassXC oeffnet nur mit dem neuen; Sicherungskopie noch mit dem alten; neu anmelden', async () => {
@@ -135,12 +141,12 @@ async function main() {
         await failPut(p1, 'pw.kdbx');
         await openCred(p1);
         await fillCred(p1, { current: N2, next: N3 }); await credError(p1, /nicht geändert/);
-        await p1.keyboard.press('Escape');
+        await closeCred(p1);
         await p1.unrouteAll();
         await p1.click('#save-btn'); await waitStatus(p1, /^Gespeichert/);
         expect(xcLs(dav('pw.kdbx'), N2) && !xcLs(dav('pw.kdbx'), N3), 'Datei soll mit N2 aufgehen, nicht mit N3');
         await openCred(p1); await fillCred(p1, { current: N3 }); await credError(p1, /stimmt nicht/); // N2 applies again in the vault too
-        await p1.keyboard.press('Escape');
+        await closeCred(p1);
         await lock(p1);
     });
 
@@ -196,7 +202,7 @@ async function main() {
         expect((await kfRecord(p2)).length === 0, 'gemerkter Datensatz soll weg sein');
         await openCred(p2);
         expect(await p2.locator('#cred-form input[value=none]').count() === 0, 'ohne Schluesseldatei gibt es nichts zu entfernen');
-        await p2.keyboard.press('Escape');
+        await closeCred(p2);
         await lock(p2);
     });
 
@@ -221,7 +227,7 @@ async function main() {
         await failPut(p3, 'pw.kdbx');
         await openCred(p3);
         await fillCred(p3, { current: N2, next: N3 }); await credError(p3, /nicht geändert/);
-        await p3.keyboard.press('Escape');
+        await closeCred(p3);
         await p3.unrouteAll();
         await lock(p3);
         await login(p3, 'pw.kdbx', N2); // opens the local (unsynced) copy: it has to open with N2
