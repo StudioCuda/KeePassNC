@@ -13,11 +13,13 @@ import { nextcloudAuth, fetchPepper } from '../nextcloud.js';
 
 const { state } = ctx;
 
-export function openCredentials() {
+/** `onBack`: called when nothing was changed (refused, cancel, x, Esc), so the caller can reopen where it came from. */
+export function openCredentials({ onBack } = {}) {
     const v = state.vault, isDav = state.source.type === 'dav';
-    if (isDav && state.source.readOnly) { toast(t('cred.readonly'), { kind: 'warn' }); return; }
+    let finished = false;
+    if (isDav && state.source.readOnly) { toast(t('cred.readonly'), { kind: 'warn' }); onBack?.(); return; }
     // A state that hasn't been uploaded yet sits on the server with the old credentials: sync first
-    if (isDav && (state.offlineMode || v.unsynced)) { toast(t('cred.unsynced'), { kind: 'warn' }); return; }
+    if (isDav && (state.offlineMode || v.unsynced)) { toast(t('cred.unsynced'), { kind: 'warn' }); onBack?.(); return; }
     const current = h('input', { id: 'cred-current', type: 'password', autocomplete: 'current-password', spellcheck: 'false', autocapitalize: 'off' });
     const pwf = newPasswordFields('cred');
     const i = { current, next: pwf.next, repeat: pwf.repeat };
@@ -97,6 +99,7 @@ export function openCredentials() {
                 return;
             } finally { refreshDirtyIndicator(); }
             const password = change.password ?? i.current.value;
+            finished = true;
             m.close();
             const notes = [];
             if (state.source.type === 'file') download(state.source.name, res.bytes);
@@ -124,11 +127,11 @@ export function openCredentials() {
         h('section', { class: 'card stack' }, h('h3', { text: t('login.keyfile') }), kfGroup),
         isDav ? h('section', { class: 'stack tight' },
             h('label', { class: 'check' }, delBackups, h('span', { text: t('cred.backups') })),
-            h('small', { class: 'hint', text: t(ctx.NC ? 'cred.backups.hint.nc' : 'cred.backups.hint') })) : null,
+            h('small', { class: 'hint multiline', text: t('cred.backups.hint') })) : null,
         isFile ? h('p', { class: 'hint', text: t('cred.file.note') }) : null,
         error,
         h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), applyBtn));
-    const m = modal({ title: t('cred.title'), body, size: 'md', onClose: () => fresh.wipe() });
+    const m = modal({ title: t('cred.title'), body, size: 'md', onClose: () => { fresh.wipe(); if (!finished) onBack?.(); } });
     (v.hasPassword ? i.current : i.next).focus();
     return m;
 }

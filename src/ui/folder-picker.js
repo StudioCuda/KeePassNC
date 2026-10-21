@@ -14,6 +14,19 @@ export const joinPath = (folder, name) => (folder === '/' ? '' : folder) + '/' +
 /** "/A/B/x.kdbx" -> { folder: "/A/B", name: "x.kdbx" }; "/x.kdbx" -> { folder: "/", ... }. */
 export const splitPath = (p) => { const i = p.lastIndexOf('/'); return { folder: p.slice(0, i) || '/', name: p.slice(i + 1) }; };
 
+// Last listing per folder in sessionStorage (names only, gone with the tab): the dialog shows it at once while the server answers,
+// which on a slow Nextcloud or a mobile connection can take seconds.
+const CACHE = 'kpnc-dirs:';
+function readCache(url) {
+    try {
+        const v = JSON.parse(sessionStorage.getItem(CACHE + url));
+        return Array.isArray(v) ? v.map((x) => ({ name: String(x.name), dir: !!x.dir, modified: new Date(x.modified) })) : null;
+    } catch { return null; }
+}
+function writeCache(url, entries) {
+    try { sessionStorage.setItem(CACHE + url, JSON.stringify(entries.map((x) => ({ name: x.name, dir: x.dir, modified: x.modified.getTime() || 0 })))); } catch { /* full or blocked: fine */ }
+}
+
 /**
  * mode 'folder': returns the chosen folder ("/" or "/A/B"); mode 'file': the path of the chosen .kdbx file ("/A/x.kdbx"),
  * select preselects a file in the start folder. Cancelled: null.
@@ -36,15 +49,24 @@ export function pickFolder({ NC, auth, start = '/', mode = 'folder', select = ''
             const my = ++seq;
             error.textContent = '';
             choose('');
-            list.replaceChildren(h('p', { class: 'hint', text: t('folder.loading') }));
+            const url = davUrlFor(NC, folder);
+            const cached = readCache(url);
+            if (cached) show(folder, cached); // last known contents right away, the fresh listing replaces them
+            else list.replaceChildren(h('p', { class: 'hint', text: t('folder.loading') }));
             let entries;
-            try { entries = await new DavFile({ url: davUrlFor(NC, folder), auth }).list(); }
+            try { entries = await new DavFile({ url, auth }).list(); }
             catch (e) {
                 if (my !== seq) return;
                 if (e?.status === 404 && folder !== '/') return load('/'); // the suggested folder does not exist (any more)
                 list.replaceChildren(); error.textContent = errText(e); return;
             }
             if (my !== seq) return; // clicked somewhere else in the meantime
+            writeCache(url, entries);
+            show(folder, entries);
+        }
+
+        function show(folder, entries) {
+            const keep = chosen;
             cur = folder;
             const parts = folder.split('/').filter(Boolean);
             crumbs.replaceChildren(...[t('folder.root'), ...parts].flatMap((name, i) => {
@@ -63,7 +85,8 @@ export function pickFolder({ NC, auth, start = '/', mode = 'folder', select = ''
                 : item(f.name, 'file', { disabled: true }));
             const items = [...dirs.map((d) => item(d.name, 'folder', { onclick: () => load(joinPath(folder, d.name)) })), ...dbs.map(fileItem)];
             list.replaceChildren(...(items.length ? items : [h('p', { class: 'hint', text: t(fileMode ? 'folder.empty.file' : 'folder.empty') })]));
-            if (fileMode && select && folder === start && dbs.some((f) => f.name === select)) {
+            if (keep && dbs.some((f) => f.name === keep)) choose(keep); // a selection made in the cached list survives the refresh
+            else if (fileMode && select && folder === start && dbs.some((f) => f.name === select)) {
                 choose(select);
                 list.querySelector('.file-item[aria-pressed="true"]')?.focus();
             }

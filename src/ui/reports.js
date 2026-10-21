@@ -4,7 +4,7 @@ import { auditEntries } from '../core/audit.js';
 import { fieldOf } from '../core/util.js';
 import { t, fmtDate } from '../i18n.js';
 import { ctx } from './ctx.js';
-import { h, icon, modal } from './dom.js';
+import { h, icon, modal, isClosingAll } from './dom.js';
 import { allRealEntries, avatar } from './common.js';
 import { openDbSettings } from './db-settings.js';
 import { openCredentials } from './credentials-dialog.js';
@@ -22,6 +22,8 @@ export function openReports(initialTab = 'health') {
     const entries = allRealEntries();
     const { items, stats } = auditEntries(entries);
     let tab = initialTab;
+    // Dialogs opened from the settings tab come back here when cancelled, but not when locking closes them
+    const onBack = () => { if (!isClosingAll()) openReports('info'); };
     const content = h('div', { class: 'report-body' });
     const tabs = h('div', { class: 'seg-group', role: 'tablist' });
     const stat = (label, value, cls = '', onclick) => h(onclick ? 'button' : 'div', { type: onclick ? 'button' : null, class: 'stat ' + cls, onclick }, h('b', { text: String(value) }), h('span', { text: label }));
@@ -51,9 +53,9 @@ export function openReports(initialTab = 'health') {
                 state.vault.db.meta.keyChanged ? row(t('info.keychanged'), fmtDate(state.vault.db.meta.keyChanged, true)) : null),
                 h('div', { class: 'db-actions' },
                     h('button', { type: 'button', class: 'small', id: 'db-settings-btn', text: t('dbset.edit'), onclick: () => openDbSettings({ onApplied: render }) }),
-                    h('button', { type: 'button', class: 'small', id: 'cred-btn', text: t('cred.edit'), onclick: () => { m.close(); openCredentials(); } }),
-                    h('button', { type: 'button', class: 'small', id: 'merge-btn', text: t('merge.title'), onclick: () => { m.close(); openMerge(); } }),
-                    h('button', { type: 'button', class: 'small', id: 'csv-btn', text: t('csv.title'), onclick: () => { m.close(); openCsv(); } }))));
+                    h('button', { type: 'button', class: 'small', id: 'cred-btn', text: t('cred.edit'), onclick: () => { m.close(); openCredentials({ onBack }); } }),
+                    h('button', { type: 'button', class: 'small', id: 'merge-btn', text: t('merge.title'), onclick: () => { m.close(); openMerge({ onBack }); } }),
+                    h('button', { type: 'button', class: 'small', id: 'csv-btn', text: t('csv.title'), onclick: () => { m.close(); openCsv({ onBack }); } }))));
         }
     }
     const m = modal({ title: t('database'), body: h('div', { class: 'stack' }, tabs, content), size: 'lg', cls: 'reports-modal' });

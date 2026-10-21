@@ -7,8 +7,10 @@ import { changed } from './session.js';
 
 const { state } = ctx;
 
-export function openMerge() {
+/** `onBack`: called when the dialog is closed without merging (cancel, x, Esc), so the caller can reopen where it came from. */
+export function openMerge({ onBack } = {}) {
     const v = state.vault;
+    let finished = false;
     let pick = null; // {name, read: () => Promise<ArrayBuffer>}
     const list = h('div', { class: 'stack tight', role: 'radiogroup', 'aria-label': t('merge.folder') });
     const choose = (name, read) => { pick = { name, read }; error.textContent = ''; };
@@ -45,6 +47,7 @@ export function openMerge() {
             kf = kfInput.files[0] ? new Uint8Array(await kfInput.files[0].arrayBuffer()) : null;
             const creds = credBox.hidden ? undefined : { password: pw.value, keyfile: kf };
             const n = await v.mergeFrom(await pick.read(), creds);
+            finished = true;
             m.close();
             changed();
             toast(n.added || n.changed || n.removed ? t('merge.done', { name: pick.name, ...n }) : t('merge.nothing', { name: pick.name }));
@@ -64,7 +67,7 @@ export function openMerge() {
             h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('upload'), t('merge.choose')), localName, localInput)),
         credBox, error,
         h('div', { class: 'modal-actions' }, h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), mergeBtn));
-    const m = modal({ title: t('merge.title'), body, size: 'md' });
+    const m = modal({ title: t('merge.title'), body, size: 'md', onClose: () => { if (!finished) onBack?.(); } });
 
     if (state.source.type === 'dav') {
         list.append(h('small', { class: 'muted', text: t('merge.loading') }));

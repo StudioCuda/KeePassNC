@@ -87,8 +87,8 @@ export function davUrlFor(ctx, userPath) {
     return ctx.davBase.replace(/\/+$/, '') + '/' + segments.map(encodeURIComponent).join('/');
 }
 
+const tokens = new Map(); // csrfUrl -> token, shared by all providers of the page (the token is per session, not per use)
 export function nextcloudAuth(ctx) {
-    let token = null;
     const refresh = async () => {
         let res;
         try {
@@ -100,16 +100,21 @@ export function nextcloudAuth(ctx) {
         if (!res.ok) console.warn('CSRF token request: status', res.status, ctx.csrfUrl);
         if (res.status >= 500) throw new DavError(res.status, `Server antwortete mit Status ${res.status}.`, 'e.dav.status', { status: res.status });
         if (!res.ok) throw new DavError(res.status, 'Sitzung abgelaufen - bitte die Seite neu laden und erneut anmelden.', 'e.nc.session');
-        token = (await res.json()).token;
+        tokens.set(ctx.csrfUrl, (await res.json()).token);
     };
     return {
         credentials: 'same-origin',
         async headers() {
-            if (!token) await refresh();
-            return { requesttoken: token, 'OCS-APIREQUEST': 'true' };
+            if (!tokens.has(ctx.csrfUrl)) await refresh();
+            return { requesttoken: tokens.get(ctx.csrfUrl), 'OCS-APIREQUEST': 'true' };
         },
         refresh
     };
+}
+
+/** Fetches the CSRF token ahead of time (login screen), so the first request after a click doesn't wait for it. Errors are ignored here. */
+export function warmNextcloudAuth(ctx) {
+    if (ctx?.csrfUrl && !tokens.has(ctx.csrfUrl)) nextcloudAuth(ctx).headers().catch(() => {});
 }
 
 /**

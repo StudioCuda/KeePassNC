@@ -195,6 +195,23 @@ async function main() {
         await p3.context().close();
     });
 
+    await step('[Durchsuchen] zum zweiten Mal: die zuletzt bekannte Liste steht sofort da, auch wenn der Server traege antwortet, und wird danach aufgefrischt', async () => {
+        const p = await newPage();
+        await p.goto(base); await p.locator('#login-form').waitFor();
+        await p.fill('#dav-server', `127.0.0.1:${port}`); await p.fill('#dav-user', 'tester'); await p.fill('#dav-pass', 'app-secret');
+        await p.click('#dav-browse');
+        await p.locator('.folder-item[data-name="Privat"]').waitFor();
+        await p.click('#folder-cancel');
+        let release; const gate = new Promise((r) => { release = r; });
+        await p.route('**/remote.php/dav/files/**', async (route) => { if (route.request().method() === 'PROPFIND') await gate; await route.continue(); });
+        await p.click('#dav-browse');
+        await p.locator('.folder-item[data-name="Privat"]').waitFor({ timeout: 1500 }); // PROPFIND is still held back here
+        release();
+        await p.waitForFunction(() => !!document.querySelector('.folder-item[data-name="Privat"]'));
+        await p.unroute('**/remote.php/dav/files/**');
+        await p.context().close();
+    });
+
     await step('Allererster Besuch: "Lokale Datei" ist vorgewaehlt, der Wechsel zu Nextcloud/WebDAV ist ein Klick und bleibt', async () => {
         const p = await newPage({ fresh: true });
         await p.goto(base); await p.locator('#login-form').waitFor();

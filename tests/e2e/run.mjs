@@ -524,7 +524,9 @@ async function main() {
         execFileSync('keepassxc-cli', ['db-create', '-q', '-p', foreign], { input: `${PW}\n${PW}\n` });
         const p = await newPage();
         await login(p, 'merge.kdbx'); await rows(p).first().waitFor();
-        const openMerge = async () => { await p.click('#reports-btn'); await p.click('#rep-tab-info'); await p.click('#merge-btn'); await p.locator('#merge-form').waitFor(); };
+        // Cancelling a dialog from the settings tab leads back to it, so only walk there when we aren't already
+        const toSettings = async () => { if (!await p.locator('#merge-btn').isVisible()) { await p.click('#reports-btn'); await p.click('#rep-tab-info'); } };
+        const openMerge = async () => { await toSettings(); await p.click('#merge-btn'); await p.locator('#merge-form').waitFor(); };
         const toastText = () => p.locator('.toast').last().innerText();
         const keyChanged = async () => {
             await p.click('#reports-btn'); await p.click('#rep-tab-info');
@@ -546,6 +548,7 @@ async function main() {
         await p.setInputFiles('#merge-file', foreign); await p.click('#merge-apply'); // same password, but a different database
         await p.waitForFunction(() => /andere Datenbank/.test(document.querySelector('#merge-error')?.textContent || ''));
         await p.locator('#merge-form button', { hasText: 'Abbrechen' }).click();
+        await p.locator('#merge-btn').waitFor(); // cancelled: back in Database > Settings
 
         await openMerge();
         await p.setInputFiles('#merge-file', otherPw); await p.click('#merge-apply');
@@ -646,7 +649,9 @@ async function main() {
             + 'Arbeit/Server,,login,NAS,"zwei\nZeilen",,0,https://nas.local,admin,"ge,heim""1",JBSWY3DPEHPK3PXP\n,,login,Forum,,,0,forum.example,eve,pw-forum,\n';
         const p = await newPage();
         await login(p, 'csv.kdbx'); await rows(p).first().waitFor();
-        const openCsv = async () => { await p.click('#reports-btn'); await p.click('#rep-tab-info'); await p.click('#csv-btn'); await p.locator('#csv-file').waitFor({ state: 'attached' }); };
+        const openCsv = async () => { if (!await p.locator('#csv-btn').isVisible()) { await p.click('#reports-btn'); await p.click('#rep-tab-info'); } await p.click('#csv-btn'); await p.locator('#csv-file').waitFor({ state: 'attached' }); };
+        await openCsv();
+        await p.click('#csv-cancel'); await p.locator('#csv-btn').waitFor(); // Cancel leads back to Database > Settings
         await openCsv();
         await p.setInputFiles('#csv-file', { name: 'bitwarden.csv', mimeType: 'text/csv', buffer: Buffer.from(bitwarden) });
         await p.waitForFunction(() => /Gefundene Einträge: 2/.test(document.querySelector('#csv-summary')?.textContent || ''));

@@ -5,6 +5,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ### Changed
 - The search field looks like an input now: light background and a visible border instead of the dark grey fill, so it invites typing.
+- Database → Settings: "Master password and key file", "Merge with another copy" and "CSV import / export" now lead back to Database → Settings when you cancel or close them, instead of dropping you into the vault view. The CSV dialog got the Cancel button it was missing, and the note about backup copies in "Master password and key file" is shorter and plainer.
+
+## [0.16.1] - 2026-10-21
+### Changed
+- Picking a database from your Nextcloud ("Browse") shows the last known contents of a folder straight away and refreshes them once the server has answered, instead of an empty "Loading …". The session token for the first request is fetched as soon as the open-vault screen appears, which saves one round trip on slow connections. Folder and file names are kept in the browser tab only (session storage), nothing else.
+
+### Fixed
+- On phones, the Database and Settings dialogs no longer run past the right edge of the screen. The Database dialog got more compact tabs and tiles, and the issue chips sit under the entry name. The status line at the bottom wraps to two lines instead of cutting the message off. The password strength ("Good · 98 bit") in the entry view stays on one line, and on very narrow screens (up to 340 px) only the word is shown (the bits stay in the tooltip).
 
 ## [0.16.0] - 2026-10-21
 ### Added
