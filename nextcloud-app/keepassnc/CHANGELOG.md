@@ -5,6 +5,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ### Changed
 - The dice icon (password generator) has fuller pips, so they no longer look so thin next to the other toolbar icons.
+- The key icon (copy password on hover in the entry list) now sits centred in its button, and the hover icons are a touch larger.
 - "Key file & offline options" on the open-vault screen now always starts folded, even with the offline copy switched on. One click away, a lot less card.
 
 ### Fixed
