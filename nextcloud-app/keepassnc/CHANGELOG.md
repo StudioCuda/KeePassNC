@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Changed
+- The search field looks like an input now: light background and a visible border instead of the dark grey fill, so it invites typing.
 
 ## [0.16.0] - 2026-10-21
 ### Added
