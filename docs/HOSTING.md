@@ -29,7 +29,7 @@ Header always set X-Content-Type-Options "nosniff"
 
 For `web/` on a different domain than your Nextcloud, WebDAV needs CORS, see `CONTRIBUTING.md`. More on the CSP in `SECURITY.md`.
 
-`web-generator/` already ships a ready-made `.htaccess` with these headers and an HTTPS redirect, so on Apache hosting such as Netcup shared
+`web/` and `web-generator/` already ship a ready-made `.htaccess` with these headers and an HTTPS redirect, so on Apache hosting such as Netcup shared
 webhosting you only upload the folder's contents (the dotfile included, make sure your FTP client shows hidden files).
 
 ## A demo that doesn't need a server
