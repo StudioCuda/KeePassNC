@@ -495,6 +495,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
     .toasts { bottom: 90px; right: 12px; left: 12px; max-width: none; }
     .row-actions { display: none !important; } .entry-wrap:hover .badges { visibility: visible; }
     .statusbar #status-right { display: none; }
+    @media (max-width: 340px) { .strength-bits { display: none; } } /* the exact bits stay in the tooltip */
     .strength { gap: 8px; } .strength .bars i { width: 16px; } /* next to the three password buttons there is little room: keep "Good · 98 bit" on one line */
     /* The status line may be longer than the screen (e.g. "opened … key file …"): two lines instead of cutting it off */
     .statusbar { padding: 6px 14px; line-height: 1.35; }
