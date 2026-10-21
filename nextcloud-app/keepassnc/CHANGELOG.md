@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [0.16.2] - 2026-10-21
 ### Changed
 - The search field looks like an input now: light background and a visible border instead of the dark grey fill, so it invites typing.
 - Database → Settings: "Master password and key file", "Merge with another copy" and "CSV import / export" now lead back to Database → Settings when you cancel or close them, instead of dropping you into the vault view. The CSV dialog got the Cancel button it was missing, and the note about backup copies in "Master password and key file" is shorter and plainer.
