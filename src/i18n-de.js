@@ -30,7 +30,6 @@ export default {
     'cred.backups.done': 'Sicherungskopien gelöscht: {n}.',
     'cred.backups.failed': 'Sicherungskopien nicht gelöscht: {msg}',
     'cred.backups.hint': 'Alte Sicherungskopien (.bak) lassen sich noch mit dem bisherigen Passwort öffnen. Lösche sie, wenn es bekannt geworden ist.',
-    'cred.backups.hint.nc': 'Alte Sicherungskopien (.bak) lassen sich noch mit dem bisherigen Passwort öffnen. Lösche sie, wenn es bekannt geworden ist. Alte Stände bleiben in Nextcloud auch im Papierkorb und unter „Versionen“: die räumst du in „Dateien“ selbst auf.',
     'cred.current': 'Aktuelles Master-Passwort',
     'cred.current.none': 'Bitte zuerst das aktuelle Master-Passwort eingeben.',
     'cred.current.nopw': 'Diese Datenbank hat kein Master-Passwort, nur eine Schlüsseldatei.',

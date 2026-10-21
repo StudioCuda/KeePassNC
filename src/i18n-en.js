@@ -30,7 +30,6 @@ export default {
     'cred.backups.done': 'Backup copies deleted: {n}.',
     'cred.backups.failed': 'Backup copies not deleted: {msg}',
     'cred.backups.hint': 'Old backup copies (.bak) still open with the previous password. Delete them if it got out.',
-    'cred.backups.hint.nc': 'Old backup copies (.bak) still open with the previous password. Delete them if it got out. Nextcloud also keeps old states in its trash bin and under "Versions": tidy those up in Files yourself.',
     'cred.current': 'Current master password',
     'cred.current.none': 'Please enter the current master password first.',
     'cred.current.nopw': 'This database has no master password, only a key file.',

@@ -38,6 +38,8 @@ KeePass trick works here too (it probably does).
   can handle, and does a test run before it changes anything.
 - **New master password or key file:** change both right in the app. A new key file only counts once you've shown that you
   saved it.
+  Backup copies (`.bak`) still open with the old credentials, so the dialog can delete them. On Nextcloud, file versions and
+  the trash bin keep old states too; clean those up in Files (see [SECURITY.md](../SECURITY.md)).
 - **Key file, remembered:** if you use a key file, KeePassNC can remember it on your device, protected by a secret on your
   server. Optional, and off by default. [How it works](KEYFILE-MEMORY.md).
 

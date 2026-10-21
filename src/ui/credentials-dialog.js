@@ -127,7 +127,7 @@ export function openCredentials({ onBack } = {}) {
         h('section', { class: 'card stack' }, h('h3', { text: t('login.keyfile') }), kfGroup),
         isDav ? h('section', { class: 'stack tight' },
             h('label', { class: 'check' }, delBackups, h('span', { text: t('cred.backups') })),
-            h('small', { class: 'hint', text: t(ctx.NC ? 'cred.backups.hint.nc' : 'cred.backups.hint') })) : null,
+            h('small', { class: 'hint', text: t('cred.backups.hint') })) : null,
         isFile ? h('p', { class: 'hint', text: t('cred.file.note') }) : null,
         error,
         h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), applyBtn));
