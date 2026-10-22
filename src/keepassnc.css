@@ -177,7 +177,7 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .login-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; } .login-top h2, .login-top .link { white-space: nowrap; } .login-top h2 { font-size: 24px; letter-spacing: -.01em; }
 .row-gap { display: flex; gap: 10px; align-items: center; }
 .login-form { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: var(--shadow-2); }
-.login-alt { text-align: center; font-size: 13px; }
+.login-alt { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 4px 28px; font-size: 13px; } .login-ver { font-size: 12.5px; }
 .login.solo { position: relative; isolation: isolate; overflow: hidden; grid-template-columns: 1fr;
     background: radial-gradient(ellipse 900px 640px at 50% 38%, color-mix(in srgb, #fff var(--solo-spot), transparent), color-mix(in srgb, #fff calc(var(--solo-spot) * .4), transparent) 50%, transparent); }
 .login.solo::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: var(--solo-noise);
@@ -190,8 +190,7 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .login.solo .login-form { --glow: var(--solo-glow); padding: 28px 26px 24px; gap: 18px; transition: box-shadow .25s ease;
     box-shadow: inset 0 1px 0 var(--solo-edge), 0 1px 2px rgb(0 0 0 / .04), 0 16px 36px -10px color-mix(in srgb, #000 var(--glow), transparent); }
 .login.solo .login-form:focus-within { --glow: calc(var(--solo-glow) * 1.33); }
-.login-seal { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border-radius: 12px; background: var(--accent-soft); color: var(--accent); } .login-seal .icon { width: 22px; height: 22px; }
-.login-trust { display: flex; align-items: center; justify-content: center; gap: 6px; margin: 2px 0 0; font-size: 12.5px; color: var(--muted); transition: color .25s ease; } .login-trust .icon { width: 14px; height: 14px; } .login-form:has(#master:focus) .login-trust { color: var(--accent); }
+.login-seal { flex: none; display: grid; place-items: center; color: var(--accent); } .login-seal .icon { width: 30px; height: 30px; } /* no tile behind the shield: just the mark */
 .pw-field { position: relative; display: flex; } .pw-field > input { padding-right: 44px; }
 .pw-field > .icon-btn { position: absolute; inset-block: 0; right: 2px; margin: auto 0; }
 .file-chip { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); min-width: 0; }
@@ -516,12 +515,12 @@ textarea.c-value { min-height: 0; resize: vertical; }
 @media print { .shell, .topbar, .nch { display: none; } }
 label.btn { flex-direction: row; color: var(--text); font-size: 13px; cursor: pointer; }
 input:disabled, select:disabled { opacity: .5; cursor: not-allowed; }
-.kf-used { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: var(--radius-sm); background: var(--accent-soft); }
+.kf-used { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .kf-used .check { color: var(--text); }
 .cred-sub { margin-left: 28px; } /* Sub-items of a key file option in the dialog "Master password and key file" */
 
 /* ---------- Login: look and feel (typography, focus, unlock moment) ---------- */
-button.primary.big .icon, .login-trust .icon { position: relative; top: -1px; } /* the lock is bottom-heavy: lift it optically to the text height */
+button.primary.big .icon { position: relative; top: -1px; } /* the lock is bottom-heavy: lift it optically to the text height */
 .login.solo .login-top h2 { font-weight: 600; letter-spacing: .01em; }
 .back-line { margin-bottom: -5px; } .back-line .link { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 550; } .back-line .link:hover { color: var(--text); text-decoration: underline; }
 .login.solo .login-form label > span:first-child { font-size: 11.5px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; }

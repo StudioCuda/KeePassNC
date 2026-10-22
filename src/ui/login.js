@@ -75,7 +75,7 @@ export function showLogin(message) {
     davBox.hidden = mode !== 'dav'; fileBox.hidden = mode !== 'file';
     const offlineBox = h('input', { type: 'checkbox', id: 'offline-opt', checked: ctx.settings.offline });
     const err = h('p', { class: 'error', id: 'login-error', role: 'alert', text: message || '' });
-    const btn = h('button', { type: 'submit', id: 'open-btn', class: 'primary big' }, icon('lock'), h('span', { class: 'label', text: t('login.open') }));
+    const btn = h('button', { type: 'submit', id: 'open-btn', class: 'primary big', title: t('login.trust.short'), 'aria-description': t('login.trust.short') }, icon('lock'), h('span', { class: 'label', text: t('login.open') }));
     const showPw = iconBtn('eye', t('show'), () => { const on = masterInput.type === 'password'; masterInput.type = on ? 'text' : 'password'; showPw.setAttribute('aria-pressed', String(on)); showPw.replaceChildren(icon(on ? 'eyeOff' : 'eye')); }, { type: 'button', 'aria-pressed': 'false' });
     // Only those who need a key file and offline copy see them: always collapsed, even when the offline copy is on
     const more = h('details', { class: 'login-more', id: 'login-more' },
@@ -89,7 +89,7 @@ export function showLogin(message) {
         davBox, fileBox,
         h('label', {}, h('span', { text: t('login.master') }), h('div', { class: 'pw-field' }, masterInput, showPw)),
         kfUseRow, more,
-        err, btn, NC ? h('p', { class: 'login-trust' }, icon('lock'), h('span', { text: t('login.trust.short') })) : null);
+        err, btn);
     // --- remembered key file (see keyfile-store.js / docs/KEYFILE-MEMORY.md)
     const currentSrc = () => form.querySelector('input[name=src]:checked').value;
     const kfIdNow = () => {
@@ -260,9 +260,10 @@ export function showLogin(message) {
             h('div', { class: 'row-gap' },
                 iconBtn('settings', t('settings'), () => openSettings({ loginMode: true }), { id: 'login-settings' }))),
         form,
-        h('p', { class: 'login-alt' }, h('span', { class: 'muted', text: t('login.new.q') }), ' ',
-            h('button', { type: 'button', id: 'new-db-link', class: 'link', text: t('login.new'), onclick: () => ctx.ui.showCreate() })),
-        h('footer', { class: 'login-foot' }, h('span', { class: 'muted', text: 'v' + __VERSION__ })));
+        h('p', { class: 'login-alt' },
+            h('span', {}, h('span', { class: 'muted', text: t('login.new.q') }), ' ',
+                h('button', { type: 'button', id: 'new-db-link', class: 'link', text: t('login.new'), onclick: () => ctx.ui.showCreate() })),
+            h('span', { class: 'muted login-ver', text: 'v' + __VERSION__ })));
     ctx.app.replaceChildren(loginShell(card));
     (remote?.mode() === 'nc' && !remote.server.value ? remote.server : masterInput).focus();
 }
