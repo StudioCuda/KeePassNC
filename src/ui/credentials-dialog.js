@@ -4,7 +4,8 @@
 // (those keep opening with the old credentials).
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus, download, kfStore } from './ctx.js';
-import { h, icon, modal, confirmDialog, toast } from './dom.js';
+import { h, modal, confirmDialog, toast } from './dom.js';
+import { filePicker } from './file-picker.js';
 import { rebind, refreshDirtyIndicator } from './session.js';
 import { newPasswordFields, newKeyfileFlow, readFile } from './new-credentials.js';
 import { estimateBits, strengthLabel } from '../core/entropy.js';
@@ -28,9 +29,8 @@ export function openCredentials({ onBack } = {}) {
     const had = v.hasKeyfile;
     let mode = 'keep';
     const pickInput = h('input', { id: 'cred-kf-pick', type: 'file' });
-    const pickName = h('span', { class: 'muted', text: t('login.keyfile.none') });
-    pickInput.addEventListener('change', () => { pickName.textContent = pickInput.files[0]?.name || t('login.keyfile.none'); });
-    const pickBox = h('div', { class: 'filepick cred-sub', hidden: true }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), pickName, pickInput);
+    const pickBox = filePicker(pickInput, { icon: 'key', button: t('login.keyfile.choose') });
+    pickBox.classList.add('cred-sub'); pickBox.hidden = true;
 
     const freshName = state.source.name.replace(/\.kdbx$/i, '') + '.keyx';
     const fresh = newKeyfileFlow('cred', () => freshName);
@@ -169,8 +169,6 @@ export function askRemoteCredentials() {
     askingRemote = true;
     const pwInput = h('input', { id: 'rcred-pw', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off' });
     const kfInput = h('input', { id: 'rcred-kf', type: 'file' });
-    const kfName = h('span', { class: 'muted', text: v.hasKeyfile ? t('rcred.kf.same') : t('login.keyfile.none') });
-    kfInput.addEventListener('change', () => { kfName.textContent = kfInput.files[0]?.name || (v.hasKeyfile ? t('rcred.kf.same') : t('login.keyfile.none')); });
     const error = h('p', { class: 'error', id: 'rcred-error', role: 'alert' });
     const okBtn = h('button', { type: 'submit', class: 'primary', id: 'rcred-ok', text: t('rcred.ok') });
     async function submit(e) {
@@ -198,7 +196,7 @@ export function askRemoteCredentials() {
     const body = h('form', { class: 'stack', id: 'rcred-form', onsubmit: submit },
         h('p', { text: t(v.dirty || v.unsynced ? 'rcred.msg.local' : 'rcred.msg') }),
         h('label', {}, h('span', { text: t('cred.new') }), pwInput),
-        h('label', {}, h('span', { text: t('login.keyfile') }), h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), kfName, kfInput)),
+        h('label', {}, h('span', { text: t('login.keyfile') }), filePicker(kfInput, { icon: 'key', button: t('login.keyfile.choose'), placeholder: v.hasKeyfile ? t('rcred.kf.same') : t('login.keyfile.none') })),
         error,
         h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', id: 'rcred-later', text: t('rcred.later'), onclick: () => m.close() }), okBtn));
     const m = modal({ title: t('rcred.title'), body, size: 'sm', onClose: () => { askingRemote = false; } });
