@@ -3,6 +3,9 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Fixed
+- "No file chosen" in the file pickers is grey in every dialog (it was blue outside the sign-in screen) and as big as the button beside it.
+- The empty master password field on the sign-in screen hides its caret, so it no longer sits in the middle of the centred placeholder.
 
 ## [0.17.0] - 2026-10-22
 ### Added
