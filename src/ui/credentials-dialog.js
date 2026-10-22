@@ -120,7 +120,7 @@ export function openCredentials({ onBack } = {}) {
     const isFile = state.source.type === 'file';
     const body = h('form', { class: 'stack', id: 'cred-form', onsubmit: apply },
         v.hasPassword ? h('label', {}, h('span', { text: t('cred.current') }), i.current) : h('p', { class: 'hint', text: t('cred.current.nopw') }),
-        h('section', { class: 'card stack' }, h('h3', { text: t('login.master') }),
+        h('section', { class: 'card stack' },
             h('label', {}, h('span', { text: t('cred.new') }), pwf.row), pwf.meter,
             h('label', {}, h('span', { text: t('cred.repeat') }), i.repeat),
             h('small', { class: 'hint', text: t(v.hasPassword ? 'cred.new.hint' : 'cred.new.hint.nopw') })),
