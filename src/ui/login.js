@@ -266,7 +266,7 @@ export function showLogin(message) {
         h('p', { class: 'login-alt' },
             h('span', {}, h('span', { class: 'muted', text: t('login.new.q') }), ' ',
                 h('button', { type: 'button', id: 'new-db-link', class: 'link', text: t('login.new'), onclick: () => ctx.ui.showCreate() })),
-            h('span', { class: 'muted login-ver', text: 'v' + __VERSION__ })));
+            h('span', { class: 'muted', text: 'v' + __VERSION__ })));
     ctx.app.replaceChildren(loginShell(card));
     (remote?.mode() === 'nc' && !remote.server.value ? remote.server : masterInput).focus();
 }

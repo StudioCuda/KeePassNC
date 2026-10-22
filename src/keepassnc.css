@@ -111,7 +111,7 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); fon
 
 .filepick-group { position: relative; } .filepick-group > input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .fp-field { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; min-height: 40px; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); font-weight: 450; overflow: hidden; }
-.fp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .fp-name.ph { color: color-mix(in srgb, var(--muted) 62%, var(--surface)); }
+.fp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .fp-name.ph { color: var(--placeholder); }
 .filepick-group:has(input:focus-visible) .fp-field { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); } .filepick-group .btn { pointer-events: none; }
 .filepick { position: relative; display: flex; align-items: center; gap: 10px; padding: 6px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-2); }
 .filepick input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
@@ -182,7 +182,7 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .login-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; } .login-top h2, .login-top .link { white-space: nowrap; } .login-top h2 { font-size: 24px; letter-spacing: -.01em; }
 .row-gap { display: flex; gap: 10px; align-items: center; }
 .login-form { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 22px; box-shadow: var(--shadow-2); }
-.login-alt { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 4px 28px; font-size: 13px; } .login-ver { font-size: 12.5px; }
+.login-alt { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 4px 28px; font-size: 13px; }
 .login.solo { position: relative; isolation: isolate; overflow: hidden; grid-template-columns: 1fr;
     background: radial-gradient(ellipse 900px 640px at 50% 38%, color-mix(in srgb, #fff var(--solo-spot), transparent), color-mix(in srgb, #fff calc(var(--solo-spot) * .4), transparent) 50%, transparent); }
 .login.solo::after { content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: var(--solo-noise);
@@ -202,7 +202,7 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .file-chip > .icon { width: 22px; height: 22px; flex: none; color: var(--accent); }
 .file-chip > span { display: flex; flex-direction: column; min-width: 0; } .file-chip strong, .file-chip small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .file-chip strong { font-size: 15px; }
 .login-more > summary { cursor: pointer; width: fit-content; color: var(--muted); font-size: 12.5px; font-weight: 500; }
-.login input::placeholder { color: color-mix(in srgb, var(--muted) 62%, var(--surface)); opacity: 1; } /* clearly a placeholder, not a real value */
+.login { --placeholder: color-mix(in srgb, var(--muted) 62%, var(--surface)); } .login input::placeholder { color: var(--placeholder); opacity: 1; } /* clearly a placeholder, not a real value */
 .login .pw-row { margin-block: 14px; }
 .login #master { border-width: 2px; padding-left: 11px; } .login #master:focus { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent), 0 6px 18px -8px color-mix(in srgb, var(--accent) 45%, transparent); }
 /* The card is a size container: where there is room beside the form (wide windows, in Nextcloud and on the web page alike), the master password field is the centrepiece,

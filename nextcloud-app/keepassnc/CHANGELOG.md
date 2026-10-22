@@ -7,11 +7,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The name of an extra field in the entry editor suggests the names already used in your database, like the tags do (KeePassXC 2.8 has the same).
 - CSV import understands Proton Pass: the vault becomes the group, and the `email` column fills in the user name when there is none.
 ### Changed
-- Quieter sign-in screen: the "decrypted in your browser only" note moved into a tooltip on the Open button, the version sits next to "Create one" in a single line, the file and password fields lose their headings (the hint is the placeholder, screen readers still get the name), the master password field gets more room and a stronger focus ring, and the options fold-out is called "More options".
-- On wide windows the master password field on the sign-in page (Nextcloud and the standalone page) is big and centred, and reaches a little over the edges of the card, as far as there is room. Narrow windows and phones keep the normal field.
-- The standalone sign-in page uses the same quiet form as the Nextcloud one. A long key file name is cut with an ellipsis, "Forget" stays visible.
+- Quieter sign-in screen, the same in Nextcloud and on the standalone page: the "decrypted in your browser only" note is a tooltip on the Open button, the version shares a line with "Create one", the file and password fields lose their headings (the placeholder says it, screen readers still get the name), and the fold-out is called "More options".
+- On wide windows the master password field is big, centred and reaches a little over the edges of the card, as far as there is room. Narrow windows and phones keep the normal field.
+- A remembered key file is a quiet line "Key file "…" remembered" with "Forget" (long names are cut, "Forget" stays); the "use" checkbox is gone, it is always used unless you pick another file by hand.
 - The "Local file" tab looks like the Nextcloud tab: a field with the file name and a Browse button instead of the browser's own file picker.
-- A remembered key file shows as a quiet line "Key file "…" remembered" with "Forget"; the "use" checkbox is gone, it is always used unless you pick another file by hand.
 - Generator dialog (opened from the tool bar, not from the editor): a click on the password copies it, like on the generator page.
 - Attachments are added and removed in the entry editor now, together with the other changes, and only land in the entry (and its history) when you press Apply. The entry view just shows them, with preview and download. The editor has a drop area: drag files onto it or click it to choose them. New entries can take attachments right away.
 
