@@ -174,7 +174,7 @@ async function main() {
         await page.setInputFiles('#att-input', { name: 'neu.txt', mimeType: 'text/plain', buffer: Buffer.from('neu-inhalt') });
         await page.locator('#e-att-list .att-row', { hasText: 'neu.txt' }).waitFor();
         await page.locator('#e-att-list .att-row', { hasText: 'zufall.bin' }).locator('[data-testid=e-att-remove]').click();
-        await page.click('#cancel-btn'); // Abbrechen verwirft beides
+        await page.click('#cancel-btn'); // Cancel discards both
         expect(await page.locator('[data-testid=attachment]').count() === 2 && await page.locator('.att-row', { hasText: 'zufall.bin' }).count() === 1, 'Abbrechen laesst die Anhaenge unveraendert');
         await page.click('#edit-btn');
         await page.setInputFiles('#att-input', { name: 'neu.txt', mimeType: 'text/plain', buffer: Buffer.from('neu-inhalt') });
@@ -317,7 +317,7 @@ async function main() {
         }
         await page.keyboard.press('Escape');
         await pick(page, 'UI Ablauf-TOTP'); await page.click('#edit-btn'); await page.click('#gen-btn');
-        expect(await page.locator('#gen-preview.click-copy').count() === 0, 'Im Editor-Dialog kopiert ein Klick auf das Passwort nicht');
+        expect(await page.locator('#gen-preview.click-copy').count() === 0, 'In the editor dialog a click on the password does not copy');
         await page.click('#gen-tab-pw'); await page.click('#gen-use'); await page.click('#e-show');
         const v = await page.inputValue('#e-pass');
         expect(v !== 'Ui-Passwort-123!' && v.length >= 20, 'Editor uebernimmt Passwort');
