@@ -205,8 +205,8 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .login.solo .pw-row { margin-block: 14px; }
 /* Wide windows: the master password field is the centrepiece, bigger than the card and reaching over its edges (not on phones and narrow windows: there is no room beside the card) */
 @media (min-width: 760px) {
-    .login.solo .pw-row { margin-block: 18px; margin-inline: -80px; }
-    .login.solo #master { min-height: 76px; font-size: 24px; padding-inline: 64px; text-align: center; border-radius: 16px; }
+    .login.solo .pw-row { margin-block: 6px; margin-inline: -80px; }
+    .login.solo #master { min-height: 72px; font-size: 24px; padding-inline: 64px; text-align: center; border-radius: 16px; }
     .login.solo .pw-field { filter: drop-shadow(0 12px 20px rgb(0 0 0 / .08)); } .login.solo .pw-field > .icon-btn { right: 18px; }
 }
 .login.solo #master { border-width: 2px; padding-left: 11px; } .login.solo #master:focus { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent), 0 6px 18px -8px color-mix(in srgb, var(--accent) 45%, transparent); }
