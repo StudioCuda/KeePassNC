@@ -10,6 +10,7 @@ import { isOutOfMemory } from '../core/util.js';
 import { t, errText } from '../i18n.js';
 import { ctx, params, pref, setStatus, download, kfFileId } from './ctx.js';
 import { h, icon, iconBtn, confirmDialog } from './dom.js';
+import { filePicker } from './file-picker.js';
 import { startTimers, ensureOfflineApp, refreshDirtyIndicator } from './session.js';
 import { newPasswordFields, newKeyfileFlow, readFile } from './new-credentials.js';
 import { trialRun } from './db-settings.js';
@@ -102,9 +103,8 @@ export function showCreate() {
 
     const pwf = newPasswordFields('new');
     const kfPick = h('input', { id: 'new-kf-pick', type: 'file' });
-    const kfPickName = h('span', { class: 'muted', text: t('login.keyfile.none') });
-    kfPick.addEventListener('change', () => { kfPickName.textContent = kfPick.files[0]?.name || t('login.keyfile.none'); });
-    const pickBox = h('div', { class: 'filepick cred-sub', hidden: true }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), kfPickName, kfPick);
+    const pickBox = filePicker(kfPick, { icon: 'key', button: t('login.keyfile.choose') });
+    pickBox.classList.add('cred-sub'); pickBox.hidden = true;
     const kf = newKeyfileFlow('new', () => (baseName(target()) || baseName(defName)) + '.keyx');
     for (const el of [urlInput, nameInput]) el.addEventListener('input', () => kf.relabel());
     let kfMode = 'none';

@@ -11,6 +11,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - On wide windows the master password field is big, centred and reaches a little over the edges of the card, as far as there is room. Narrow windows and phones keep the normal field.
 - A remembered key file is a quiet line "Key file "…" remembered" with "Forget" (long names are cut, "Forget" stays); the "use" checkbox is gone, it is always used unless you pick another file by hand.
 - The "Local file" tab and the key file under "More options" look like the Nextcloud tab: a field with the file name and a button instead of the browser's own file picker or a dashed box.
+- Every file picker (sign-in, CSV import, merge, change master password / key file, new database) uses that look now, and you can drop a file onto it.
 - Generator dialog (opened from the tool bar, not from the editor): a click on the password copies it, like on the generator page.
 - Attachments are added and removed in the entry editor now, together with the other changes, and only land in the entry (and its history) when you press Apply. The entry view just shows them, with preview and download. The editor has a drop area: drag files onto it or click it to choose them. New entries can take attachments right away.
 

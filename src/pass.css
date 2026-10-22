@@ -1,13 +1,13 @@
 /* Generator page (web-generator/): builds on the variables and building blocks from keepassnc.css (generator, cards, buttons). */
 .login.pass-wrap { display: block; } /* Background: .login.solo from keepassnc.css */
 /* A bit more colour than in Nextcloud: the shield bolder */
-.pass-wrap > .login-mark { opacity: calc(var(--solo-mark) * 1.9); }
+.pass-wrap > .login-mark { opacity: calc(var(--login-mark) * 1.9); }
 .pass { min-height: 100vh; max-width: 560px; margin: 0 auto; padding: 40px 16px 24px; display: flex; flex-direction: column; gap: 20px; }
 .pass-head { display: flex; flex-direction: column; gap: 12px; }
 .pass-title { display: flex; align-items: center; gap: 12px; }
 .pass-head h1 { font-size: 22px; letter-spacing: -.01em; line-height: 1.2; }
 .pass-lead { font-size: 14px; line-height: 1.6; } .pass-lead > span { display: block; }
-.pass-card { display: flex; flex-direction: column; gap: 16px; padding: 18px; --glow: var(--solo-glow); box-shadow: inset 0 1px 0 var(--solo-edge), 0 1px 2px rgb(0 0 0 / .04), 0 16px 36px -10px color-mix(in srgb, #000 var(--glow), transparent); }
+.pass-card { display: flex; flex-direction: column; gap: 16px; padding: 18px; --glow: var(--login-glow); box-shadow: inset 0 1px 0 var(--login-edge), 0 1px 2px rgb(0 0 0 / .04), 0 16px 36px -10px color-mix(in srgb, #000 var(--glow), transparent); }
 .pass-foot { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 6px 16px; padding-top: 4px; font-size: 13px; line-height: 1.6; color: var(--muted); }
 .pass-foot a { color: inherit; font-weight: 600; }
 @media (max-width: 520px) { .pass { padding-top: 24px; } .pass-head h1 { font-size: 20px; } }

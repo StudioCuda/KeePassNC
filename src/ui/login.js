@@ -8,6 +8,7 @@ import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, params, pref, setStatus, applyTheme, kfStore, kfFileId } from './ctx.js';
 import { KeyfileStoreError, isWeakerThan } from '../keyfile-store.js';
 import { h, icon, iconBtn, toast, closeAllDialogs } from './dom.js';
+import { filePicker } from './file-picker.js';
 import { stopTimers, startTimers, ensureOfflineApp, syncNow, refreshDirtyIndicator } from './session.js';
 import { stopDetailTimers } from './detail.js';
 import { openSettings } from './settings-dialog.js';
@@ -32,10 +33,10 @@ export function showLogin(message) {
         onMode: (m) => { pathBox.hidden = m !== 'nc'; refreshKf(); }, onFound: () => refreshKf() });
     const urlInput = remote?.url || h('input'), userInput = remote?.user || h('input'), passInput = remote?.pass || h('input');
     const fileInput = h('input', { id: 'local-file', type: 'file', accept: '.kdbx', 'aria-label': t('login.file') });
-    const fileGroup = filePicker(fileInput, 'folderOpen', t('login.nc.browse'));
+    const fileGroup = filePicker(fileInput, { icon: 'folderOpen', button: t('login.nc.browse') });
     const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off', placeholder: t('login.master'), 'aria-label': t('login.master') }); // empty: database with key file only
     const keyInput = h('input', { id: 'keyfile', type: 'file', 'aria-label': t('login.keyfile') });
-    const keyGroup = filePicker(keyInput, 'key', t('login.keyfile.choose'), t('login.keyfile'));
+    const keyGroup = filePicker(keyInput, { icon: 'key', button: t('login.keyfile.choose'), placeholder: t('login.keyfile') });
     keyInput.addEventListener('change', () => { if (keyInput.files[0]) more.open = true; });
     const kfRemember = h('input', { type: 'checkbox', id: 'kf-remember' });
     const kfRememberRow = h('label', { class: 'check small', hidden: true }, kfRemember, h('span', {}, t('login.kf.remember'), h('small', { class: 'muted hint', text: t(NC?.pepperUrl ? 'login.kf.remember.hint.nc' : 'login.kf.remember.hint') })));
@@ -266,13 +267,6 @@ export function showLogin(message) {
             h('span', { class: 'muted', text: 'v' + __VERSION__ })));
     ctx.app.replaceChildren(loginShell(card));
     (remote?.mode() === 'nc' && !remote.server.value ? remote.server : masterInput).focus();
-}
-
-/** Field with the name of the picked file plus a button, in the look of the path field. The real file input lies invisibly over the whole group, so a click anywhere opens the picker. */
-function filePicker(input, iconName, buttonText, placeholder = t('login.keyfile.none')) {
-    const name = h('span', { class: 'fp-name ph', text: placeholder });
-    input.addEventListener('change', () => { const n = input.files[0]?.name; name.textContent = n || placeholder; name.classList.toggle('ph', !n); });
-    return h('div', { class: 'input-group filepick-group' }, h('div', { class: 'fp-field' }, name), h('span', { class: 'btn' }, icon(iconName), h('span', { text: buttonText })), input);
 }
 
 /** The file that came from "Files": name large, folder small below it. */
