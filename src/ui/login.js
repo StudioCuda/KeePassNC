@@ -32,14 +32,11 @@ export function showLogin(message) {
         onMode: (m) => { pathBox.hidden = m !== 'nc'; refreshKf(); }, onFound: () => refreshKf() });
     const urlInput = remote?.url || h('input'), userInput = remote?.user || h('input'), passInput = remote?.pass || h('input');
     const fileInput = h('input', { id: 'local-file', type: 'file', accept: '.kdbx', 'aria-label': t('login.file') });
-    // Looks like the path field of the Nextcloud tab; the real file input lies invisibly over the whole group, so a click anywhere opens the picker
-    const fileName = h('span', { class: 'fp-name ph', text: t('login.keyfile.none') });
-    fileInput.addEventListener('change', () => { const n = fileInput.files[0]?.name; fileName.textContent = n || t('login.keyfile.none'); fileName.classList.toggle('ph', !n); });
-    const fileGroup = h('div', { class: 'input-group filepick-group' }, h('div', { class: 'fp-field' }, fileName), h('span', { class: 'btn' }, icon('folderOpen'), h('span', { text: t('login.nc.browse') })), fileInput);
+    const fileGroup = filePicker(fileInput, 'folderOpen', t('login.nc.browse'));
     const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off', placeholder: t('login.master'), 'aria-label': t('login.master') }); // empty: database with key file only
-    const keyInput = h('input', { id: 'keyfile', type: 'file' });
-    const keyName = h('span', { class: 'muted', text: t('login.keyfile.none') });
-    keyInput.addEventListener('change', () => { keyName.textContent = keyInput.files[0]?.name || t('login.keyfile.none'); if (keyInput.files[0]) more.open = true; });
+    const keyInput = h('input', { id: 'keyfile', type: 'file', 'aria-label': t('login.keyfile') });
+    const keyGroup = filePicker(keyInput, 'key', t('login.keyfile.choose'));
+    keyInput.addEventListener('change', () => { if (keyInput.files[0]) more.open = true; });
     const kfRemember = h('input', { type: 'checkbox', id: 'kf-remember' });
     const kfRememberRow = h('label', { class: 'check small', hidden: true }, kfRemember, h('span', {}, t('login.kf.remember'), h('small', { class: 'muted', text: ' ' + t(NC?.pepperUrl ? 'login.kf.remember.hint.nc' : 'login.kf.remember.hint') })));
     const kfUseName = h('span', {});
@@ -84,7 +81,7 @@ export function showLogin(message) {
     const more = h('details', { class: 'login-more', id: 'login-more' },
         h('summary', { text: t('login.more') }),
         h('div', { class: 'stack' },
-            h('label', {}, h('span', { text: t('login.keyfile') }), h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), keyName, keyInput)),
+            h('label', {}, h('span', { text: t('login.keyfile') }), keyGroup),
             kfRememberRow,
             h('label', { class: 'check' }, offlineBox, h('span', { text: t('login.offline') }))));
     const form = h('form', { class: 'login-form stack', id: 'login-form' },
@@ -269,6 +266,13 @@ export function showLogin(message) {
             h('span', { class: 'muted', text: 'v' + __VERSION__ })));
     ctx.app.replaceChildren(loginShell(card));
     (remote?.mode() === 'nc' && !remote.server.value ? remote.server : masterInput).focus();
+}
+
+/** Field with the name of the picked file plus a button, in the look of the path field. The real file input lies invisibly over the whole group, so a click anywhere opens the picker. */
+function filePicker(input, iconName, buttonText) {
+    const name = h('span', { class: 'fp-name ph', text: t('login.keyfile.none') });
+    input.addEventListener('change', () => { const n = input.files[0]?.name; name.textContent = n || t('login.keyfile.none'); name.classList.toggle('ph', !n); });
+    return h('div', { class: 'input-group filepick-group' }, h('div', { class: 'fp-field' }, name), h('span', { class: 'btn' }, icon(iconName), h('span', { text: buttonText })), input);
 }
 
 /** The file that came from "Files": name large, folder small below it. */
