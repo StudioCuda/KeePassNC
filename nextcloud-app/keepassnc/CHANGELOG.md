@@ -7,6 +7,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The name of an extra field in the entry editor suggests the names already used in your database, like the tags do (KeePassXC 2.8 has the same).
 - CSV import understands Proton Pass: the vault becomes the group, and the `email` column fills in the user name when there is none.
 ### Changed
+- The dialog "Master password and key file" drops the heading above the password fields, the field names say it already.
 - Quieter sign-in screen, the same in Nextcloud and on the standalone page: the "decrypted in your browser only" note is a tooltip on the Open button, the version shares a line with "Create one", the file and password fields lose their headings (the placeholder says it, screen readers still get the name), and the fold-out is called "More options".
 - On wide windows the master password field is big, centred and reaches a little over the edges of the card, as far as there is room. Narrow windows and phones keep the normal field.
 - A remembered key file is a quiet line "Key file "…" remembered" with "Forget" (long names are cut, "Forget" stays); the "use" checkbox is gone, it is always used unless you pick another file by hand.
