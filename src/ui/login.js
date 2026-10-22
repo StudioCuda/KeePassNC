@@ -111,7 +111,7 @@ export function showLogin(message) {
         const chosen = !!keyInput.files[0];
         kfRememberRow.hidden = !chosen;
         kfUseRow.hidden = !kfInfo || chosen;
-        if (kfInfo) kfUseName.textContent = t('login.kf.use', { name: kfInfo.name || t('login.keyfile') });
+        if (kfInfo) kfUseName.title = kfUseName.textContent = t('login.kf.use', { name: kfInfo.name || t('login.keyfile') });
     };
     kfForget.addEventListener('click', async () => { const id = kfIdNow(); if (id) await kfStore.forget(id); toast(t('login.kf.forgotten')); refreshKf(); });
     for (const el of [keyInput, fileInput]) el.addEventListener('change', refreshKf);
