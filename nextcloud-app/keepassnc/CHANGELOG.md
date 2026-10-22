@@ -8,6 +8,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - CSV import understands Proton Pass: the vault becomes the group, and the `email` column fills in the user name when there is none.
 ### Changed
 - Quieter sign-in screen: the "decrypted in your browser only" note moved into a tooltip on the Open button, the version sits next to "Create one" in a single line, the file and password fields lose their headings (the hint is the placeholder, screen readers still get the name), the master password field gets more room and a stronger focus ring, and the options fold-out is called "More options".
+- On wide windows the master password field on the sign-in page in Nextcloud is big and centred, and reaches a little over the edges of the card. Narrow windows and phones keep the normal field.
 - The "Local file" tab looks like the Nextcloud tab: a field with the file name and a Browse button instead of the browser's own file picker.
 - A remembered key file shows as a quiet line "Key file "…" remembered" with "Forget"; the "use" checkbox is gone, it is always used unless you pick another file by hand.
 - Generator dialog (opened from the tool bar, not from the editor): a click on the password copies it, like on the generator page.
