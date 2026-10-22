@@ -109,6 +109,10 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); fon
 .seg > input:checked + span, .seg-btn.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
 .seg > input:focus-visible + span { outline: 2px solid var(--accent); }
 
+.filepick-group { position: relative; } .filepick-group > input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.fp-field { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; min-height: 40px; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); font-weight: 450; overflow: hidden; }
+.fp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .fp-name.ph { color: color-mix(in srgb, var(--muted) 62%, var(--surface)); }
+.filepick-group:has(input:focus-visible) .fp-field { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); } .filepick-group .btn { pointer-events: none; }
 .filepick { position: relative; display: flex; align-items: center; gap: 10px; padding: 6px; border: 1px dashed var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-2); }
 .filepick input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
 .filepick .btn { pointer-events: none; min-height: 30px; padding: 2px 10px; font-size: 13px; }
@@ -198,7 +202,7 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .file-chip > span { display: flex; flex-direction: column; min-width: 0; } .file-chip strong, .file-chip small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .file-chip strong { font-size: 15px; }
 .login-more > summary { cursor: pointer; width: fit-content; color: var(--muted); font-size: 12.5px; font-weight: 500; }
 .login.solo input::placeholder { color: color-mix(in srgb, var(--muted) 62%, var(--surface)); opacity: 1; } /* clearly a placeholder, not a real value */
-.login.solo .pw-row { margin-block: 8px; }
+.login.solo .pw-row { margin-block: 14px; }
 .login.solo #master { border-width: 2px; padding-left: 11px; } .login.solo #master:focus { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent), 0 6px 18px -8px color-mix(in srgb, var(--accent) 45%, transparent); }
 .login-more[open] > summary { margin-bottom: 14px; }
 /* New database: name with fixed extension, folder row, folder browser */

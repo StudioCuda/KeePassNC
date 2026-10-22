@@ -31,7 +31,11 @@ export function showLogin(message) {
     const remote = NC ? null : remoteFields('dav', { urlValue: params.get('url') || pref('url'), urlPlaceholder: t('login.dav.url.ph'),
         onMode: (m) => { pathBox.hidden = m !== 'nc'; refreshKf(); }, onFound: () => refreshKf() });
     const urlInput = remote?.url || h('input'), userInput = remote?.user || h('input'), passInput = remote?.pass || h('input');
-    const fileInput = h('input', { id: 'local-file', type: 'file', accept: '.kdbx' });
+    const fileInput = h('input', { id: 'local-file', type: 'file', accept: '.kdbx', 'aria-label': t('login.file') });
+    // Looks like the path field of the Nextcloud tab; the real file input lies invisibly over the whole group, so a click anywhere opens the picker
+    const fileName = h('span', { class: 'fp-name ph', text: t('login.keyfile.none') });
+    fileInput.addEventListener('change', () => { const n = fileInput.files[0]?.name; fileName.textContent = n || t('login.keyfile.none'); fileName.classList.toggle('ph', !n); });
+    const fileGroup = h('div', { class: 'input-group filepick-group' }, h('div', { class: 'fp-field' }, fileName), h('span', { class: 'btn' }, icon('folderOpen'), h('span', { text: t('login.nc.browse') })), fileInput);
     const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off', placeholder: t('login.master'), 'aria-label': t('login.master') }); // empty: database with key file only
     const keyInput = h('input', { id: 'keyfile', type: 'file' });
     const keyName = h('span', { class: 'muted', text: t('login.keyfile.none') });
@@ -69,7 +73,7 @@ export function showLogin(message) {
         ? h('div', { id: 'dav-box', class: 'stack' }, NC.file ? fileChip(NC.file) : null, pathBox)
         : h('div', { id: 'dav-box', class: 'stack' }, remote.serverBox, remote.urlBox, remote.creds, pathBox, remote.foot);
     pathBox.hidden = !!NC?.file; // opened from Files: the file shows up as a card, the read-only field only stays for the logic
-    const fileBox = h('div', { id: 'file-box', class: 'stack', hidden: true }, h('label', {}, h('span', { text: t('login.file') }), fileInput));
+    const fileBox = h('div', { id: 'file-box', class: 'stack', hidden: true }, fileGroup);
     const seg = (value, label, ic) => h('label', { class: 'seg' }, h('input', { type: 'radio', name: 'src', value, checked: mode === value, onchange: () => { davBox.hidden = value !== 'dav'; fileBox.hidden = value !== 'file'; pref('mode', value); } }), h('span', {}, icon(ic), label));
     davBox.hidden = mode !== 'dav'; fileBox.hidden = mode !== 'file';
     const offlineBox = h('input', { type: 'checkbox', id: 'offline-opt', checked: ctx.settings.offline });
