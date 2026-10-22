@@ -32,18 +32,17 @@ export function showLogin(message) {
         onMode: (m) => { pathBox.hidden = m !== 'nc'; refreshKf(); }, onFound: () => refreshKf() });
     const urlInput = remote?.url || h('input'), userInput = remote?.user || h('input'), passInput = remote?.pass || h('input');
     const fileInput = h('input', { id: 'local-file', type: 'file', accept: '.kdbx' });
-    const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off' }); // empty: database with key file only
+    const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off', placeholder: t('login.master'), 'aria-label': t('login.master') }); // empty: database with key file only
     const keyInput = h('input', { id: 'keyfile', type: 'file' });
     const keyName = h('span', { class: 'muted', text: t('login.keyfile.none') });
     keyInput.addEventListener('change', () => { keyName.textContent = keyInput.files[0]?.name || t('login.keyfile.none'); if (keyInput.files[0]) more.open = true; });
     const kfRemember = h('input', { type: 'checkbox', id: 'kf-remember' });
     const kfRememberRow = h('label', { class: 'check small', hidden: true }, kfRemember, h('span', {}, t('login.kf.remember'), h('small', { class: 'muted', text: ' ' + t(NC?.pepperUrl ? 'login.kf.remember.hint.nc' : 'login.kf.remember.hint') })));
-    const kfUse = h('input', { type: 'checkbox', id: 'kf-use', checked: true });
     const kfUseName = h('span', {});
     const kfForget = h('button', { type: 'button', class: 'link', id: 'kf-forget', text: t('login.kf.forget') });
-    const kfUseRow = h('div', { class: 'kf-used', id: 'kf-remembered', hidden: true }, h('label', { class: 'check small' }, kfUse, kfUseName), kfForget);
+    const kfUseRow = h('div', { class: 'kf-used', id: 'kf-remembered', hidden: true }, kfUseName, kfForget);
     const ncPathInput = h('input', { id: NC ? 'nc-path' : 'dav-path', type: 'text', placeholder: t('login.nc.path.ph'), value: NC ? NC.file || pref('ncfile') : remote.legacy?.path || '',
-        autocomplete: 'off', readonly: !!NC?.file });
+        autocomplete: 'off', readonly: !!NC?.file, 'aria-label': NC?.file ? t('login.nc.file') : t('login.nc.path') });
     // [Browse]: pick a file in your own Nextcloud instead of typing the path; starts in the folder of the path in the field
     const browseBtn = !NC?.file ? h('button', { type: 'button', id: NC ? 'nc-browse' : 'dav-browse', class: 'btn' }, icon('folderOpen'), h('span', { text: t('login.nc.browse') })) : null;
     browseBtn?.addEventListener('click', async () => {
@@ -65,7 +64,7 @@ export function showLogin(message) {
         masterInput.focus();
     });
     // Hint as a tooltip on label and field instead of its own line
-    const pathBox = h('label', NC && !NC.file ? { title: t('login.nc.tip') } : {}, h('span', { text: NC?.file ? t('login.nc.file') : t('login.nc.path') }), browseBtn ? h('div', { class: 'input-group' }, ncPathInput, browseBtn) : ncPathInput);
+    const pathBox = h('label', NC && !NC.file ? { title: t('login.nc.tip') } : {}, browseBtn ? h('div', { class: 'input-group' }, ncPathInput, browseBtn) : ncPathInput);
     const davBox = NC
         ? h('div', { id: 'dav-box', class: 'stack' }, NC.file ? fileChip(NC.file) : null, pathBox)
         : h('div', { id: 'dav-box', class: 'stack' }, remote.serverBox, remote.urlBox, remote.creds, pathBox, remote.foot);
@@ -87,7 +86,7 @@ export function showLogin(message) {
     const form = h('form', { class: 'login-form stack', id: 'login-form' },
         h('div', { class: 'seg-group', role: 'radiogroup', hidden: !!NC?.file }, seg('dav', NC ? t('login.src.nc') : t('login.src.dav'), 'cloud'), seg('file', t('login.src.file'), 'file')),
         davBox, fileBox,
-        h('label', {}, h('span', { text: t('login.master') }), h('div', { class: 'pw-field' }, masterInput, showPw)),
+        h('div', { class: 'pw-row' }, h('div', { class: 'pw-field' }, masterInput, showPw)),
         kfUseRow, more,
         err, btn);
     // --- remembered key file (see keyfile-store.js / docs/KEYFILE-MEMORY.md)
@@ -129,7 +128,7 @@ export function showLogin(message) {
             kfId = kfIdNow();
             const kfPicked = keyInput.files[0] || null;
             const wantRemember = !!kfPicked && kfRemember.checked;
-            const wantRecall = !kfPicked && kfUse.checked;
+            const wantRecall = !kfPicked; // a remembered key file is always used unless one is picked by hand
             // Without a password a picked key file is required; a remembered one is only decrypted by the master password
             if (!masterInput.value && !kfPicked) throw new VaultError(t('err.login.empty'));
             // Nextcloud: remembered key files are additionally bound to a secret on the server (format v2, see keyfile-store.js)

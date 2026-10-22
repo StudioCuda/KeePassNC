@@ -196,7 +196,10 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .file-chip { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface-2); min-width: 0; }
 .file-chip > .icon { width: 22px; height: 22px; flex: none; color: var(--accent); }
 .file-chip > span { display: flex; flex-direction: column; min-width: 0; } .file-chip strong, .file-chip small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .file-chip strong { font-size: 15px; }
-.login-more > summary { cursor: pointer; width: fit-content; color: var(--muted); font-size: 13px; font-weight: 600; }
+.login-more > summary { cursor: pointer; width: fit-content; color: var(--muted); font-size: 12.5px; font-weight: 500; }
+.login.solo input::placeholder { color: color-mix(in srgb, var(--muted) 62%, var(--surface)); opacity: 1; } /* clearly a placeholder, not a real value */
+.login.solo .pw-row { margin-block: 8px; }
+.login.solo #master { border-width: 2px; padding-left: 11px; } .login.solo #master:focus { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent), 0 6px 18px -8px color-mix(in srgb, var(--accent) 45%, transparent); }
 .login-more[open] > summary { margin-bottom: 14px; }
 /* New database: name with fixed extension, folder row, folder browser */
 .input-suffix { align-self: center; color: var(--muted); font-size: 13px; }
@@ -515,8 +518,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
 @media print { .shell, .topbar, .nch { display: none; } }
 label.btn { flex-direction: row; color: var(--text); font-size: 13px; cursor: pointer; }
 input:disabled, select:disabled { opacity: .5; cursor: not-allowed; }
-.kf-used { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-.kf-used .check { color: var(--text); }
+.kf-used { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; font-weight: 450; color: color-mix(in srgb, var(--muted) 84%, var(--surface)); } .kf-used .link { font-size: 12.5px; font-weight: 450; color: inherit; } /* quiet side line: the remembered key file */
 .cred-sub { margin-left: 28px; } /* Sub-items of a key file option in the dialog "Master password and key file" */
 
 /* ---------- Login: look and feel (typography, focus, unlock moment) ---------- */
