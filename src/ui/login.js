@@ -31,19 +31,19 @@ export function showLogin(message) {
     const remote = NC ? null : remoteFields('dav', { urlValue: params.get('url') || pref('url'), urlPlaceholder: t('login.dav.url.ph'),
         onMode: (m) => { pathBox.hidden = m !== 'nc'; refreshKf(); }, onFound: () => refreshKf() });
     const urlInput = remote?.url || h('input'), userInput = remote?.user || h('input'), passInput = remote?.pass || h('input');
-    const fileInput = h('input', { id: 'local-file', type: 'file', accept: '.kdbx' });
-    const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off' }); // empty: database with key file only
-    const keyInput = h('input', { id: 'keyfile', type: 'file' });
-    const keyName = h('span', { class: 'muted', text: t('login.keyfile.none') });
-    keyInput.addEventListener('change', () => { keyName.textContent = keyInput.files[0]?.name || t('login.keyfile.none'); if (keyInput.files[0]) more.open = true; });
+    const fileInput = h('input', { id: 'local-file', type: 'file', accept: '.kdbx', 'aria-label': t('login.file') });
+    const fileGroup = filePicker(fileInput, 'folderOpen', t('login.nc.browse'));
+    const masterInput = h('input', { id: 'master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off', placeholder: t('login.master'), 'aria-label': t('login.master') }); // empty: database with key file only
+    const keyInput = h('input', { id: 'keyfile', type: 'file', 'aria-label': t('login.keyfile') });
+    const keyGroup = filePicker(keyInput, 'key', t('login.keyfile.choose'), t('login.keyfile'));
+    keyInput.addEventListener('change', () => { if (keyInput.files[0]) more.open = true; });
     const kfRemember = h('input', { type: 'checkbox', id: 'kf-remember' });
-    const kfRememberRow = h('label', { class: 'check small', hidden: true }, kfRemember, h('span', {}, t('login.kf.remember'), h('small', { class: 'muted', text: ' ' + t(NC?.pepperUrl ? 'login.kf.remember.hint.nc' : 'login.kf.remember.hint') })));
-    const kfUse = h('input', { type: 'checkbox', id: 'kf-use', checked: true });
+    const kfRememberRow = h('label', { class: 'check small', hidden: true }, kfRemember, h('span', {}, t('login.kf.remember'), h('small', { class: 'muted hint', text: t(NC?.pepperUrl ? 'login.kf.remember.hint.nc' : 'login.kf.remember.hint') })));
     const kfUseName = h('span', {});
     const kfForget = h('button', { type: 'button', class: 'link', id: 'kf-forget', text: t('login.kf.forget') });
-    const kfUseRow = h('div', { class: 'kf-used', id: 'kf-remembered', hidden: true }, h('label', { class: 'check small' }, kfUse, kfUseName), kfForget);
+    const kfUseRow = h('div', { class: 'kf-used', id: 'kf-remembered', hidden: true }, kfUseName, kfForget);
     const ncPathInput = h('input', { id: NC ? 'nc-path' : 'dav-path', type: 'text', placeholder: t('login.nc.path.ph'), value: NC ? NC.file || pref('ncfile') : remote.legacy?.path || '',
-        autocomplete: 'off', readonly: !!NC?.file });
+        autocomplete: 'off', readonly: !!NC?.file, 'aria-label': NC?.file ? t('login.nc.file') : t('login.nc.path') });
     // [Browse]: pick a file in your own Nextcloud instead of typing the path; starts in the folder of the path in the field
     const browseBtn = !NC?.file ? h('button', { type: 'button', id: NC ? 'nc-browse' : 'dav-browse', class: 'btn' }, icon('folderOpen'), h('span', { text: t('login.nc.browse') })) : null;
     browseBtn?.addEventListener('click', async () => {
@@ -65,31 +65,31 @@ export function showLogin(message) {
         masterInput.focus();
     });
     // Hint as a tooltip on label and field instead of its own line
-    const pathBox = h('label', NC && !NC.file ? { title: t('login.nc.tip') } : {}, h('span', { text: NC?.file ? t('login.nc.file') : t('login.nc.path') }), browseBtn ? h('div', { class: 'input-group' }, ncPathInput, browseBtn) : ncPathInput);
+    const pathBox = h('label', NC && !NC.file ? { title: t('login.nc.tip') } : {}, browseBtn ? h('div', { class: 'input-group' }, ncPathInput, browseBtn) : ncPathInput);
     const davBox = NC
         ? h('div', { id: 'dav-box', class: 'stack' }, NC.file ? fileChip(NC.file) : null, pathBox)
         : h('div', { id: 'dav-box', class: 'stack' }, remote.serverBox, remote.urlBox, remote.creds, pathBox, remote.foot);
     pathBox.hidden = !!NC?.file; // opened from Files: the file shows up as a card, the read-only field only stays for the logic
-    const fileBox = h('div', { id: 'file-box', class: 'stack', hidden: true }, h('label', {}, h('span', { text: t('login.file') }), fileInput));
+    const fileBox = h('div', { id: 'file-box', class: 'stack', hidden: true }, fileGroup);
     const seg = (value, label, ic) => h('label', { class: 'seg' }, h('input', { type: 'radio', name: 'src', value, checked: mode === value, onchange: () => { davBox.hidden = value !== 'dav'; fileBox.hidden = value !== 'file'; pref('mode', value); } }), h('span', {}, icon(ic), label));
     davBox.hidden = mode !== 'dav'; fileBox.hidden = mode !== 'file';
     const offlineBox = h('input', { type: 'checkbox', id: 'offline-opt', checked: ctx.settings.offline });
     const err = h('p', { class: 'error', id: 'login-error', role: 'alert', text: message || '' });
-    const btn = h('button', { type: 'submit', id: 'open-btn', class: 'primary big' }, icon('lock'), h('span', { class: 'label', text: t('login.open') }));
+    const btn = h('button', { type: 'submit', id: 'open-btn', class: 'primary big', title: t('login.trust.short'), 'aria-description': t('login.trust.short') }, icon('lock'), h('span', { class: 'label', text: t('login.open') }));
     const showPw = iconBtn('eye', t('show'), () => { const on = masterInput.type === 'password'; masterInput.type = on ? 'text' : 'password'; showPw.setAttribute('aria-pressed', String(on)); showPw.replaceChildren(icon(on ? 'eyeOff' : 'eye')); }, { type: 'button', 'aria-pressed': 'false' });
     // Only those who need a key file and offline copy see them: always collapsed, even when the offline copy is on
     const more = h('details', { class: 'login-more', id: 'login-more' },
         h('summary', { text: t('login.more') }),
         h('div', { class: 'stack' },
-            h('label', {}, h('span', { text: t('login.keyfile') }), h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), keyName, keyInput)),
+            keyGroup,
             kfRememberRow,
             h('label', { class: 'check' }, offlineBox, h('span', { text: t('login.offline') }))));
     const form = h('form', { class: 'login-form stack', id: 'login-form' },
         h('div', { class: 'seg-group', role: 'radiogroup', hidden: !!NC?.file }, seg('dav', NC ? t('login.src.nc') : t('login.src.dav'), 'cloud'), seg('file', t('login.src.file'), 'file')),
         davBox, fileBox,
-        h('label', {}, h('span', { text: t('login.master') }), h('div', { class: 'pw-field' }, masterInput, showPw)),
+        h('div', { class: 'pw-row' }, h('div', { class: 'pw-field' }, masterInput, showPw)),
         kfUseRow, more,
-        err, btn, NC ? h('p', { class: 'login-trust' }, icon('lock'), h('span', { text: t('login.trust.short') })) : null);
+        err, btn);
     // --- remembered key file (see keyfile-store.js / docs/KEYFILE-MEMORY.md)
     const currentSrc = () => form.querySelector('input[name=src]:checked').value;
     const kfIdNow = () => {
@@ -108,7 +108,7 @@ export function showLogin(message) {
         const chosen = !!keyInput.files[0];
         kfRememberRow.hidden = !chosen;
         kfUseRow.hidden = !kfInfo || chosen;
-        if (kfInfo) kfUseName.textContent = t('login.kf.use', { name: kfInfo.name || t('login.keyfile') });
+        if (kfInfo) kfUseName.title = kfUseName.textContent = t('login.kf.use', { name: kfInfo.name || t('login.keyfile') });
     };
     kfForget.addEventListener('click', async () => { const id = kfIdNow(); if (id) await kfStore.forget(id); toast(t('login.kf.forgotten')); refreshKf(); });
     for (const el of [keyInput, fileInput]) el.addEventListener('change', refreshKf);
@@ -129,7 +129,7 @@ export function showLogin(message) {
             kfId = kfIdNow();
             const kfPicked = keyInput.files[0] || null;
             const wantRemember = !!kfPicked && kfRemember.checked;
-            const wantRecall = !kfPicked && kfUse.checked;
+            const wantRecall = !kfPicked; // a remembered key file is always used unless one is picked by hand
             // Without a password a picked key file is required; a remembered one is only decrypted by the master password
             if (!masterInput.value && !kfPicked) throw new VaultError(t('err.login.empty'));
             // Nextcloud: remembered key files are additionally bound to a secret on the server (format v2, see keyfile-store.js)
@@ -260,11 +260,19 @@ export function showLogin(message) {
             h('div', { class: 'row-gap' },
                 iconBtn('settings', t('settings'), () => openSettings({ loginMode: true }), { id: 'login-settings' }))),
         form,
-        h('p', { class: 'login-alt' }, h('span', { class: 'muted', text: t('login.new.q') }), ' ',
-            h('button', { type: 'button', id: 'new-db-link', class: 'link', text: t('login.new'), onclick: () => ctx.ui.showCreate() })),
-        h('footer', { class: 'login-foot' }, h('span', { class: 'muted', text: 'v' + __VERSION__ })));
+        h('p', { class: 'login-alt' },
+            h('span', {}, h('span', { class: 'muted', text: t('login.new.q') }), ' ',
+                h('button', { type: 'button', id: 'new-db-link', class: 'link', text: t('login.new'), onclick: () => ctx.ui.showCreate() })),
+            h('span', { class: 'muted', text: 'v' + __VERSION__ })));
     ctx.app.replaceChildren(loginShell(card));
     (remote?.mode() === 'nc' && !remote.server.value ? remote.server : masterInput).focus();
+}
+
+/** Field with the name of the picked file plus a button, in the look of the path field. The real file input lies invisibly over the whole group, so a click anywhere opens the picker. */
+function filePicker(input, iconName, buttonText, placeholder = t('login.keyfile.none')) {
+    const name = h('span', { class: 'fp-name ph', text: placeholder });
+    input.addEventListener('change', () => { const n = input.files[0]?.name; name.textContent = n || placeholder; name.classList.toggle('ph', !n); });
+    return h('div', { class: 'input-group filepick-group' }, h('div', { class: 'fp-field' }, name), h('span', { class: 'btn' }, icon(iconName), h('span', { text: buttonText })), input);
 }
 
 /** The file that came from "Files": name large, folder small below it. */
