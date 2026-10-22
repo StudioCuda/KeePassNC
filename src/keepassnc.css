@@ -110,8 +110,8 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); fon
 .seg > input:focus-visible + span { outline: 2px solid var(--accent); }
 
 .filepick-group { position: relative; } .filepick-group > input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-.fp-field { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; min-height: 40px; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); font-weight: 450; overflow: hidden; }
-.fp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .fp-name.ph { color: var(--placeholder); }
+.fp-field { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; min-height: 40px; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); font-size: 14px; font-weight: 450; overflow: hidden; } /* same size as the button next to it */
+.fp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .fp-name.ph { color: color-mix(in srgb, var(--muted) 62%, var(--surface)); } /* grey everywhere, not only inside .login */
 .filepick-group:has(input:focus-visible) .fp-field { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); } .filepick-group .btn { pointer-events: none; }
 .filepick-group.drop .fp-field { border-color: var(--accent); background: var(--accent-soft); } /* a file is dragged over it */
 
@@ -209,6 +209,7 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
     .login .pw-row { margin-block: 8px 6px; margin-inline: calc(-1 * min(80px, (100cqw - 460px) / 2 + 10px)); }
     .login #master { min-height: 72px; font-size: 24px; padding-inline: 64px; text-align: center; border-radius: 16px; }
     .login #master:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
+    .login #master:placeholder-shown { caret-color: transparent; } /* centred text: the caret would sit in the middle of the placeholder; the focus ring shows the focus, the caret returns with the first character */
     .login .pw-field { filter: drop-shadow(0 8px 16px rgb(0 0 0 / .06)); } .login .pw-field > .icon-btn { right: 18px; }
 }
 .login-more[open] > summary { margin-bottom: 14px; }
