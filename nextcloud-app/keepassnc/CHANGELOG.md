@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [0.17.0] - 2026-10-22
 ### Added
 - The name of an extra field in the entry editor suggests the names already used in your database, like the tags do (KeePassXC 2.8 has the same).
 - CSV import understands Proton Pass: the vault becomes the group, and the `email` column fills in the user name when there is none.
