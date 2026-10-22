@@ -63,7 +63,7 @@ kbd { font: 11px var(--mono); padding: 1px 6px; border: 1px solid var(--border-s
 label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 550; color: var(--muted); }
 label > span:first-child { color: var(--muted); }
 label.check { flex-direction: row; align-items: center; gap: 10px; color: var(--text); font-weight: 450; font-size: 14px; cursor: pointer; }
-label.check.small { font-size: 12.5px; }
+label.check.small { font-size: 12.5px; } label.check small.hint { display: block; font-size: 12px; margin-top: 1px; } /* the grey explanation goes under the main sentence */
 input[type=text], input[type=url], input[type=password], input[type=search], input[type=number], input[type=date], input:not([type]), select, textarea {
     width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-weight: 450; transition: border-color .12s, box-shadow .12s;
 }

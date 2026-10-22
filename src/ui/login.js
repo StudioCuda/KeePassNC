@@ -38,7 +38,7 @@ export function showLogin(message) {
     const keyGroup = filePicker(keyInput, 'key', t('login.keyfile.choose'));
     keyInput.addEventListener('change', () => { if (keyInput.files[0]) more.open = true; });
     const kfRemember = h('input', { type: 'checkbox', id: 'kf-remember' });
-    const kfRememberRow = h('label', { class: 'check small', hidden: true }, kfRemember, h('span', {}, t('login.kf.remember'), h('small', { class: 'muted', text: ' ' + t(NC?.pepperUrl ? 'login.kf.remember.hint.nc' : 'login.kf.remember.hint') })));
+    const kfRememberRow = h('label', { class: 'check small', hidden: true }, kfRemember, h('span', {}, t('login.kf.remember'), h('small', { class: 'muted hint', text: t(NC?.pepperUrl ? 'login.kf.remember.hint.nc' : 'login.kf.remember.hint') })));
     const kfUseName = h('span', {});
     const kfForget = h('button', { type: 'button', class: 'link', id: 'kf-forget', text: t('login.kf.forget') });
     const kfUseRow = h('div', { class: 'kf-used', id: 'kf-remembered', hidden: true }, kfUseName, kfForget);
