@@ -3,6 +3,7 @@
 import { t } from '../i18n.js';
 import { download } from './ctx.js';
 import { h, icon, iconBtn } from './dom.js';
+import { filePicker } from './file-picker.js';
 import { strengthBar } from './detail.js';
 import { openGenerator } from './generator-dialog.js';
 import { createKeyfile, sameKeyfile } from '../vault.js';
@@ -33,11 +34,10 @@ export function newPasswordFields(p) {
 export function newKeyfileFlow(p, fileName) {
     let fresh = null, verified = false, name = '';
     const verifyInput = h('input', { id: `${p}-kf-verify`, type: 'file' });
-    const verifyName = h('span', { class: 'muted', text: t('login.keyfile.none') });
     const verifyNote = h('p', { class: 'level-note', id: `${p}-kf-check`, 'aria-live': 'polite', hidden: true });
     const verifyBox = h('div', { class: 'stack tight', hidden: true },
         h('span', { class: 'group-title', text: t('cred.kf.verify') }),
-        h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), verifyName, verifyInput), verifyNote);
+        filePicker(verifyInput, { icon: 'key', button: t('login.keyfile.choose') }), verifyNote);
     const label = h('span', { text: t('cred.kf.download', { name: fileName() }) });
     const downloadBtn = h('button', { type: 'button', class: 'small', id: `${p}-kf-download` }, icon('download'), label);
     downloadBtn.addEventListener('click', async () => {
@@ -47,7 +47,6 @@ export function newKeyfileFlow(p, fileName) {
         verifyBox.hidden = false;
     });
     verifyInput.addEventListener('change', async () => {
-        verifyName.textContent = verifyInput.files[0]?.name || t('login.keyfile.none');
         const bytes = await readFile(verifyInput);
         verified = !!(bytes && fresh) && await sameKeyfile(bytes, fresh).catch(() => false);
         bytes?.fill(0);

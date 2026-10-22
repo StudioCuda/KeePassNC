@@ -554,6 +554,13 @@ async function main() {
         await w.setViewportSize({ width: 1100, height: 900 });
         const narrow = await measure(w);
         expect(narrow.m <= narrow.f && narrow.h < 60, `schmal: Feld ${narrow.m}px, Formular ${narrow.f}px, Hoehe ${narrow.h}px`);
+        // drop a file on the picker: highlight while dragging over it, then the name shows and the input holds the file
+        const dt = await w.evaluateHandle(() => { const d = new DataTransfer(); d.items.add(new File(['x'], 'drop.kdbx')); return d; });
+        await w.dispatchEvent('#file-box .filepick-group', 'dragover', { dataTransfer: dt });
+        expect(await w.locator('#file-box .filepick-group').evaluate((el) => el.classList.contains('drop')), 'Ziel nicht hervorgehoben');
+        await w.dispatchEvent('#file-box .filepick-group', 'drop', { dataTransfer: dt });
+        expect(await w.locator('#file-box .fp-name').innerText() === 'drop.kdbx' && await w.evaluate(() => document.querySelector('#local-file').files.length) === 1, 'Datei per Drop nicht uebernommen');
+        expect(!(await w.locator('#file-box .filepick-group').evaluate((el) => el.classList.contains('drop'))), 'Hervorhebung bleibt');
         await wctx.close();
     });
 

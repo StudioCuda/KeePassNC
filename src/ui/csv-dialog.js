@@ -3,6 +3,7 @@
 import { t, errText } from '../i18n.js';
 import { ctx, download } from './ctx.js';
 import { h, icon, modal, toast } from './dom.js';
+import { filePicker } from './file-picker.js';
 import { changed } from './session.js';
 import { setFilter } from './groups.js';
 import { parseCsv, toCsv, mapRows } from '../core/csv.js';
@@ -16,12 +17,10 @@ export function openCsv({ onBack } = {}) {
     let found = null; // {entries, ignored, name}
 
     const fileInput = h('input', { id: 'csv-file', type: 'file', accept: '.csv,text/csv' });
-    const fileName = h('span', { class: 'muted', text: t('login.keyfile.none') });
     const summary = h('p', { class: 'hint', id: 'csv-summary', 'aria-live': 'polite' });
     const importBtn = h('button', { type: 'button', class: 'primary', id: 'csv-import', text: t('csv.import'), disabled: true });
     fileInput.addEventListener('change', async () => {
         const f = fileInput.files[0];
-        fileName.textContent = f?.name || t('login.keyfile.none');
         found = null; importBtn.disabled = true; summary.textContent = '';
         if (!f) return;
         try {
@@ -54,7 +53,7 @@ export function openCsv({ onBack } = {}) {
     const m = modal({ title: t('csv.title'), size: 'md', body: h('div', { class: 'stack' },
         h('section', { class: 'stack tight' }, h('span', { class: 'group-title', text: t('csv.import.title') }),
             h('p', { class: 'hint', text: t('csv.import.hint') }),
-            h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('upload'), t('csv.choose')), fileName, fileInput),
+            filePicker(fileInput, { icon: 'upload', button: t('csv.choose') }),
             summary, h('div', {}, importBtn)),
         h('section', { class: 'stack tight' }, h('span', { class: 'group-title', text: t('csv.export.title') }),
             h('p', { class: 'level-note bad', text: t('csv.export.warn') }),

@@ -2,7 +2,8 @@
 // from this device. Try the own credentials first; they are only asked for if the copy has different ones.
 import { t, errText, fmtDate } from '../i18n.js';
 import { ctx } from './ctx.js';
-import { h, icon, modal, toast } from './dom.js';
+import { h, modal, toast } from './dom.js';
+import { filePicker } from './file-picker.js';
 import { changed } from './session.js';
 
 const { state } = ctx;
@@ -18,10 +19,8 @@ export function openMerge({ onBack } = {}) {
         h('input', { type: 'radio', name: 'merge-src', onchange: () => choose(name, read) }), h('span', { text: name }), note ? h('small', { class: 'muted', text: note }) : null);
 
     const localInput = h('input', { id: 'merge-file', type: 'file', accept: '.kdbx' });
-    const localName = h('span', { class: 'muted', text: t('login.keyfile.none') });
     localInput.addEventListener('change', () => {
         const f = localInput.files[0];
-        localName.textContent = f?.name || t('login.keyfile.none');
         for (const r of list.querySelectorAll('input[type=radio]')) r.checked = false;
         if (f) choose(f.name, () => f.arrayBuffer());
     });
@@ -29,11 +28,9 @@ export function openMerge({ onBack } = {}) {
     const credBox = h('div', { class: 'stack tight', hidden: true });
     const pw = h('input', { id: 'merge-pw', type: 'password', autocomplete: 'off', spellcheck: 'false' });
     const kfInput = h('input', { id: 'merge-kf', type: 'file' });
-    const kfName = h('span', { class: 'muted', text: t('login.keyfile.none') });
-    kfInput.addEventListener('change', () => { kfName.textContent = kfInput.files[0]?.name || t('login.keyfile.none'); });
     credBox.append(h('p', { class: 'hint', text: t('merge.creds') }),
         h('label', {}, h('span', { text: t('login.master') }), pw),
-        h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('key'), t('login.keyfile.choose')), kfName, kfInput));
+        filePicker(kfInput, { icon: 'key', button: t('login.keyfile.choose') }));
 
     const error = h('p', { class: 'error', id: 'merge-error', role: 'alert' });
     const mergeBtn = h('button', { type: 'submit', class: 'primary', id: 'merge-apply', text: t('merge.apply') });
@@ -64,7 +61,7 @@ export function openMerge({ onBack } = {}) {
         h('p', { class: 'hint', text: t('merge.hint') }),
         state.source.type === 'dav' ? h('div', { class: 'stack tight' }, h('span', { class: 'group-title', text: t('merge.folder') }), list) : null,
         h('div', { class: 'stack tight' }, h('span', { class: 'group-title', text: t('merge.device') }),
-            h('div', { class: 'filepick' }, h('span', { class: 'btn' }, icon('upload'), t('merge.choose')), localName, localInput)),
+            filePicker(localInput, { icon: 'upload', button: t('merge.choose') })),
         credBox, error,
         h('div', { class: 'modal-actions' }, h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), mergeBtn));
     const m = modal({ title: t('merge.title'), body, size: 'md', onClose: () => { if (!finished) onBack?.(); } });
