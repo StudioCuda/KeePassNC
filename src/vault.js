@@ -5,7 +5,7 @@ import { argon2 } from './argon2.js';
 import { ConflictError, DavError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
 import { excluded } from './core/audit.js';
-import { editTags, entryColor, groupPath, isOutOfMemory, isPasskeyField, isSystemField, resolvePlaceholders, uuidHex, valueText } from './core/util.js';
+import { editTags, entryColor, groupPath, isOutOfMemory, isPasskeyField, isSystemField, resolvePlaceholders, toOtpUri, uuidHex, valueText } from './core/util.js';
 import { EXPORT_HEAD, otpUri } from './core/csv.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
@@ -656,12 +656,12 @@ export class Vault {
     async importEntries(entries, name) {
         const top = this.db.createGroup(this.root, name);
         const sub = (parent, part) => parent.groups.find((g) => g.name === part) || this.db.createGroup(parent, part);
+        const free = (n, taken) => { let k = 2, out = n; while (taken(out)) out = `${n} (${k++})`; return out; }; // "name", "name (2)", ...
         for (const r of entries) {
             const e = this.db.createEntry(r.path.reduce(sub, top));
-            const free = (n, taken) => { let k = 2, out = n; while (taken(out)) out = `${n} (${k++})`; return out; };
             e.fields.set('Title', r.title); e.fields.set('UserName', r.user); e.fields.set('Password', ProtectedValue.fromString(r.password));
             e.fields.set('URL', r.url); e.fields.set('Notes', r.notes);
-            if (r.totp) e.fields.set('otp', ProtectedValue.fromString(/^otpauth:\/\//i.test(r.totp) ? r.totp : `otpauth://totp/${encodeURIComponent(r.title || 'KeePass')}?secret=${r.totp.replace(/[\s-]/g, '').toUpperCase()}`));
+            if (r.totp) e.fields.set('otp', ProtectedValue.fromString(toOtpUri(r.totp, r.title, r.user)));
             e.tags = r.tags;
             // extra fields (never over a standard or system field) and attachments, when the source has them (see core/import.js)
             for (const c of r.custom || []) e.fields.set(free(c.name, (n) => STANDARD_FIELDS.includes(n) || isSystemField(n) || e.fields.has(n)), c.protect ? ProtectedValue.fromString(c.value) : c.value);

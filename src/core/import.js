@@ -2,7 +2,7 @@
 // JSON is recognised by its shape, CSV by its header (core/csv.js). Formats: Nextcloud Passwords (database backup), Passman, Bitwarden;
 // the CSV flavours of these go through mapRows. Shapes follow the sample exports of the Passwords project; fields they don't have a
 // place for (favourites, tag colours, card layouts ...) are dropped, what fits no KeePass field becomes an extra field.
-import { parseCsv, mapRows } from './csv.js';
+import { parseCsv, mapRows, defangRefs, titleOrHost } from './csv.js';
 
 /** Thrown with a translation key (src/i18n-*.js), like VaultError. */
 export class ImportError extends Error {
@@ -11,29 +11,19 @@ export class ImportError extends Error {
 
 export const FORMAT_NAMES = { 'passwords-json': 'Nextcloud Passwords (backup)', 'passman-json': 'Passman (JSON)', 'bitwarden-json': 'Bitwarden (JSON)' };
 
-/**
- * A file from elsewhere has no business pointing at your other entries ({REF:…} would pull their password into a login form),
- * so a reference is broken up to plain text and counted, like in the CSV import.
- */
+/** Text of a field with {REF:…} broken up (see defangRefs); `count()` is the number of entries where that happened, like in the CSV import. */
 function sanitizer() {
     const seen = new Set();
-    const fn = (value, entry) => {
+    const clean = (value, entry) => {
         const s = value === undefined || value === null ? '' : String(value);
-        if (!/\{REF:/i.test(s)) return s;
-        seen.add(entry);
-        return s.replace(/\{REF:/gi, '{ REF:');
+        const out = defangRefs(s);
+        if (out !== s) seen.add(entry);
+        return out;
     };
-    return { clean: fn, count: () => seen.size };
+    return { clean, count: () => seen.size };
 }
 const text = (v) => (typeof v === 'string' ? v : '');
 const date = (secs) => (Number.isFinite(secs) && secs > 0 ? new Date(secs * 1000) : undefined);
-
-/** Hostname of the URL when there is no title (like the CSV import). */
-function titleOf(title, url) {
-    if (title) return title;
-    if (!url) return '';
-    try { return new URL(/^[a-z][a-z0-9+.-]*:/i.test(url) ? url : 'https://' + url).hostname; } catch { return url; }
-}
 
 /** Path of a folder from its parents; the nil UUID (or a missing parent) is the top. A loop in the data can't hang it. */
 function folderPaths(folders, nameOf, parentOf, isTop) {
@@ -54,7 +44,6 @@ function folderPaths(folders, nameOf, parentOf, isTop) {
 }
 
 const NIL = '00000000-0000-0000-0000-000000000000';
-const SECRET_TYPES = new Set(['secret']);
 
 /** Nextcloud Passwords: Backup or export -> "Database backup" (JSON). A backup with a password can't be read here. */
 function fromPasswords(d) {
@@ -65,9 +54,9 @@ function fromPasswords(d) {
     const entries = (d.passwords || []).map((p, i) => {
         const url = s.clean(p.url, i).trim();
         return {
-            path: path(p.folder), title: titleOf(s.clean(p.label, i).trim(), url), user: s.clean(p.username, i), password: s.clean(p.password, i), url, notes: s.clean(p.notes, i), totp: '',
+            path: path(p.folder), title: titleOrHost(s.clean(p.label, i).trim(), url), user: s.clean(p.username, i), password: s.clean(p.password, i), url, notes: s.clean(p.notes, i), totp: '',
             tags: (p.tags || []).map((id) => tagName.get(id)).filter(Boolean),
-            custom: (p.customFields || []).filter((c) => c && text(c.label).trim() && text(c.value)).map((c) => ({ name: s.clean(c.label, i).trim(), value: s.clean(c.value, i), protect: SECRET_TYPES.has(c.type) })),
+            custom: (p.customFields || []).filter((c) => c && text(c.label).trim() && text(c.value)).map((c) => ({ name: s.clean(c.label, i).trim(), value: s.clean(c.value, i), protect: c.type === 'secret' })),
             modified: date(p.edited)
         };
     });
@@ -86,14 +75,14 @@ function fromPassman(list) {
             if (!m || !text(f.filename)) { files++; continue; }
             try { attachments.push({ name: f.filename, data: Uint8Array.from(atob(m[1]), (c) => c.charCodeAt(0)) }); } catch { files++; }
         }
-        const mail = text(p.email);
+        const mail = s.clean(text(p.email), i);
         const custom = (Array.isArray(p.custom_fields) ? p.custom_fields : []).filter((c) => c && text(c.label).trim() && typeof c.value === 'string' && c.value)
             .map((c) => ({ name: s.clean(c.label, i).trim(), value: s.clean(c.value, i), protect: !!c.secret }));
         return {
-            path: [], title: titleOf(s.clean(p.label, i).trim(), url), user: s.clean(p.username, i) || s.clean(mail, i), password: s.clean(p.password, i), url, notes: s.clean(p.description, i),
+            path: [], title: titleOrHost(s.clean(p.label, i).trim(), url), user: s.clean(p.username, i) || mail, password: s.clean(p.password, i), url, notes: s.clean(p.description, i),
             totp: typeof p.otp?.secret === 'string' ? p.otp.secret.trim() : '',
             tags: (Array.isArray(p.tags) ? p.tags : []).map((x) => text(x?.text).trim()).filter(Boolean),
-            custom: s.clean(mail, i) && text(p.username) ? [{ name: 'E-Mail', value: s.clean(mail, i), protect: false }, ...custom] : custom,
+            custom: mail && text(p.username) ? [{ name: 'E-Mail', value: mail, protect: false }, ...custom] : custom,
             attachments, created: date(p.created), modified: date(p.changed)
         };
     });
@@ -116,7 +105,7 @@ function fromBitwarden(d) {
         for (const [k, v] of Object.entries(it.card || {})) add(k, v, k === 'number' || k === 'code');
         for (const [k, v] of Object.entries(it.identity || {})) add(k, v, k === 'ssn' || k === 'passportNumber' || k === 'licenseNumber');
         return {
-            path: it.folderId ? path(it.folderId) : [], title: titleOf(s.clean(it.name, i).trim(), uris[0] || ''), user: s.clean(login.username, i), password: s.clean(login.password, i),
+            path: it.folderId ? path(it.folderId) : [], title: titleOrHost(s.clean(it.name, i).trim(), uris[0] || ''), user: s.clean(login.username, i), password: s.clean(login.password, i),
             url: uris[0] || '', notes: s.clean(it.notes, i), totp: text(login.totp).trim(), tags: [], custom
         };
     });

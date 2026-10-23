@@ -1,6 +1,6 @@
 // KeePassNC - entry point. The whole UI builds exclusively with DOM methods and textContent (no innerHTML with data).
 import { readNextcloudContext } from './nextcloud.js';
-import { setLang, detectLang } from './i18n.js';
+import { setLang } from './i18n.js';
 import { ctx, applyTheme } from './ui/ctx.js';
 import { showLogin } from './ui/login.js';
 import { showCreate } from './ui/create.js';

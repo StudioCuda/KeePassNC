@@ -1,7 +1,7 @@
 // Detail view of an entry: fields, password (strength, large view), TOTP ring, passkey info, attachments, history.
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
 import { parseOtpConfig, totp } from '../totp.js';
-import { entryExpiry, daysUntil, domainOf, openableUrl, isSystemField, isPasskey, groupPath, fieldOf, previewKind, previewOf } from '../core/util.js';
+import { entryExpiry, domainOf, openableUrl, isSystemField, isPasskey, groupPath, fieldOf, previewKind, previewOf } from '../core/util.js';
 import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, copy, download, setStatus, pref } from './ctx.js';
 import { h, icon, iconBtn, modal, toast, confirmDialog, popupMenu } from './dom.js';
@@ -221,7 +221,7 @@ export function restoreTarget(e) {
     const old = e.previousParentGroup ? v.db.getGroup(e.previousParentGroup) : null;
     return old || v.root.groups.find((g) => g !== v.recycleBin) || v.root;
 }
-export function restoreEntry(e) {
+function restoreEntry(e) {
     state.vault.moveEntry(e, restoreTarget(e));
     changed();
     toast(t('restored'));
@@ -249,7 +249,7 @@ function duplicateDialog(e) {
         h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), ok)) });
     ok.focus();
 }
-export function moveEntryDialog(e) {
+function moveEntryDialog(e) {
     const v = state.vault;
     const sel = groupSelect({ value: e.parentGroup });
     const m = modal({ title: t('move'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (ev) => { ev.preventDefault(); v.moveEntry(e, selectedGroup(sel)); m.close(); changed(); } },

@@ -4,8 +4,7 @@ import { createKeyfileStore } from '../keyfile-store.js';
 import { keyfileBackend } from '../cache.js';
 import { t } from '../i18n.js';
 import { ncThemeFrom, themeVars, THEME_VARS } from '../theme.js';
-import { $ } from './dom.js';
-import { toast } from './dom.js';
+import { $, toast } from './dom.js';
 
 export const kfStore = createKeyfileStore(keyfileBackend);
 /** ID of a remembered key file for a locally chosen file (in Nextcloud additionally separated per user). */
@@ -28,7 +27,7 @@ export const ctx = {
         kfBusy: null, // running re-encryption of a remembered key file (promise)
         filter: { type: 'all' }, // all | group | bin | expiring | weak | totp | passkey | tag
         selEntry: null,
-        marked: new Set(), // entries ticked for a batch action (Ctrl/Shift+click or the select button)
+        marked: new Set(), // entries marked for a batch action (Ctrl/Shift+click or the select button)
         selecting: false, // select mode: a click ticks instead of opening
         editing: null, // {entry|null, group}
         query: '',
@@ -41,7 +40,7 @@ export const ctx = {
     }
 };
 
-/** Leaves select mode and forgets the ticked entries. */
+/** Leaves select mode and forgets the marked entries. */
 export function clearMarks() {
     ctx.state.marked.clear();
     ctx.state.selecting = false;

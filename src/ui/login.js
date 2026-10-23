@@ -5,7 +5,7 @@ import { cacheGet } from '../cache.js';
 import { loadSettings, saveSettings } from '../settings.js';
 import { nextcloudAuth, warmNextcloudAuth, davUrlFor, normalizeUserPath, fetchPepper } from '../nextcloud.js';
 import { t, fmtDate, errText } from '../i18n.js';
-import { ctx, params, pref, setStatus, applyTheme, kfStore, kfFileId, clearMarks } from './ctx.js';
+import { ctx, params, pref, setStatus, kfStore, kfFileId, clearMarks } from './ctx.js';
 import { KeyfileStoreError, isWeakerThan } from '../keyfile-store.js';
 import { h, icon, iconBtn, toast, closeAllDialogs } from './dom.js';
 import { filePicker } from './file-picker.js';
