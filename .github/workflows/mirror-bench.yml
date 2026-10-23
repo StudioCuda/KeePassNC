@@ -1,0 +1,26 @@
+# Measures the Ubuntu mirrors from a GitHub runner (tools/ci-mirror-bench.sh) to pick the fallbacks in tools/ci-apt.sh.
+# Not a required check. Runs by hand, and on a pull request only when the bench itself changes.
+# Three runners, because the speed to a mirror depends on which datacenter the runner lands in.
+name: mirror-bench
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/mirror-bench.yml
+      - tools/ci-mirror-bench.sh
+jobs:
+  bench:
+    name: bench (${{ matrix.runner }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+      - name: Mirror speeds from this runner
+        run: |
+          echo "Sources on this image:"; grep -hE '^(URIs|deb )' /etc/apt/sources.list.d/*.sources 2>/dev/null | sort -u
+          tools/ci-mirror-bench.sh 3 | tee bench.txt
+          { echo '```'; cat bench.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
