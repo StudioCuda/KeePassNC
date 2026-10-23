@@ -62,6 +62,9 @@ export function rebind() {
     const eid = state.selEntry?.uuid;
     state.selEntry = null;
     if (eid) for (const e of v.root.allEntries()) if (e.uuid.equals(eid)) { state.selEntry = e; break; }
+    const ticked = new Set([...state.marked].map((e) => e.uuid.id));
+    state.marked.clear();
+    if (ticked.size) for (const e of v.root.allEntries()) if (ticked.has(e.uuid.id)) state.marked.add(e);
 }
 
 export async function doSave({ auto = false } = {}) {

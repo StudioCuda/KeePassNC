@@ -5,7 +5,7 @@ import { argon2 } from './argon2.js';
 import { ConflictError, DavError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
 import { excluded } from './core/audit.js';
-import { entryColor, groupPath, isOutOfMemory, isPasskeyField, isSystemField, resolvePlaceholders, uuidHex, valueText } from './core/util.js';
+import { editTags, entryColor, groupPath, isOutOfMemory, isPasskeyField, isSystemField, resolvePlaceholders, uuidHex, valueText } from './core/util.js';
 import { EXPORT_HEAD, otpUri } from './core/csv.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
@@ -412,6 +412,21 @@ export class Vault {
         entry.times.update();
         this.dirty = true;
         return entry;
+    }
+
+    /** Adds and/or removes tags on several entries. Every entry that really changes gets a history entry, like an edit. Returns how many changed. */
+    editTags(entries, { add = [], remove = [] }) {
+        let n = 0;
+        for (const e of entries) {
+            const next = editTags(e.tags, { add, remove });
+            if (next.join('\n') === editTags(e.tags).join('\n')) continue;
+            this._pushHistory(e);
+            e.tags = next;
+            e.times.update();
+            n++;
+        }
+        if (n) this.dirty = true;
+        return n;
     }
 
     /** true if the form values differ from the stored entry. */

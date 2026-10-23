@@ -28,6 +28,8 @@ export const ctx = {
         kfBusy: null, // running re-encryption of a remembered key file (promise)
         filter: { type: 'all' }, // all | group | bin | expiring | weak | totp | passkey | tag
         selEntry: null,
+        marked: new Set(), // entries ticked for a batch action (Ctrl/Shift+click or the select button)
+        selecting: false, // select mode: a click ticks instead of opening
         editing: null, // {entry|null, group}
         query: '',
         lastActivity: Date.now(),
@@ -38,6 +40,12 @@ export const ctx = {
         collapsed: new Set()
     }
 };
+
+/** Leaves select mode and forgets the ticked entries. */
+export function clearMarks() {
+    ctx.state.marked.clear();
+    ctx.state.selecting = false;
+}
 
 export function pref(key, value) {
     try {

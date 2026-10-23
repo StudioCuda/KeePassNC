@@ -432,6 +432,75 @@ async function main() {
         await page.waitForFunction(() => !document.querySelector('.modal'));
     });
 
+    await step('Mehrfachauswahl: Strg-/Umschalt-Klick, Auswahlmodus, Alle, Tags, Verschieben, Loeschen + Rueckgaengig, Wiederherstellen, Ziehen nimmt alle mit', async () => {
+        const rowOf = (t) => rows(page).filter({ has: page.locator('.title', { hasText: new RegExp(`^${t}$`) }) });
+        const sel = () => page.locator('#sel-count').innerText();
+        const marked = () => page.locator('.entry.marked').count();
+        const gcount = async (name) => Number(await page.locator('.tree-row', { hasText: name }).first().locator('.count').first().innerText());
+        const group = (name) => page.locator('.tree-row', { hasText: name }).first().locator('.tree-label').click();
+        await group('Banken');
+        const banken = await gcount('Banken'); // six fixed entries plus two special ones that stay where they are
+        expect(banken === 8, 'Banken hat acht Eintraege: ' + banken);
+        // an open entry plus Ctrl+click: both are ticked; Shift+click extends from the last tick
+        await rowOf('Hausbank Online').click();
+        await rowOf('Krankenkasse').click({ modifiers: ['Control'] });
+        expect(await sel() === '2 ausgewählt', 'Strg-Klick: ' + await sel());
+        await rowOf('Kreditkarte').click({ modifiers: ['Shift'] });
+        expect(await sel() === '3 ausgewählt' && await marked() === 3, 'Umschalt-Klick: ' + await sel());
+        // in select mode a plain click ticks and does not open
+        await rowOf('Depot').click(); expect(await sel() === '4 ausgewählt', 'Klick tickt');
+        await rowOf('Depot').click(); expect(await sel() === '3 ausgewählt', 'zweiter Klick nimmt zurueck');
+        expect(await page.locator('[data-testid=f-title]').innerText() === 'Hausbank Online', 'der offene Eintrag bleibt');
+        await page.keyboard.press('Escape');
+        expect(await page.locator('[data-testid=sel-bar]').count() === 0 && await marked() === 0, 'Esc beendet die Auswahl');
+        // the select button, Ctrl+A in the list, "Done"
+        await page.click('#sel-start');
+        expect(await sel() === '0 ausgewählt', 'Auswahlmodus ohne Haken');
+        await rowOf('Depot').focus(); await page.keyboard.press('Control+a');
+        expect(await sel() === '8 ausgewählt' && await page.locator('#sel-all').count() === 0, 'Strg+A: ' + await sel());
+        await page.click('#sel-done');
+        expect(await page.locator('[data-testid=sel-bar]').count() === 0 && await marked() === 0, 'Fertig beendet die Auswahl');
+        // tags: add, then take one off again (the chips show what the selection carries)
+        await page.click('#sel-start'); await rowOf('Depot').click(); await rowOf('KFZ-Versicherung').click();
+        await page.click('#sel-tags'); await page.fill('#sel-tags-input', 'sammel, test-x'); await page.click('#sel-tags-add');
+        const chip = (txt) => page.locator('[data-testid=tag-chip]', { hasText: txt });
+        await chip('sammel · 2').waitFor(); await chip('test-x · 2').waitFor();
+        expect(await sel() === '2 ausgewählt', 'Tags aendern laesst die Auswahl stehen');
+        await page.click('#sel-tags'); await page.locator('[data-testid=sel-tags-on] .chip', { hasText: 'test-x' }).click();
+        expect(await page.inputValue('#sel-tags-input') === 'test-x', 'Chip uebernimmt das Tag');
+        await page.click('#sel-tags-remove');
+        await page.waitForFunction(() => ![...document.querySelectorAll('[data-testid=tag-chip]')].some((c) => /test-x/.test(c.textContent)));
+        await chip('sammel · 2').waitFor();
+        // move
+        const lizenzen = await gcount('Lizenzen');
+        await page.click('#sel-move'); await page.locator('.modal select').selectOption({ label: 'Lizenzen' }); await page.click('#sel-move-ok');
+        await page.waitForFunction((n) => [...document.querySelectorAll('.tree-row')].find((r) => /Lizenzen/.test(r.textContent))?.querySelector('.count')?.textContent === String(n), lizenzen + 2);
+        expect(await gcount('Banken') === 6 && await page.locator('[data-testid=sel-bar]').count() === 0, 'verschoben, Auswahl beendet');
+        // delete with Undo, then delete and restore from the recycle bin
+        const bin = async () => Number(await page.locator('#nav-bin .count').innerText());
+        const bin0 = await bin();
+        await page.click('#sel-start'); await rowOf('Hausbank Online').click(); await rowOf('Krankenkasse').click(); await page.click('#sel-delete');
+        await page.waitForFunction((n) => document.querySelector('#nav-bin .count')?.textContent === String(n), bin0 + 2);
+        await page.locator('.toast-action', { hasText: 'Rückgängig' }).click();
+        await page.waitForFunction((n) => document.querySelector('#nav-bin .count')?.textContent === String(n), bin0);
+        expect(await gcount('Banken') === 6, 'Rueckgaengig bringt beide zurueck');
+        await page.click('#sel-start'); await rowOf('Hausbank Online').click(); await rowOf('Krankenkasse').click(); await page.click('#sel-delete');
+        await page.waitForFunction((n) => document.querySelector('#nav-bin .count')?.textContent === String(n), bin0 + 2);
+        await page.click('#nav-bin');
+        expect(await page.locator('#sel-restore').count() === 0, 'Wiederherstellen gibt es nur im Papierkorb, solange nichts getickt ist');
+        await page.click('#sel-start'); await rowOf('Hausbank Online').click(); await rowOf('Krankenkasse').click();
+        await page.click('#sel-restore');
+        await page.waitForFunction((n) => document.querySelector('#nav-bin .count')?.textContent === String(n), bin0);
+        expect(await gcount('Banken') === 6, 'wiederhergestellt in die alte Gruppe');
+        // dragging one ticked entry takes the other ticked ones along
+        await group('Banken');
+        const neu = await gcount('UI-Gruppe-neu');
+        await page.click('#sel-start'); await rowOf('Kreditkarte').click(); await rowOf('PayPal').click();
+        await page.locator('.entry-wrap', { has: page.locator('.title', { hasText: /^Kreditkarte$/ }) }).dragTo(page.locator('.tree-row', { hasText: 'UI-Gruppe-neu' }).first());
+        await page.waitForFunction((n) => [...document.querySelectorAll('.tree-row')].find((r) => /UI-Gruppe-neu/.test(r.textContent))?.querySelector('.count')?.textContent === String(n), neu + 2);
+        expect(await gcount('Banken') === 4 && await page.locator('[data-testid=sel-bar]').count() === 0, 'beide gezogen, Auswahl beendet');
+    });
+
     await step('Speichern (Strg+S) -> KeePassXC liest die Datei; alle UI-Aenderungen sind angekommen, nichts anderes ging verloren', async () => {
         await page.keyboard.press('Control+s');
         await waitStatus(page, /^Gespeichert\./, 60000);
@@ -462,6 +531,14 @@ async function main() {
         expect(strOf(linked, 'Password').getAttribute('ProtectInMemory') === 'True', 'Passwort-Referenz bleibt geschuetzt');
         const linkedPath = [...find('Amazon - Kopie')[0].path.split('/').slice(1), 'Amazon - Kopie'].join('/');
         expect(xc(['show', '-s', dbFile, linkedPath]).includes('Password: ' + text(strOf(find('Amazon')[0].entry, 'Password'))), 'KeePassXC loest die Verknuepfung auf');
+        // Mehrfachauswahl
+        const tagsOf = (t) => text(kids(find(t)[0].entry, 'Tags')[0]).split(/[,;]/).filter(Boolean).sort().join();
+        const hist = (t) => kids(kids(find(t)[0].entry, 'History')[0] || { childNodes: [] }, 'Entry').length;
+        expect(find('Depot').length === 1 && /Lizenzen$/.test(find('Depot')[0].path) && /Lizenzen$/.test(find('KFZ-Versicherung')[0].path), 'Mehrfach verschoben: ' + find('Depot')[0].path);
+        expect(/UI-Gruppe-neu$/.test(find('Kreditkarte')[0].path) && /UI-Gruppe-neu$/.test(find('PayPal')[0].path), 'Mehrfach gezogen: ' + find('PayPal')[0].path);
+        expect(/Banken & Versicherungen$/.test(find('Hausbank Online')[0].path) && /Banken & Versicherungen$/.test(find('Krankenkasse')[0].path), 'Geloescht und wiederhergestellt: ' + find('Krankenkasse')[0].path);
+        expect(tagsOf('Depot') === 'sammel' && tagsOf('KFZ-Versicherung') === 'sammel' && tagsOf('PayPal') === '', 'Tags: ' + tagsOf('Depot') + ' / ' + tagsOf('PayPal'));
+        expect(hist('Depot') === 2 && hist('PayPal') === 0, 'jede Tag-Aenderung hinterlaesst einen Verlaufseintrag: ' + hist('Depot'));
         expect(es.length >= meta.entries, 'Eintragszahl ' + es.length);
         // Icons
         const iconOf = (el) => text(kids(el, 'IconID')[0]), customOf = (el) => text(kids(el, 'CustomIconUUID')[0]);
