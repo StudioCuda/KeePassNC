@@ -1,6 +1,6 @@
 // Create/edit an entry. Fields that aren't shown (passkeys, browser data, Auto-Type ...) stay unchanged in the vault (see Vault.applyEntry).
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
-import { isSystemField, entryExpiry, entryColor, ENTRY_COLORS } from '../core/util.js';
+import { isSystemField, entryExpiry, entryColor, ENTRY_COLORS, splitTags } from '../core/util.js';
 import { excluded, reusedBy } from '../core/audit.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
@@ -184,7 +184,7 @@ export function renderEditor(host) {
         const custom = [...customBox.querySelectorAll('.custom-row')].map((r) => ({ name: r.querySelector('.c-name').value, value: r.customValue(), protect: r.querySelector('.c-protect').checked }));
         const data = {
             Title: i.Title.value, UserName: i.UserName.value, Password: i.Password.value, URL: i.URL.value, Notes: i.Notes.value,
-            tags: i.tags.value.split(/[,;]/).map((x) => x.trim()).filter(Boolean), custom,
+            tags: splitTags(i.tags.value), custom,
             expires: i.expires.checked, expiryTime: i.expires.checked && i.expiry.value ? new Date(i.expiry.value + 'T23:59:59') : null,
             ...commitIconSel(iconSel),
             excludeReports: i.excludeReports.checked,

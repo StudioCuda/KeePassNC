@@ -2,11 +2,12 @@
 import { t } from '../i18n.js';
 import { fieldOf, domainOf, hasTotp, isPasskey, entryColor } from '../core/util.js';
 import { SORTS } from './common.js';
-import { ctx, copy, setStatus, applyTheme } from './ctx.js';
+import { ctx, copy, setStatus, applyTheme, clearMarks } from './ctx.js';
 import { $, h, icon, iconBtn, modal, popupMenu, toast } from './dom.js';
 import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl } from './common.js';
 import { renderSidebar, newGroup, setFilter, startEntryDrag, emptyBin } from './groups.js';
 import { renderDetail, deleteEntry, stopDetailTimers } from './detail.js';
+import { pruneMarks, tickClick, selectAll, selectionBar, deleteEntries } from './selection.js';
 import { renderEditor, startEdit, cancelEdit } from './editor.js';
 import { openGenerator } from './generator-dialog.js';
 import { openReports } from './reports.js';
@@ -24,7 +25,7 @@ export function showMain() {
     document.body.classList.add('in-vault');
     const NC = ctx.NC;
     const search = h('input', { id: 'search', type: 'search', placeholder: t('search.placeholder'), value: state.query, autocomplete: 'off', spellcheck: 'false', 'aria-label': t('search'),
-        oninput: (e) => { state.query = e.target.value; shown = LIMIT; state.view = 'list'; renderList(); renderSidebar($('#groups')); applyView(); },
+        oninput: (e) => { state.query = e.target.value; shown = LIMIT; state.view = 'list'; clearMarks(); renderList(); renderSidebar($('#groups')); applyView(); },
         onkeydown: (e) => { if (e.key === 'ArrowDown') { e.preventDefault(); $('#list .entry')?.focus(); } if (e.key === 'Escape') { e.target.value = ''; state.query = ''; renderList(); } } });
     const saveBtn = h('button', { id: 'save-btn', type: 'button', class: 'btn save', onclick: () => doSave() }, icon('save'), h('span', { class: 'label', text: t('save') }));
     const bar = h('header', { class: 'topbar' },
@@ -79,10 +80,12 @@ export function refresh() {
 }
 ctx.ui.renderSidebar = () => renderSidebar($('#groups'));
 ctx.ui.renderList = () => renderList();
+ctx.ui.syncTicks = () => syncTicks();
 
 export function selectEntry(e) {
     const v = state.vault;
     state.editing = null;
+    clearMarks();
     state.query = ''; const s = $('#search'); if (s) s.value = '';
     state.filter = v.isInRecycleBin(e) ? { type: 'bin' } : { type: 'group', group: e.parentGroup };
     state.selEntry = e; state.view = 'detail';
@@ -90,27 +93,60 @@ export function selectEntry(e) {
     $('#list .entry.active')?.scrollIntoView({ block: 'nearest' });
 }
 
+let listed = []; // what the list shows right now (all of it, not just the first LIMIT): the range for Shift+click and "select all"
+const rowEntry = new WeakMap(); // row button -> entry
+
+/** The list header, or the selection bar while entries are being ticked. */
+function listHead(entries) {
+    if (state.selecting) return selectionBar(entries);
+    return h('header', { class: 'list-head' },
+        iconBtn('menu', t('nav.groups'), () => { $('.shell').dataset.drawer = '1'; }, { class: 'menu-btn in-list' }),
+        h('div', { class: 'grow' }, h('h2', { text: filterTitle() }), h('span', { class: 'muted', id: 'list-count', text: t('n.entries', { n: entries.length }) })),
+        state.filter.type === 'bin' && !state.query ? iconBtn('broom', t('bin.empty'), emptyBin, { id: 'empty-bin', class: 'danger-ghost' }) : null, // icon only: the header is narrow, the name stays as tooltip and label
+        h('select', { id: 'sort', 'aria-label': t('sort'), onchange: (e) => { ctx.settings.sort = e.target.value; saveSettings(ctx.settings); renderList(); } }, ...SORTS.map((s) => h('option', { value: s, selected: ctx.settings.sort === s, text: t('sort.' + s) }))),
+        iconBtn('checkSquare', t('sel.start'), () => { state.selecting = true; syncTicks(); }, { id: 'sel-start' }));
+}
+
+/** Brings ticks, select mode and the header up to date without redrawing the rows (the focus stays where it is). */
+function syncTicks() {
+    const host = $('#list');
+    const body = host?.querySelector('.entries');
+    if (!body) return;
+    body.classList.toggle('selecting', state.selecting);
+    if (state.selecting) body.setAttribute('aria-multiselectable', 'true'); else body.removeAttribute('aria-multiselectable');
+    for (const row of body.querySelectorAll('.entry')) {
+        const e = rowEntry.get(row), on = state.marked.has(e);
+        row.classList.toggle('marked', on);
+        row.setAttribute('aria-selected', String(state.selecting ? on : state.selEntry === e));
+    }
+    const old = host.querySelector('.list-head');
+    const focusId = old.contains(document.activeElement) ? document.activeElement.id : null;
+    old.replaceWith(listHead(listed));
+    if (focusId !== null) (focusId && host.querySelector('#' + focusId) || (state.selecting ? body.querySelector('.entry') : host.querySelector('#sel-start')))?.focus();
+}
+
 export function renderList(entries = visibleEntries()) {
     const host = $('#list');
     if (!host) return;
     const v = state.vault;
-    const head = h('header', { class: 'list-head' },
-        iconBtn('menu', t('nav.groups'), () => { $('.shell').dataset.drawer = '1'; }, { class: 'menu-btn in-list' }),
-        h('div', { class: 'grow' }, h('h2', { text: filterTitle() }), h('span', { class: 'muted', id: 'list-count', text: t('n.entries', { n: entries.length }) })),
-        state.filter.type === 'bin' && !state.query ? h('button', { type: 'button', class: 'btn small danger-ghost', id: 'empty-bin', onclick: emptyBin }, icon('broom'), t('bin.empty')) : null,
-        h('select', { id: 'sort', 'aria-label': t('sort'), onchange: (e) => { ctx.settings.sort = e.target.value; saveSettings(ctx.settings); renderList(); } }, ...SORTS.map((s) => h('option', { value: s, selected: ctx.settings.sort === s, text: t('sort.' + s) }))));
-    const body = h('div', { class: 'entries', role: 'listbox', 'aria-label': t('list.label') });
+    listed = entries;
+    pruneMarks(entries);
+    const head = listHead(entries);
+    const body = h('div', { class: 'entries' + (state.selecting ? ' selecting' : ''), role: 'listbox', 'aria-label': t('list.label'), 'aria-multiselectable': state.selecting ? 'true' : null });
     if (!entries.length) {
         body.append(h('div', { class: 'empty small' }, icon(state.query ? 'search' : 'folderOpen'), h('p', { class: 'muted', text: state.query ? t('list.nomatch') : t('list.empty') }),
             !state.query && state.filter.type === 'group' ? h('button', { type: 'button', class: 'btn', onclick: () => startEdit(null) }, icon('plus'), t('entry.new')) : null));
     }
     for (const e of entries.slice(0, shown)) {
         const user = resolvedField(e, 'UserName'), dom = domainOf(resolvedUrl(e));
-        const main = h('button', { type: 'button', class: 'entry' + (state.selEntry === e ? ' active' : ''), role: 'option', 'aria-selected': state.selEntry === e ? 'true' : 'false', 'data-testid': 'entry-row',
-            onclick: () => { state.selEntry = e; state.editing = null; state.view = 'detail'; for (const x of host.querySelectorAll('.entry.active')) { x.classList.remove('active'); x.setAttribute('aria-selected', 'false'); } main.classList.add('active'); main.setAttribute('aria-selected', 'true'); stopDetailTimers(); renderDetail($('#detail')); applyView(); },
+        const marked = state.marked.has(e);
+        const main = h('button', { type: 'button', class: 'entry' + (state.selEntry === e ? ' active' : '') + (marked ? ' marked' : ''), role: 'option', 'aria-selected': (state.selecting ? marked : state.selEntry === e) ? 'true' : 'false', 'data-testid': 'entry-row',
+            onclick: (ev) => { if (tickClick(ev, listed, e)) { syncTicks(); return; } state.selEntry = e; state.editing = null; state.view = 'detail'; for (const x of host.querySelectorAll('.entry.active')) { x.classList.remove('active'); x.setAttribute('aria-selected', 'false'); } main.classList.add('active'); main.setAttribute('aria-selected', 'true'); stopDetailTimers(); renderDetail($('#detail')); applyView(); },
             onkeydown: (ev) => listKeys(ev) },
-            avatar(e), h('span', { class: 'et' }, h('span', { class: 'title', text: fieldOf(e, 'Title') || t('entry.untitled') }), h('span', { class: 'sub', text: [user, dom].filter(Boolean).join(' · ') })),
+            h('span', { class: 'sel-av' }, avatar(e), h('span', { class: 'sel-badge', 'aria-hidden': 'true' }, icon('check'))),
+            h('span', { class: 'et' }, h('span', { class: 'title', text: fieldOf(e, 'Title') || t('entry.untitled') }), h('span', { class: 'sub', text: [user, dom].filter(Boolean).join(' · ') })),
             h('span', { class: 'badges' }, expiryBadge(e), hasTotp(e) ? h('span', { class: 'mini', title: 'TOTP' }, icon('totp')) : null, isPasskey(e) ? h('span', { class: 'mini', title: t('passkey') }, icon('passkey')) : null, e.binaries?.size ? h('span', { class: 'mini', title: t('attachments') }, icon('clip')) : null));
+        rowEntry.set(main, e);
         const color = entryColor(e);
         if (color) { main.classList.add('tinted'); main.style.setProperty('--entry-color', color); } // CSSOM, no style attribute (CSP)
         const wrap = h('div', { class: 'entry-wrap', draggable: 'true' }, main,
@@ -128,7 +164,7 @@ function listKeys(ev) {
     const all = [...document.querySelectorAll('#list .entry')];
     const i = all.indexOf(ev.target);
     const next = all[i + (ev.key === 'ArrowDown' ? 1 : -1)];
-    if (next) { next.focus(); next.click(); }
+    if (next) { next.focus(); if (!state.selecting) next.click(); } // ticking: arrows only move, Space ticks
     else if (ev.key === 'ArrowUp') $('#search')?.focus();
 }
 
@@ -182,7 +218,10 @@ export function installShortcuts() {
         else if (mod && key === 'b' && state.selEntry && !typing) { e.preventDefault(); copy(resolvedField(state.selEntry, 'UserName'), t('f.user')); }
         else if (mod && e.shiftKey && key === 'u' && state.selEntry) { e.preventDefault(); openEntryUrl(state.selEntry); }
         else if (mod && key === 'c' && state.selEntry && !typing && !getSelection().toString()) { e.preventDefault(); copy(resolvedField(state.selEntry, 'Password'), t('f.password')); }
+        else if (mod && key === 'a' && !typing && !state.editing && document.activeElement?.closest?.('#list')) { e.preventDefault(); selectAll(visibleEntries()); }
+        else if (e.key === 'Delete' && state.marked.size && !typing && !state.editing) { e.preventDefault(); deleteEntries([...state.marked]); }
         else if (e.key === 'Delete' && state.selEntry && !typing && !state.editing) { e.preventDefault(); deleteEntry(state.selEntry); }
+        else if (e.key === 'Escape' && state.selecting && !typing && !state.editing) { clearMarks(); syncTicks(); }
         else if (e.key === 'Escape' && state.editing && !typing) cancelEdit();
     });
 }
