@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [0.18.0] - 2026-10-23
 ### Added
 - Tags are manageable now. Right-click a tag in the sidebar (or open the "⋯" menu in the list header while you look at it, which also works on a phone) to rename or remove it. Renaming to a name that exists already merges the two. Removing takes the tag off every entry, the entries stay, and Undo puts it back. Drag entries onto a tag to add it, ticked ones come along. Every entry a tag change touches gets a history entry, like any other edit.
 - Import from Nextcloud Passwords, Passman and Bitwarden JSON files. For Passwords take "Backup or export" → "Database backup": folders, tags and extra fields come along, and Passman's files as attachments. Passwords' German CSV and Passman's CSV work too.
