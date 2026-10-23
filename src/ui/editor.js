@@ -1,6 +1,6 @@
 // Create/edit an entry. Fields that aren't shown (passkeys, browser data, Auto-Type ...) stay unchanged in the vault (see Vault.applyEntry).
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
-import { isSystemField, entryExpiry, entryColor, ENTRY_COLORS, splitTags } from '../core/util.js';
+import { isSystemField, entryExpiry, entryColor, ENTRY_COLORS, splitTags, toOtpUri } from '../core/util.js';
 import { excluded, reusedBy } from '../core/audit.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
@@ -193,12 +193,7 @@ export function renderEditor(host) {
         };
         if (i.expires.checked && entry?.times.expires && i.expiry.value === dateStr(entry.times.expiryTime)) data.expiryTime = entry.times.expiryTime; // leave the time of day unchanged
         if (i.otp.value.trim() !== val('otp')) {
-            let o = i.otp.value.trim();
-            if (o && !/^otpauth:\/\//i.test(o)) { // only the secret was entered: complete it to an otpauth URL like KeePassXC does
-                const label = encodeURIComponent(i.Title.value || 'KeePassNC') + (i.UserName.value ? ':' + encodeURIComponent(i.UserName.value) : '');
-                o = `otpauth://totp/${label}?secret=${o.replace(/[\s-]/g, '').toUpperCase()}&period=30&digits=6&issuer=${encodeURIComponent(i.Title.value || 'KeePassNC')}`;
-            }
-            data.otp = o;
+            data.otp = toOtpUri(i.otp.value, i.Title.value, i.UserName.value); // a bare secret is completed like KeePassXC does
         }
         const target = selectedGroup(groupSel) || group;
         const saved = v.applyEntry(entry, entry ? entry.parentGroup : target, data);

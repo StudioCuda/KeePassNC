@@ -34,7 +34,16 @@ export function groupPath(group) {
 export const isPasskeyField = (name) => /^(KPEX|KPXC)_PASSKEY_/.test(name);
 export const isPasskey = (entry) => entry.fields.has('KPEX_PASSKEY_CREDENTIAL_ID') || entry.fields.has('KPEX_PASSKEY_PRIVATE_KEY_PEM');
 export const hasTotp = (entry) => entry.fields.has('otp') || entry.fields.has('TOTP Seed') || [...entry.fields.keys()].some((k) => k.startsWith('TimeOtp-'));
-/** Fields the editor doesn't show as free extra fields (own display or program data); they are kept unchanged when editing. */
+/**
+ * otpauth URI for what a user typed or an import carried: a full URI stays as it is, a bare Base32 secret is completed the way
+ * KeePassXC does (label "title:user", issuer, 30 s, 6 digits).
+ */
+export function toOtpUri(input, title, user) {
+    const o = String(input || '').trim();
+    if (!o || /^otpauth:\/\//i.test(o)) return o;
+    const issuer = encodeURIComponent(title || 'KeePassNC');
+    return `otpauth://totp/${issuer}${user ? ':' + encodeURIComponent(user) : ''}?secret=${o.replace(/[\s-]/g, '').toUpperCase()}&period=30&digits=6&issuer=${issuer}`;
+}
 /** Detects "not enough memory" from WebAssembly/Argon2; browsers report it inconsistently (RangeError, RuntimeError, text messages). */
 export const isOutOfMemory = (e) => !!e && (e instanceof RangeError
     || (typeof WebAssembly !== 'undefined' && e instanceof WebAssembly.RuntimeError)
@@ -112,7 +121,8 @@ function findRefTarget(entries, by, needle) {
     }
     return null;
 }
-export const isSystemField =(name) => /^(KPEX_PASSKEY_|KPXC_PASSKEY_|KPH: |TimeOtp-)/.test(name) || ['otp', 'TOTP Seed', 'TOTP Settings'].includes(name);
+/** Fields the editor doesn't show as free extra fields (own display or program data); they are kept unchanged when editing. */
+export const isSystemField = (name) => /^(KPEX_PASSKEY_|KPXC_PASSKEY_|KPH: |TimeOtp-)/.test(name) || ['otp', 'TOTP Seed', 'TOTP Settings'].includes(name);
 
 const IMAGE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', ico: 'image/x-icon', svg: 'image/svg+xml' };
 const TEXT_FILE = /\.(txt|md|log|csv|tsv|json|xml|ya?ml|ini|conf|cfg|toml|pem|crt|cer|key|pub|asc|ovpn|env|sh)$/i;

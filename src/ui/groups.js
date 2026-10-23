@@ -14,7 +14,7 @@ import { openSettings } from './settings-dialog.js';
 const { state } = ctx;
 let dragging = null; // {kind: 'entry'|'group', item, items?: entries that travel along}
 
-/** Dragging a ticked entry takes all ticked ones along. */
+/** Dragging a marked entry takes all marked ones along. */
 export function startEntryDrag(ev, entry) {
     dragging = { kind: 'entry', item: entry, items: state.marked.has(entry) ? [...state.marked] : [entry] };
     ev.dataTransfer.effectAllowed = 'move';
@@ -125,7 +125,7 @@ function groupMenu(anchor, g, pt) {
 const entriesWithTag = (tag) => [...state.vault.root.allEntries()].filter((e) => (e.tags || []).includes(tag));
 
 /** Renaming to a name that exists already merges the two. Every entry that changes gets a history entry, like any edit. */
-export async function renameTag(tag) {
+async function renameTag(tag) {
     const v = state.vault;
     const input = await promptDialog({ title: t('tag.rename'), label: t('tag.name'), value: tag, confirmLabel: t('apply'), cancelLabel: t('cancel') });
     if (input === null) return;
@@ -141,7 +141,7 @@ export async function renameTag(tag) {
 }
 
 /** Takes the tag off every entry (the entries stay); Undo puts it back. */
-export function deleteTag(tag) {
+function deleteTag(tag) {
     const v = state.vault;
     const list = entriesWithTag(tag);
     v.editTags(list, { remove: [tag] });

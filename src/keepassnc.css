@@ -364,12 +364,12 @@ body.has-nch .topbar .brand { position: absolute; width: 1px; height: 1px; overf
 .entry { display: flex; align-items: center; gap: 12px; width: 100%; min-height: var(--row-h); padding: 6px 10px; border: 0; background: transparent; border-radius: 10px; text-align: left; }
 .entry-wrap:hover .entry { background: var(--surface-2); }
 .entry.active, .entry-wrap:hover .entry.active, .entry.marked, .entry-wrap:hover .entry.marked { background: var(--accent-soft); }
-/* Ticking several entries: the avatar gets a small tick circle (only while selecting), the header turns into the selection bar */
+/* Marking several entries: the avatar gets a small check circle (only while selecting), the header turns into the selection bar */
 .sel-av { position: relative; display: inline-flex; flex: none; }
 .sel-badge { position: absolute; right: -5px; bottom: -5px; display: none; place-items: center; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--border-strong); background: var(--surface); color: transparent; }
 .sel-badge .icon { width: 12px; height: 12px; stroke-width: 3; }
 .entries.selecting .sel-badge { display: grid; }
-.entries.selecting .row-actions { display: none; } .entries.selecting .entry-wrap:hover .badges { visibility: visible; } /* while ticking, a click is a tick, not a copy */
+.entries.selecting .row-actions { display: none; } .entries.selecting .entry-wrap:hover .badges { visibility: visible; } /* while marking, a click is a mark, not a copy */
 .entry.marked .sel-badge { border-color: var(--accent); background: var(--accent); color: var(--on-accent); }
 .sel-bar { background: var(--accent-soft); } .sel-bar h2 { font-size: 15px; }
 .et { display: flex; flex-direction: column; min-width: 0; flex: 1; } .et .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
