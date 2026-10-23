@@ -36,6 +36,14 @@ jobs:
         if: steps.changes.outputs.docs_only != 'true'
         with: { php-version: '8.3', extensions: 'sqlite3, pdo_sqlite, gd, zip, curl, mbstring, xml, intl, bcmath, gmp' }
       # System-wide on purpose: the tests start python3 with -I, which ignores the per-user site-packages.
+      # apt's downloads are what hangs on a slow mirror, so the .deb files are kept between runs (see tools/ci-apt.sh).
+      - uses: actions/cache/restore@v4
+        id: apt-cache
+        if: steps.changes.outputs.docs_only != 'true'
+        with:
+          path: ~/.cache/ci-apt
+          key: apt-${{ runner.os }}-e2e-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
+          restore-keys: apt-${{ runner.os }}-e2e-
       - run: tools/ci-retry.sh 300 3 tools/ci-apt.sh keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm ci || npm install
@@ -52,7 +60,8 @@ jobs:
       - name: Chromium for the browser tests
         if: steps.changes.outputs.docs_only != 'true'
         run: |
-          tools/ci-retry.sh 300 3 npx playwright-core install --with-deps chromium
+          tools/ci-retry.sh 300 3 npx playwright-core install-deps chromium
+          tools/ci-retry.sh 300 3 npx playwright-core install chromium
           echo "CHROMIUM=$(node -e "console.log(require('playwright-core').chromium.executablePath())")" >> $GITHUB_ENV
       - run: npm run build && npm run test:unit && npm run test:compat
         if: steps.changes.outputs.docs_only != 'true'
@@ -73,6 +82,11 @@ jobs:
           cd nc && git submodule update --init --depth 1 && npm ci && npm run build
       - run: NC_DIR=$PWD/nc NC_PORT=18080 node tests/nextcloud/run.mjs
         if: steps.changes.outputs.docs_only != 'true'
+      - uses: actions/cache/save@v4
+        if: always() && steps.apt-cache.outputs.cache-hit != 'true' && steps.changes.outputs.docs_only != 'true'
+        with:
+          path: ~/.cache/ci-apt
+          key: apt-${{ runner.os }}-e2e-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
 
   # The same browser suites (no Nextcloud needed) in the other two engines. Informational for now:
   # a red job here means "differs from Chromium", it does not block merging.
@@ -96,6 +110,14 @@ jobs:
       - uses: actions/setup-node@v7
         if: steps.changes.outputs.docs_only != 'true'
         with: { node-version: 22 }
+      # apt's downloads are what hangs on a slow mirror, so the .deb files are kept between runs (see tools/ci-apt.sh).
+      - uses: actions/cache/restore@v4
+        id: apt-cache
+        if: steps.changes.outputs.docs_only != 'true'
+        with:
+          path: ~/.cache/ci-apt
+          key: apt-${{ runner.os }}-browsers-${{ matrix.browser }}-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
+          restore-keys: apt-${{ runner.os }}-browsers-${{ matrix.browser }}-
       - run: tools/ci-retry.sh 300 3 tools/ci-apt.sh keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm ci || npm install
@@ -109,7 +131,9 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.pw.outputs.version }}
-      - run: tools/ci-retry.sh 300 3 npx playwright-core install --with-deps ${{ matrix.browser }}
+      - run: tools/ci-retry.sh 300 3 npx playwright-core install-deps ${{ matrix.browser }}
+        if: steps.changes.outputs.docs_only != 'true'
+      - run: tools/ci-retry.sh 300 3 npx playwright-core install ${{ matrix.browser }}
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm run build
         if: steps.changes.outputs.docs_only != 'true'
@@ -133,3 +157,8 @@ jobs:
         if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
       - run: npm run test:pass
         if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
+      - uses: actions/cache/save@v4
+        if: always() && steps.apt-cache.outputs.cache-hit != 'true' && steps.changes.outputs.docs_only != 'true'
+        with:
+          path: ~/.cache/ci-apt
+          key: apt-${{ runner.os }}-browsers-${{ matrix.browser }}-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
