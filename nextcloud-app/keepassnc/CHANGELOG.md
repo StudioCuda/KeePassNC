@@ -6,6 +6,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 - Import from Nextcloud Passwords, Passman and Bitwarden JSON files. For Passwords take "Backup or export" → "Database backup": folders, tags and extra fields come along, and Passman's files as attachments. Passwords' German CSV and Passman's CSV work too.
 - Imports can carry extra fields, the summary names the format, and an export protected with a password is turned away with a hint.
+- The entry editor says so when another entry has the same password: "Also used in: Amazon, eBay", right under the strength bar. It names two entries at most ("… (+198)" for a password that sits in hundreds) and never takes more than two lines. It follows the health report's rules (references and entries left out of the report don't count) and goes away when you tick "Leave out of password health". Quiet text, no pop-up.
+### Changed
+- The App Store summary says what the app is: "Secure password manager for KeePass databases, right inside Nextcloud". A thin divider separates it from the description.
 
 ## [0.17.1] - 2026-10-23
 ### Fixed
