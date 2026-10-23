@@ -28,6 +28,15 @@ export function passwordSince(e) {
 }
 const YEAR = 365 * 86400000;
 
+/**
+ * Other entries with exactly this password, by the rules of the report above: references and entries left out of reports don't count,
+ * and neither does an entry that is itself left out. entries: the "real" ones (no recycle bin); entry: the one being edited (or null).
+ */
+export function reusedBy(entries, entry, password) {
+    if (!password || password.includes('{REF:') || (entry && excluded(entry))) return [];
+    return entries.filter((e) => e !== entry && !excluded(e) && fieldOf(e, 'Password') === password);
+}
+
 export function auditEntries(entries, now = Date.now()) {
     const byPw = new Map();
     for (const e of entries) {

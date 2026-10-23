@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { parseQuery, matches } from '../../src/core/search.js';
 import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SYLLABLES, SYLLABLE_SHAPES, SIMPLE_DIGITS, SEPARATORS, migratePasswordOptions, SIMPLE_BLOCK_BITS, badJunction, randomInt } from '../../src/core/generator.js';
 import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
-import { auditEntries, passwordSince } from '../../src/core/audit.js';
+import { auditEntries, passwordSince, reusedBy } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
 import { WORDS as WORDS_DE } from '../../src/core/wordlist-de.js';
 import { isOutOfMemory, openableUrl, resolveRefs, resolvePlaceholders, uuidHex, previewKind, previewOf, entryColor } from '../../src/core/util.js';
@@ -339,4 +339,18 @@ test('Tags: splitTags trennt an Komma und Semikolon, editTags fuegt hinzu/entfer
     assert.deepEqual(editTags(undefined, { add: [' neu '] }), ['neu']);
     assert.deepEqual(editTags(['a', 'A'], { remove: ['a'] }), ['A'], 'Schreibweise zaehlt');
     assert.deepEqual(editTags(['b', 'a', 'a']), ['a', 'b'], 'ohne Aenderung nur geordnet und ohne Dubletten');
+});
+
+test('Wiederverwendung im Editor: gleiche Passwoerter wie im Bericht, ohne Referenzen, ohne ausgenommene Eintraege, ohne sich selbst', () => {
+    const a = entry({ Title: 'A', Password: 'Sommer2020' }), b = entry({ Title: 'B', Password: 'Sommer2020' }), c = entry({ Title: 'C', Password: 'anders' });
+    const ref = entry({ Title: 'Ref', Password: '{REF:P@I:ABCD}' });
+    const left = entry({ Title: 'Aus', Password: 'Sommer2020' }, { qualityCheck: false });
+    const all = [a, b, c, ref, left];
+    assert.deepEqual(reusedBy(all, a, 'Sommer2020'), [b], 'der andere, nicht der ausgenommene und nicht man selbst');
+    assert.deepEqual(reusedBy(all, null, 'Sommer2020'), [a, b], 'neuer Eintrag: alle mit diesem Passwort');
+    assert.deepEqual(reusedBy(all, a, 'anders'), [c]);
+    assert.deepEqual(reusedBy(all, a, 'gibt es nicht'), []);
+    assert.deepEqual(reusedBy(all, a, ''), [], 'leeres Passwort zaehlt nicht');
+    assert.deepEqual(reusedBy(all, a, '{REF:P@I:ABCD}'), [], 'eine Referenz ist keine Wiederverwendung');
+    assert.deepEqual(reusedBy(all, left, 'Sommer2020'), [], 'ein ausgenommener Eintrag bekommt keinen Hinweis');
 });

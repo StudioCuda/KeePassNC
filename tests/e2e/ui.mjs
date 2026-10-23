@@ -197,6 +197,28 @@ async function main() {
         expect(/Verlauf \(6\)/.test(await page.locator('[data-testid=history] summary').innerText()), 'jetzt 6 Staende');
     });
 
+    await step('Editor: Hinweis, wenn ein anderer Eintrag dasselbe Passwort hat (wie im Bericht); verschwindet bei eindeutigem Passwort und bei "aus Berichten ausnehmen"', async () => {
+        await page.click('#new-btn');
+        const note = page.locator('#e-reuse');
+        expect(await note.isHidden(), 'neuer Eintrag ohne Passwort: kein Hinweis');
+        await page.fill('#e-pass', 'Sommer2020');
+        await note.waitFor({ state: 'visible' });
+        const txt = await note.innerText();
+        expect(txt === 'Wird auch benutzt in: Gleiches Passwort 0, Gleiches Passwort 1 (+1)', 'drei Eintraege mit Sommer2020, zwei Namen und der Rest als Zahl: ' + txt);
+        expect(await note.evaluate((el) => el.getBoundingClientRect().height <= 2 * parseFloat(getComputedStyle(el).lineHeight) + 1), 'hoechstens zwei Zeilen');
+        await page.fill('#e-pass', '123456'); await page.waitForFunction(() => /Schwach/.test(document.querySelector('#e-reuse')?.textContent || ''));
+        expect((await note.innerText()).includes('Schwach'), 'Hinweis folgt dem Passwort');
+        await page.check('#e-noreport'); await note.waitFor({ state: 'hidden' });
+        await page.uncheck('#e-noreport'); await note.waitFor({ state: 'visible' });
+        await page.fill('#e-pass', 'Ein-ganz-neues-Passwort-4711'); await note.waitFor({ state: 'hidden' });
+        await page.fill('#e-pass', 'Sommer2020'); await note.waitFor({ state: 'visible' });
+        await page.click('#cancel-btn');
+        await pick(page, 'Gleiches Passwort 0'); await page.click('#edit-btn');
+        await page.locator('#e-reuse').waitFor({ state: 'visible' });
+        expect(/Gleiches Passwort 1/.test(await page.locator('#e-reuse').innerText()) && !/Gleiches Passwort 0/.test(await page.locator('#e-reuse').innerText()), 'beim Bearbeiten sofort da, ohne den Eintrag selbst');
+        await page.click('#cancel-btn');
+    });
+
     await step('Neuer Eintrag mit Ablaufdatum und TOTP-Geheimnis (nur Base32) -> Filter "Laeuft ab", TOTP-Code', async () => {
         const exp0 = await count(page, 'nav-expiring');
         await page.click('#new-btn');
