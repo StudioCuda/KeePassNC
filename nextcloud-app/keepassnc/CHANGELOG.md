@@ -4,12 +4,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Added
-- Import from Nextcloud Passwords and Passman. For Passwords, use its JSON "Database backup" (Backup or export): the folder tree, tags and extra fields come along (a "secret" field stays protected), and so does the date of the last change. Its CSV export works as well (folders become groups, flat). Passman's JSON export brings tags, notes, the e-mail address and its files as attachments; entries in Passman's trash stay behind.
-- Bitwarden's JSON export works now, not just its CSV: folders like "Work/Servers" become subfolders, a second web address and Bitwarden's custom fields become extra fields, and cards, secure notes and identities come along too.
-- Imports can carry extra fields now, and the summary names the format it recognised. A backup or export protected with a password is turned away with a hint instead of a puzzle. A `{REF:…}` in a JSON file is made harmless like in a CSV.
-- Passman's CSV (with its `[tag, tag]` lists and `null` e-mails) and Passwords' German CSV headers are understood.
-### Changed
-- The App Store summary says what the app is: "Secure password manager for KeePass databases, right inside Nextcloud". A thin divider separates it from the description.
+- Import from Nextcloud Passwords, Passman and Bitwarden JSON files. For Passwords take "Backup or export" → "Database backup": folders, tags and extra fields come along, and Passman's files as attachments. Passwords' German CSV and Passman's CSV work too.
+- Imports can carry extra fields, the summary names the format, and an export protected with a password is turned away with a hint.
 
 ## [0.17.1] - 2026-10-23
 ### Fixed
