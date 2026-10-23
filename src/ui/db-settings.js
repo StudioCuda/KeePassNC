@@ -44,7 +44,7 @@ export function openDbSettings({ onApplied } = {}) {
         kdf: select('db-kdf', isArgon ? ['argon2id', 'argon2d'] : ['argon2id', 'argon2d', 'aes'], sec.kdf, (k) => t('dbsec.kdf.' + k)),
         memory: select('db-memory', withCurrent(MEMORY_PRESETS_MIB, isArgon ? sec.memoryKiB / 1024 : null), isArgon ? sec.memoryKiB / 1024 : 64,
             (mb) => (mb >= 1024 && mb % 1024 === 0 ? `${mb / 1024} GiB` : `${mb} MiB`) + (isArgon && mb === sec.memoryKiB / 1024 ? ' ' + t('dbsec.current') : '')),
-        iterations: h('input', { id: 'db-iterations', type: 'number', class: 'num', min: 1, max: MAX_ITERATIONS, step: 1, value: isArgon ? sec.iterations : 10 }),
+        iterations: h('input', { id: 'db-iterations', type: 'number', class: 'num', 'aria-label': t('dbsec.iterations'), min: 1, max: MAX_ITERATIONS, step: 1, value: isArgon ? sec.iterations : 10 }),
         parallelism: select('db-parallelism', withCurrent(PARALLELISM_OPTIONS, isArgon ? sec.parallelism : null), isArgon ? sec.parallelism : 2, String),
         rounds: h('input', { id: 'db-rounds', type: 'number', min: 1, step: 1, value: sec.rounds ?? '' }),
         bench: h('button', { type: 'button', class: 'small', id: 'db-bench', text: t('dbsec.bench') })

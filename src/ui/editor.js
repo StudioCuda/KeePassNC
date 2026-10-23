@@ -36,7 +36,7 @@ export function renderEditor(host) {
         tags: h('input', { id: 'e-tags', value: (entry?.tags || []).join(', '), autocomplete: 'off', list: 'tag-suggestions' }),
         otp: h('input', { id: 'e-otp', value: val('otp'), placeholder: 'otpauth://totp/…  /  Base32', autocomplete: 'off', spellcheck: 'false', class: 'mono' }),
         expires: h('input', { id: 'e-expires', type: 'checkbox', checked: !!entry?.times.expires }),
-        expiry: h('input', { id: 'e-expiry', type: 'date' }),
+        expiry: h('input', { id: 'e-expiry', type: 'date', 'aria-label': t('expires') }),
         excludeReports: h('input', { id: 'e-noreport', type: 'checkbox', checked: !!entry && excluded(entry) })
     };
     i.Notes.value = val('Notes');
@@ -138,7 +138,7 @@ export function renderEditor(host) {
         }
         renderAtt();
     };
-    const attInput = h('input', { type: 'file', id: 'att-input', multiple: true, class: 'sr-only', tabindex: -1, onchange: () => { addFiles([...attInput.files]); attInput.value = ''; } });
+    const attInput = h('input', { type: 'file', id: 'att-input', multiple: true, class: 'sr-only', tabindex: -1, 'aria-label': t('attachment.add'), onchange: () => { addFiles([...attInput.files]); attInput.value = ''; } });
     const dropZone = h('div', { class: 'dropzone', id: 'e-att-drop', role: 'button', tabindex: 0, 'aria-label': t('attachment.add') }, icon('upload'), h('span', { text: t('attachment.drop') }));
     dropZone.addEventListener('click', () => attInput.click());
     dropZone.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); attInput.click(); } });

@@ -10,6 +10,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The entry editor says so when another entry has the same password: "Also used in: Amazon, eBay", right under the strength bar. It names two entries at most ("… (+198)" for a password that sits in hundreds) and never takes more than two lines. It follows the health report's rules (references and entries left out of the report don't count) and goes away when you tick "Leave out of password health". Quiet text, no pop-up.
 ### Changed
 - The App Store summary says what the app is: "Secure password manager for KeePass databases, right inside Nextcloud". A thin divider separates it from the description.
+### Fixed
+- Accessibility pass, measured with axe-core on the main views (light, dark, phone). The page has a main landmark and a heading now; the entry list, the command palette and a few fields (expiry date, number of words, key derivation iterations, file pickers, attachment input) have proper names; the save button keeps its name on a phone, where only the icon shows. The mouse-only copy buttons in a list row are hidden from screen readers (the entry view and `Ctrl+B` / `Ctrl+C` do the same). The green "in sync" pill, the red "expired" badge and the grey "No file chosen" got a touch darker to reach a 4.5:1 contrast. The browser tests now run axe-core over these views, so it stays that way.
 
 ## [0.17.1] - 2026-10-23
 ### Fixed
