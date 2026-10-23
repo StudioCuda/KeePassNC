@@ -1,5 +1,6 @@
 // Read and write CSV (RFC 4180: commas, quotes, line breaks inside fields) and map the columns of the usual
 // password managers to KeePass fields. Export uses the KeePassXC format, which KeePass, Bitwarden & co. can read.
+import { splitTags } from './util.js';
 
 /** Text -> rows of fields. Empty rows are dropped; so is a leading BOM. */
 export function parseCsv(text) {
@@ -46,10 +47,21 @@ const COLUMNS = {
 const EMPTY = /^(null|\[\]|\{\})$/; // what Passman writes for "nothing"
 
 /**
+ * A file from elsewhere has no business pointing at your other entries ({REF:…} would pull their password into a login form),
+ * so a reference is broken up to plain text. Shared by all importers, which count the entries where this changed something.
+ */
+export const defangRefs = (text) => text.replace(/\{REF:/gi, '{ REF:');
+
+/** The title, or the hostname of the URL when there is none (the URL itself if it does not parse). */
+export function titleOrHost(title, url) {
+    if (title || !url) return title;
+    try { return new URL(/^[a-z][a-z0-9+.-]*:/i.test(url) ? url : 'https://' + url).hostname; } catch { return url; }
+}
+
+/**
  * Maps the header row and returns {entries, ignored, refs}. entries: [{path: string[], title, user, password, url, notes, totp, tags: string[]}],
  * ignored: columns that fit nowhere. With KeePassXC the root group name leads the path; it is dropped.
- * refs: entries with a {REF:…} to another entry. A file from elsewhere has no business pointing at your other entries (it could
- * pull their password into a login form), so the reference is broken up to plain text; KeePassXC's own export resolves them anyway.
+ * refs: entries with a {REF:…} to another entry, broken up to plain text (see defangRefs); KeePassXC's own export resolves them anyway.
  * Without a title (Firefox), the hostname of the URL is used.
  */
 export function mapRows([head = [], ...rows]) {
@@ -67,16 +79,15 @@ export function mapRows([head = [], ...rows]) {
         const get = (f) => {
             const v = col[f] === undefined ? '' : r[col[f]] ?? '';
             if ((f === 'email' || f === 'tags') && EMPTY.test(v.trim())) return '';
-            if (!/\{REF:/i.test(v)) return v;
-            hit = true;
-            return v.replace(/\{REF:/gi, '{ REF:');
+            const out = defangRefs(v);
+            if (out !== v) hit = true;
+            return out;
         };
         const path = get('group').split('/').map((p) => p.trim()).filter(Boolean);
         if (keepassxc) path.shift();
         const url = get('url').trim();
-        let title = get('title').trim();
-        if (!title && url) try { title = new URL(/^[a-z][a-z0-9+.-]*:/i.test(url) ? url : 'https://' + url).hostname; } catch { title = url; }
-        const entry = { path, title, user: get('user') || get('email'), password: get('password'), url, notes: get('notes'), totp: get('totp').trim(), tags: get('tags').replace(/^\s*\[|\]\s*$/g, '').split(/[,;]/).map((x) => x.trim()).filter(Boolean) };
+        const title = titleOrHost(get('title').trim(), url);
+        const entry = { path, title, user: get('user') || get('email'), password: get('password'), url, notes: get('notes'), totp: get('totp').trim(), tags: splitTags(get('tags').replace(/^\s*\[|\]\s*$/g, '')) };
         if (hit) refs++;
         return entry;
     });

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseCsv, toCsv, mapRows, otpUri } from '../../src/core/csv.js';
+import { parseCsv, toCsv, mapRows, otpUri, defangRefs, titleOrHost } from '../../src/core/csv.js';
+import { toOtpUri } from '../../src/core/util.js';
 
 test('parseCsv: Anfuehrungszeichen, Kommas und Zeilenumbrueche in Feldern, CRLF, BOM, leere Zeilen', () => {
     const rows = parseCsv('﻿a,b,c\r\n"x, y","sagt ""hallo""","zwei\nZeilen"\r\n\r\n,,ende');
@@ -51,4 +52,17 @@ test('otpUri: Feld "otp" geht vor, alte Felder (auch Steam) werden zur otpauth-U
     assert.equal(otpUri('Mein Konto', '', 'JBSW Y3DP', '60;8'), 'otpauth://totp/Mein%20Konto?secret=JBSWY3DP&period=60&digits=8');
     assert.equal(otpUri('S', '', 'ABC', '30;S'), 'otpauth://totp/S?secret=ABC&period=30&digits=5&encoder=steam');
     assert.equal(otpUri('A', '', '', ''), '');
+});
+
+test('defangRefs and titleOrHost: shared by every importer', () => {
+    assert.equal(defangRefs('{REF:P@T:Bank} and {ref:U@T:Bank}'), '{ REF:P@T:Bank} and { REF:U@T:Bank}');
+    assert.equal(defangRefs('plain'), 'plain');
+    assert.deepEqual([titleOrHost('Own title', 'https://a.example'), titleOrHost('', 'https://www.a.example/x'), titleOrHost('', 'a.example/login'), titleOrHost('', ''), titleOrHost('', 'http://')], ['Own title', 'www.a.example', 'a.example', '', 'http://']);
+});
+
+test('toOtpUri: a full URI stays, a bare secret is completed like KeePassXC does', () => {
+    assert.equal(toOtpUri('otpauth://totp/A?secret=X', 'A', 'u'), 'otpauth://totp/A?secret=X');
+    assert.equal(toOtpUri(' jbsw y3dp-epHK ', 'Mail', 'anna@x.org'), 'otpauth://totp/Mail:anna%40x.org?secret=JBSWY3DPEPHK&period=30&digits=6&issuer=Mail');
+    assert.equal(toOtpUri('JBSWY3DP', '', ''), 'otpauth://totp/KeePassNC?secret=JBSWY3DP&period=30&digits=6&issuer=KeePassNC');
+    assert.equal(toOtpUri('  ', 'A', ''), '');
 });

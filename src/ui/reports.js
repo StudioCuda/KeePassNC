@@ -4,7 +4,7 @@ import { auditEntries } from '../core/audit.js';
 import { fieldOf } from '../core/util.js';
 import { t, fmtDate } from '../i18n.js';
 import { ctx } from './ctx.js';
-import { h, icon, modal, isClosingAll } from './dom.js';
+import { h, modal, isClosingAll } from './dom.js';
 import { allRealEntries, avatar } from './common.js';
 import { openDbSettings } from './db-settings.js';
 import { openCredentials } from './credentials-dialog.js';

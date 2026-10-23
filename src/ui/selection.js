@@ -1,5 +1,5 @@
-// Several entries at once: tick them (Ctrl/Shift+click or the select button), then move, tag, delete or restore them together.
-// The ticked entries live in ctx.state.marked; shell.js draws the ticks, this module owns the clicks and the actions.
+// Several entries at once: mark them (Ctrl/Shift+click or the select button), then move, tag, delete or restore them together.
+// The marked entries live in ctx.state.marked; shell.js draws the marks, this module owns the clicks and the actions.
 import { t } from '../i18n.js';
 import { splitTags } from '../core/util.js';
 import { ctx, clearMarks, setStatus } from './ctx.js';
@@ -10,9 +10,9 @@ import { groupSelect, selectedGroup } from './groups.js';
 import { restoreTarget } from './detail.js';
 
 const { state } = ctx;
-let anchor = null; // the entry ticked last: where a Shift+click range starts
+let anchor = null; // the entry marked last: where a Shift+click range starts
 
-/** Entries that left the list (filter, search, tags removed) can't stay ticked. */
+/** Entries that left the list (filter, search, tags removed) can't stay marked. */
 export function pruneMarks(entries) {
     if (!state.marked.size) return;
     const visible = new Set(entries);
@@ -20,10 +20,10 @@ export function pruneMarks(entries) {
 }
 
 /**
- * A click on a row. Ctrl/Cmd+click ticks, Shift+click ticks everything from the last tick (or the open entry), and in select mode every
- * click ticks. Returns false for a plain click, which opens the entry as usual.
+ * A click on a row. Ctrl/Cmd+click marks, Shift+click marks everything from the last mark (or the open entry), and in select mode every
+ * click marks. Returns false for a plain click, which opens the entry as usual.
  */
-export function tickClick(ev, list, e) {
+export function markClick(ev, list, e) {
     const mod = ev.ctrlKey || ev.metaKey;
     if (!state.selecting && !mod && !ev.shiftKey) return false;
     const from = state.selecting && anchor ? anchor : state.selEntry;
@@ -32,7 +32,7 @@ export function tickClick(ev, list, e) {
         if (a >= 0 && b >= 0) for (const x of list.slice(Math.min(a, b), Math.max(a, b) + 1)) state.marked.add(x);
         else state.marked.add(e);
     } else {
-        // the first Ctrl+click next to an open entry ticks that one too, like in a file manager
+        // the first Ctrl+click next to an open entry marks that one too, like in a file manager
         if (!state.selecting && state.selEntry && state.selEntry !== e && list.includes(state.selEntry)) state.marked.add(state.selEntry);
         if (!state.marked.delete(e)) state.marked.add(e);
     }
@@ -44,10 +44,10 @@ export function tickClick(ev, list, e) {
 export function selectAll(entries) {
     for (const e of entries) state.marked.add(e);
     state.selecting = true;
-    ctx.ui.syncTicks();
+    ctx.ui.syncMarks();
 }
 
-/** The bar that replaces the list header while ticking. */
+/** The bar that replaces the list header while marking. */
 export function selectionBar(entries) {
     const v = state.vault;
     const n = state.marked.size;
@@ -55,7 +55,7 @@ export function selectionBar(entries) {
     const forever = inBin || !v.binEnabled;
     const act = (icon, label, run, extra = {}) => iconBtn(icon, label, () => run([...state.marked]), { disabled: !n, ...extra });
     return h('header', { class: 'list-head sel-bar', 'data-testid': 'sel-bar' },
-        iconBtn('x', t('sel.done'), () => { clearMarks(); ctx.ui.syncTicks(); }, { id: 'sel-done' }),
+        iconBtn('x', t('sel.done'), () => { clearMarks(); ctx.ui.syncMarks(); }, { id: 'sel-done' }),
         h('div', { class: 'grow' },
             h('h2', { id: 'sel-count', 'data-testid': 'sel-count', 'aria-live': 'polite', text: t('sel.count', { n }) }),
             n < entries.length ? h('button', { type: 'button', class: 'link', id: 'sel-all', text: t('sel.all'), onclick: () => selectAll(entries) }) : null),
@@ -65,14 +65,14 @@ export function selectionBar(entries) {
         act('trash', forever ? t('delete.forever') : t('delete'), deleteEntries, { id: 'sel-delete', class: 'danger-ghost' }));
 }
 
-/** After an action on the ticked entries: the open entry may be among them, and select mode ends. */
+/** After an action on the marked entries: the open entry may be among them, and select mode ends. */
 function finish(list) {
     if (list.includes(state.selEntry)) { state.selEntry = null; state.view = 'list'; }
     clearMarks();
     changed();
 }
 
-export function moveEntriesDialog(list) {
+function moveEntriesDialog(list) {
     const v = state.vault;
     const same = list.every((e) => e.parentGroup === list[0].parentGroup);
     const sel = groupSelect({ value: same ? list[0].parentGroup : undefined });
@@ -88,8 +88,8 @@ export function moveEntriesDialog(list) {
     h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), h('button', { type: 'submit', class: 'primary', id: 'sel-move-ok', text: t('move') }))) });
 }
 
-/** Add tags to, or take tags off, all ticked entries. The chips list what the selection already carries and fill the field when clicked. */
-export function tagEntriesDialog(list) {
+/** Add tags to, or take tags off, all marked entries. The chips list what the selection already carries and fill the field when clicked. */
+function tagEntriesDialog(list) {
     const v = state.vault;
     const input = h('input', { id: 'sel-tags-input', autocomplete: 'off', list: 'sel-tag-suggestions', 'aria-label': t('f.tags') });
     const all = new Set();
@@ -133,7 +133,7 @@ export async function deleteEntries(list) {
     toast(t('sel.deleted.bin', { n }), { action: { label: t('undo'), run: () => { for (const [e, g] of prev) v.moveEntry(e, g); changed(); } }, timeout: 7000 });
 }
 
-export function restoreEntries(list) {
+function restoreEntries(list) {
     const v = state.vault;
     for (const e of list) v.moveEntry(e, restoreTarget(e));
     finish([]);

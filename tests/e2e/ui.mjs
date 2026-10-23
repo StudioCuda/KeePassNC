@@ -75,6 +75,11 @@ async function main() {
     const count = async (p, id) => Number(await p.locator(`#${id} .count`).innerText());
 
     const page = await newPage();
+    // the entry list, the group tree and the tag chips of the main page
+    const rowOf = (title) => rows(page).filter({ has: page.locator('.title', { hasText: new RegExp(`^${title}$`) }) });
+    const gcount = async (name) => Number(await page.locator('.tree-row', { hasText: name }).first().locator('.count').first().innerText());
+    const group = (name) => page.locator('.tree-row', { hasText: name }).first().locator('.tree-label').click();
+    const chip = (txt) => page.locator('[data-testid=tag-chip]', { hasText: txt });
     await step('Alltags-Datei oeffnen; Seitenleiste zaehlt Eintraege, schwache, ablaufende, TOTP, Passkeys', async () => {
         await login(page);
         expect(await count(page, 'nav-all') === meta.entries, `Eintragszahl ${await count(page, 'nav-all')} != ${meta.entries}`);
@@ -490,11 +495,8 @@ async function main() {
     });
 
     await step('Mehrfachauswahl: Strg-/Umschalt-Klick, Auswahlmodus, Alle, Tags, Verschieben, Loeschen + Rueckgaengig, Wiederherstellen, Ziehen nimmt alle mit', async () => {
-        const rowOf = (t) => rows(page).filter({ has: page.locator('.title', { hasText: new RegExp(`^${t}$`) }) });
         const sel = () => page.locator('#sel-count').innerText();
         const marked = () => page.locator('.entry.marked').count();
-        const gcount = async (name) => Number(await page.locator('.tree-row', { hasText: name }).first().locator('.count').first().innerText());
-        const group = (name) => page.locator('.tree-row', { hasText: name }).first().locator('.tree-label').click();
         await group('Banken');
         const banken = await gcount('Banken'); // six fixed entries plus two special ones that stay where they are
         expect(banken === 8, 'Banken hat acht Eintraege: ' + banken);
@@ -520,7 +522,6 @@ async function main() {
         // tags: add, then take one off again (the chips show what the selection carries)
         await page.click('#sel-start'); await rowOf('Depot').click(); await rowOf('KFZ-Versicherung').click();
         await page.click('#sel-tags'); await page.fill('#sel-tags-input', 'sammel, test-x'); await page.click('#sel-tags-add');
-        const chip = (txt) => page.locator('[data-testid=tag-chip]', { hasText: txt });
         await chip('sammel · 2').waitFor(); await chip('test-x · 2').waitFor();
         expect(await sel() === '2 ausgewählt', 'Tags aendern laesst die Auswahl stehen');
         await page.click('#sel-tags'); await page.locator('[data-testid=sel-tags-on] .chip', { hasText: 'test-x' }).click();
@@ -560,10 +561,7 @@ async function main() {
     });
 
     await step('Tags verwalten: Kontextmenue, umbenennen, zusammenfuehren, ungueltiger Name, Eintrag auf Tag ziehen, Entfernen + Rueckgaengig (auch ueber den Listenkopf)', async () => {
-        const rowOf = (t) => rows(page).filter({ has: page.locator('.title', { hasText: new RegExp(`^${t}$`) }) });
-        const chip = (txt) => page.locator('[data-testid=tag-chip]', { hasText: txt });
         const noChip = (txt) => page.waitForFunction((x) => ![...document.querySelectorAll('[data-testid=tag-chip]')].some((c) => c.textContent.startsWith(x)), txt);
-        const group = (name) => page.locator('.tree-row', { hasText: name }).first().locator('.tree-label').click();
         const tagTwo = async (title, tag) => { await page.click('#sel-start'); await rowOf(title).click(); await page.click('#sel-tags'); await page.fill('#sel-tags-input', tag); await page.click('#sel-tags-add'); await page.click('#sel-done'); };
         await group('Banken');
         await page.click('#sel-start'); await rowOf('Hausbank Online').click(); await rowOf('Krankenkasse').click();
