@@ -102,7 +102,7 @@ function listHead(entries) {
     return h('header', { class: 'list-head' },
         iconBtn('menu', t('nav.groups'), () => { $('.shell').dataset.drawer = '1'; }, { class: 'menu-btn in-list' }),
         h('div', { class: 'grow' }, h('h2', { text: filterTitle() }), h('span', { class: 'muted', id: 'list-count', text: t('n.entries', { n: entries.length }) })),
-        state.filter.type === 'bin' && !state.query ? h('button', { type: 'button', class: 'btn small danger-ghost', id: 'empty-bin', onclick: emptyBin }, icon('broom'), t('bin.empty')) : null,
+        state.filter.type === 'bin' && !state.query ? iconBtn('broom', t('bin.empty'), emptyBin, { id: 'empty-bin', class: 'danger-ghost' }) : null, // icon only: the header is narrow, the name stays as tooltip and label
         h('select', { id: 'sort', 'aria-label': t('sort'), onchange: (e) => { ctx.settings.sort = e.target.value; saveSettings(ctx.settings); renderList(); } }, ...SORTS.map((s) => h('option', { value: s, selected: ctx.settings.sort === s, text: t('sort.' + s) }))),
         iconBtn('checkSquare', t('sel.start'), () => { state.selecting = true; syncTicks(); }, { id: 'sel-start' }));
 }

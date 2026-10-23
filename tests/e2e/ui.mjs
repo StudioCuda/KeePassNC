@@ -487,6 +487,7 @@ async function main() {
         await page.click('#sel-start'); await rowOf('Hausbank Online').click(); await rowOf('Krankenkasse').click(); await page.click('#sel-delete');
         await page.waitForFunction((n) => document.querySelector('#nav-bin .count')?.textContent === String(n), bin0 + 2);
         await page.click('#nav-bin');
+        expect(await page.evaluate(() => document.querySelector('#sel-start').getBoundingClientRect().right <= document.querySelector('#list').getBoundingClientRect().right), 'der Listenkopf im Papierkorb bleibt in seiner Spalte (sonst liegt der Auswahl-Knopf unter dem Detailfenster)');
         expect(await page.locator('#sel-restore').count() === 0, 'Wiederherstellen gibt es nur im Papierkorb, solange nichts getickt ist');
         await page.click('#sel-start'); await rowOf('Hausbank Online').click(); await rowOf('Krankenkasse').click();
         await page.click('#sel-restore');
