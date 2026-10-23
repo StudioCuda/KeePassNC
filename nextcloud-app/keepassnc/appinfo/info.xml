@@ -25,7 +25,7 @@ Open and edit KeePass databases (KDBX 3.1 / 4.x) straight from Files. Click the 
 - Placeholders and field references like KeePassXC knows them
 - Database settings, encryption and key derivation included, with values a browser can handle
 - A new master password or key file whenever you like
-- Merge a "conflicted copy" back in, and import or export CSV (KeePassXC, Bitwarden, 1Password, browsers …)
+- Merge a "conflicted copy" back in, and import CSV or JSON (KeePassXC, Bitwarden, Nextcloud Passwords, Passman, browsers …) or export CSV
 - Password generator and a health report
 - Follows your Nextcloud's accent color and light or dark theme, with a layout that works on phones and big screens alike
 - English, German and Chinese
@@ -53,7 +53,7 @@ KeePassXC, KeePassDX and Strongbox keep working on it, no lock-in.]]></descripti
 - Platzhalter und Feldreferenzen, wie KeePassXC sie kennt
 - Datenbank-Einstellungen inklusive Verschlüsselung und Schlüsselableitung, mit Werten, die ein Browser schafft
 - Master-Passwort und Schlüsseldatei jederzeit ändern
-- Eine „Konfliktkopie“ wieder zusammenführen, CSV importieren und exportieren (KeePassXC, Bitwarden, 1Password, Browser …)
+- Eine „Konfliktkopie“ wieder zusammenführen, CSV oder JSON importieren (KeePassXC, Bitwarden, Nextcloud Passwords, Passman, Browser …) und CSV exportieren
 - Passwortgenerator und Gesundheitsbericht
 - Übernimmt Akzentfarbe und helles oder dunkles Design von Nextcloud, für Smartphone und großen Bildschirm
 - Deutsch, Englisch und Chinesisch
