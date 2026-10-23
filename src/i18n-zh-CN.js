@@ -466,6 +466,8 @@ export default {
     'preview': '预览',
     'preview.none': '无法预览“{name}”。请改为下载。',
     'pw.large': '大视图',
+    'pw.reused': '也用于：{names}',
+    'pw.reused.more': '也用于：{names}，以及另外 {n} 个',
     'qr.none': '那张图片里没有二维码。',
     'qr.ok': '已从二维码读取 TOTP。',
     'qr.other': '该二维码不是 TOTP 设置（otpauth://）。',

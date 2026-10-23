@@ -412,6 +412,7 @@ input[type=radio].swatch.none { background: linear-gradient(135deg, transparent 
 textarea.c-value { min-height: 0; resize: vertical; }
 .custom-row > .check { align-self: center; }
 .meter { margin-top: -6px; }
+.hint.reuse { margin-top: -6px; color: var(--warn); overflow-wrap: anywhere; }
 .statusbar { display: flex; justify-content: space-between; gap: 16px; padding: 4px 14px; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--border); background: var(--surface); flex: none; min-height: 28px; }
 #status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } #status[data-kind=error] { color: var(--bad); } #status[data-kind=warn] { color: var(--warn); }
 .fab { display: none; }

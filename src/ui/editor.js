@@ -1,7 +1,7 @@
 // Create/edit an entry. Fields that aren't shown (passkeys, browser data, Auto-Type ...) stay unchanged in the vault (see Vault.applyEntry).
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
 import { isSystemField, entryExpiry, entryColor, ENTRY_COLORS } from '../core/util.js';
-import { excluded } from '../core/audit.js';
+import { excluded, reusedBy } from '../core/audit.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
 import { h, icon, iconBtn, toast } from './dom.js';
@@ -64,6 +64,18 @@ export function renderEditor(host) {
     let generated = null; // {pw, bits} from the generator: exact strength as long as the field is unchanged
     const meter = h('div', { class: 'meter' }, strengthBar(i.Password.value));
     i.Password.addEventListener('input', () => meter.replaceChildren(strengthBar(i.Password.value, generated?.pw === i.Password.value ? generated.bits : undefined)));
+    // A quiet note when another entry has the same password (the health report's rule); a pause after typing keeps it from flickering
+    const reuse = h('p', { class: 'hint reuse', id: 'e-reuse', role: 'status', hidden: true });
+    let reuseTimer = null;
+    const checkReuse = () => {
+        if (!reuse.isConnected) return; // the editor was closed (or the vault locked) in the meantime
+        const names = i.excludeReports.checked ? [] : reusedBy(allRealEntries(), entry, i.Password.value).map((e) => fieldText(e.fields.get('Title')) || t('entry.untitled')).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        const text = !names.length ? '' : t(names.length > 3 ? 'pw.reused.more' : 'pw.reused', { names: names.slice(0, 3).join(', '), n: names.length - 3 });
+        if (reuse.textContent !== text) reuse.textContent = text;
+        reuse.hidden = !text;
+    };
+    i.Password.addEventListener('input', () => { clearTimeout(reuseTimer); reuseTimer = setTimeout(checkReuse, 250); });
+    i.excludeReports.addEventListener('change', checkReuse);
     const showBtn = iconBtn('eye', t('show'), () => { const on = i.Password.type === 'password'; i.Password.type = on ? 'text' : 'password'; showBtn.replaceChildren(icon(on ? 'eyeOff' : 'eye')); }, { id: 'e-show', type: 'button' });
     const genBtn = h('button', { type: 'button', id: 'gen-btn', class: 'btn', onclick: () => openGenerator({ onUse: (pw, bits) => { generated = { pw, bits }; i.Password.value = pw; i.Password.dispatchEvent(new Event('input')); } }) }, icon('dice'), h('span', { text: t('generator') }));
 
@@ -152,7 +164,7 @@ export function renderEditor(host) {
             h('section', { class: 'card stack' },
                 h('div', { class: 'title-row' }, iconBtnEl, h('label', { class: 'grow' }, h('span', { text: t('f.title') }), i.Title)),
                 h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('f.user') }), i.UserName), h('label', {}, h('span', { text: t('group') }), groupSel)),
-                h('label', {}, h('span', { text: t('f.password') }), h('div', { class: 'input-group' }, i.Password, showBtn, genBtn)), meter,
+                h('label', {}, h('span', { text: t('f.password') }), h('div', { class: 'input-group' }, i.Password, showBtn, genBtn)), meter, reuse,
                 h('label', { class: 'check' }, i.excludeReports, h('span', { text: t('f.reports') })),
                 h('label', {}, h('span', { text: t('f.url') }), i.URL)),
             h('section', { class: 'card stack' },
@@ -197,5 +209,6 @@ export function renderEditor(host) {
     });
     form.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) form.requestSubmit(); });
     host.replaceChildren(form);
+    checkReuse();
     i.Title.focus();
 }
