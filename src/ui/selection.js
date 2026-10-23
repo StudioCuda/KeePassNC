@@ -57,7 +57,7 @@ export function selectionBar(entries) {
     return h('header', { class: 'list-head sel-bar', 'data-testid': 'sel-bar' },
         iconBtn('x', t('sel.done'), () => { clearMarks(); ctx.ui.syncTicks(); }, { id: 'sel-done' }),
         h('div', { class: 'grow' },
-            h('h2', { id: 'sel-count', 'data-testid': 'sel-count', role: 'status', text: t('sel.count', { n }) }),
+            h('h2', { id: 'sel-count', 'data-testid': 'sel-count', 'aria-live': 'polite', text: t('sel.count', { n }) }),
             n < entries.length ? h('button', { type: 'button', class: 'link', id: 'sel-all', text: t('sel.all'), onclick: () => selectAll(entries) }) : null),
         inBin ? act('restore', t('restore'), restoreEntries, { id: 'sel-restore' }) : null,
         act('moveTo', t('move'), moveEntriesDialog, { id: 'sel-move' }),
