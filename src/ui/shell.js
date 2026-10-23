@@ -30,7 +30,7 @@ export function showMain() {
     const saveBtn = h('button', { id: 'save-btn', type: 'button', class: 'btn save', onclick: () => doSave() }, icon('save'), h('span', { class: 'label', text: t('save') }));
     const bar = h('header', { class: 'topbar' },
         iconBtn('menu', t('nav.groups'), () => { const s = $('.shell'); s.dataset.drawer = s.dataset.drawer === '1' ? '0' : '1'; }, { class: 'menu-btn', id: 'menu-btn' }),
-        h('div', { class: 'brand' }, h('span', { class: 'brand-mark small' }, icon('shield')), h('strong', { text: 'KeePassNC' })),
+        h('div', { class: 'brand' }, h('span', { class: 'brand-mark small' }, icon('shield')), h('h1', { class: 'brand-name', text: 'KeePassNC' })),
         h('span', { class: 'file-name', id: 'file-name', title: state.source.name }, icon('file'), h('span', { text: state.source.name })),
         h('label', { class: 'searchbox' }, icon('search'), search, h('kbd', { text: 'Ctrl K' })),
         h('div', { class: 'spacer' }),
@@ -43,7 +43,7 @@ export function showMain() {
         NC?.filesUrl && !NC.nav ? h('a', { href: NC.filesUrl, id: 'files-link', class: 'icon-btn hide-narrow', title: t('files'), 'aria-label': t('files') }, icon('folderOpen')) : null,
         iconBtn('lock', t('lock'), () => lock(t('locked')), { id: 'lock-btn' }));
     const shell = h('div', { class: 'shell', 'data-view': state.view, 'data-drawer': '0' }, bar,
-        h('div', { class: 'panes' },
+        h('main', { class: 'panes' }, // the workspace is the main landmark: on a phone only one of the panes is on screen at a time
             h('div', { class: 'scrim', onclick: () => { $('.shell').dataset.drawer = '0'; } }),
             h('nav', { id: 'groups', class: 'sidebar', 'aria-label': t('nav.groups') }),
             h('section', { id: 'list', class: 'listpane', 'aria-label': t('list.label') }),
@@ -133,7 +133,7 @@ export function renderList(entries = visibleEntries()) {
     listed = entries;
     pruneMarks(entries);
     const head = listHead(entries);
-    const body = h('div', { class: 'entries' + (state.selecting ? ' selecting' : ''), role: 'listbox', 'aria-multiselectable': state.selecting ? 'true' : null });
+    const body = h('div', { class: 'entries' + (state.selecting ? ' selecting' : ''), role: 'listbox', 'aria-label': t('list.label'), 'aria-multiselectable': state.selecting ? 'true' : null });
     if (!entries.length) {
         body.append(h('div', { class: 'empty small' }, icon(state.query ? 'search' : 'folderOpen'), h('p', { class: 'muted', text: state.query ? t('list.nomatch') : t('list.empty') }),
             !state.query && state.filter.type === 'group' ? h('button', { type: 'button', class: 'btn', onclick: () => startEdit(null) }, icon('plus'), t('entry.new')) : null));
@@ -151,7 +151,7 @@ export function renderList(entries = visibleEntries()) {
         const color = entryColor(e);
         if (color) { main.classList.add('tinted'); main.style.setProperty('--entry-color', color); } // CSSOM, no style attribute (CSP)
         const wrap = h('div', { class: 'entry-wrap', draggable: 'true' }, main,
-            h('div', { class: 'row-actions' }, iconBtn('user', t('copy') + ': ' + t('f.user'), () => copy(user, t('f.user')), { tabindex: '-1' }), iconBtn('key', t('copy') + ': ' + t('f.password'), () => copy(resolvedField(e, 'Password'), t('f.password')), { tabindex: '-1' })));
+            h('div', { class: 'row-actions', 'aria-hidden': 'true' }, iconBtn('user', t('copy') + ': ' + t('f.user'), () => copy(user, t('f.user')), { tabindex: '-1' }), iconBtn('key', t('copy') + ': ' + t('f.password'), () => copy(resolvedField(e, 'Password'), t('f.password')), { tabindex: '-1' })));
         wrap.addEventListener('dragstart', (ev) => startEntryDrag(ev, e));
         body.append(wrap);
     }
@@ -173,7 +173,7 @@ function listKeys(ev) {
 export function openPalette() {
     const v = state.vault;
     const input = h('input', { id: 'palette-input', type: 'search', placeholder: t('palette.placeholder'), autocomplete: 'off', spellcheck: 'false', autofocus: true });
-    const list = h('div', { class: 'palette-list', role: 'listbox' });
+    const list = h('div', { class: 'palette-list', role: 'listbox', 'aria-label': t('palette') });
     const cmds = [
         ['plus', t('entry.new'), 'Ctrl+N', () => startEdit(null)], ['folder', t('group.new'), '', () => newGroup(null)], ['save', t('save'), 'Ctrl+S', () => doSave()],
         ['dice', t('generator'), '', () => openGenerator()], ['database', t('database'), '', () => openReports()], ['settings', t('settings'), '', () => openSettings()],

@@ -62,7 +62,7 @@ export function createGenerator({ pref, copy, onUse, copyOnClick = false } = {})
     const tip = (node, text) => { node.title = text; node.classList.add('has-tip'); return node; };
     const num = (id, label, min, max, o, key, hint) => {
         const range = h('input', { type: 'range', min, max, value: o[key], 'aria-label': label });
-        const number = h('input', { type: 'number', min, max, value: o[key], id, class: 'num' });
+        const number = h('input', { type: 'number', min, max, value: o[key], id, class: 'num', 'aria-label': label });
         const set = (v) => { const n = Math.max(min, Math.min(max, parseInt(v, 10) || min)); o[key] = n; range.value = n; number.value = n; generate(); };
         range.addEventListener('input', () => set(range.value)); number.addEventListener('change', () => set(number.value));
         const lab = h('span', { class: 'slider-label', text: label });
