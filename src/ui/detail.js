@@ -215,10 +215,14 @@ export function deleteEntry(e) {
     setStatus(t('deleted.bin'));
     toast(t('deleted.bin'), { action: { label: t('undo'), run: () => { v.moveEntry(e, prev); state.selEntry = e; changed(); } }, timeout: 7000 });
 }
-export function restoreEntry(e) {
+/** Where an entry from the recycle bin goes back to: its old group, or the first one if that is gone. */
+export function restoreTarget(e) {
     const v = state.vault;
-    const target = e.previousParentGroup ? v.db.getGroup(e.previousParentGroup) : null;
-    v.moveEntry(e, target || v.root.groups.find((g) => g !== v.recycleBin) || v.root);
+    const old = e.previousParentGroup ? v.db.getGroup(e.previousParentGroup) : null;
+    return old || v.root.groups.find((g) => g !== v.recycleBin) || v.root;
+}
+export function restoreEntry(e) {
+    state.vault.moveEntry(e, restoreTarget(e));
     changed();
     toast(t('restored'));
 }

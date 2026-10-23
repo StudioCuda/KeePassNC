@@ -329,6 +329,18 @@ test('Eintragsfarbe: nur gueltiges #RRGGBB, in Kleinbuchstaben', () => {
     assert.equal(entryColor(null), null);
 });
 
+test('Tags: splitTags trennt an Komma und Semikolon, editTags fuegt hinzu/entfernt ohne Dubletten und sortiert', async () => {
+    const { splitTags, editTags } = await import('../../src/core/util.js');
+    assert.deepEqual(splitTags(' a, b;c ,, '), ['a', 'b', 'c']);
+    assert.deepEqual(splitTags(''), []);
+    assert.deepEqual(splitTags(null), []);
+    assert.deepEqual(editTags(['b', 'a'], { add: ['c', 'a'] }), ['a', 'b', 'c']);
+    assert.deepEqual(editTags(['b', 'a', 'c'], { remove: ['b', 'x'] }), ['a', 'c']);
+    assert.deepEqual(editTags(undefined, { add: [' neu '] }), ['neu']);
+    assert.deepEqual(editTags(['a', 'A'], { remove: ['a'] }), ['A'], 'Schreibweise zaehlt');
+    assert.deepEqual(editTags(['b', 'a', 'a']), ['a', 'b'], 'ohne Aenderung nur geordnet und ohne Dubletten');
+});
+
 test('Wiederverwendung im Editor: gleiche Passwoerter wie im Bericht, ohne Referenzen, ohne ausgenommene Eintraege, ohne sich selbst', () => {
     const a = entry({ Title: 'A', Password: 'Sommer2020' }), b = entry({ Title: 'B', Password: 'Sommer2020' }), c = entry({ Title: 'C', Password: 'anders' });
     const ref = entry({ Title: 'Ref', Password: '{REF:P@I:ABCD}' });

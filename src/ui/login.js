@@ -5,7 +5,7 @@ import { cacheGet } from '../cache.js';
 import { loadSettings, saveSettings } from '../settings.js';
 import { nextcloudAuth, warmNextcloudAuth, davUrlFor, normalizeUserPath, fetchPepper } from '../nextcloud.js';
 import { t, fmtDate, errText } from '../i18n.js';
-import { ctx, params, pref, setStatus, applyTheme, kfStore, kfFileId } from './ctx.js';
+import { ctx, params, pref, setStatus, applyTheme, kfStore, kfFileId, clearMarks } from './ctx.js';
 import { KeyfileStoreError, isWeakerThan } from '../keyfile-store.js';
 import { h, icon, iconBtn, toast, closeAllDialogs } from './dom.js';
 import { filePicker } from './file-picker.js';
@@ -22,7 +22,7 @@ export function showLogin(message) {
     // Before clearing: open dialogs (attached to <body>, not #app) and the TOTP ticker (holds the secret) must not survive locking
     closeAllDialogs();
     stopDetailTimers();
-    state.vault = null; state.selEntry = null; state.editing = null; state.query = '';
+    state.vault = null; state.selEntry = null; state.editing = null; state.query = ''; clearMarks();
     document.body.classList.remove('in-vault');
     const NC = ctx.NC;
     warmNextcloudAuth(NC);

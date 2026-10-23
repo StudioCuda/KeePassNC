@@ -1,7 +1,7 @@
 // Sidebar: library filters, group tree (expand/collapse, context menu, drag & drop), tags, recycle bin.
 import { VaultError } from '../vault.js';
 import { t, errText } from '../i18n.js';
-import { ctx, setStatus } from './ctx.js';
+import { ctx, setStatus, clearMarks } from './ctx.js';
 import { h, append, icon, iconBtn, popupMenu, modal, promptDialog, confirmDialog, toast } from './dom.js';
 import { allRealEntries, isWeak, groupIcon } from './common.js';
 import { hasTotp, isPasskey, entryExpiry, daysUntil, fieldOf } from '../core/util.js';
@@ -12,10 +12,11 @@ import { openGenerator } from './generator-dialog.js';
 import { openSettings } from './settings-dialog.js';
 
 const { state } = ctx;
-let dragging = null; // {kind: 'entry'|'group', item}
+let dragging = null; // {kind: 'entry'|'group', item, items?: entries that travel along}
 
+/** Dragging a ticked entry takes all ticked ones along. */
 export function startEntryDrag(ev, entry) {
-    dragging = { kind: 'entry', item: entry };
+    dragging = { kind: 'entry', item: entry, items: state.marked.has(entry) ? [...state.marked] : [entry] };
     ev.dataTransfer.effectAllowed = 'move';
     ev.dataTransfer.setData('text/plain', fieldOf(entry, 'Title'));
     document.body.classList.add('dragging');
@@ -26,6 +27,7 @@ export function startEntryDrag(ev, entry) {
 export function setFilter(f, { refresh = true } = {}) {
     state.filter = f;
     state.query = '';
+    clearMarks();
     const s = document.getElementById('search');
     if (s) s.value = '';
     state.view = 'list';
@@ -150,7 +152,7 @@ export function renderSidebar(host) {
         row.addEventListener('dragstart', (e) => { dragging = { kind: 'group', item: g }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', g.name || ''); document.body.classList.add('dragging'); row.addEventListener('dragend', () => { dragging = null; document.body.classList.remove('dragging'); }, { once: true }); e.stopPropagation(); });
         row.addEventListener('dragover', (e) => {
             if (!dragging) return;
-            const ok = dragging.kind === 'entry' ? dragging.item.parentGroup !== g : v.canMoveGroup(dragging.item, g);
+            const ok = dragging.kind === 'entry' ? dragging.items.some((x) => x.parentGroup !== g) : v.canMoveGroup(dragging.item, g);
             if (ok) { e.preventDefault(); row.classList.add('drop'); }
         });
         row.addEventListener('dragleave', () => row.classList.remove('drop'));
@@ -158,8 +160,12 @@ export function renderSidebar(host) {
             row.classList.remove('drop');
             if (!dragging) return;
             e.preventDefault();
-            if (dragging.kind === 'entry') { v.moveEntry(dragging.item, g); toast(t('entry.moved', { group: g.name }), { timeout: 2000 }); }
-            else if (!v.moveGroup(dragging.item, g)) return;
+            if (dragging.kind === 'entry') {
+                const n = dragging.items.length;
+                for (const x of dragging.items) v.moveEntry(x, g);
+                toast(t(n > 1 ? 'sel.moved' : 'entry.moved', { group: g.name, n }), { timeout: 2000 });
+                clearMarks();
+            } else if (!v.moveGroup(dragging.item, g)) return;
             dragging = null;
             changed();
         });
@@ -183,7 +189,7 @@ export function renderSidebar(host) {
     if (rb && bin) {
         bin.firstChild.addEventListener('dragover', (e) => { if (dragging) { e.preventDefault(); bin.firstChild.classList.add('drop'); } });
         bin.firstChild.addEventListener('dragleave', () => bin.firstChild.classList.remove('drop'));
-        bin.firstChild.addEventListener('drop', (e) => { e.preventDefault(); bin.firstChild.classList.remove('drop'); if (!dragging) return; if (dragging.kind === 'entry') v.removeEntry(dragging.item); else v.removeGroup(dragging.item); dragging = null; changed(); });
+        bin.firstChild.addEventListener('drop', (e) => { e.preventDefault(); bin.firstChild.classList.remove('drop'); if (!dragging) return; if (dragging.kind === 'entry') { for (const x of dragging.items) v.removeEntry(x); clearMarks(); } else v.removeGroup(dragging.item); dragging = null; changed(); });
     }
 
     const tools = h('div', { class: 'nav-section nav-tools' }, h('div', { class: 'nav-head' }, h('span', { text: t('tools') })),
