@@ -5,7 +5,9 @@
     <name>KeePassNC</name>
     <summary>Secure password manager for KeePass databases, right inside Nextcloud</summary>
     <summary lang="de">Sicherer Passwortmanager für KeePass-Datenbanken, direkt in Nextcloud</summary>
-    <description><![CDATA[Open and edit KeePass databases (KDBX 3.1 / 4.x) straight from Files. Click the .kdbx, type your master password, get on with your day.
+    <description><![CDATA[---
+
+Open and edit KeePass databases (KDBX 3.1 / 4.x) straight from Files. Click the .kdbx, type your master password, get on with your day.
 
 **Safe by design**
 
@@ -31,7 +33,9 @@
 **Still just a KeePass file**
 
 KeePassXC, KeePassDX and Strongbox keep working on it, no lock-in.]]></description>
-    <description lang="de"><![CDATA[Öffnet und bearbeitet KeePass-Datenbanken (KDBX 3.1 / 4.x) direkt aus „Dateien“: .kdbx anklicken, Master-Passwort eingeben, fertig.
+    <description lang="de"><![CDATA[---
+
+Öffnet und bearbeitet KeePass-Datenbanken (KDBX 3.1 / 4.x) direkt aus „Dateien“: .kdbx anklicken, Master-Passwort eingeben, fertig.
 
 **Sicher gebaut**
 

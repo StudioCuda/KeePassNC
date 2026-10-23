@@ -4,7 +4,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 ### Changed
-- The App Store summary says what the app is: "Secure password manager for KeePass databases, right inside Nextcloud".
+- The App Store summary says what the app is: "Secure password manager for KeePass databases, right inside Nextcloud". A thin divider separates it from the description.
 
 ## [0.17.1] - 2026-10-23
 ### Fixed
