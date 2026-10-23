@@ -4,7 +4,7 @@ import { t, errText } from '../i18n.js';
 import { ctx, setStatus, clearMarks } from './ctx.js';
 import { h, append, icon, iconBtn, popupMenu, modal, promptDialog, confirmDialog, toast } from './dom.js';
 import { allRealEntries, isWeak, groupIcon } from './common.js';
-import { hasTotp, isPasskey, entryExpiry, daysUntil, fieldOf } from '../core/util.js';
+import { hasTotp, isPasskey, entryExpiry, daysUntil, fieldOf, splitTags } from '../core/util.js';
 import { changed, refreshDirtyIndicator } from './session.js';
 import { iconSelOf, iconPreview, pickIcon, commitIconSel } from './icon-picker.js';
 import { openReports } from './reports.js';
@@ -121,6 +121,63 @@ function groupMenu(anchor, g, pt) {
     popupMenu(anchor, items, pt ? { x: pt.x, y: pt.y } : { align: 'end' });
 }
 
+// ---------------------------------------------------------------- Tags: rename (also merges), remove, drop entries on a tag
+const entriesWithTag = (tag) => [...state.vault.root.allEntries()].filter((e) => (e.tags || []).includes(tag));
+
+/** Renaming to a name that exists already merges the two. Every entry that changes gets a history entry, like any edit. */
+export async function renameTag(tag) {
+    const v = state.vault;
+    const input = await promptDialog({ title: t('tag.rename'), label: t('tag.name'), value: tag, confirmLabel: t('apply'), cancelLabel: t('cancel') });
+    if (input === null) return;
+    const names = splitTags(input);
+    if (!names.length || (names.length === 1 && names[0] === tag)) return;
+    if (names.length > 1) { toast(t('tag.invalid'), { kind: 'warn' }); return; }
+    const next = names[0];
+    const merged = allRealEntries().some((e) => (e.tags || []).includes(next));
+    v.editTags(entriesWithTag(tag), { add: [next], remove: [tag] });
+    if (state.filter.type === 'tag' && state.filter.tag === tag) state.filter = { type: 'tag', tag: next };
+    changed();
+    toast(t(merged ? 'tag.merged' : 'tag.renamed', { tag: next }), { timeout: 2500 });
+}
+
+/** Takes the tag off every entry (the entries stay); Undo puts it back. */
+export function deleteTag(tag) {
+    const v = state.vault;
+    const list = entriesWithTag(tag);
+    v.editTags(list, { remove: [tag] });
+    if (state.filter.type === 'tag' && state.filter.tag === tag) state.filter = { type: 'all' };
+    changed();
+    toast(t('tag.deleted', { tag }), { action: { label: t('undo'), run: () => { v.editTags(list, { add: [tag] }); changed(); } }, timeout: 7000 });
+}
+
+/** Menu for a tag: on the chips (right click) and, for the tag being shown, in the list header (works on touch too). */
+export function tagMenu(anchor, tag, pt) {
+    popupMenu(anchor, [
+        { label: t('tag.rename'), icon: 'edit', onclick: () => renameTag(tag) },
+        'sep',
+        { label: t('tag.delete'), icon: 'trash', danger: true, onclick: () => deleteTag(tag) }], pt ? { x: pt.x, y: pt.y } : { align: 'end' });
+}
+
+function tagChip(tg, n, active) {
+    const v = state.vault;
+    const chip = h('button', { type: 'button', class: 'chip' + (active ? ' active' : ''), 'data-testid': 'tag-chip', onclick: () => setFilter({ type: 'tag', tag: tg }), text: `${tg} · ${n}` });
+    chip.addEventListener('contextmenu', (e) => { e.preventDefault(); tagMenu(null, tg, { x: e.clientX, y: e.clientY }); });
+    const accepts = () => dragging?.kind === 'entry' && dragging.items.some((x) => !(x.tags || []).includes(tg));
+    chip.addEventListener('dragover', (e) => { if (accepts()) { e.preventDefault(); chip.classList.add('drop'); } });
+    chip.addEventListener('dragleave', () => chip.classList.remove('drop'));
+    chip.addEventListener('drop', (e) => {
+        chip.classList.remove('drop');
+        if (!accepts()) return;
+        e.preventDefault();
+        const items = dragging.items;
+        dragging = null;
+        clearMarks();
+        toast(t('sel.tags.changed', { n: v.editTags(items, { add: [tg] }) }), { timeout: 2000 });
+        changed();
+    });
+    return chip;
+}
+
 function navItem(id, ic, label, count, f, active) {
     return h('button', { type: 'button', class: 'nav-item' + (active ? ' active' : ''), id: 'nav-' + id, onclick: () => setFilter(f) },
         icon(ic), h('span', { class: 'grow', text: label }), count !== undefined ? h('span', { class: 'count', text: String(count) }) : null);
@@ -177,7 +234,7 @@ export function renderSidebar(host) {
     const tags = new Map();
     for (const e of entries) for (const tg of e.tags || []) tags.set(tg, (tags.get(tg) || 0) + 1);
     const tagBox = tags.size ? h('div', { class: 'nav-section' }, h('div', { class: 'nav-head' }, h('span', { text: t('nav.tags') })),
-        h('div', { class: 'chips' }, ...[...tags].sort((a, b) => a[0].localeCompare(b[0])).map(([tg, n]) => h('button', { type: 'button', class: 'chip' + (f.type === 'tag' && f.tag === tg ? ' active' : ''), 'data-testid': 'tag-chip', onclick: () => setFilter({ type: 'tag', tag: tg }), text: `${tg} · ${n}` })))) : null;
+        h('div', { class: 'chips' }, ...[...tags].sort((a, b) => a[0].localeCompare(b[0])).map(([tg, n]) => tagChip(tg, n, f.type === 'tag' && f.tag === tg)))) : null;
 
     const rb = v.recycleBin;
     const binCount = rb ? [...rb.allEntries()].length : 0;

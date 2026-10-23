@@ -559,6 +559,45 @@ async function main() {
         expect(await gcount('Banken') === 4 && await page.locator('[data-testid=sel-bar]').count() === 0, 'beide gezogen, Auswahl beendet');
     });
 
+    await step('Tags verwalten: Kontextmenue, umbenennen, zusammenfuehren, ungueltiger Name, Eintrag auf Tag ziehen, Entfernen + Rueckgaengig (auch ueber den Listenkopf)', async () => {
+        const rowOf = (t) => rows(page).filter({ has: page.locator('.title', { hasText: new RegExp(`^${t}$`) }) });
+        const chip = (txt) => page.locator('[data-testid=tag-chip]', { hasText: txt });
+        const noChip = (txt) => page.waitForFunction((x) => ![...document.querySelectorAll('[data-testid=tag-chip]')].some((c) => c.textContent.startsWith(x)), txt);
+        const group = (name) => page.locator('.tree-row', { hasText: name }).first().locator('.tree-label').click();
+        const tagTwo = async (title, tag) => { await page.click('#sel-start'); await rowOf(title).click(); await page.click('#sel-tags'); await page.fill('#sel-tags-input', tag); await page.click('#sel-tags-add'); await page.click('#sel-done'); };
+        await group('Banken');
+        await page.click('#sel-start'); await rowOf('Hausbank Online').click(); await rowOf('Krankenkasse').click();
+        await page.click('#sel-tags'); await page.fill('#sel-tags-input', 'alt'); await page.click('#sel-tags-add'); await page.click('#sel-done');
+        await chip('alt · 2').waitFor();
+        // drag an entry onto a tag chip
+        await group('Shopping');
+        await page.locator('.entry-wrap', { has: page.locator('.title', { hasText: /^Zalando$/ }) }).dragTo(chip('alt'));
+        await chip('alt · 3').waitFor();
+        // rename through the context menu; the tag chip is the same one in the sidebar afterwards
+        await chip('alt · 3').click({ button: 'right' }); await menuItem(page, 'Tag umbenennen').click();
+        await page.fill('#prompt-input', 'a,b'); await page.keyboard.press('Enter');
+        await page.locator('.toast', { hasText: 'Komma' }).waitFor(); await chip('alt · 3').waitFor();
+        await chip('alt · 3').click({ button: 'right' }); await menuItem(page, 'Tag umbenennen').click();
+        await page.fill('#prompt-input', 'neu'); await page.keyboard.press('Enter');
+        await chip('neu · 3').waitFor(); await noChip('alt');
+        // renaming to an existing tag merges them
+        await chip('neu · 3').click({ button: 'right' }); await menuItem(page, 'Tag umbenennen').click();
+        await page.fill('#prompt-input', 'sammel'); await page.keyboard.press('Enter');
+        await chip('sammel · 5').waitFor(); await noChip('neu');
+        await page.locator('.toast', { hasText: 'zusammengeführt' }).waitFor();
+        // remove via the list header while the tag is the filter; Undo brings it back
+        await group('Shopping'); await tagTwo('Zalando', 'weg');
+        await chip('weg · 1').click();
+        expect(await page.locator('#list h2').first().innerText() === '#weg', 'Listenkopf zeigt das Tag');
+        await page.click('#tag-more'); await menuItem(page, 'Tag entfernen').click();
+        await noChip('weg');
+        expect(await page.locator('#nav-all.active').count() === 1, 'nach dem Entfernen steht die Liste wieder auf "Alle Eintraege"');
+        await page.locator('.toast-action', { hasText: 'Rückgängig' }).last().click(); // an older toast may still be around
+        await chip('weg · 1').waitFor();
+        await chip('weg · 1').click({ button: 'right' }); await menuItem(page, 'Tag entfernen').click();
+        await noChip('weg');
+    });
+
     await step('Speichern (Strg+S) -> KeePassXC liest die Datei; alle UI-Aenderungen sind angekommen, nichts anderes ging verloren', async () => {
         await page.keyboard.press('Control+s');
         await waitStatus(page, /^Gespeichert\./, 60000);
@@ -596,6 +635,7 @@ async function main() {
         expect(/UI-Gruppe-neu$/.test(find('Kreditkarte')[0].path) && /UI-Gruppe-neu$/.test(find('PayPal')[0].path), 'Mehrfach gezogen: ' + find('PayPal')[0].path);
         expect(/Banken & Versicherungen$/.test(find('Hausbank Online')[0].path) && /Banken & Versicherungen$/.test(find('Krankenkasse')[0].path), 'Geloescht und wiederhergestellt: ' + find('Krankenkasse')[0].path);
         expect(tagsOf('Depot') === 'sammel' && tagsOf('KFZ-Versicherung') === 'sammel' && tagsOf('PayPal') === '', 'Tags: ' + tagsOf('Depot') + ' / ' + tagsOf('PayPal'));
+        expect(tagsOf('Hausbank Online') === 'sammel' && tagsOf('Krankenkasse') === 'sammel' && tagsOf('Zalando') === 'sammel', 'Tags umbenannt, zusammengefuehrt, entfernt: ' + tagsOf('Hausbank Online') + ' / ' + tagsOf('Zalando'));
         expect(hist('Depot') === 2 && hist('PayPal') === 0, 'jede Tag-Aenderung hinterlaesst einen Verlaufseintrag: ' + hist('Depot'));
         expect(es.length >= meta.entries, 'Eintragszahl ' + es.length);
         // Icons

@@ -555,6 +555,13 @@ export default {
     'sync.pulled': '已应用来自另一台设备的改动。',
     'theme.auto': '自动（跟随系统）', 'theme.dark': '深色', 'theme.light': '浅色', 'theme.nextcloud': '与 Nextcloud 一致',
     'tools': '工具',
+    'tag.delete': '移除标签',
+    'tag.deleted': '已移除标签“{tag}”。',
+    'tag.invalid': '标签不能包含逗号或分号。',
+    'tag.merged': '已合并到“{tag}”。',
+    'tag.name': '标签名称',
+    'tag.rename': '重命名标签',
+    'tag.renamed': '标签已重命名为“{tag}”。',
     'undo': '撤销',
     'view': '查看'
 };
