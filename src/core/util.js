@@ -142,6 +142,14 @@ export function previewOf(name, bytes) {
     return null;
 }
 
+/** Tags typed into a field: separated by comma or semicolon, trimmed, empty ones dropped. */
+export const splitTags = (text) => String(text || '').split(/[,;]/).map((x) => x.trim()).filter(Boolean);
+/** Tags after adding and removing some (exact spelling), without duplicates and sorted like the editor saves them. */
+export function editTags(tags, { add = [], remove = [] } = {}) {
+    const drop = new Set(remove);
+    return [...new Set([...(tags || []), ...add].map((x) => x.trim()).filter((x) => x && !drop.has(x)))].sort((a, b) => a.localeCompare(b));
+}
+
 /** Background colour of an entry (KeePass: "#RRGGBB" in BackgroundColor) in lowercase, otherwise null. */
 export const entryColor = (entry) => (/^#[0-9a-f]{6}$/i.test(entry?.bgColor || '') ? entry.bgColor.toLowerCase() : null);
 /** Colours to choose from in the editor; another colour that is already set stays selectable as well. */
