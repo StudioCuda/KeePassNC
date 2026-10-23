@@ -45,7 +45,8 @@ KeePass trick works here too (it probably does).
 
 ## Moving in (and out)
 
-- Import CSV exports from KeePassXC, Bitwarden, 1Password, LastPass, Chrome or Firefox.
+- Import CSV exports from KeePassXC, Bitwarden, 1Password, LastPass, Proton Pass, Chrome or Firefox.
+- Coming from Nextcloud Passwords, Passman or Bitwarden? Import their JSON export (Passwords: "Backup or export" → "Database backup"). Folders, tags and extra fields come along, Passman's files too.
 - Export to CSV the way KeePassXC does it.
 
 ## Playing nicely with Nextcloud

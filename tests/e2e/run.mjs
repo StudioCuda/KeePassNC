@@ -683,6 +683,54 @@ async function main() {
         await p.context().close();
     });
 
+    await step('JSON-Import: Passwords-Backup (Ordner, Tags, Zusatzfelder), Passman (Anhang), Bitwarden (zweite Adresse, TOTP) -> KeePassXC sieht alles; Backup mit Passwort wird abgewiesen', async () => {
+        const fJson = path.join(davRoot, 'json.kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fJson);
+        const NIL = '00000000-0000-0000-0000-000000000000';
+        const passwords = JSON.stringify({ version: 2, encrypted: false,
+            folders: [{ id: 'f1', label: 'Work', parent: NIL }, { id: 'f2', label: 'Development', parent: 'f1' }],
+            tags: [{ id: 't1', label: 'Social' }, { id: 't2', label: 'Community' }],
+            passwords: [{ id: 'p1', label: 'GitLab', username: 'anna', password: 'pw-ä€', url: 'https://git.example.org', notes: 'Notiz', folder: 'f2', tags: ['t1', 't2'], edited: 1506026474,
+                customFields: [{ label: 'E-Mail', type: 'email', value: 'a@x.org' }, { label: 'PIN', type: 'secret', value: '1234' }] },
+            { id: 'p2', label: 'Oben', username: 'bob', password: 'pw2', url: '', notes: '', folder: NIL, tags: [], customFields: [] }] });
+        const passman = JSON.stringify([{ credential_id: 1, label: 'Mit Bild', username: 'carol', email: 'c@x.org', password: 'pw3', url: 'https://bild.example.org', description: 'Passman-Notiz', tags: [{ text: 'alt' }],
+            files: [{ filename: 'bild.bin', file_data: 'data:application/octet-stream;base64,' + Buffer.from('PASSMAN-DATEI').toString('base64') }], custom_fields: [], otp: {}, created: 1520188626, changed: 1520188626, delete_time: 0 }]);
+        const bitwarden = JSON.stringify({ encrypted: false, folders: [{ id: 'f1', name: 'Arbeit/Server' }],
+            items: [{ type: 1, folderId: 'f1', name: 'NAS', notes: 'n', fields: [{ name: 'Frage', value: 'Hund', type: 1 }], login: { uris: [{ uri: 'https://nas.local' }, { uri: 'https://nas2.local' }], username: 'admin', password: 'geheim', totp: 'JBSWY3DPEHPK3PXP' } }] });
+        const p = await newPage();
+        await login(p, 'json.kdbx'); await rows(p).first().waitFor();
+        const openCsv = async () => { if (!await p.locator('#csv-btn').isVisible()) { await p.click('#reports-btn'); await p.click('#rep-tab-info'); } await p.click('#csv-btn'); await p.locator('#csv-file').waitFor({ state: 'attached' }); };
+        const upload = async (name, body, summary) => {
+            await openCsv();
+            await p.setInputFiles('#csv-file', { name, mimeType: 'application/json', buffer: Buffer.from(body) });
+            await p.waitForFunction((re) => new RegExp(re).test(document.querySelector('#csv-summary')?.textContent || ''), summary);
+        };
+        await upload('pw-backup.json', JSON.stringify({ version: 2, encrypted: true, passwords: [] }), 'mit einem Passwort geschützt');
+        expect(await p.isDisabled('#csv-import'), 'ein Backup mit Passwort laesst sich nicht importieren');
+        await p.click('#csv-cancel');
+        await upload('passwords.json', passwords, 'Nextcloud Passwords \\(backup\\)\\. Gefundene Einträge: 2');
+        await p.click('#csv-import'); await p.waitForFunction(() => /Import passwords/.test(document.querySelector('#groups')?.textContent || ''));
+        await upload('passman.json', passman, 'Passman \\(JSON\\)\\. Gefundene Einträge: 1');
+        await p.click('#csv-import'); await p.waitForFunction(() => /Import passman/.test(document.querySelector('#groups')?.textContent || ''));
+        await upload('bw.json', bitwarden, 'Bitwarden \\(JSON\\)\\. Gefundene Einträge: 1');
+        await p.click('#csv-import'); await p.waitForFunction(() => /Import bw/.test(document.querySelector('#groups')?.textContent || ''));
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        const gl = xc(['show', '-s', fJson, 'Import passwords/Work/Development/GitLab']);
+        expect(gl.includes('UserName: anna') && gl.includes('Password: pw-ä€') && gl.includes('URL: https://git.example.org') && /Tags: (Community,Social|Social,Community)/.test(gl), 'GitLab in KeePassXC:\n' + gl);
+        expect(xc(['show', '-s', '-a', 'PIN', fJson, 'Import passwords/Work/Development/GitLab']).trim() === '1234', 'geschuetztes Zusatzfeld PIN');
+        expect(xc(['show', '-s', '-a', 'E-Mail', fJson, 'Import passwords/Work/Development/GitLab']).trim() === 'a@x.org', 'Zusatzfeld E-Mail');
+        expect(xc(['show', '-s', fJson, 'Import passwords/Oben']).includes('Password: pw2'), 'Eintrag in der obersten Ebene');
+        expect(xc(['show', '-s', '-a', 'E-Mail', fJson, 'Import passman/Mit Bild']).trim() === 'c@x.org', 'Passman: E-Mail als Feld, weil es auch einen Benutzernamen gibt');
+        const att = path.join(tmp, 'passman.bin'); xc(['attachment-export', fJson, 'Import passman/Mit Bild', 'bild.bin', att]);
+        expect(fs.readFileSync(att).toString() === 'PASSMAN-DATEI', 'Passman-Anhang kommt byte-genau an');
+        const nas = xc(['show', '-s', fJson, 'Import bw/Arbeit/Server/NAS']);
+        expect(nas.includes('UserName: admin') && nas.includes('URL: https://nas.local'), 'Bitwarden-NAS:\n' + nas);
+        expect(xc(['show', '-s', '-a', 'URL 2', fJson, 'Import bw/Arbeit/Server/NAS']).trim() === 'https://nas2.local', 'zweite Adresse als Feld');
+        expect(xc(['show', '-s', '-a', 'Frage', fJson, 'Import bw/Arbeit/Server/NAS']).trim() === 'Hund', 'verstecktes Bitwarden-Feld');
+        expect(/^\d{6}$/.test(xc(['show', '-t', fJson, 'Import bw/Arbeit/Server/NAS']).trim().split('\n').pop()), 'TOTP aus dem Bitwarden-Export');
+        await p.context().close();
+    });
+
     await step('Lokale Datei: oeffnen, aendern, "Speichern" liefert Download, der in KeePassXC oeffnet', async () => {
         const p = await newPage();
         await p.locator('input[value=file]').check({ force: true });
