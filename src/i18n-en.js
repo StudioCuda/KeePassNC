@@ -466,6 +466,8 @@ export default {
     'preview': 'Preview',
     'preview.none': '“{name}” can’t be previewed. Download it instead.',
     'pw.large': 'Large view',
+    'pw.reused': 'Also used in: {names}',
+    'pw.reused.more': 'Also used in: {names} (+{n})',
     'qr.none': 'No QR code found in that picture.',
     'qr.ok': 'TOTP taken from the QR code.',
     'qr.other': 'That QR code isn’t a TOTP setup (otpauth://).',

@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Added
+- The entry editor says so when another entry has the same password: "Also used in: Amazon, eBay", right under the strength bar. It names two entries at most ("… (+198)" for a password that sits in hundreds) and never takes more than two lines. It follows the health report's rules (references and entries left out of the report don't count) and goes away when you tick "Leave out of password health". Quiet text, no pop-up.
 ### Changed
 - The App Store summary says what the app is: "Secure password manager for KeePass databases, right inside Nextcloud". A thin divider separates it from the description.
 
