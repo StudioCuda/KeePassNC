@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { launchBrowser, browserName, waitOpened, plainWebdav } from '../browser.mjs';
 import { DOMParser } from '@xmldom/xmldom';
 import { startServer } from './davserver.mjs';
@@ -452,6 +453,40 @@ async function main() {
         await page.click('#g-icon'); await page.click('#icon-std [data-icon="60"]'); await page.click('#icon-ok');
         await page.selectOption('#g-icon-scope', 'groups'); await page.click('#g-ok');
         await page.waitForFunction(() => !document.querySelector('.modal'));
+    });
+
+    await step('Barrierefreiheit (axe-core): keine Verstoesse auf Liste, Eintrag, Editor, Einstellungen, Datenbank, Generator, Palette; hell, dunkel und auf dem Handy', async () => {
+        // The "region" rule (content outside landmarks) stays off: popup menus live in <body> on purpose.
+        const axeSource = fs.readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');
+        await page.emulateMedia({ reducedMotion: 'reduce' }); // no fade-ins: halfway through one, colours are blended and the contrast reads wrong
+        const found = [];
+        const scan = async (label) => {
+            await page.evaluate(axeSource);
+            const r = await page.evaluate(() => axe.run(document, { resultTypes: ['violations'], runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'best-practice'] }, rules: { region: { enabled: false } } }));
+            for (const v of r.violations) found.push(`${label}: ${v.id} [${v.impact}] x${v.nodes.length} ${v.nodes[0].target.join(' ')} - ${(v.nodes[0].any[0] || v.nodes[0].all[0] || v.nodes[0].none[0] || {}).message || v.help}`);
+        };
+        const dialog = async (label, open) => { await open(); await page.locator('.modal').first().waitFor(); await scan(label); await page.keyboard.press('Escape'); await page.locator('.backdrop').first().waitFor({ state: 'detached' }); };
+        const desktop = async (tag) => {
+            await page.click('#nav-all'); await rows(page).nth(2).click();
+            await scan(`${tag} Liste und Eintrag`);
+            await page.click('#sel-start'); await scan(`${tag} Auswahlmodus`); await page.click('#sel-done');
+            await page.click('#edit-btn'); await page.locator('#e-title').waitFor(); await scan(`${tag} Editor`); await page.click('#cancel-btn');
+            await dialog(`${tag} Einstellungen`, () => page.click('#settings-btn'));
+            await dialog(`${tag} Datenbank`, () => page.click('#reports-btn'));
+            await dialog(`${tag} Generator`, () => page.click('#tool-gen'));
+            await dialog(`${tag} Palette`, () => page.keyboard.press('Control+k'));
+        };
+        await desktop('hell');
+        await page.evaluate(() => { document.documentElement.dataset.theme = 'dark'; });
+        await desktop('dunkel');
+        await page.evaluate(() => { delete document.documentElement.dataset.theme; });
+        await page.setViewportSize({ width: 390, height: 844 });
+        try {
+            if (await page.locator('.back-btn').first().isVisible()) await page.locator('.back-btn').first().click(); // from the open entry back to the list
+            await scan('Handy Liste');
+            await rows(page).nth(2).click(); await scan('Handy Eintrag');
+        } finally { await page.setViewportSize({ width: 1500, height: 950 }); await page.emulateMedia({ reducedMotion: null }); }
+        expect(found.length === 0, 'axe-core:\n   ' + found.join('\n   '));
     });
 
     await step('Mehrfachauswahl: Strg-/Umschalt-Klick, Auswahlmodus, Alle, Tags, Verschieben, Loeschen + Rueckgaengig, Wiederherstellen, Ziehen nimmt alle mit', async () => {
