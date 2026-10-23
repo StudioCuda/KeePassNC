@@ -27,7 +27,7 @@ No lock-in, no special format, no drama.
 - **Find things fast:** search like in KeePassXC and a command palette (`Ctrl+K`).
 - **Codes and passkeys:** TOTP codes right next to the password, and passkeys saved by KeePassXC stay intact.
 - **Better passwords:** a generator for passphrases and passwords, plus a health report for weak, reused and expired ones.
-- **Moving house:** import from KeePassXC, Bitwarden, 1Password, LastPass, Chrome or Firefox, and export to CSV.
+- **Moving house:** import from KeePassXC, Bitwarden, 1Password, LastPass, Proton Pass, Chrome or Firefox, and from Nextcloud Passwords and Passman, and export to CSV.
 - **Feels at home:** follows your Nextcloud color and your light or dark choice.
 
 That's the short list. [Everything else](docs/FEATURES.md) (search tricks, shortcuts, database settings, shared files and more)

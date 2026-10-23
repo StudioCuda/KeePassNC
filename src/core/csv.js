@@ -29,18 +29,21 @@ export function parseCsv(text) {
 /** Rows -> CSV, every field quoted (like KeePassXC), CRLF line endings. */
 export const toCsv = (rows) => rows.map((r) => r.map((f) => `"${String(f ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n') + '\r\n';
 
-// Column names of the known exports (lower case): KeePassXC, KeePass 2, Bitwarden, 1Password, Chrome/Edge/Brave, Firefox, LastPass, Proton Pass
+// Column names of the known exports (lower case): KeePassXC, KeePass 2, Bitwarden, 1Password, Chrome/Edge/Brave, Firefox, LastPass, Proton Pass,
+// Nextcloud Passwords (German headers: its CSV export uses the language of whoever exports) and Passman
 const COLUMNS = {
-    group: ['group', 'folder', 'grouping', 'vault'],
-    title: ['title', 'name', 'account'],
-    user: ['username', 'login_username', 'login name', 'user', 'login'],
-    email: ['email'], // only used when there is no user name (Proton Pass)
-    password: ['password', 'login_password'],
-    url: ['url', 'login_uri', 'web site', 'website', 'uri'],
-    notes: ['notes', 'note', 'comments', 'extra'],
+    group: ['group', 'folder', 'grouping', 'vault', 'ordner'],
+    title: ['title', 'name', 'account', 'label'],
+    user: ['username', 'login_username', 'login name', 'user', 'login', 'benutzer'],
+    email: ['email'], // only used when there is no user name (Proton Pass, Passman)
+    password: ['password', 'login_password', 'passwort'],
+    url: ['url', 'login_uri', 'web site', 'website', 'uri', 'webseite'],
+    notes: ['notes', 'note', 'comments', 'extra', 'notizen', 'description'],
     totp: ['totp', 'login_totp', 'otpauth', 'otp'],
     tags: ['tags']
 };
+
+const EMPTY = /^(null|\[\]|\{\})$/; // what Passman writes for "nothing"
 
 /**
  * Maps the header row and returns {entries, ignored, refs}. entries: [{path: string[], title, user, password, url, notes, totp, tags: string[]}],
@@ -56,13 +59,14 @@ export function mapRows([head = [], ...rows]) {
         const i = aliases.map((a) => names.indexOf(a)).find((n) => n >= 0);
         if (i !== undefined) col[field] = i;
     }
-    const ignored = head.filter((_, i) => !Object.values(col).includes(i) && rows.some((r) => (r[i] || '').trim()));
+    const ignored = head.filter((_, i) => !Object.values(col).includes(i) && rows.some((r) => { const c = (r[i] || '').trim(); return c && !EMPTY.test(c); }));
     const keepassxc = names[col.group] === 'group';
     let refs = 0;
     const entries = rows.map((r) => {
         let hit = false;
         const get = (f) => {
             const v = col[f] === undefined ? '' : r[col[f]] ?? '';
+            if ((f === 'email' || f === 'tags') && EMPTY.test(v.trim())) return '';
             if (!/\{REF:/i.test(v)) return v;
             hit = true;
             return v.replace(/\{REF:/gi, '{ REF:');
@@ -72,7 +76,7 @@ export function mapRows([head = [], ...rows]) {
         const url = get('url').trim();
         let title = get('title').trim();
         if (!title && url) try { title = new URL(/^[a-z][a-z0-9+.-]*:/i.test(url) ? url : 'https://' + url).hostname; } catch { title = url; }
-        const entry = { path, title, user: get('user') || get('email'), password: get('password'), url, notes: get('notes'), totp: get('totp').trim(), tags: get('tags').split(/[,;]/).map((x) => x.trim()).filter(Boolean) };
+        const entry = { path, title, user: get('user') || get('email'), password: get('password'), url, notes: get('notes'), totp: get('totp').trim(), tags: get('tags').replace(/^\s*\[|\]\s*$/g, '').split(/[,;]/).map((x) => x.trim()).filter(Boolean) };
         if (hit) refs++;
         return entry;
     });
