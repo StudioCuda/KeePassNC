@@ -5,6 +5,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ### Added
 - Several entries at once. Ctrl/Cmd+click ticks an entry, Shift+click ticks everything in between, `Ctrl+A` ticks the whole list, or press the new tick button next to the sort menu (handy on a phone) and just tap. A bar replaces the list header and moves, tags (add or remove) or deletes the lot, in the recycle bin it restores them. Deleting offers Undo like for a single entry. Drag one ticked entry onto a group and the others come along. `Esc` or "Done" ends it. Tag changes leave a history entry on every entry they touch, like any other edit. After a CSV import, sorting 300 entries into groups is no longer a one-by-one job.
+### Changed
+- The App Store summary says what the app is: "Secure password manager for KeePass databases, right inside Nextcloud". A thin divider separates it from the description.
 
 ## [0.17.1] - 2026-10-23
 ### Fixed
