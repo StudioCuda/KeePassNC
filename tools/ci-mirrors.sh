@@ -28,7 +28,9 @@ as_root() { if [ "$(id -u)" = 0 ]; then "$@"; else sudo "$@"; fi; }
 tag() { awk -F'\t' '{printf "%s\tpriority:%d\n", $1, NR}'; }
 
 case ${1:-} in
-  set) printf '%s\n' "${mirrors[@]}" | tag | as_root tee "$file" >/dev/null ;;
+  # ci-apt.sh calls this on every attempt: once the list is ours, leave its order alone, or a retry would start on the
+  # mirror that was just too slow.
+  set) grep -q 'priority:' "$file" || printf '%s\n' "${mirrors[@]}" | tag | as_root tee "$file" >/dev/null ;;
   rotate)
     urls=$(cut -f1 "$file")
     { printf '%s\n' "$urls" | tail -n +2; printf '%s\n' "$urls" | head -n 1; } | tag | as_root tee "$file.new" >/dev/null
