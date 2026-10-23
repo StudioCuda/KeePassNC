@@ -12,6 +12,7 @@ jobs:
   e2e:
     name: e2e (${{ matrix.name }})
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     # The master canary may fail without turning the whole run red.
     continue-on-error: ${{ matrix.canary == true }}
     strategy:
@@ -35,14 +36,23 @@ jobs:
         if: steps.changes.outputs.docs_only != 'true'
         with: { php-version: '8.3', extensions: 'sqlite3, pdo_sqlite, gd, zip, curl, mbstring, xml, intl, bcmath, gmp' }
       # System-wide on purpose: the tests start python3 with -I, which ignores the per-user site-packages.
-      - run: sudo apt-get update && sudo apt-get install -y keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
+      - run: tools/ci-retry.sh 300 3 sudo sh -c 'apt-get update && apt-get install -y keepassxc python3-pip' && sudo pip install --break-system-packages pykeepass
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm ci || npm install
         if: steps.changes.outputs.docs_only != 'true'
+      - name: Playwright version
+        id: pw
+        if: steps.changes.outputs.docs_only != 'true'
+        run: echo "version=$(node -p "require('playwright-core/package.json').version")" >> $GITHUB_OUTPUT
+      - uses: actions/cache@v4
+        if: steps.changes.outputs.docs_only != 'true'
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-chromium-${{ steps.pw.outputs.version }}
       - name: Chromium for the browser tests
         if: steps.changes.outputs.docs_only != 'true'
         run: |
-          npx playwright-core install --with-deps chromium
+          tools/ci-retry.sh 300 3 npx playwright-core install --with-deps chromium
           echo "CHROMIUM=$(node -e "console.log(require('playwright-core').chromium.executablePath())")" >> $GITHUB_ENV
       - run: npm run build && npm run test:unit && npm run test:compat
         if: steps.changes.outputs.docs_only != 'true'
@@ -69,6 +79,7 @@ jobs:
   browsers:
     name: browsers (${{ matrix.browser }})
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     continue-on-error: true
     strategy:
       fail-fast: false
@@ -85,11 +96,20 @@ jobs:
       - uses: actions/setup-node@v7
         if: steps.changes.outputs.docs_only != 'true'
         with: { node-version: 22 }
-      - run: sudo apt-get update && sudo apt-get install -y keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
+      - run: tools/ci-retry.sh 300 3 sudo sh -c 'apt-get update && apt-get install -y keepassxc python3-pip' && sudo pip install --break-system-packages pykeepass
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm ci || npm install
         if: steps.changes.outputs.docs_only != 'true'
-      - run: npx playwright-core install --with-deps ${{ matrix.browser }}
+      - name: Playwright version
+        id: pw
+        if: steps.changes.outputs.docs_only != 'true'
+        run: echo "version=$(node -p "require('playwright-core/package.json').version")" >> $GITHUB_OUTPUT
+      - uses: actions/cache@v4
+        if: steps.changes.outputs.docs_only != 'true'
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.pw.outputs.version }}
+      - run: tools/ci-retry.sh 300 3 npx playwright-core install --with-deps ${{ matrix.browser }}
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm run build
         if: steps.changes.outputs.docs_only != 'true'
