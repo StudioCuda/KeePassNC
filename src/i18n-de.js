@@ -550,6 +550,13 @@ export default {
     'sync.pulled': 'Änderungen von einem anderen Gerät übernommen.',
     'theme.auto': 'Automatisch (System)', 'theme.dark': 'Dunkel', 'theme.light': 'Hell', 'theme.nextcloud': 'Wie Nextcloud',
     'tools': 'Werkzeuge',
+    'tag.delete': 'Tag entfernen',
+    'tag.deleted': 'Tag „{tag}“ entfernt.',
+    'tag.invalid': 'Ein Tag darf kein Komma und kein Semikolon enthalten.',
+    'tag.merged': 'Mit „{tag}“ zusammengeführt.',
+    'tag.name': 'Name des Tags',
+    'tag.rename': 'Tag umbenennen',
+    'tag.renamed': 'Tag in „{tag}“ umbenannt.',
     'undo': 'Rückgängig',
     'view': 'Ansehen'
 };

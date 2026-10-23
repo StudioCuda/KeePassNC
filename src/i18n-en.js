@@ -550,6 +550,13 @@ export default {
     'sync.pulled': 'Changes from another device applied.',
     'theme.auto': 'Automatic (system)', 'theme.dark': 'Dark', 'theme.light': 'Light', 'theme.nextcloud': 'Same as Nextcloud',
     'tools': 'Tools',
+    'tag.delete': 'Remove tag',
+    'tag.deleted': 'Tag “{tag}” removed.',
+    'tag.invalid': 'A tag can’t contain commas or semicolons.',
+    'tag.merged': 'Merged into “{tag}”.',
+    'tag.name': 'Tag name',
+    'tag.rename': 'Rename tag',
+    'tag.renamed': 'Tag renamed to “{tag}”.',
     'undo': 'Undo',
     'view': 'View'
 };

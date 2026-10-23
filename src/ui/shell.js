@@ -5,7 +5,7 @@ import { SORTS } from './common.js';
 import { ctx, copy, setStatus, applyTheme, clearMarks } from './ctx.js';
 import { $, h, icon, iconBtn, modal, popupMenu, toast } from './dom.js';
 import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl } from './common.js';
-import { renderSidebar, newGroup, setFilter, startEntryDrag, emptyBin } from './groups.js';
+import { renderSidebar, newGroup, setFilter, startEntryDrag, emptyBin, tagMenu } from './groups.js';
 import { renderDetail, deleteEntry, stopDetailTimers } from './detail.js';
 import { pruneMarks, tickClick, selectAll, selectionBar, deleteEntries } from './selection.js';
 import { renderEditor, startEdit, cancelEdit } from './editor.js';
@@ -103,6 +103,7 @@ function listHead(entries) {
         iconBtn('menu', t('nav.groups'), () => { $('.shell').dataset.drawer = '1'; }, { class: 'menu-btn in-list' }),
         h('div', { class: 'grow' }, h('h2', { text: filterTitle() }), h('span', { class: 'muted', id: 'list-count', text: t('n.entries', { n: entries.length }) })),
         state.filter.type === 'bin' && !state.query ? iconBtn('broom', t('bin.empty'), emptyBin, { id: 'empty-bin', class: 'danger-ghost' }) : null, // icon only: the header is narrow, the name stays as tooltip and label
+        state.filter.type === 'tag' && !state.query ? iconBtn('more', t('more'), (e) => tagMenu(e.currentTarget, state.filter.tag), { id: 'tag-more' }) : null,
         h('select', { id: 'sort', 'aria-label': t('sort'), onchange: (e) => { ctx.settings.sort = e.target.value; saveSettings(ctx.settings); renderList(); } }, ...SORTS.map((s) => h('option', { value: s, selected: ctx.settings.sort === s, text: t('sort.' + s) }))),
         iconBtn('checkSquare', t('sel.start'), () => { state.selecting = true; syncTicks(); }, { id: 'sel-start' }));
 }
