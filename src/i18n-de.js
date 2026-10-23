@@ -467,7 +467,7 @@ export default {
     'preview.none': '„{name}“ lässt sich nicht anzeigen. Bitte herunterladen.',
     'pw.large': 'Große Ansicht',
     'pw.reused': 'Wird auch benutzt in: {names}',
-    'pw.reused.more': 'Wird auch benutzt in: {names} und {n} weiteren',
+    'pw.reused.more': 'Wird auch benutzt in: {names} (+{n})',
     'qr.none': 'In diesem Bild steckt kein QR-Code.',
     'qr.ok': 'TOTP aus dem QR-Code übernommen.',
     'qr.other': 'Dieser QR-Code ist keine TOTP-Einrichtung (otpauth://).',

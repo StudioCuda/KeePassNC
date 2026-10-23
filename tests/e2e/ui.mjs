@@ -204,7 +204,8 @@ async function main() {
         await page.fill('#e-pass', 'Sommer2020');
         await note.waitFor({ state: 'visible' });
         const txt = await note.innerText();
-        expect(/Gleiches Passwort 0.*Gleiches Passwort 1.*Gleiches Passwort 2/.test(txt) && !/weiteren/.test(txt), 'drei Eintraege mit Sommer2020: ' + txt);
+        expect(txt === 'Wird auch benutzt in: Gleiches Passwort 0, Gleiches Passwort 1 (+1)', 'drei Eintraege mit Sommer2020, zwei Namen und der Rest als Zahl: ' + txt);
+        expect(await note.evaluate((el) => el.getBoundingClientRect().height <= 2 * parseFloat(getComputedStyle(el).lineHeight) + 1), 'hoechstens zwei Zeilen');
         await page.fill('#e-pass', '123456'); await page.waitForFunction(() => /Schwach/.test(document.querySelector('#e-reuse')?.textContent || ''));
         expect((await note.innerText()).includes('Schwach'), 'Hinweis folgt dem Passwort');
         await page.check('#e-noreport'); await note.waitFor({ state: 'hidden' });

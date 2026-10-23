@@ -67,10 +67,11 @@ export function renderEditor(host) {
     // A quiet note when another entry has the same password (the health report's rule); a pause after typing keeps it from flickering
     const reuse = h('p', { class: 'hint reuse', id: 'e-reuse', role: 'status', hidden: true });
     let reuseTimer = null;
+    const SHOWN = 2; // names listed; a password that sits in hundreds of entries stays a short line ("A, B (+198)"), CSS keeps it to two lines
     const checkReuse = () => {
         if (!reuse.isConnected) return; // the editor was closed (or the vault locked) in the meantime
         const names = i.excludeReports.checked ? [] : reusedBy(allRealEntries(), entry, i.Password.value).map((e) => fieldText(e.fields.get('Title')) || t('entry.untitled')).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-        const text = !names.length ? '' : t(names.length > 3 ? 'pw.reused.more' : 'pw.reused', { names: names.slice(0, 3).join(', '), n: names.length - 3 });
+        const text = !names.length ? '' : t(names.length > SHOWN ? 'pw.reused.more' : 'pw.reused', { names: names.slice(0, SHOWN).join(', '), n: names.length - SHOWN });
         if (reuse.textContent !== text) reuse.textContent = text;
         reuse.hidden = !text;
     };
