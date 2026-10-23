@@ -4,6 +4,7 @@
 # once held a job for 45 minutes. A stuck download is cut off and tried again instead of blocking the pull request.
 # `timeout` only stops the command itself, not an apt-get it started through sudo. That one would keep the dpkg lock
 # and fail every retry, so a failed attempt stops leftover apt-get processes and waits for the lock before going on.
+# A failed attempt also moves apt on to its next mirror (tools/ci-mirrors.sh), so a slow mirror costs one attempt.
 # Usage: tools/ci-retry.sh <seconds-per-attempt> <attempts> <command> [args...]
 set -uo pipefail
 
@@ -17,6 +18,7 @@ for ((try = 1; try <= attempts; try++)); do
   timeout "$limit" "$@" && exit 0
   echo "attempt $try/$attempts failed: $*" >&2
   as_root pkill -x apt-get 2>/dev/null
+  "$(dirname "$0")/ci-mirrors.sh" rotate >/dev/null 2>&1
   for _ in $(seq 60); do
     as_root fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock >/dev/null 2>&1 || break
     sleep 2

@@ -24,6 +24,8 @@ Dir::Cache::archives "$cache";
 DPkg::Options:: "--force-unsafe-io";
 CONF
 
+"$(dirname "$0")/ci-mirrors.sh" set
+
 echo "apt cache: $(ls "$cache" | grep -c '\.deb$') packages in $cache"
 echo "apt sources in use:"
 grep -hE '^(URIs|deb )' /etc/apt/sources.list.d/*.sources /etc/apt/sources.list 2>/dev/null | sort -u || true
