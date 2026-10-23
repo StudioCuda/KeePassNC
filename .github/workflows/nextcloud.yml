@@ -36,7 +36,7 @@ jobs:
         if: steps.changes.outputs.docs_only != 'true'
         with: { php-version: '8.3', extensions: 'sqlite3, pdo_sqlite, gd, zip, curl, mbstring, xml, intl, bcmath, gmp' }
       # System-wide on purpose: the tests start python3 with -I, which ignores the per-user site-packages.
-      - run: tools/ci-retry.sh 300 3 sudo sh -c 'apt-get update && apt-get install -y keepassxc python3-pip' && sudo pip install --break-system-packages pykeepass
+      - run: tools/ci-retry.sh 300 3 tools/ci-apt.sh keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm ci || npm install
         if: steps.changes.outputs.docs_only != 'true'
@@ -96,7 +96,7 @@ jobs:
       - uses: actions/setup-node@v7
         if: steps.changes.outputs.docs_only != 'true'
         with: { node-version: 22 }
-      - run: tools/ci-retry.sh 300 3 sudo sh -c 'apt-get update && apt-get install -y keepassxc python3-pip' && sudo pip install --break-system-packages pykeepass
+      - run: tools/ci-retry.sh 300 3 tools/ci-apt.sh keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm ci || npm install
         if: steps.changes.outputs.docs_only != 'true'
