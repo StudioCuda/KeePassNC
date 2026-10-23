@@ -3,7 +3,7 @@
 :root {
     --bg: #f4f1ec; --surface: #fffdfa; --surface-2: #f9f6f2; --surface-3: #ede8e2; --border: #e2dcd4; --border-strong: #cec6bb;
     --text: #18202c; --muted: #685f58; --accent: #0b1f3b; --accent-2: #4f7774; --accent-soft: #e7e7e7; --on-accent: #fff; --on-accent-2: #fff; --ring: #a8893f;
-    --ok: #2f7d46; --ok-soft: #e2f0e5; --warn: #9d5a00; --warn-soft: #fbefd9; --bad: #c0362c; --bad-soft: #f9e3e0;
+    --ok: #2b7441; --ok-soft: #e2f0e5; --warn: #9d5a00; --warn-soft: #fbefd9; --bad: #b93228; --bad-soft: #f9e3e0;
     --shadow-1: 0 1px 2px rgb(11 31 59 / .06), 0 1px 1px rgb(11 31 59 / .04); --shadow-2: 0 8px 28px rgb(11 31 59 / .14), 0 2px 6px rgb(11 31 59 / .08);
     --hero: #0b1f3b; --hero-2: #1a3560; --nch-h: 44px;
     --login-spot: 70%; --login-glow: 10%; --login-mark: .11; --login-noise: .05; --login-edge: rgb(255 255 255 / .8); /* Login in Nextcloud: decoration */
@@ -111,7 +111,7 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); fon
 
 .filepick-group { position: relative; } .filepick-group > input[type=file] { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
 .fp-field { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; min-height: 40px; padding: 8px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface); font-size: 14px; font-weight: 450; overflow: hidden; } /* same size as the button next to it */
-.fp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .fp-name.ph { color: color-mix(in srgb, var(--muted) 62%, var(--surface)); } /* grey everywhere, not only inside .login */
+.fp-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .fp-name.ph { color: var(--muted); } /* grey everywhere, not only inside .login (and dark enough to read: 4.5:1) */
 .filepick-group:has(input:focus-visible) .fp-field { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 22%, transparent); } .filepick-group .btn { pointer-events: none; }
 .filepick-group.drop .fp-field { border-color: var(--accent); background: var(--accent-soft); } /* a file is dragged over it */
 
@@ -229,7 +229,7 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 body.has-nch .login { min-height: 0; height: calc(100vh - var(--nch-h) - var(--nch-gap)); height: calc(100dvh - var(--nch-h) - var(--nch-gap)); }
 body.has-nch .login > .login-card { overflow-y: auto; scrollbar-gutter: stable; }
 body.has-nch .shell { height: calc(100vh - var(--nch-h) - var(--nch-gap)); height: calc(100dvh - var(--nch-h) - var(--nch-gap)); }
-body.has-nch .topbar .brand { display: none; } /* the name is already in the header bar */
+body.has-nch .topbar .brand { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } /* the name is already in the header bar; the h1 stays for screen readers */
 /* Font like --font-face in Nextcloud, so names wrap the same way in the header and the app menu */
 .nch { font-family: system-ui, -apple-system, "Segoe UI", Roboto, Oxygen-Sans, Cantarell, Ubuntu, "Helvetica Neue", "Noto Sans", "Liberation Sans", Arial, sans-serif; position: relative; z-index: 30; display: flex; align-items: center; height: var(--nch-h); padding: 0 12px 0 0; background: var(--nch-bg, #0b1f3b); color: var(--nch-fg, #fff); --nch-hover: rgb(0 0 0 / .1); --nch-press: rgb(0 0 0 / .15); }
 .nch a { color: inherit; text-decoration: none; }
@@ -323,6 +323,7 @@ body.has-nch .topbar .brand { display: none; } /* the name is already in the hea
 .shell { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 .topbar { display: flex; align-items: center; gap: 8px; height: var(--topbar-h); padding: 0 12px; background: color-mix(in srgb, var(--surface) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); flex: none; z-index: 5; }
 .brand { display: flex; align-items: center; gap: 9px; margin-right: 6px; font-size: 15.5px; letter-spacing: -.01em; }
+.brand .brand-name { margin: 0; font-size: inherit; font-weight: 700; letter-spacing: inherit; line-height: inherit; }
 .file-name { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; padding: 3px 10px; border-radius: 999px; background: var(--surface-3); color: var(--muted); font-size: 12.5px; font-weight: 550; } .file-name span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .file-name .icon { width: 14px; height: 14px; }
 .searchbox { position: relative; flex: 0 1 460px; min-width: 120px; flex-direction: row; align-items: center; margin-left: 10px; }
 .searchbox > .icon { position: absolute; left: 12px; color: var(--muted); pointer-events: none; }
@@ -489,7 +490,7 @@ textarea.c-value { min-height: 0; resize: vertical; }
     .back-btn { display: inline-grid; }
     .topbar > .menu-btn, #settings-btn { display: none; }
     .menu-btn.in-list { display: inline-grid; }
-    .brand strong, .btn .label, .dh-actions .sr-or-wide { display: none; }
+    .brand .brand-name, .btn .label, .dh-actions .sr-or-wide { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } /* no room for the words, but buttons keep their names for screen readers */
     .pill { font-size: 0; width: 11px; height: 11px; padding: 0; border-radius: 50%; flex: none; }
     .pill[data-state=synced] { background: var(--ok); } .pill[data-state=dirty], .pill[data-state=unsynced] { background: var(--warn); } .pill[data-state=offline] { background: var(--bad); }
     .pill.busy::before { display: none; }
