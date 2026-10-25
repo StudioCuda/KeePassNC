@@ -67,6 +67,7 @@ export function pickFolder({ NC, auth, start = '/', mode = 'folder', select = ''
 
         function show(folder, entries) {
             const keep = chosen;
+            const focused = list.contains(document.activeElement) ? document.activeElement.dataset.name : null; // the refresh must not drop it
             cur = folder;
             const parts = folder.split('/').filter(Boolean);
             crumbs.replaceChildren(...[t('folder.root'), ...parts].flatMap((name, i) => {
@@ -90,6 +91,7 @@ export function pickFolder({ NC, auth, start = '/', mode = 'folder', select = ''
                 choose(select);
                 list.querySelector('.file-item[aria-pressed="true"]')?.focus();
             }
+            if (focused) [...list.querySelectorAll('.folder-item')].find((b) => b.dataset.name === focused)?.focus(); // keyboard focus survives the refresh
         }
 
         let newBtn = null;

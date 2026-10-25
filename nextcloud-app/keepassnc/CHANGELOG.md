@@ -6,6 +6,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - The big master password field on wide windows shows its blinking caret again: it sits at the left edge, and what you type starts there. Only the placeholder stays centred.
 
+### Fixed
+- In the file and folder browser, the keyboard focus stays where it is when the fresh listing replaces the one shown from the cache. Before, the focus could drop to the page behind it, and Enter did nothing until you tabbed back in.
+
 ## [0.18.0] - 2026-10-23
 ### Added
 - Tags are manageable now. Right-click a tag in the sidebar (or open the "⋯" menu in the list header while you look at it, which also works on a phone) to rename or remove it. Renaming to a name that exists already merges the two. Removing takes the tag off every entry, the entries stay, and Undo puts it back. Drag entries onto a tag to add it, ticked ones come along. Every entry a tag change touches gets a history entry, like any other edit.
