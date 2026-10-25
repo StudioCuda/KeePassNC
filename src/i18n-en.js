@@ -24,6 +24,7 @@ export default {
     'copied': '{what} copied - will be cleared from the clipboard in {s} s.',
     'copied.short': '{what} copied',
     'copy': 'Copy',
+    'row.openurl': 'Open URL',
     'copy.failed': 'Copy not possible (browser permission).',
     'create': 'Create',
     'cred.apply': 'Change',

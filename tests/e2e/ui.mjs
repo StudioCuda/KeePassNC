@@ -253,6 +253,7 @@ async function main() {
         await page.waitForFunction(() => (document.querySelector('#detail h2')?.textContent || '').trim() === 'UI Link');
         expect(await link('[data-testid=f-url]') === 'https://example.com/login', 'nackter Hostname');
         expect((await page.locator('[data-testid=f-url]').innerText()).trim() === 'example.com/login', 'Text bleibt wie eingegeben');
+        await page.fill('#search', 'title:"UI Link"'); await rowOf('UI Link').first().waitFor(); const n3 = await page.locator('.entry-wrap', { has: rowOf('UI Link') }).locator('.row-actions button').count(); expect(n3 === 3, 'Schnellbuttons der Zeile: URL oeffnen, Benutzer, Passwort'); await page.fill('#search', '');
         expect(await link('[data-testid=custom-KP2A_URL_1]') === 'https://alt.example.org', 'URL-Zusatzfeld');
         expect(await link('[data-testid=custom-Server]') === 'https://srv.example.org', 'Zusatzfeld mit https');
         expect(await link('[data-testid=custom-Notiz]') === null, 'nackter Hostname in einem Nicht-URL-Feld bleibt Text');
@@ -263,6 +264,7 @@ async function main() {
         await page.fill('#e-url', 'cmd://putty.exe'); await page.click('#apply-btn');
         await page.waitForFunction(() => /cmd:/.test(document.querySelector('[data-testid=f-url]')?.textContent || ''));
         expect(await link('[data-testid=f-url]') === null, 'cmd:// darf kein Link sein');
+        await page.fill('#search', 'title:"UI Link"'); await rowOf('UI Link').first().waitFor(); const n2 = await page.locator('.entry-wrap', { has: rowOf('UI Link') }).locator('.row-actions button').count(); await page.fill('#search', ''); expect(n2 === 2, 'cmd:// bekommt keinen URL-Schnellbutton');
     });
 
     await step('TOTP-Ring/-Code fuer otpauth (SHA256, 8 Stellen, 45 s) und alte Felder (TOTP Seed)', async () => {
