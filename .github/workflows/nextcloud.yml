@@ -96,13 +96,12 @@ jobs:
           path: ~/.cache/ci-apt
           key: apt-${{ steps.os.outputs.id }}-e2e-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
 
-  # The same browser suites (no Nextcloud needed) in the other two engines. Informational for now:
-  # a red job here means "differs from Chromium", it does not block merging.
+  # The same browser suites (no Nextcloud needed) in the other two engines. Both are required checks:
+  # a red job here means the app behaves differently from Chromium, and that is a bug to fix.
   browsers:
     name: browsers (${{ matrix.browser }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
