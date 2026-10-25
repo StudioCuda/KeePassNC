@@ -70,6 +70,10 @@ export function rebind() {
 export async function doSave({ auto = false } = {}) {
     const v = state.vault;
     if (!v) return;
+    // Ctrl+S and the palette don't look at the button state. A local file has nothing to hand out without changes (no empty
+    // download), and a pull would swap the database under an open editor (syncNow keeps out of it, too).
+    if (!v.dirty && state.source.type === 'file') { setStatus(t('save.nothing')); return; }
+    if (!v.dirty && state.editing) { setStatus(t('save.editing')); return; }
     const btn = $('#save-btn');
     if (btn) btn.disabled = true;
     setStatus(auto ? t('saving.auto') : t('saving'));
@@ -81,6 +85,11 @@ export async function doSave({ auto = false } = {}) {
             setStatus(t('saved.download', { name: state.source.name }));
         } else if (res.offline) {
             setStatus(t('saved.offline'), 'warn');
+        } else if (res.pulled) {
+            // Changes from another device: the selection and the open views still point at the objects of the old database
+            rebind(); ctx.ui.refresh?.();
+            state.offlineMode = false;
+            setStatus(t('sync.pulled'));
         } else if (res.merged) {
             rebind(); ctx.ui.refresh?.();
             setStatus(t(res.noBackup ? 'saved.merged.nobackup' : 'saved.merged'), 'warn');
