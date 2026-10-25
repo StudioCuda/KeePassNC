@@ -788,6 +788,30 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Speichern, obwohl die Datei durch eine andere Datenbank ersetzt wurde: verstaendliche Meldung statt "default group is different", Aenderung bleibt, Hintergrund-Speichern wiederholt nichts', async () => {
+        const f = path.join(davRoot, 'replaced.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage('?syncretry=1');
+        await login(p, 'replaced.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'bob-bleibt'); await p.click('#apply-btn');
+        await p.waitForTimeout(1100);
+        fs.copyFileSync(path.join(davRoot, 'vault3.kdbx'), f); // another database at the same path (same password)
+        const other = fs.readFileSync(f);
+        await p.click('#save-btn');
+        await waitStatus(p, /andere Datenbank/);
+        const msg = await status(p);
+        expect(!/default group is different|MergeError/.test(msg), 'rohe Meldung: ' + msg);
+        expect(await p.locator('#save-btn').isEnabled(), 'Speichern muss erneut moeglich sein');
+        const backups = () => fs.readdirSync(davRoot).filter((n) => /^replaced\.kdbx\.conflict-/.test(n)).length;
+        const n = backups();
+        expect(n === 1, 'Konflikt-Sicherung des ersten Versuchs: ' + n);
+        await p.waitForTimeout(2500); // retry timer and auto-save would each leave another conflict backup
+        expect(backups() === n, 'weitere Konflikt-Sicherungen im Hintergrund: ' + (backups() - n));
+        expect(Buffer.compare(other, fs.readFileSync(f)) === 0, 'Datei auf dem Server wurde ueberschrieben');
+        await p.context().close();
+    });
+
     await step('Datenschutz/Sicherheit: keine externen Anfragen, keine JS-Fehler, CSP gesetzt, Server sah nie Klartext', async () => {
         expect(problems.external.length === 0, 'Externe Anfragen: ' + problems.external.join(', '));
         expect(problems.pageErrors.length === 0, 'Seitenfehler: ' + problems.pageErrors.join(' | '));
