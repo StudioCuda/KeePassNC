@@ -1,0 +1,13 @@
+# Keeps the GitHub Actions in .github/workflows current (the cache actions were still on Node 20, for example).
+# One pull request per week at most; its checks are the full test run, as for any change outside the docs.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "CI"
