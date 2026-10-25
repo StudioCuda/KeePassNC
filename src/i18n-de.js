@@ -76,6 +76,8 @@ export default {
     'csv.empty': 'In dieser Datei stehen keine Einträge.',
     'csv.export': 'CSV herunterladen',
     'csv.export.sure': 'Verstanden, ich passe auf die Datei auf',
+    'csv.export.sheet': 'Für Excel & Co. absichern',
+    'csv.export.sheet.hint': 'Setzt ein \' vor Zellen, die mit = + - @ beginnen, damit eine Tabellenkalkulation sie nicht als Formel ausführt. Das ändert diese Werte (auch Passwörter); beim erneuten Einlesen bleibt das \' stehen.',
     'csv.export.title': 'Export',
     'csv.export.warn': 'Die CSV-Datei enthält alle Passwörter im Klartext. Wer sie in die Finger bekommt, kann alles lesen. Also gleich wieder löschen, wenn du fertig bist.',
     'csv.found': 'Gefundene Einträge: {n}.',

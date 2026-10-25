@@ -76,6 +76,8 @@ export default {
     'csv.empty': 'No entries found in this file.',
     'csv.export': 'Download CSV',
     'csv.export.sure': 'Got it, I’ll take good care of the file',
+    'csv.export.sheet': 'Make it safe for Excel & co.',
+    'csv.export.sheet.hint': 'Puts a \' in front of cells that start with = + - @, so a spreadsheet doesn’t run them as formulas. This changes those values (passwords too); importing the file again keeps the \'.',
     'csv.export.title': 'Export',
     'csv.export.warn': 'The CSV file holds all your passwords in plain text. Anyone who gets hold of it can read them, so delete it once you’re done.',
     'csv.found': 'Entries found: {n}.',

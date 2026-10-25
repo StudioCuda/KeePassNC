@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Added
+- The CSV export has an optional "Make it safe for Excel & co." switch. A spreadsheet runs a cell that starts with `=`, `+`, `-` or `@` as a formula, and an exported title or password can start with one. With the switch on, such cells get a leading `'`. It is off by default because it changes those values, and importing the file again keeps the `'`; plain numbers like `-1` stay as they are.
 ### Fixed
 - Locking now also forgets the passwords the strength rating had remembered in the page (the sidebar's "weak" count and the entry view kept them until the page was reloaded). Nothing left the browser, but a locked database should leave no passwords lying around.
 - `Ctrl+S` (and "Save" in the command palette) with nothing to save no longer hands you a download when you work on a local file. Before, it produced a tiny file named like your database and said "Saved", easy to mistake for a real backup. Now it just says there are no changes.
