@@ -769,6 +769,25 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Strg+S bei offenem Editor ohne eigene Aenderungen: kein Abgleich unter dem Editor, Uebernehmen + Speichern legt keinen zweiten Eintrag mit derselben UUID an', async () => {
+        const f = path.join(davRoot, 'pull-editor.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'pull-editor.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn');
+        await p.waitForTimeout(1100);
+        xc(['edit', '-q', f, 'Bank/Konto', '-u', 'bob-extern'], null); // "other device"
+        await p.keyboard.press('Control+s');
+        await waitStatus(p, /^Erst den Eintrag/);
+        await p.fill('#e-pass', 'pw-im-editor'); await p.click('#apply-btn');
+        await p.click('#save-btn'); await waitStatus(p, /^(Gespeichert|Änderungen)/);
+        const konten = xc(['ls', f, 'Bank']).split(String.fromCharCode(10)).filter((l) => l.trim() === 'Konto');
+        expect(konten.length === 1, 'Konto kommt ' + konten.length + 'x vor');
+        expect(xc(['show', '-s', f, 'Bank/Konto']).includes('pw-im-editor'), 'Eingabe fehlt in der Datei');
+        await p.context().close();
+    });
+
     await step('Datenschutz/Sicherheit: keine externen Anfragen, keine JS-Fehler, CSP gesetzt, Server sah nie Klartext', async () => {
         expect(problems.external.length === 0, 'Externe Anfragen: ' + problems.external.join(', '));
         expect(problems.pageErrors.length === 0, 'Seitenfehler: ' + problems.pageErrors.join(' | '));
