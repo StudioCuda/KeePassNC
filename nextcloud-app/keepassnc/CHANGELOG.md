@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [0.18.1] - 2026-10-25
 ### Changed
 - The big master password field on wide windows shows its blinking caret again: it sits at the left edge, and what you type starts there. Only the placeholder stays centred.
 
