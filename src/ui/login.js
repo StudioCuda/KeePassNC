@@ -24,6 +24,7 @@ export function showLogin(message) {
     closeAllDialogs();
     stopDetailTimers();
     clearBitsCache(); // keyed by the plain passwords of the database that is closing
+    document.body.classList.remove('readonly');
     state.vault = null; state.selEntry = null; state.editing = null; state.query = ''; clearMarks();
     document.body.classList.remove('in-vault');
     const NC = ctx.NC;
@@ -210,6 +211,7 @@ export function showLogin(message) {
             // Nextcloud reports the permissions (share read-only?); other WebDAV servers don't, then saving decides
             const perms = NC && dav && !offlineOpen ? await dav.permissions() : null;
             const readOnly = perms !== null && !perms.includes('W');
+            vault.readOnly = readOnly;
             let kfNote = '';
             if (usedRemembered && (isWeakerThan(kfRec.kdf, vault.kdfParams()) || (usePepper && !kfRec.server))) {
                 // Older/weaker record (v0.4.0, database KDF raised since, in Nextcloud still without server secret):
