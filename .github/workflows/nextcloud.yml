@@ -26,6 +26,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
+      # ubuntu-latest moves to a new release now and then. The caches below hold files built for one release (a Playwright
+      # browser needs that release's libraries, the .deb files are release-specific), so the release is part of their keys.
+      - name: Ubuntu release
+        id: os
+        run: . /etc/os-release && echo "id=$ID$VERSION_ID" >> $GITHUB_OUTPUT
       - name: Docs only?
         id: changes
         run: tools/ci-docs-only.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
@@ -42,8 +47,8 @@ jobs:
         if: steps.changes.outputs.docs_only != 'true'
         with:
           path: ~/.cache/ci-apt
-          key: apt-${{ runner.os }}-e2e-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
-          restore-keys: apt-${{ runner.os }}-e2e-
+          key: apt-${{ steps.os.outputs.id }}-e2e-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
+          restore-keys: apt-${{ steps.os.outputs.id }}-e2e-
       - run: tools/ci-retry.sh 300 3 tools/ci-apt.sh keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm ci || npm install
@@ -56,7 +61,7 @@ jobs:
         if: steps.changes.outputs.docs_only != 'true'
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-chromium-${{ steps.pw.outputs.version }}
+          key: playwright-${{ steps.os.outputs.id }}-chromium-${{ steps.pw.outputs.version }}
       - name: Chromium for the browser tests
         if: steps.changes.outputs.docs_only != 'true'
         run: |
@@ -82,19 +87,21 @@ jobs:
           cd nc && git submodule update --init --depth 1 && npm ci && npm run build
       - run: NC_DIR=$PWD/nc NC_PORT=18080 node tests/nextcloud/run.mjs
         if: steps.changes.outputs.docs_only != 'true'
+      - name: Make the apt cache readable for the cache action
+        if: always() && steps.apt-cache.outputs.cache-hit != 'true' && steps.changes.outputs.docs_only != 'true'
+        run: sudo chown -R "$(id -u):$(id -g)" ~/.cache/ci-apt
       - uses: actions/cache/save@v4
         if: always() && steps.apt-cache.outputs.cache-hit != 'true' && steps.changes.outputs.docs_only != 'true'
         with:
           path: ~/.cache/ci-apt
-          key: apt-${{ runner.os }}-e2e-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
+          key: apt-${{ steps.os.outputs.id }}-e2e-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
 
-  # The same browser suites (no Nextcloud needed) in the other two engines. Informational for now:
-  # a red job here means "differs from Chromium", it does not block merging.
+  # The same browser suites (no Nextcloud needed) in the other two engines. Both are required checks:
+  # a red job here means the app behaves differently from Chromium, and that is a bug to fix.
   browsers:
     name: browsers (${{ matrix.browser }})
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -104,6 +111,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
+      # ubuntu-latest moves to a new release now and then. The caches below hold files built for one release (a Playwright
+      # browser needs that release's libraries, the .deb files are release-specific), so the release is part of their keys.
+      - name: Ubuntu release
+        id: os
+        run: . /etc/os-release && echo "id=$ID$VERSION_ID" >> $GITHUB_OUTPUT
       - name: Docs only?
         id: changes
         run: tools/ci-docs-only.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" >> $GITHUB_OUTPUT
@@ -116,8 +128,8 @@ jobs:
         if: steps.changes.outputs.docs_only != 'true'
         with:
           path: ~/.cache/ci-apt
-          key: apt-${{ runner.os }}-browsers-${{ matrix.browser }}-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
-          restore-keys: apt-${{ runner.os }}-browsers-${{ matrix.browser }}-
+          key: apt-${{ steps.os.outputs.id }}-browsers-${{ matrix.browser }}-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
+          restore-keys: apt-${{ steps.os.outputs.id }}-browsers-${{ matrix.browser }}-
       - run: tools/ci-retry.sh 300 3 tools/ci-apt.sh keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm ci || npm install
@@ -130,7 +142,7 @@ jobs:
         if: steps.changes.outputs.docs_only != 'true'
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ steps.pw.outputs.version }}
+          key: playwright-${{ steps.os.outputs.id }}-${{ matrix.browser }}-${{ steps.pw.outputs.version }}
       - run: tools/ci-retry.sh 300 3 npx playwright-core install-deps ${{ matrix.browser }}
         if: steps.changes.outputs.docs_only != 'true'
       - run: tools/ci-retry.sh 300 3 npx playwright-core install ${{ matrix.browser }}
@@ -157,8 +169,11 @@ jobs:
         if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
       - run: npm run test:pass
         if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
+      - name: Make the apt cache readable for the cache action
+        if: always() && steps.apt-cache.outputs.cache-hit != 'true' && steps.changes.outputs.docs_only != 'true'
+        run: sudo chown -R "$(id -u):$(id -g)" ~/.cache/ci-apt
       - uses: actions/cache/save@v4
         if: always() && steps.apt-cache.outputs.cache-hit != 'true' && steps.changes.outputs.docs_only != 'true'
         with:
           path: ~/.cache/ci-apt
-          key: apt-${{ runner.os }}-browsers-${{ matrix.browser }}-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
+          key: apt-${{ steps.os.outputs.id }}-browsers-${{ matrix.browser }}-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
