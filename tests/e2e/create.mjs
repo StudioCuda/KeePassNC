@@ -279,9 +279,17 @@ async function main() {
         await p8.click('#nc-browse');
         await p8.locator('.folder-item[data-name="Privat"]').waitFor();
         expect(await p8.locator('#folder-crumbs [aria-current]').innerText() === 'Alle Dateien', 'Rueckfall auf "Alle Dateien"');
+        // The last known listing of a folder shows at once and the fresh one replaces it a moment later. A slow server makes that
+        // visible: the focused file must still be focused after the replacement, or Enter goes nowhere (seen as a flaky CI run).
+        await p8.route('**/remote.php/**', async (route) => {
+            if (route.request().method() === 'PROPFIND') await new Promise((r) => setTimeout(r, 300));
+            await route.continue();
+        });
         await p8.locator('.folder-item[data-name="Privat"]').click();
         await p8.locator('.folder-item[data-name="Passwörter.kdbx"]').focus();
+        await p8.waitForTimeout(600);
         await p8.keyboard.press('Enter');
+        await p8.unroute('**/remote.php/**');
         expect(await p8.inputValue('#nc-path') === '/Privat/Passwörter.kdbx', 'Enter: ' + await p8.inputValue('#nc-path'));
         await p8.context().close();
     });
