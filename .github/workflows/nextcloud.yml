@@ -81,7 +81,10 @@ jobs:
           echo "CHROMIUM=$(node -e "console.log(require('playwright-core').chromium.executablePath())")" >> $GITHUB_ENV
       - run: npm run build && npm run test:unit && npm run test:compat
         if: steps.changes.outputs.docs_only != 'true'
-      - run: npm run test:e2e && npm run test:ui && npm run test:theme && npm run test:keyfile && npm run test:credentials && npm run test:create && npm run test:remote && npm run test:offline && npm run test:fidelity && npm run test:pass
+      # The same two lanes as in the browsers job. Measured on the runner with Chromium: 8:35 one after the other, about 4:35 in two
+      # lanes (four runs, none failed). Three lanes were no faster: the runner has four cores.
+      - name: Browser suites
+        run: tools/ci-suites.sh "e2e credentials create remote" "keyfile ui offline fidelity theme pass"
         if: matrix.browser && steps.changes.outputs.docs_only != 'true'
       # The package is cached by its published checksum, so the cache is only used while the file is unchanged.
       - name: Checksum of the release package
