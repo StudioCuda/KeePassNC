@@ -509,7 +509,7 @@ export default {
     'rep.weak': 'schwach ({bits} Bit)', 'rep.weak.n': 'Schwach',
     'restore': 'Wiederherstellen',
     'restored': 'Wiederhergestellt.',
-    'save': 'Speichern', 'save.dirty': 'Speichern *', 'save.failed': 'Speichern fehlgeschlagen: {msg}', 'save.upload': 'Hochladen *',
+    'save': 'Speichern', 'save.dirty': 'Speichern *', 'save.editing': 'Erst den Eintrag übernehmen oder abbrechen, dann speichern.', 'save.failed': 'Speichern fehlgeschlagen: {msg}', 'save.nothing': 'Keine Änderungen - es gibt nichts zu speichern.', 'save.upload': 'Hochladen *',
     'saved': 'Gespeichert.',
     'saved.download': 'Als Download gespeichert: {name}. Bitte die alte Datei damit ersetzen.',
     'saved.merged': 'Gespeichert. Änderungen eines anderen Geräts wurden zusammengeführt; beide Stände liegen als .bak-Kopie auf dem Server.',

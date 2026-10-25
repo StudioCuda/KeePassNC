@@ -509,7 +509,7 @@ export default {
     'rep.weak': 'weak ({bits} bit)', 'rep.weak.n': 'Weak',
     'restore': 'Restore',
     'restored': 'Restored.',
-    'save': 'Save', 'save.dirty': 'Save *', 'save.failed': 'Saving failed: {msg}', 'save.upload': 'Upload *',
+    'save': 'Save', 'save.dirty': 'Save *', 'save.editing': 'Apply or cancel the entry first, then save.', 'save.failed': 'Saving failed: {msg}', 'save.nothing': 'No changes - nothing to save.', 'save.upload': 'Upload *',
     'saved': 'Saved.',
     'saved.download': 'Saved as download: {name}. Please replace the old file with it.',
     'saved.merged': 'Saved. Changes from another device were merged; both versions are on the server as .bak copies.',
