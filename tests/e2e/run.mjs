@@ -179,7 +179,7 @@ async function main() {
             'from pykeepass import create_database',
             `kp = create_database(${JSON.stringify(fs3)}, password=${JSON.stringify(PW)})`,
             "e = kp.add_entry(kp.root_group, 'Steam', 'anna', 'x')",
-            "e.otp = 'otpauth://totp/Steam:anna?secret=JBSWY3DPEHPK3PXP&issuer=Steam&encoder=steam'",
+            "e.otp = 'otpauth://totp/Steam:anna?secret=JBSWY3DPEHPK3PXP&period=30&digits=5&issuer=Steam&encoder=steam'",
             'kp.save()'].join('\n')]);
         const p = await newPage();
         await login(p, 'steam.kdbx'); await rows(p).first().waitFor();
