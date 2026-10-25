@@ -13,6 +13,18 @@ export function memoryLevel(memoryMiB) {
     return memoryMiB <= 256 ? 'ok' : memoryMiB <= 512 ? 'warn' : 'bad';
 }
 
+/**
+ * Is a file we are about to open asking for more than this app would ever write itself (the presets above, MAX_ITERATIONS)?
+ * Then deriving the key can take minutes or kill the tab, and a file nobody expected to be that heavy deserves a question first.
+ * s like Vault.securitySettings(); returns the offending values or null.
+ */
+export function heavyDemand(s) {
+    if (!s || !isArgon(s)) return null;
+    const memoryMiB = Math.round(s.memoryKiB / 1024);
+    if (memoryMiB <= MEMORY_PRESETS_MIB.at(-1) && s.iterations <= MAX_ITERATIONS && s.parallelism <= PARALLELISM_OPTIONS.at(-1)) return null;
+    return { memoryMiB, iterations: s.iterations, parallelism: s.parallelism };
+}
+
 const isArgon = (s) => s.kdf === 'argon2d' || s.kdf === 'argon2id';
 
 /** Does next make guessing the master password cheaper than cur? Moving away from Argon2, less memory or less work (memory x iterations). */

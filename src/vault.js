@@ -43,6 +43,27 @@ export function cryptoSettings(header) {
     return JSON.stringify([h.versionMajor, h.versionMinor, h.dataCipherUuid?.toString() ?? null, h.compression ?? null, h.keyEncryptionRounds ?? null, kdf]);
 }
 
+/** Cipher and key derivation of a file header as the settings dialog and the policy rules (core/kdf-policy.js) use them. */
+function headerSettings(h) {
+    const kp = h.kdfParameters;
+    const cipher = Object.keys(CIPHER_ID).find((c) => CIPHER_ID[c] === h.dataCipherUuid?.toString()) ?? null;
+    const out = { version: h.versionMajor, cipher, kdf: 'aes', memoryKiB: null, iterations: null, parallelism: null, rounds: null };
+    if (!kp) { out.rounds = Number(h.keyEncryptionRounds ?? 0); return out; }
+    const id = kp.get('$UUID'), b64 = id ? btoa(String.fromCharCode(...new Uint8Array(id))) : '';
+    if (b64 === Consts.KdfId.Argon2d || b64 === Consts.KdfId.Argon2id) {
+        out.kdf = b64 === Consts.KdfId.Argon2id ? 'argon2id' : 'argon2d';
+        out.memoryKiB = Math.round(Number(kp.get('M')) / 1024);
+        out.iterations = Number(kp.get('I'));
+        out.parallelism = Number(kp.get('P'));
+    } else out.rounds = Number(kp.get('R'));
+    return out;
+}
+
+/** What opening this file will demand, read from the unencrypted header before any password is tried; null if there is no readable header. */
+export function kdfDemand(buf) {
+    try { return headerSettings(KdbxHeader.read(new BinaryStream(buf), null)); } catch { return null; }
+}
+
 /** Display names for Vault.securitySettings(); KDF_LABEL is also the format keyfile-store.js expects. */
 export const KDF_LABEL = { argon2d: 'Argon2d', argon2id: 'Argon2id', aes: 'AES-KDF' };
 export const CIPHER_LABEL = { aes: 'AES-256', chacha20: 'ChaCha20', twofish: 'Twofish' };
@@ -481,18 +502,7 @@ export class Vault {
     // ---------------------------------------------------------------- Security settings (file header)
     /** {version, cipher: 'aes'|'chacha20'|'twofish'|null, kdf: 'argon2d'|'argon2id'|'aes', memoryKiB, iterations, parallelism, rounds} */
     securitySettings() {
-        const h = this.db.header, kp = h.kdfParameters;
-        const cipher = Object.keys(CIPHER_ID).find((c) => CIPHER_ID[c] === h.dataCipherUuid?.toString()) ?? null;
-        const out = { version: h.versionMajor, cipher, kdf: 'aes', memoryKiB: null, iterations: null, parallelism: null, rounds: null };
-        if (!kp) { out.rounds = Number(h.keyEncryptionRounds ?? 0); return out; }
-        const id = kp.get('$UUID'), b64 = id ? btoa(String.fromCharCode(...new Uint8Array(id))) : '';
-        if (b64 === Consts.KdfId.Argon2d || b64 === Consts.KdfId.Argon2id) {
-            out.kdf = b64 === Consts.KdfId.Argon2id ? 'argon2id' : 'argon2d';
-            out.memoryKiB = Math.round(Number(kp.get('M')) / 1024);
-            out.iterations = Number(kp.get('I'));
-            out.parallelism = Number(kp.get('P'));
-        } else out.rounds = Number(kp.get('R'));
-        return out;
+        return headerSettings(this.db.header);
     }
 
     /** Key derivation in the format keyfile-store.js expects (see chooseKdfParams). */

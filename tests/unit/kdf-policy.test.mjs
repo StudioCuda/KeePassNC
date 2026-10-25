@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { memoryLevel, isWeaker, minIterations, suggestIterations, newDbIterations, NEW_DB, MAX_ITERATIONS } from '../../src/core/kdf-policy.js';
+import { heavyDemand, memoryLevel, isWeaker, minIterations, suggestIterations, newDbIterations, NEW_DB, MAX_ITERATIONS } from '../../src/core/kdf-policy.js';
 
 const a = (memoryMiB, iterations, kdf = 'argon2id') => ({ kdf, memoryKiB: memoryMiB * 1024, iterations, parallelism: 2 });
 const aes = (rounds) => ({ kdf: 'aes', rounds });
@@ -44,4 +44,15 @@ test('Neue Datenbank: AES-256, Argon2id mit 64 MiB, Durchlaeufe aus dem Probelau
     assert.equal(newDbIterations(250), 4);
     assert.equal(newDbIterations(2000), 2, 'langsames Geraet: Untergrenze');
     assert.equal(newDbIterations(0.01), MAX_ITERATIONS);
+});
+
+test('heavyDemand: nur Argon2 ueber dem, was die App selbst anbietet, fragt nach', () => {
+    const ar = (memoryKiB, iterations, parallelism) => ({ kdf: 'argon2id', memoryKiB, iterations, parallelism, rounds: null });
+    assert.equal(heavyDemand(ar(64 * 1024, 3, 2)), null);
+    assert.equal(heavyDemand(ar(1024 * 1024, 1000, 8)), null, 'genau die Obergrenzen');
+    assert.deepEqual(heavyDemand(ar(2 * 1024 * 1024, 100, 4)), { memoryMiB: 2048, iterations: 100, parallelism: 4 });
+    assert.notEqual(heavyDemand(ar(64 * 1024, 1001, 2)), null);
+    assert.notEqual(heavyDemand(ar(64 * 1024, 3, 255)), null);
+    assert.equal(heavyDemand({ kdf: 'aes', memoryKiB: null, iterations: null, parallelism: null, rounds: 5e9 }), null, 'AES-KDF ist hier nicht Thema');
+    assert.equal(heavyDemand(null), null);
 });
