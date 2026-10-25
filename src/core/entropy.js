@@ -58,3 +58,13 @@ export function strengthLabel(bits) {
     if (bits < 100) return 'good';
     return 'excellent';
 }
+
+// Rating cache of the UI (sidebar counts, entry view). It is keyed by the plain password, so it has to be emptied when the database locks.
+const bitsCache = new Map();
+export function cachedBits(pw) {
+    let b = bitsCache.get(pw);
+    if (b === undefined) { b = estimateBits(pw); if (bitsCache.size > 5000) bitsCache.clear(); bitsCache.set(pw, b); }
+    return b;
+}
+export const clearBitsCache = () => bitsCache.clear();
+export const bitsCacheSize = () => bitsCache.size;

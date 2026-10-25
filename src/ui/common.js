@@ -1,5 +1,5 @@
 // Shared UI helpers: avatars, filtering/sorting of the entry list, strength cache.
-import { estimateBits, strengthLabel } from '../core/entropy.js';
+import { cachedBits as bitsOf, strengthLabel } from '../core/entropy.js';
 import { parseQuery, matches } from '../core/search.js';
 import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolvePlaceholders, openableUrl } from '../core/util.js';
 import { excluded } from '../core/audit.js';
@@ -8,12 +8,7 @@ import { ctx } from './ctx.js';
 import { h, icon, pathIcon } from './dom.js';
 import { KP_ICONS, GROUP_DEFAULT_ICON } from './kpicons.js';
 
-const bitsCache = new Map();
-export function bitsOf(pw) {
-    let b = bitsCache.get(pw);
-    if (b === undefined) { b = estimateBits(pw); if (bitsCache.size > 5000) bitsCache.clear(); bitsCache.set(pw, b); }
-    return b;
-}
+export { bitsOf };
 /**
  * Field value with resolved placeholders ({REF:P@I:…} to other entries, {USERNAME}, {S:Field}, {URL:HOST} …), as display,
  * copying and rating need it; unresolvable ones stay as they are. The editor keeps working with the raw value so they are preserved.

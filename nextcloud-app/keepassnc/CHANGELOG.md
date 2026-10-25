@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Fixed
+- Locking now also forgets the passwords the strength rating had remembered in the page (the sidebar's "weak" count and the entry view kept them until the page was reloaded). Nothing left the browser, but a locked database should leave no passwords lying around.
 
 ## [0.18.1] - 2026-10-25
 ### Changed
