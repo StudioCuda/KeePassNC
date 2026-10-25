@@ -24,6 +24,7 @@ export default {
     'copied': '已复制{what} - {s} 秒后从剪贴板清除。',
     'copied.short': '已复制{what}',
     'copy': '复制',
+    'row.openurl': '打开网址',
     'copy.failed': '无法复制（浏览器权限不足）。',
     'create': '创建',
     'cred.apply': '更改',

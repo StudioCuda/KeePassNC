@@ -24,6 +24,7 @@ export default {
     'copied': '{what} kopiert - wird in {s} s aus der Zwischenablage entfernt.',
     'copied.short': '{what} kopiert',
     'copy': 'Kopieren',
+    'row.openurl': 'URL öffnen',
     'copy.failed': 'Kopieren nicht möglich (Browser-Berechtigung).',
     'create': 'Anlegen',
     'cred.apply': 'Ändern',
