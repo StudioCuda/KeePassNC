@@ -742,6 +742,50 @@ async function main() {
         const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#save-btn')]);
         const out = path.join(tmp, 'download.kdbx'); fs.copyFileSync(await dl.path(), out);
         expect(xc(['show', out, 'Konto']).includes('bob-lokal'), 'Download enthaelt die Aenderung nicht');
+        // Ctrl+S without changes: nothing to hand out (used to download a 9-byte "undefined" file named like the database)
+        let again = false; p.on('download', () => { again = true; });
+        await p.keyboard.press('Control+s');
+        await waitStatus(p, /^Keine Änderungen/);
+        await p.waitForTimeout(500);
+        expect(!again, 'Strg+S ohne Aenderungen darf nichts herunterladen');
+        await p.context().close();
+    });
+
+    await step('Strg+S ohne eigene Aenderungen holt Aenderungen eines anderen Geraets -> Ansicht und Editor arbeiten auf der neuen Datenbank, eine Eingabe geht nicht verloren', async () => {
+        const f = path.join(davRoot, 'pull.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'pull.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.waitForTimeout(1100);
+        xc(['edit', '-q', f, 'Bank/Konto', '-u', 'bob-extern'], null); // "other device"
+        await p.keyboard.press('Control+s');
+        await waitStatus(p, /^Änderungen von einem anderen/);
+        await p.click('#edit-btn');
+        expect(await p.inputValue('#e-user') === 'bob-extern', 'Editor zeigt nicht den Stand des anderen Geraets: ' + await p.inputValue('#e-user'));
+        await p.fill('#e-pass', 'pw-nach-pull'); await p.click('#apply-btn');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        const k = xc(['show', '-s', f, 'Bank/Konto']);
+        expect(k.includes('pw-nach-pull') && k.includes('bob-extern'), 'Eingabe nach dem Abgleich fehlt in der Datei: ' + k);
+        await p.context().close();
+    });
+
+    await step('Strg+S bei offenem Editor ohne eigene Aenderungen: kein Abgleich unter dem Editor, Uebernehmen + Speichern legt keinen zweiten Eintrag mit derselben UUID an', async () => {
+        const f = path.join(davRoot, 'pull-editor.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'pull-editor.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn');
+        await p.waitForTimeout(1100);
+        xc(['edit', '-q', f, 'Bank/Konto', '-u', 'bob-extern'], null); // "other device"
+        await p.keyboard.press('Control+s');
+        await waitStatus(p, /^Erst den Eintrag/);
+        await p.fill('#e-pass', 'pw-im-editor'); await p.click('#apply-btn');
+        await p.click('#save-btn'); await waitStatus(p, /^(Gespeichert|Änderungen)/);
+        const konten = xc(['ls', f, 'Bank']).split(String.fromCharCode(10)).filter((l) => l.trim() === 'Konto');
+        expect(konten.length === 1, 'Konto kommt ' + konten.length + 'x vor');
+        expect(xc(['show', '-s', f, 'Bank/Konto']).includes('pw-im-editor'), 'Eingabe fehlt in der Datei');
         await p.context().close();
     });
 

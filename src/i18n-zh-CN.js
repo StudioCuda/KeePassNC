@@ -508,7 +508,7 @@ export default {
     'rep.weak': '弱（{bits} 位）', 'rep.weak.n': '弱',
     'restore': '恢复',
     'restored': '已恢复。',
-    'save': '保存', 'save.dirty': '保存 *', 'save.failed': '保存失败：{msg}', 'save.upload': '上传 *',
+    'save': '保存', 'save.dirty': '保存 *', 'save.editing': '请先应用或取消当前条目的编辑，再保存。', 'save.failed': '保存失败：{msg}', 'save.nothing': '没有改动，无需保存。', 'save.upload': '上传 *',
     'saved': '已保存。',
     'saved.download': '已保存为下载文件：{name}。请用它替换旧文件。',
     'saved.merged': '已保存。来自另一台设备的改动已合并；两个版本都以 .bak 副本留在服务器上。',

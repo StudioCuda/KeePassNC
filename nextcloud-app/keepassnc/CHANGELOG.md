@@ -5,6 +5,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ### Changed
 - Auto-lock no longer leaves the database open on screen when there are changes it couldn't save (a local file, or no connection to the server). Before, it only showed "please save, then the session will lock", kept the entries visible, and tried to save every second. Now the view gives way to an unlock screen that tells you the changes are only in memory; the master password (and key file) brings you back and offers to save. Locking by hand still asks first. `SECURITY.md` explains the trade-off; the offline copy turns this into a real lock.
+### Fixed
+- Locking now also forgets the passwords the strength rating had remembered in the page (the sidebar's "weak" count and the entry view kept them until the page was reloaded). Nothing left the browser, but a locked database should leave no passwords lying around.
+- `Ctrl+S` (and "Save" in the command palette) with nothing to save no longer hands you a download when you work on a local file. Before, it produced a tiny file named like your database and said "Saved", easy to mistake for a real backup. Now it just says there are no changes.
+- `Ctrl+S` on a Nextcloud/WebDAV database that another device changed meanwhile now refreshes the view and the open entry, like the background sync does. Before, the list and the editor kept working on the old copy, so what you typed next vanished although it said "Saved". While the entry editor is open and nothing is changed yet, `Ctrl+S` asks you to apply or cancel the entry first.
 
 ## [0.18.1] - 2026-10-25
 ### Changed
