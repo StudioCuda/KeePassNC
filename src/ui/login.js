@@ -11,6 +11,7 @@ import { h, icon, iconBtn, toast, closeAllDialogs } from './dom.js';
 import { filePicker } from './file-picker.js';
 import { stopTimers, startTimers, ensureOfflineApp, syncNow, refreshDirtyIndicator } from './session.js';
 import { stopDetailTimers } from './detail.js';
+import { clearBitsCache } from '../core/entropy.js';
 import { openSettings } from './settings-dialog.js';
 import { pickFolder, splitPath } from './folder-picker.js';
 import { remoteFields } from './remote.js';
@@ -22,6 +23,7 @@ export function showLogin(message) {
     // Before clearing: open dialogs (attached to <body>, not #app) and the TOTP ticker (holds the secret) must not survive locking
     closeAllDialogs();
     stopDetailTimers();
+    clearBitsCache(); // keyed by the plain passwords of the database that is closing
     state.vault = null; state.selEntry = null; state.editing = null; state.query = ''; clearMarks();
     document.body.classList.remove('in-vault');
     const NC = ctx.NC;

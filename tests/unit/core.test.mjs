@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseQuery, matches } from '../../src/core/search.js';
 import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SYLLABLES, SYLLABLE_SHAPES, SIMPLE_DIGITS, SEPARATORS, migratePasswordOptions, SIMPLE_BLOCK_BITS, badJunction, randomInt } from '../../src/core/generator.js';
-import { estimateBits, strengthLabel } from '../../src/core/entropy.js';
+import { estimateBits, strengthLabel, cachedBits, clearBitsCache, bitsCacheSize } from '../../src/core/entropy.js';
 import { auditEntries, passwordSince, reusedBy } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
 import { WORDS as WORDS_DE } from '../../src/core/wordlist-de.js';
@@ -353,4 +353,13 @@ test('Wiederverwendung im Editor: gleiche Passwoerter wie im Bericht, ohne Refer
     assert.deepEqual(reusedBy(all, a, ''), [], 'leeres Passwort zaehlt nicht');
     assert.deepEqual(reusedBy(all, a, '{REF:P@I:ABCD}'), [], 'eine Referenz ist keine Wiederverwendung');
     assert.deepEqual(reusedBy(all, left, 'Sommer2020'), [], 'ein ausgenommener Eintrag bekommt keinen Hinweis');
+});
+
+test('cachedBits keeps ratings and clearBitsCache drops the passwords (locking)', () => {
+    clearBitsCache();
+    assert.equal(cachedBits('correct horse battery staple'), estimateBits('correct horse battery staple'));
+    cachedBits('x9!Qm2#vLp'); cachedBits('x9!Qm2#vLp');
+    assert.equal(bitsCacheSize(), 2);
+    clearBitsCache();
+    assert.equal(bitsCacheSize(), 0);
 });
