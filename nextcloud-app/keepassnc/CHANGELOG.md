@@ -5,7 +5,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ### Added
 - The quick buttons that appear when you hover an entry in the list got a third one: open its URL in a new tab, next to copying the user name and the password. It only shows up for entries that have a web address.
-
+- The CSV export has an optional "Make it safe for Excel & co." switch. A spreadsheet runs a cell that starts with `=`, `+`, `-` or `@` as a formula, and an exported title or password can start with one. With the switch on, such cells get a leading `'`. It is off by default because it changes those values, and importing the file again keeps the `'`; plain numbers like `-1` stay as they are.
 ### Fixed
 - The clipboard timer no longer empties the clipboard when you copied something else in the meantime. It looks first, but only where the browser already lets the page read the clipboard (reading otherwise costs a permission prompt, and a prompt 20 seconds after you copied a password would be worse); without that permission it clears as before.
 - Locking now also forgets the passwords the strength rating had remembered in the page (the sidebar's "weak" count and the entry view kept them until the page was reloaded). Nothing left the browser, but a locked database should leave no passwords lying around.

@@ -66,3 +66,12 @@ test('toOtpUri: a full URI stays, a bare secret is completed like KeePassXC does
     assert.equal(toOtpUri('JBSWY3DP', '', ''), 'otpauth://totp/KeePassNC?secret=JBSWY3DP&period=30&digits=6&issuer=KeePassNC');
     assert.equal(toOtpUri('  ', 'A', ''), '');
 });
+
+test('toCsv entschaerft Formeln, wenn gewuenscht', () => {
+    // The default stays byte for byte what it was (round trip with our own import, same as KeePassXC)
+    assert.equal(toCsv([['=1+1']]), '"=1+1"\r\n');
+    const out = toCsv([['=cmd|\' /c calc\'!A1', '+49 30 1234', '-1', '@SUM(A1)', '\tx', '\rx', 'ok', '']], { neutralize: true });
+    assert.equal(out, '"\'=cmd|\' /c calc\'!A1","\'+49 30 1234","-1","\'@SUM(A1)","\'\tx","\'\rx","ok",""\r\n');
+    assert.equal(toCsv([['-1']], { neutralize: true, keepNumbers: false }), '"\'-1"\r\n');
+    assert.equal(toCsv([['-1,5', '-1a']], { neutralize: true }), '"-1,5","\'-1a"\r\n');
+});
