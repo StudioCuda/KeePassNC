@@ -60,7 +60,7 @@ jobs:
           path: ~/.cache/ci-apt
           key: apt-${{ steps.os.outputs.id }}-e2e-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
           restore-keys: apt-${{ steps.os.outputs.id }}-e2e-
-      - run: tools/ci-retry.sh 300 3 tools/ci-apt.sh keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
+      - run: tools/ci-retry.sh 120 3 tools/ci-apt.sh keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm ci || npm install
         if: steps.changes.outputs.docs_only != 'true'
@@ -76,8 +76,8 @@ jobs:
       - name: Chromium for the browser tests
         if: steps.changes.outputs.docs_only != 'true'
         run: |
-          tools/ci-retry.sh 300 3 npx playwright-core install-deps chromium
-          tools/ci-retry.sh 300 3 npx playwright-core install chromium
+          tools/ci-retry.sh 120 3 npx playwright-core install-deps chromium
+          tools/ci-retry.sh 120 3 npx playwright-core install chromium
           echo "CHROMIUM=$(node -e "console.log(require('playwright-core').chromium.executablePath())")" >> $GITHUB_ENV
       - run: npm run build && npm run test:unit && npm run test:compat
         if: steps.changes.outputs.docs_only != 'true'
@@ -155,7 +155,7 @@ jobs:
           path: ~/.cache/ci-apt
           key: apt-${{ steps.os.outputs.id }}-browsers-${{ matrix.browser }}-${{ hashFiles('package-lock.json', 'tools/ci-apt.sh') }}
           restore-keys: apt-${{ steps.os.outputs.id }}-browsers-${{ matrix.browser }}-
-      - run: tools/ci-retry.sh 300 3 tools/ci-apt.sh keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
+      - run: tools/ci-retry.sh 120 3 tools/ci-apt.sh keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm ci || npm install
         if: steps.changes.outputs.docs_only != 'true'
@@ -168,32 +168,18 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ steps.os.outputs.id }}-${{ matrix.browser }}-${{ steps.pw.outputs.version }}
-      - run: tools/ci-retry.sh 300 3 npx playwright-core install-deps ${{ matrix.browser }}
+      - run: tools/ci-retry.sh 120 3 npx playwright-core install-deps ${{ matrix.browser }}
         if: steps.changes.outputs.docs_only != 'true'
-      - run: tools/ci-retry.sh 300 3 npx playwright-core install ${{ matrix.browser }}
+      - run: tools/ci-retry.sh 120 3 npx playwright-core install ${{ matrix.browser }}
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm run build
         if: steps.changes.outputs.docs_only != 'true'
-      - run: npm run test:e2e
+      # Two lanes that run at the same time, about 40 % faster than one after the other (measured on the runner: Firefox 9:30
+      # to about 5:40, WebKit 9:08 to about 6:50, eight parallel runs without a failure). Lane 1 has the long e2e suite, lane 2
+      # the Argon2-heavy key file suite; the suites don't share ports or folders. A failing suite shows its whole log below.
+      - name: Browser suites
+        run: tools/ci-suites.sh "e2e credentials create remote" "keyfile ui offline fidelity theme pass"
         if: steps.changes.outputs.docs_only != 'true'
-      - run: npm run test:ui
-        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
-      - run: npm run test:theme
-        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
-      - run: npm run test:keyfile
-        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
-      - run: npm run test:credentials
-        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
-      - run: npm run test:create
-        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
-      - run: npm run test:remote
-        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
-      - run: npm run test:offline
-        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
-      - run: npm run test:fidelity
-        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
-      - run: npm run test:pass
-        if: (success() || failure()) && steps.changes.outputs.docs_only != 'true'
       - name: Make the apt cache readable for the cache action
         if: always() && steps.apt-cache.outputs.cache-hit != 'true' && steps.changes.outputs.docs_only != 'true'
         run: sudo chown -R "$(id -u):$(id -g)" ~/.cache/ci-apt
