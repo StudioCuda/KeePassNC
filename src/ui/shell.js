@@ -206,7 +206,7 @@ export function openPalette() {
 // ---------------------------------------------------------------- Keyboard shortcuts
 export function installShortcuts() {
     document.addEventListener('keydown', (e) => {
-        if (!state.vault || document.querySelector('.backdrop')) return;
+        if (!state.vault || state.softLocked || document.querySelector('.backdrop')) return;
         const mod = e.ctrlKey || e.metaKey;
         const typing = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName) || e.target.isContentEditable;
         const key = e.key.toLowerCase();

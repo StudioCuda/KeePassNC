@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Changed
+- Auto-lock no longer leaves the database open on screen when there are changes it couldn't save (a local file, or no connection to the server). Before, it only showed "please save, then the session will lock", kept the entries visible, and tried to save every second. Now the view gives way to an unlock screen that tells you the changes are only in memory; the master password (and key file) brings you back and offers to save. Locking by hand still asks first. `SECURITY.md` explains the trade-off; the offline copy turns this into a real lock.
 
 ## [0.18.1] - 2026-10-25
 ### Changed

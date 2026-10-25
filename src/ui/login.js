@@ -22,7 +22,7 @@ export function showLogin(message) {
     // Before clearing: open dialogs (attached to <body>, not #app) and the TOTP ticker (holds the secret) must not survive locking
     closeAllDialogs();
     stopDetailTimers();
-    state.vault = null; state.selEntry = null; state.editing = null; state.query = ''; clearMarks();
+    state.vault = null; state.softLocked = false; state.selEntry = null; state.editing = null; state.query = ''; clearMarks();
     document.body.classList.remove('in-vault');
     const NC = ctx.NC;
     warmNextcloudAuth(NC);

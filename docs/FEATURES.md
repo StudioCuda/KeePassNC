@@ -74,6 +74,12 @@ Words separated by spaces must all match. Plain words look in title, user name, 
 
 Example: `url:bank is:weak -tag:old`
 
+## Locking
+
+The page locks after the idle time you choose (and, if you like, when the tab has been hidden for a minute). With changes that
+can't be saved right then, the unlock screen takes over instead and keeps them in memory: unlock it with the master password
+(and key file) to carry on, and it offers to save. `SECURITY.md` says what that means for security.
+
 ## Keyboard shortcuts
 
 `Ctrl+K` palette, `Ctrl+F` search, `Ctrl+N` new entry, `Ctrl+S` save, `Ctrl+L` lock, `Ctrl+B` copy user name,
