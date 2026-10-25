@@ -680,6 +680,21 @@ async function main() {
         await p.setInputFiles('#csv-file', { name: 'zurueck.csv', mimeType: 'text/csv', buffer: Buffer.from(ours) });
         await p.click('#csv-import');
         expect(await rows(p).count() === parseCsv(ours).length - 1, 'Wiedereingelesener Export: ' + await rows(p).count());
+        // Spreadsheet-safe export: opt-in; cells that start with a formula character get an apostrophe, the default export doesn't
+        const evil = `"Group","Title","Username","Password","URL","Notes"\n"","=cmd|' /c calc'!A1","u","-pw-x","",""`;
+        await openCsv();
+        await p.setInputFiles('#csv-file', { name: 'formel.csv', mimeType: 'text/csv', buffer: Buffer.from(evil) });
+        await p.click('#csv-import');
+        const exportAs = async (safe) => {
+            await openCsv();
+            await p.check('#csv-sure');
+            if (safe) await p.check('#csv-safe');
+            const [d] = await Promise.all([p.waitForEvent('download'), p.click('#csv-export')]);
+            return fs.readFileSync(await d.path(), 'utf8');
+        };
+        const plain = await exportAs(false), safe = await exportAs(true);
+        expect(plain.includes(`"=cmd|`) && plain.includes(`"-pw-x"`) && !plain.includes(`"'=cmd`), 'Standardexport darf nichts veraendern');
+        expect(safe.includes(`"'=cmd|`) && safe.includes(`"'-pw-x"`) && !/(^|,)"[=+\-@]/m.test(safe), 'abgesicherter Export beginnt noch mit Formelzeichen');
         await p.context().close();
     });
 

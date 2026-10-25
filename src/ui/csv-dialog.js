@@ -44,10 +44,11 @@ export function openCsv({ onBack } = {}) {
     });
 
     const sure = h('input', { id: 'csv-sure', type: 'checkbox' });
+    const sheet = h('input', { id: 'csv-safe', type: 'checkbox' });
     const exportBtn = h('button', { type: 'button', id: 'csv-export', disabled: true }, icon('download'), h('span', { text: t('csv.export') }));
     sure.addEventListener('change', () => { exportBtn.disabled = !sure.checked; });
     exportBtn.addEventListener('click', () => {
-        download(state.source.name.replace(/\.kdbx$/i, '') + '.csv', toCsv(v.csvRows()));
+        download(state.source.name.replace(/\.kdbx$/i, '') + '.csv', toCsv(v.csvRows(), { neutralize: sheet.checked }));
         finished = true;
         m.close();
     });
@@ -60,6 +61,7 @@ export function openCsv({ onBack } = {}) {
         h('section', { class: 'stack tight' }, h('span', { class: 'group-title', text: t('csv.export.title') }),
             h('p', { class: 'level-note bad', text: t('csv.export.warn') }),
             h('label', { class: 'check' }, sure, h('span', { text: t('csv.export.sure') })),
+            h('label', { class: 'check' }, sheet, h('span', {}, t('csv.export.sheet'), h('small', { class: 'muted hint', text: t('csv.export.sheet.hint') }))),
             h('div', {}, exportBtn)),
         h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', id: 'csv-cancel', text: t('cancel'), onclick: () => m.close() }))),
     onClose: () => { if (!finished) onBack?.(); } });
