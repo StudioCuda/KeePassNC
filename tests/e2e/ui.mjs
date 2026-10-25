@@ -390,6 +390,17 @@ async function main() {
         await page.waitForFunction(() => navigator.clipboard.readText().then((y) => y === ''), null, { timeout: 15000 });
     });
 
+    await step('Zwischenablage: wurde zwischendurch etwas anderes kopiert, leert der Timer es nicht', async () => {
+        if (browserName !== 'chromium') return 'nur Chromium: Firefox/WebKit gewaehren das Lesen der Zwischenablage nicht';
+        await pick(page, 'Amazon');
+        await page.locator('#list .entry.active').focus();
+        await page.keyboard.press('Control+c');
+        await page.waitForFunction(() => /kopiert/.test(document.querySelector('#status')?.textContent || ''));
+        await page.evaluate(() => navigator.clipboard.writeText('fremder Inhalt'));
+        await page.waitForTimeout(12000); // clipboard setting of this page: 10 s
+        expect(await page.evaluate(() => navigator.clipboard.readText()) === 'fremder Inhalt', 'Der Timer hat fremden Inhalt geleert');
+    });
+
     await step('Verknuepft duplizieren: Kopie zeigt per {REF:U@I:…}/{REF:P@I:…} auf das Original, Detail zeigt und kopiert die echten Werte', async () => {
         const amazon = walk(loadXml()).find((x) => x.title === 'Amazon').entry;
         const hex = Buffer.from(text(kids(amazon, 'UUID')[0]), 'base64').toString('hex').toUpperCase();

@@ -7,6 +7,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The quick buttons that appear when you hover an entry in the list got a third one: open its URL in a new tab, next to copying the user name and the password. It only shows up for entries that have a web address.
 
 ### Fixed
+- The clipboard timer no longer empties the clipboard when you copied something else in the meantime. It looks first, but only where the browser already lets the page read the clipboard (reading otherwise costs a permission prompt, and a prompt 20 seconds after you copied a password would be worse); without that permission it clears as before.
 - Locking now also forgets the passwords the strength rating had remembered in the page (the sidebar's "weak" count and the entry view kept them until the page was reloaded). Nothing left the browser, but a locked database should leave no passwords lying around.
 - `Ctrl+S` (and "Save" in the command palette) with nothing to save no longer hands you a download when you work on a local file. Before, it produced a tiny file named like your database and said "Saved", easy to mistake for a real backup. Now it just says there are no changes.
 - `Ctrl+S` on a Nextcloud/WebDAV database that another device changed meanwhile now refreshes the view and the open entry, like the background sync does. Before, the list and the editor kept working on the old copy, so what you typed next vanished although it said "Saved". While the entry editor is open and nothing is changed yet, `Ctrl+S` asks you to apply or cancel the entry first.
