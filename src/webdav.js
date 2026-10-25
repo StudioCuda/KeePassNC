@@ -171,17 +171,25 @@ export class DavFile {
         return el?.getElementsByTagNameNS('DAV:', 'href')[0]?.textContent.trim() || null;
     }
 
-    /** Creates a backup under a new name (does not fail if the name already exists). */
+    /**
+     * Creates a backup under a name that doesn't exist yet and returns its address. The stamp in the name counts seconds, so a second
+     * copy in the same second (the conflict loop can do three attempts that fast) gets "-2", "-3" ... instead of being dropped
+     * for finding its name taken: that copy is the other device's version.
+     */
     async putCopy(buf, suffix) {
-        const url = `${this.url}.${suffix}.bak`;
-        const res = await this._fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'If-None-Match': '*' }, body: buf });
-        if (!res.ok && res.status !== 412) throw new DavError(res.status, `Sicherungskopie fehlgeschlagen (Status ${res.status}).`, 'e.dav.backup', { status: res.status });
-        return url;
+        for (let n = 1; n <= 20; n++) {
+            const url = `${this.url}.${n === 1 ? suffix : `${suffix}-${n}`}.bak`;
+            const res = await this._fetch(url, { method: 'PUT', headers: { 'Content-Type': 'application/octet-stream', 'If-None-Match': '*' }, body: buf });
+            if (res.status === 412) continue; // taken
+            if (!res.ok) throw new DavError(res.status, `Sicherungskopie fehlgeschlagen (Status ${res.status}).`, 'e.dav.backup', { status: res.status });
+            return url;
+        }
+        throw new DavError(412, 'Sicherungskopie fehlgeschlagen (Status 412).', 'e.dav.backup', { status: 412 });
     }
 
     /**
      * Cleans up old backups: keeps the newest `keep` of each kind (normal / conflict).
-     * Only touches files that exactly match the pattern "<filename>.[conflict-]YYYYMMDD-HHMMSS.bak".
+     * Only touches files that exactly match the pattern "<filename>.[conflict-]YYYYMMDD-HHMMSS[-N].bak", whoever made them.
      * keep <= 0 means: delete nothing. Returns the names of the deleted files.
      */
     async pruneBackups(keep) {
@@ -249,15 +257,15 @@ export class DavFile {
 
     async _deleteBackups(keep) {
         const { dir, base, files } = await this._listDir();
-        const re = new RegExp('^' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\.(conflict-)?(\\d{8}-\\d{6})\\.bak$');
+        const re = new RegExp('^' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\.(conflict-)?(\\d{8}-\\d{6})(?:-(\\d+))?\\.bak$');
         const groups = { normal: [], conflict: [] };
         for (const { name } of files) {
             const m = re.exec(name);
-            if (m) groups[m[1] ? 'conflict' : 'normal'].push({ name, stamp: m[2] });
+            if (m) groups[m[1] ? 'conflict' : 'normal'].push({ name, stamp: m[2], seq: Number(m[3] || 1) });
         }
         const removed = [];
         for (const list of Object.values(groups)) {
-            list.sort((a, b) => b.stamp.localeCompare(a.stamp) || b.name.localeCompare(a.name));
+            list.sort((a, b) => b.stamp.localeCompare(a.stamp) || b.seq - a.seq);
             for (const f of list.slice(keep)) {
                 const r = await this._fetch(dir + encodeURIComponent(f.name), { method: 'DELETE' });
                 if (r.ok || r.status === 404) removed.push(f.name);
