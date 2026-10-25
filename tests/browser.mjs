@@ -7,6 +7,9 @@ export const browserName = process.env.BROWSER || 'chromium';
 // Known quirk of WebKit (Playwright build): every <select> triggers a "style-src-attr" violation, even on an empty page
 // without our code. The console message doesn't name the element; that's why webkitCspWatch still reports every violation outside <select>
 // itself. Only use together: knownEngineNoise (hide) + webkitCspWatch (cross-check).
+// Same quirk, second shape: when the <select> is already gone again (a dialog closes quickly) or was never attached, WebKit reports
+// the violation on the document instead of the select, always as style-src-attr / inline. A real inline style on an element that
+// is in the page names that element and still fails the test.
 export const knownEngineNoise = (text) => browserName === 'webkit'
     && /^Refused to apply a stylesheet because its hash, its nonce, or 'unsafe-inline' does not appear in the style-src directive/.test(text);
 // Second quirk of WebKit: if a request aborts because the server goes away during the request, WebKit sometimes reports it as a
@@ -19,7 +22,9 @@ export const uncaughtWatch = () => {
     addEventListener('error', (e) => console.error(`UNCAUGHT: ${e.message}`));
 };
 export const webkitCspWatch = () => document.addEventListener('securitypolicyviolation', (e) => {
-    if (!(e.target instanceof HTMLSelectElement)) console.error(`CSP-Verstoss ausserhalb von <select>: ${e.violatedDirective} ${e.blockedURI} ${String((e.target && e.target.outerHTML) || e.target).slice(0, 120)}`);
+    const selectQuirk = e.target instanceof HTMLSelectElement
+        || (e.target instanceof Document && e.violatedDirective === 'style-src-attr' && e.blockedURI === 'inline');
+    if (!selectQuirk) console.error(`CSP-Verstoss ausserhalb von <select>: ${e.violatedDirective} ${e.blockedURI} ${String((e.target && e.target.outerHTML) || e.target).slice(0, 120)}`);
 }, true);
 
 // The test servers offer WebDAV at /dav/, not at a Nextcloud address: set login and "New database" of the standalone
