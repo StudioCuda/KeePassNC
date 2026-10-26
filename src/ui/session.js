@@ -254,12 +254,18 @@ function softLock(message) {
     ctx.ui.showSoftLock(message ?? t('locked'));
 }
 
+/** The idle timer and the hidden tab lock without asking: with changes that can't be saved that means the soft lock (doLock). */
+function autoLock(message) {
+    state.autoLockRequest = true;
+    lock(message).finally(() => { state.autoLockRequest = false; });
+}
+
 export function startTimers() {
     stopTimers();
     state.idleTimer = setInterval(() => {
         if (!state.vault || state.softLocked) return;
-        if (Date.now() - state.lastActivity > ctx.settings.autolockSeconds * 1000) { state.autoLockRequest = true; lock(t('locked.auto')).finally(() => { state.autoLockRequest = false; }); }
-        else if (ctx.settings.lockOnHide && document.hidden && state.hiddenSince && Date.now() - state.hiddenSince > 60000) { state.autoLockRequest = true; lock(t('locked.hidden')).finally(() => { state.autoLockRequest = false; }); }
+        if (Date.now() - state.lastActivity > ctx.settings.autolockSeconds * 1000) autoLock(t('locked.auto'));
+        else if (ctx.settings.lockOnHide && document.hidden && state.hiddenSince && Date.now() - state.hiddenSince > 60000) autoLock(t('locked.hidden'));
     }, 1000);
     if (state.source?.type === 'dav') {
         state.retryTimer = setInterval(() => { if (state.vault?.unsynced) syncNow(); }, SYNC_RETRY_MS);
