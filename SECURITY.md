@@ -19,8 +19,8 @@ You'll get an answer, though this is a small project, so "within a few days" is 
 
 Decryption happens in the browser only. The server sees the encrypted KDBX and, for the key file memory feature, a random per-user
 secret that is useless without the master password. Details and the known residual risk are in `docs/KEYFILE-MEMORY.md`.
-There has been no independent audit yet. Treat it accordingly: until then, keep your regular KeePassXC copy around. The file
-format being boring is the point.
+The code has been reviewed by two separate AI models, but there has been no independent human audit yet, and one is welcome.
+Until then, keep your regular KeePassXC copy around. The file format being boring is the point.
 
 Saving is defensive too: writes use ETag checks (a server that sends no ETag, or doesn't expose it to the page via CORS, gets a
 byte comparison with the version we read last, right before writing: a small window remains there, not none), a backup copy goes
