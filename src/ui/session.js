@@ -131,9 +131,9 @@ export async function doSave({ auto = false } = {}) {
     // Read-only: nothing goes to the server, Ctrl+S / the button hand out a copy instead (not on its own in the auto-lock)
     if (v.readOnly && (v.dirty || v.unsynced)) { if (!auto) await saveCopy(); return; }
     // Ctrl+S and the palette don't look at the button state. A local file has nothing to hand out without changes (no empty
-    // download), and a pull would swap the database under an open editor (syncNow keeps out of it, too).
+    // download), and a pull or a merge would swap the database under an open editor and drop what was typed there (syncNow keeps out of it, too).
     if (!v.dirty && state.source.type === 'file') { setStatus(t('save.nothing')); return; }
-    if (!v.dirty && state.editing) { setStatus(t('save.editing')); return; }
+    if (state.editing && !auto) { setStatus(t('save.editing')); return; }
     const btn = $('#save-btn');
     if (btn) btn.disabled = true;
     setStatus(auto ? t('saving.auto') : t('saving'));
@@ -208,8 +208,17 @@ export function confirmDiscard() {
     return confirmDialog({ title: t('lock'), message: t('lock.unsaved'), confirmLabel: t('lock.anyway'), cancelLabel: t('cancel'), danger: true });
 }
 
-export async function lock(message) {
+let locking = null;
+
+/** The idle timer asks every second: while a lock is under way (waiting for a save, a dialog) the later calls join it. */
+export function lock(message) {
+    return locking ||= doLock(message).finally(() => { locking = null; });
+}
+
+async function doLock(message) {
     const auto = state.autoLockRequest === true;
+    // A save or sync in flight has already cleared the dirty flag: wait for its outcome, it decides what is still unsaved
+    await state.vault?.settled();
     const v = state.vault;
     if (v && (v.dirty || v.unsynced) && state.source.type === 'dav') {
         // WebDAV: save first. Locally saved (offline) versions may stay, unlocking transfers them later.

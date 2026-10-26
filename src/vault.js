@@ -237,6 +237,9 @@ export class Vault {
     /** The current state as a new KDBX file, for "save a copy" in a read-only session. Doesn't touch the dirty flag or the server. */
     copyBytes() { return this._exclusive(() => this.db.save()); }
 
+    /** Resolves once the saves and syncs started so far are over (whatever their outcome). */
+    settled() { return this._chain; }
+
     _exclusive(fn) {
         const run = this._chain.then(fn);
         this._chain = run.catch(() => {});

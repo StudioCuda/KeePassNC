@@ -17,6 +17,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Opening a file with an unusually heavy key derivation (over 1 GiB, 1000 iterations or 8 threads) asks first instead of freezing the tab.
 - The clipboard timer leaves alone what you copied in the meantime, where the browser lets the page read the clipboard.
 - Locking forgets the passwords the strength rating had cached in the page.
+- Auto-lock while a save is still running (a slow server) waits for it to finish. If it fails, the unlock screen keeps your changes instead of dropping to the login and losing them.
+- `Ctrl+S` with an open entry editor asks to apply or cancel the entry first, also when other changes are pending. A merge with another device's changes can no longer overwrite what you were typing.
 - Remembering a key file in two tabs at once on a fresh Nextcloud account no longer invalidates one of the records.
 
 ## [0.18.1] - 2026-10-25

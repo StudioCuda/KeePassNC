@@ -960,6 +960,53 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Auto-Sperre, waehrend das Speichern noch laeuft (traeger Server) und dann scheitert: Sperrbildschirm statt Anmeldung, die Aenderung bleibt und wird nach dem Entsperren gespeichert', async () => {
+        const f = path.join(davRoot, 'slowput.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage('?autolock=5');
+        let fail = true;
+        await p.route('**/dav/slowput.kdbx', async (r) => {
+            if (fail && r.request().method() === 'PUT') { await new Promise((res) => setTimeout(res, 8000)); return r.fulfill({ status: 500, body: 'kaputt' }); }
+            return r.continue();
+        });
+        await login(p, 'slowput.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'traeger-server'); await p.click('#apply-btn');
+        await p.click('#save-btn'); // the PUT hangs; the idle lock fires meanwhile
+        await p.locator('#softlock-form').waitFor({ timeout: 25000 });
+        expect(await p.locator('#login-form').count() === 0, 'Harte Sperre trotz laufendem Speichern');
+        fail = false;
+        await p.fill('#sl-master', PW); await p.click('#sl-unlock');
+        await p.locator('#confirm-ok').waitFor();
+        await p.click('#confirm-ok');
+        await waitStatus(p, /^Gespeichert\./);
+        expect(xc(['show', f, 'Bank/Konto']).includes('traeger-server'), 'Aenderung nach dem Entsperren nicht auf dem Server');
+        await p.context().close();
+    });
+
+    await step('Strg+S bei offenem Editor und schmutzigem Tresor: Rueckfrage statt Merge, die getippte Eingabe bleibt; nach dem Uebernehmen wird zusammengefuehrt', async () => {
+        const f = path.join(davRoot, 'editmerge.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'editmerge.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'erste-aenderung'); await p.click('#apply-btn'); // the vault is dirty now
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-pass', 'pw-entwurf'); // typed, not applied
+        await p.waitForTimeout(1100);
+        xc(['edit', '-q', f, 'Bank/Konto', '--url', 'https://anderes.example'], null); // "other device"
+        await p.keyboard.press('Control+s');
+        await waitStatus(p, /Erst den Eintrag/);
+        expect(await p.inputValue('#e-pass') === 'pw-entwurf', 'Eingabe im Editor ging verloren: ' + await p.inputValue('#e-pass'));
+        expect(!xc(['show', f, 'Web/Mail']).includes('erste-aenderung'), 'Es wurde trotz offenem Editor gespeichert');
+        await p.click('#apply-btn');
+        await p.waitForTimeout(1100);
+        await p.click('#save-btn'); await waitStatus(p, /zusammengef/);
+        expect(xc(['show', '-s', f, 'Bank/Konto'], null).includes('pw-entwurf'), 'Eingabe fehlt nach dem Zusammenfuehren');
+        expect(xc(['show', f, 'Web/Mail']).includes('erste-aenderung'), 'erste Aenderung fehlt nach dem Zusammenfuehren');
+        await p.context().close();
+    });
+
     await step('Datenschutz/Sicherheit: keine externen Anfragen, keine JS-Fehler, CSP gesetzt, Server sah nie Klartext', async () => {
         expect(problems.external.length === 0, 'Externe Anfragen: ' + problems.external.join(', '));
         expect(problems.pageErrors.length === 0, 'Seitenfehler: ' + problems.pageErrors.join(' | '));
