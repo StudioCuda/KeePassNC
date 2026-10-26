@@ -22,7 +22,8 @@ secret that is useless without the master password. Details and the known residu
 There has been no independent audit yet. Treat it accordingly: until then, keep your regular KeePassXC copy around. The file
 format being boring is the point.
 
-Saving is defensive too: writes use ETag checks, a backup copy goes next to the file first, and if two devices edited at once the
+Saving is defensive too: writes use ETag checks (a server that sends no ETag, or doesn't expose it to the page via CORS, gets a
+byte comparison with the version we read last, right before writing: a small window remains there, not none), a backup copy goes next to the file first, and if two devices edited at once the
 two versions are merged instead of one quietly winning. The app loads no external scripts or fonts and runs under a strict CSP.
 
 In Nextcloud the page is served on its own, without Nextcloud's layout and scripts. Any other app's JavaScript would otherwise run on

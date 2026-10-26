@@ -1,5 +1,6 @@
-// Minimal WebDAV client for exactly one file. Writes always go out with If-Match (ETag), so changes made by
-// other devices in the meantime are never silently overwritten.
+// Minimal WebDAV client for exactly one file. Writes go out with If-Match (ETag), so changes made by other devices in the
+// meantime are not silently overwritten. A server that sends no ETag can't offer that; the Vault then compares the bytes
+// itself right before writing (Vault._push), which leaves a small window instead of none.
 
 export class ConflictError extends Error {
     constructor() {
