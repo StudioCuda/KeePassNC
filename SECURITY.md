@@ -40,7 +40,9 @@ applied through the CSSOM, so the CSP still allows no inline styles at all.
 ## Reviews
 
 Before 1.0.0, v0.18.1 went through two independent code reviews, one by DeepSeek V4.1 Flash and one by GPT-6 Luna, each with its own
-brief and without seeing the other's findings. These are AI reviews, not an audit by people, and we don't pretend otherwise. The findings that mattered, all fixed:
+brief and without seeing the other's findings. Claude fixed what they found (#160 to #181), and a third model, Qwen3.8, then
+checked every finding against the code (2026-10-26, commit `f586fde`) and confirmed each one fixed or left as is on purpose. These are AI reviews, not an
+audit by people, and we don't pretend otherwise. The findings that mattered, all fixed:
 
 - Auto-lock could lose changes while a save was still running or failing. It now waits (up to ten seconds) and falls back to the
   unlock screen.

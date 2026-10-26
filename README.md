@@ -53,7 +53,7 @@ Then click a `.kdbx` file in Files. No database yet? **+ New** → **KeePass dat
 ## Security
 
 All decryption happens in your browser, and the app loads nothing from other servers. The code went through reviews by two
-separate AI models, and every finding was fixed or answered. Security audits and problem reports are very welcome, please send them
+separate AI models, every finding was fixed or answered, and a third model checked the fixes. Security audits and problem reports are very welcome, please send them
 privately, see [`SECURITY.md`](SECURITY.md). That page also lists what's known and what hasn't been tested yet.
 
 ## Why this exists
