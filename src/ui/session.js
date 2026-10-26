@@ -62,6 +62,11 @@ export function enterReadOnly() {
     refreshDirtyIndicator();
 }
 
+function refused() {
+    enterReadOnly();
+    setStatus(t('ro.refused'), 'warn');
+}
+
 /** The current state as a download of its own, next to the shared file that can't be written. */
 export async function saveCopy() {
     const v = state.vault;
@@ -105,6 +110,12 @@ export function rebind() {
     if (ids.size) for (const e of v.root.allEntries()) if (ids.has(e.uuid.id)) state.marked.add(e);
 }
 
+/** The database was replaced or merged with the server's: the views must point at its objects, not the old ones. */
+function redrawAfterSwap() {
+    rebind();
+    ctx.ui.refresh?.();
+}
+
 export async function doSave({ auto = false } = {}) {
     const v = state.vault;
     if (!v) return;
@@ -128,11 +139,11 @@ export async function doSave({ auto = false } = {}) {
             setStatus(t('saved.offline'), 'warn');
         } else if (res.pulled) {
             // Changes from another device: the selection and the open views still point at the objects of the old database
-            rebind(); ctx.ui.refresh?.();
+            redrawAfterSwap();
             state.offlineMode = false;
             setStatus(t('sync.pulled'));
         } else if (res.merged) {
-            rebind(); ctx.ui.refresh?.();
+            redrawAfterSwap();
             setStatus(t(res.noBackup ? 'saved.merged.nobackup' : 'saved.merged'), 'warn');
             state.offlineMode = false;
         } else {
@@ -142,7 +153,7 @@ export async function doSave({ auto = false } = {}) {
     } catch (e) {
         if (!e?.key) console.error(e); // explained errors (with translation) show in the status, only unexpected ones go to the console
         state.lastSyncFailed = isOffline(e);
-        if (e?.key === 'e.dav.readonly') { enterReadOnly(); setStatus(t('ro.refused'), 'warn'); } // the server says no: keep the changes, stop trying
+        if (e?.key === 'e.dav.readonly') refused(); // the server says no: keep the changes, stop trying
         else setStatus(t('save.failed', { msg: errText(e) }), 'error');
         if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
     } finally {
@@ -164,15 +175,15 @@ export async function syncNow({ announce = false } = {}) {
         } else {
             const wasOffline = state.offlineMode;
             state.offlineMode = false;
-            if (res.pulled) { rebind(); ctx.ui.refresh?.(); setStatus(t('sync.pulled')); }
-            else if (res.merged) { rebind(); ctx.ui.refresh?.(); setStatus(t(res.noBackup ? 'saved.merged.nobackup' : 'sync.merged'), 'warn'); }
+            if (res.pulled) { redrawAfterSwap(); setStatus(t('sync.pulled')); }
+            else if (res.merged) { redrawAfterSwap(); setStatus(t(res.noBackup ? 'saved.merged.nobackup' : 'sync.merged'), 'warn'); }
             else if (res.noBackup) setStatus(t('saved.nobackup'), 'warn');
             else if (wasOffline || announce) setStatus(t('sync.done'));
         }
     } catch (e) {
         if (!e?.key) console.error(e); // explained errors (with translation) show in the status, only unexpected ones go to the console
         state.lastSyncFailed = isOffline(e);
-        if (e?.key === 'e.dav.readonly') { enterReadOnly(); setStatus(t('ro.refused'), 'warn'); }
+        if (e?.key === 'e.dav.readonly') refused();
         else if (announce || !isOffline(e)) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
         if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
     } finally {
@@ -180,6 +191,11 @@ export async function syncNow({ announce = false } = {}) {
         $('#sync-state')?.classList.remove('busy');
         refreshDirtyIndicator();
     }
+}
+
+/** "Unsaved changes will be lost. Lock anyway?" */
+export function confirmDiscard() {
+    return confirmDialog({ title: t('lock'), message: t('lock.unsaved'), confirmLabel: t('lock.anyway'), cancelLabel: t('cancel'), danger: true });
 }
 
 export async function lock(message) {
@@ -190,11 +206,11 @@ export async function lock(message) {
         if (v.dirty) await doSave({ auto: true });
         if (state.vault?.dirty) {
             if (auto) { softLock(message); return; }
-            if (!(await confirmDialog({ title: t('lock'), message: t('lock.unsaved'), confirmLabel: t('lock.anyway'), cancelLabel: t('cancel'), danger: true }))) return;
+            if (!(await confirmDiscard())) return;
         }
     } else if (v?.dirty) {
         if (auto) { softLock(message); return; }
-        if (!(await confirmDialog({ title: t('lock'), message: t('lock.unsaved'), confirmLabel: t('lock.anyway'), cancelLabel: t('cancel'), danger: true }))) return;
+        if (!(await confirmDiscard())) return;
     }
     clearTimeout(autoSaveTimer);
     ctx.ui.showLogin(message ?? t('locked'));
