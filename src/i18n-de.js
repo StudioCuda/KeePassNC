@@ -564,6 +564,7 @@ export default {
     'softlock.save.msg': 'Es gibt noch Änderungen, die nirgends gespeichert sind. Jetzt speichern?',
     'softlock.save.now': 'Jetzt speichern',
     'softlock.later': 'Später',
+    'sync.busy': 'Gerade wird mit dem Server abgeglichen – einen Moment, dann nochmal versuchen.',
     'sync.dirty': 'Ungespeicherte Änderungen',
     'sync.done': 'Mit dem Server abgeglichen.',
     'sync.failed': 'Abgleich fehlgeschlagen: {msg}',

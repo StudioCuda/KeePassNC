@@ -564,6 +564,7 @@ export default {
     'softlock.save.msg': '还有改动没有保存到任何地方。现在保存吗？',
     'softlock.save.now': '立即保存',
     'softlock.later': '稍后',
+    'sync.busy': '正在与服务器同步——请稍后再试。',
     'sync.dirty': '有未保存的改动',
     'sync.done': '已与服务器同步。',
     'sync.failed': '同步失败：{msg}',

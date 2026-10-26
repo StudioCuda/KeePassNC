@@ -564,6 +564,7 @@ export default {
     'softlock.save.msg': 'There are changes that are not saved anywhere yet. Save now?',
     'softlock.save.now': 'Save now',
     'softlock.later': 'Later',
+    'sync.busy': 'Syncing with the server right now – try again in a moment.',
     'sync.dirty': 'Unsaved changes',
     'sync.done': 'Synchronised with the server.',
     'sync.failed': 'Sync failed: {msg}',
