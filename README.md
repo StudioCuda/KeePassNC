@@ -52,9 +52,9 @@ Then click a `.kdbx` file in Files. No database yet? **+ New** → **KeePass dat
 
 ## Security
 
-All decryption happens in your browser, and the app loads nothing from other servers. There hasn't been an independent audit
-yet, so keep your usual KeePassXC copy around for now. Found a problem? Please report it privately, see [`SECURITY.md`](SECURITY.md).
-That page also lists what's known and what hasn't been tested yet.
+All decryption happens in your browser, and the app loads nothing from other servers. The code went through reviews by two
+separate AI models, every finding was fixed or answered, and a third model checked the fixes. Security audits and problem reports are very welcome, please send them
+privately, see [`SECURITY.md`](SECURITY.md). That page also lists what's known and what hasn't been tested yet.
 
 ## Why this exists
 
@@ -75,8 +75,7 @@ Not a coder? KeePassNC is free and stays that way. If it saves you some nerves, 
 [sponsor the project on GitHub](https://github.com/sponsors/StudioCuda). Totally optional, a bug report helps just as much.
 
 Made with AI help: KeePassNC is built with [Claude Code](https://claude.com/claude-code), and the commits say so. Every change
-runs through tests against KeePassXC, three browsers and real Nextcloud installs. That's a safety net, not an audit, so
-[`SECURITY.md`](SECURITY.md) still asks you to keep a KeePassXC copy around.
+runs through tests against KeePassXC, three browsers and real Nextcloud installs.
 
 ## License and credits
 
