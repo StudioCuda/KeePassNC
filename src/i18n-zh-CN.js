@@ -450,6 +450,7 @@ export default {
     'login.wipe': '删除本浏览器的本地数据',
     'login.wipe.confirm': '真的要删除吗？（再点一次）',
     'login.wiped': '本地数据（离线副本、应用缓存、设置）已删除。',
+    'merge.banner': '服务器上的文件无法与你的更改合并。更改只存在于此标签页中，请保存一份副本以保留它们。',
     'merge.apply': '合并',
     'merge.choose': '选择文件',
     'merge.creds': '这个副本用另一套凭据打开。请输入它所用的凭据：',
