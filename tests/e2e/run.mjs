@@ -17,7 +17,10 @@ const davRoot = path.join(tmp, 'dav'); fs.mkdirSync(davRoot);
 
 // ---------- KeePassXC as reference ----------
 function xc(args, file, input = PW + '\n') {
-    return execFileSync('keepassxc-cli', [args[0], ...args.slice(1)], { input, stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 1 << 26 }).toString('utf8');
+    // keepassxc-cli emits CRLF on Windows; every assertion in this file uses LF literals
+    return execFileSync('keepassxc-cli', [args[0], ...args.slice(1)], { input, stdio: ['pipe', 'pipe', 'pipe'], maxBuffer: 1 << 26 })
+        .toString('utf8')
+        .replace(/\r\n/g, '\n');
 }
 const kdbxVersion = (f) => { const d = fs.readFileSync(f); return `${d.readUInt16LE(10)}.${d.readUInt16LE(8)}`; };
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
