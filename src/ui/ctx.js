@@ -13,6 +13,7 @@ export const kfFileId = (name) => (ctx.NC ? `nc-file:${ctx.NC.user}:${name}` : `
 export const kfScope = (id) => (ctx.NC ? id.startsWith(`nc:${ctx.NC.user}:`) || id.startsWith(`nc-file:${ctx.NC.user}:`) : !id.startsWith('nc:') && !id.startsWith('nc-file:'));
 export const params = new URLSearchParams(location.search);
 export const SW_CACHE = 'kpnc-app-v1';
+export const LOCK_WAIT_MS = Math.max(1, parseFloat(params.get('lockwait')) || 10) * 1000; // how long the lock waits for a running save (at least 1 s; shorter only for tests)
 export const SYNC_RETRY_MS = (parseFloat(params.get('syncretry')) || 30) * 1000; // unsynced offline states are retried every 30 s
 
 export const ctx = {

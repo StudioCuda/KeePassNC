@@ -2,7 +2,7 @@
 import { isOffline } from '../webdav.js';
 import { ARGON2_WORKER_URL } from '../argon2.js';
 import { t, errText } from '../i18n.js';
-import { ctx, setStatus, download, SW_CACHE, SYNC_RETRY_MS, params } from './ctx.js';
+import { ctx, setStatus, download, SW_CACHE, SYNC_RETRY_MS, LOCK_WAIT_MS, params } from './ctx.js';
 import { $, confirmDialog } from './dom.js';
 import { setNcHeaderOffline } from './ncheader.js';
 import { fmtDate } from '../i18n.js';
@@ -217,7 +217,6 @@ export function confirmDiscard() {
 }
 
 let locking = null;
-const LOCK_WAIT_MS = 10000;
 
 /** Did the saves and syncs started so far end within ms? */
 async function settledWithin(vault, ms) {

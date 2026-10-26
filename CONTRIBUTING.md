@@ -44,7 +44,7 @@ Easiest is the same domain as your Nextcloud. On a different domain every WebDAV
 
 The page starts with "Local file" until you pick something else, so it works as a demo without any server.
 
-`?autolock=SECONDS` overrides the auto-lock (default 300). If you host it yourself, also read the CSP note in [`SECURITY.md`](SECURITY.md).
+`?autolock=SECONDS` overrides the auto-lock (default 300); `?lockwait=SECONDS` how long locking waits for a running save (default 10, at least 1). If you host it yourself, also read the CSP note in [`SECURITY.md`](SECURITY.md).
 
 ## Generator page
 
