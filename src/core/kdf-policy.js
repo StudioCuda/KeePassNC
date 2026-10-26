@@ -5,8 +5,11 @@
 export const MEMORY_PRESETS_MIB = [64, 128, 256, 512, 1024];
 export const PARALLELISM_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 export const MAX_ITERATIONS = 1000;
-/** AES-KDF rounds we still open without asking (KeePass's "one second" setting is a few million on a desktop; the browser is slower). */
-export const MAX_AES_ROUNDS = 10_000_000;
+/**
+ * AES-KDF rounds we still open without asking. Measured in Chromium on a 2019 desktop (AES-NI): about 35 million rounds per second,
+ * so this is a few seconds there; a phone needs several times that. KeePass's "one second" setting stays well below it.
+ */
+export const MAX_AES_ROUNDS = 100_000_000;
 /** Above this the library refuses (vendor/kdbxweb key-encryptor-aes.ts) and so do we, without asking: a confirmation must not buy unlimited work. */
 export const REFUSE_AES_ROUNDS = 1_000_000_000;
 /** From this measured duration (ms) we point out that phones often need considerably longer. */
