@@ -253,6 +253,7 @@ async function main() {
         await page.waitForFunction(() => (document.querySelector('#detail h2')?.textContent || '').trim() === 'UI Link');
         expect(await link('[data-testid=f-url]') === 'https://example.com/login', 'nackter Hostname');
         expect((await page.locator('[data-testid=f-url]').innerText()).trim() === 'example.com/login', 'Text bleibt wie eingegeben');
+        await page.fill('#search', 'title:"UI Link"'); await rowOf('UI Link').first().waitFor(); const n3 = await page.locator('.entry-wrap', { has: rowOf('UI Link') }).locator('.row-actions button').count(); expect(n3 === 3, 'Schnellbuttons der Zeile: URL oeffnen, Benutzer, Passwort'); await page.fill('#search', '');
         expect(await link('[data-testid=custom-KP2A_URL_1]') === 'https://alt.example.org', 'URL-Zusatzfeld');
         expect(await link('[data-testid=custom-Server]') === 'https://srv.example.org', 'Zusatzfeld mit https');
         expect(await link('[data-testid=custom-Notiz]') === null, 'nackter Hostname in einem Nicht-URL-Feld bleibt Text');
@@ -263,6 +264,7 @@ async function main() {
         await page.fill('#e-url', 'cmd://putty.exe'); await page.click('#apply-btn');
         await page.waitForFunction(() => /cmd:/.test(document.querySelector('[data-testid=f-url]')?.textContent || ''));
         expect(await link('[data-testid=f-url]') === null, 'cmd:// darf kein Link sein');
+        await page.fill('#search', 'title:"UI Link"'); await rowOf('UI Link').first().waitFor(); const n2 = await page.locator('.entry-wrap', { has: rowOf('UI Link') }).locator('.row-actions button').count(); await page.fill('#search', ''); expect(n2 === 2, 'cmd:// bekommt keinen URL-Schnellbutton');
     });
 
     await step('TOTP-Ring/-Code fuer otpauth (SHA256, 8 Stellen, 45 s) und alte Felder (TOTP Seed)', async () => {
@@ -386,6 +388,17 @@ async function main() {
         await page.click('[data-testid=pw-toggle]'); const pw = (await page.locator('[data-testid=pw-value]').innerText()).trim();
         await page.waitForFunction((x) => navigator.clipboard.readText().then((y) => y === x), pw);
         await page.waitForFunction(() => navigator.clipboard.readText().then((y) => y === ''), null, { timeout: 15000 });
+    });
+
+    await step('Zwischenablage: wurde zwischendurch etwas anderes kopiert, leert der Timer es nicht', async () => {
+        if (browserName !== 'chromium') return 'nur Chromium: Firefox/WebKit gewaehren das Lesen der Zwischenablage nicht';
+        await pick(page, 'Amazon');
+        await page.locator('#list .entry.active').focus();
+        await page.keyboard.press('Control+c');
+        await page.waitForFunction(() => /kopiert/.test(document.querySelector('#status')?.textContent || ''));
+        await page.evaluate(() => navigator.clipboard.writeText('fremder Inhalt'));
+        await page.waitForTimeout(12000); // clipboard setting of this page: 10 s
+        expect(await page.evaluate(() => navigator.clipboard.readText()) === 'fremder Inhalt', 'Der Timer hat fremden Inhalt geleert');
     });
 
     await step('Verknuepft duplizieren: Kopie zeigt per {REF:U@I:…}/{REF:P@I:…} auf das Original, Detail zeigt und kopiert die echten Werte', async () => {

@@ -1,6 +1,6 @@
 // Main view: header, three columns (sidebar | list | details), mobile navigation, keyboard shortcuts, command palette.
 import { t } from '../i18n.js';
-import { fieldOf, domainOf, hasTotp, isPasskey, entryColor } from '../core/util.js';
+import { fieldOf, domainOf, hasTotp, isPasskey, entryColor, openableUrl } from '../core/util.js';
 import { SORTS } from './common.js';
 import { ctx, copy, applyTheme, clearMarks } from './ctx.js';
 import { $, h, icon, iconBtn, modal } from './dom.js';
@@ -153,7 +153,7 @@ export function renderList(entries = visibleEntries()) {
         const color = entryColor(e);
         if (color) { main.classList.add('tinted'); main.style.setProperty('--entry-color', color); } // CSSOM, no style attribute (CSP)
         const wrap = h('div', { class: 'entry-wrap', draggable: 'true' }, main,
-            h('div', { class: 'row-actions', 'aria-hidden': 'true' }, iconBtn('user', t('copy') + ': ' + t('f.user'), () => copy(user, t('f.user')), { tabindex: '-1' }), iconBtn('key', t('copy') + ': ' + t('f.password'), () => copy(resolvedField(e, 'Password'), t('f.password')), { tabindex: '-1' })));
+            h('div', { class: 'row-actions', 'aria-hidden': 'true' }, openableUrl(resolvedUrl(e, { own: true })) ? iconBtn('globe', t('row.openurl'), () => openEntryUrl(e), { tabindex: '-1' }) : null, iconBtn('user', t('copy') + ': ' + t('f.user'), () => copy(user, t('f.user')), { tabindex: '-1' }), iconBtn('key', t('copy') + ': ' + t('f.password'), () => copy(resolvedField(e, 'Password'), t('f.password')), { tabindex: '-1' })));
         wrap.addEventListener('dragstart', (ev) => startEntryDrag(ev, e));
         body.append(wrap);
     }

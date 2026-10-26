@@ -27,8 +27,20 @@ export function parseCsv(text) {
     return rows;
 }
 
-/** Rows -> CSV, every field quoted (like KeePassXC), CRLF line endings. */
-export const toCsv = (rows) => rows.map((r) => r.map((f) => `"${String(f ?? '').replace(/"/g, '""')}"`).join(',')).join('\r\n') + '\r\n';
+const FORMULA = /^[=+\-@\t\r]/;
+const NUMBER = /^-?\d+(?:[.,]\d+)?$/;
+/**
+ * Rows -> CSV, every field quoted (like KeePassXC), CRLF line endings.
+ * neutralize: a spreadsheet would evaluate a cell that starts with = + - @ (or a tab/CR), so it gets a leading apostrophe (OWASP's
+ * advice for CSV injection). Off by default: it changes the data, and the app's own import would read the apostrophe back.
+ * Plain numbers like -1 stay as they are (keepNumbers).
+ */
+export const toCsv = (rows, { neutralize = false, keepNumbers = true } = {}) =>
+    rows.map((r) => r.map((f) => {
+        let s = String(f ?? '');
+        if (neutralize && FORMULA.test(s) && !(keepNumbers && NUMBER.test(s))) s = "'" + s;
+        return `"${s.replace(/"/g, '""')}"`;
+    }).join(',')).join('\r\n') + '\r\n';
 
 // Column names of the known exports (lower case): KeePassXC, KeePass 2, Bitwarden, 1Password, Chrome/Edge/Brave, Firefox, LastPass, Proton Pass,
 // Nextcloud Passwords (German headers: its CSV export uses the language of whoever exports) and Passman
