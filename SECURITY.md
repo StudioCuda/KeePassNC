@@ -19,8 +19,8 @@ You'll get an answer, though this is a small project, so "within a few days" is 
 
 Decryption happens in the browser only. The server sees the encrypted KDBX and, for the key file memory feature, a random per-user
 secret that is useless without the master password. Details and the known residual risk are in `docs/KEYFILE-MEMORY.md`.
-The code has been reviewed by two separate AI models, but there has been no independent human audit yet, and one is welcome.
-Until then, keep your regular KeePassXC copy around. The file format being boring is the point.
+The code has been reviewed by two separate AI models (see Reviews below), but there has been no independent human audit yet, and
+one is welcome. Until then, keep your regular KeePassXC copy around. The file format being boring is the point.
 
 Saving is defensive too: writes use ETag checks (a server that sends no ETag, or doesn't expose it to the page via CORS, gets a
 byte comparison with the version we read last, right before writing: a small window remains there, not none), a backup copy goes
@@ -36,6 +36,23 @@ the very page where your passwords sit decrypted. The header with the app menu a
 hands over the menu entries and the instance color, the browser checks them, and nothing else runs. That's why the header has no
 unified search, notifications or contacts menu, which all need Nextcloud's JavaScript. The color reaches the page as data and gets
 applied through the CSSOM, so the CSP still allows no inline styles at all.
+
+## Reviews
+
+Before 1.0.0, v0.18.1 went through two independent code reviews, one by DeepSeek V4.1 Flash and one by GPT-6 Luna, each with its own
+brief and without seeing the other's findings. These are AI reviews, not an audit by people, and we don't pretend otherwise. The findings that mattered, all fixed:
+
+- Auto-lock could lose changes while a save was still running or failing. It now waits (up to ten seconds) and falls back to the
+  unlock screen.
+- `Ctrl+S` could merge another device's changes under an open entry editor and drop what was typed, or leave an entry twice.
+- A file asking for billions of AES-KDF rounds froze the tab without a question. Over 100 million rounds the app asks, over a
+  billion it refuses.
+- Decrypted passwords stayed in memory (the strength cache) after locking.
+- A server without `ETag` support could let two devices overwrite each other.
+
+One thing was left as it is on purpose: the CSV export doesn't escape cells starting with `=`, `+`, `-` or `@` unless you switch on
+"Make it safe for Excel & co.", because that changes the passwords in the file. A review also tried to make one entry's URL placeholder
+leak another entry's password; it can't.
 
 ## Known limitations
 
