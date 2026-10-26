@@ -20,6 +20,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Auto-lock while a save is still running (a slow server) waits for it to finish. If it fails, the unlock screen keeps your changes instead of dropping to the login and losing them.
 - `Ctrl+S` with an open entry editor asks to apply or cancel the entry first, also when other changes are pending. A merge with another device's changes can no longer overwrite what you were typing.
 - Remembering a key file in two tabs at once on a fresh Nextcloud account no longer invalidates one of the records.
+- Locking while a save is still running no longer waits forever when the server stops answering: after ten seconds the changes count as unsaved, so an auto-lock puts up the unlock screen and a manual lock asks first.
 
 ## [0.18.1] - 2026-10-25
 ### Changed
