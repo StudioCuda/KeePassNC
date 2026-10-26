@@ -1100,10 +1100,10 @@ async function main() {
     await step('Auto-Sperre, waehrend ein Speichern haengt und dann doch noch klappt: erst Sperrbildschirm, sobald nichts mehr ungespeichert ist die echte Sperre mit der urspruenglichen Meldung', async () => {
         const f = path.join(davRoot, 'latput.kdbx');
         fs.copyFileSync(f4, f);
-        const p = await newPage('?autolock=5');
+        const p = await newPage('?autolock=5&lockwait=2'); // the lock gives up after 2 s instead of 10 (hangput keeps the real value)
         let slow = true;
         await p.route('**/dav/latput.kdbx', async (r) => {
-            if (slow && r.request().method() === 'PUT') { await new Promise((res) => setTimeout(res, 18000)); return r.continue(); }
+            if (slow && r.request().method() === 'PUT') { await new Promise((res) => setTimeout(res, 10000)); return r.continue(); }
             return r.continue();
         });
         await login(p, 'latput.kdbx'); await rows(p).first().waitFor();
