@@ -63,13 +63,26 @@ export function setStatus(msg, kind = 'info') {
 }
 
 let clipboardTimer = null;
+/**
+ * Should the clipboard be emptied? Not if the user copied something else meanwhile. Looking costs a permission prompt in most
+ * browsers, so it only happens where the permission is granted already; without it (or when reading fails) we clear, as before.
+ */
+async function clearable(text) {
+    try {
+        if ((await navigator.permissions.query({ name: 'clipboard-read' })).state !== 'granted') return true;
+        const now = await navigator.clipboard.readText();
+        return now === '' || now === text;
+    } catch {
+        return true;
+    }
+}
 export async function copy(text, label) {
     try {
         await navigator.clipboard.writeText(text);
         setStatus(t('copied', { what: label, s: ctx.settings.clipboard }));
         toast(t('copied.short', { what: label }), { timeout: 1800 });
         clearTimeout(clipboardTimer);
-        clipboardTimer = setTimeout(() => { navigator.clipboard.writeText('').catch(() => {}); }, ctx.settings.clipboard * 1000);
+        clipboardTimer = setTimeout(async () => { if (await clearable(text)) navigator.clipboard.writeText('').catch(() => {}); }, ctx.settings.clipboard * 1000);
     } catch {
         setStatus(t('copy.failed'), 'error');
     }
