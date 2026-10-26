@@ -875,8 +875,12 @@ export class Vault {
      */
     save() { return this._exclusive(() => this._save()); }
 
-    /** Syncs with the server: upload unsynced versions, otherwise pull changes from other devices. */
-    sync() { return this._exclusive(() => this._sync()); }
+    /**
+     * Syncs with the server: upload unsynced versions, otherwise pull changes from other devices.
+     * background: a timer asked, not the user. A sync queued behind a save that then fails to merge must not try again (every attempt
+     * leaves a conflict backup behind), so this is checked here, once the save is over, and not only when the sync was asked for.
+     */
+    sync({ background = false } = {}) { return this._exclusive(() => (background && this.mergeBlocked ? {} : this._sync())); }
 
     async _save() {
         this._writable();

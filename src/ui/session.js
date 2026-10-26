@@ -178,7 +178,7 @@ export async function syncNow({ announce = false } = {}) {
     syncing = true;
     $('#sync-state')?.classList.add('busy');
     try {
-        const res = await (v.dirty ? v.save() : v.sync());
+        const res = await (v.dirty ? v.save() : v.sync({ background: !announce }));
         state.lastSyncFailed = !!res.offline;
         if (res.offline) {
             if (announce) setStatus(t('sync.failed.offline'), 'warn');
