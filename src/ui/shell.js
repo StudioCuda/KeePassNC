@@ -14,7 +14,7 @@ import { openReports } from './reports.js';
 import { openMerge } from './merge-dialog.js';
 import { openCsv } from './csv-dialog.js';
 import { openSettings } from './settings-dialog.js';
-import { doSave, lock, refreshDirtyIndicator, syncNow } from './session.js';
+import { doSave, lock, refreshDirtyIndicator, refreshReadOnly, saveCopy, syncNow } from './session.js';
 import { saveSettings } from '../settings.js';
 
 const { state } = ctx;
@@ -42,7 +42,9 @@ export function showMain() {
         iconBtn('settings', t('settings'), () => openSettings(), { id: 'settings-btn' }),
         NC?.filesUrl && !NC.nav ? h('a', { href: NC.filesUrl, id: 'files-link', class: 'icon-btn hide-narrow', title: t('files'), 'aria-label': t('files') }, icon('folderOpen')) : null,
         iconBtn('lock', t('lock'), () => lock(t('locked')), { id: 'lock-btn' }));
-    const shell = h('div', { class: 'shell', 'data-view': state.view, 'data-drawer': '0' }, bar,
+    const banner = h('div', { class: 'ro-banner', id: 'readonly-banner', role: 'status', hidden: true }, icon('lock'), h('span', { id: 'ro-text' }),
+        h('button', { type: 'button', class: 'link', id: 'ro-copy', text: t('ro.copy'), onclick: () => saveCopy() }));
+    const shell = h('div', { class: 'shell', 'data-view': state.view, 'data-drawer': '0' }, bar, banner,
         h('main', { class: 'panes' }, // the workspace is the main landmark: on a phone only one of the panes is on screen at a time
             h('div', { class: 'scrim', onclick: () => { $('.shell').dataset.drawer = '0'; } }),
             h('nav', { id: 'groups', class: 'sidebar', 'aria-label': t('nav.groups') }),
@@ -52,6 +54,7 @@ export function showMain() {
         h('footer', { class: 'statusbar' }, h('span', { id: 'status', role: 'status', 'data-testid': 'status' }), h('span', { class: 'muted', id: 'status-right' })));
     ctx.app.replaceChildren(shell);
     refresh();
+    refreshReadOnly();
 }
 
 export function applyView() {

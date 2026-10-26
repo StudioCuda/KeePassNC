@@ -353,6 +353,33 @@ async function main() {
     });
     await page.context().close();
 
+    await step('Server verweigert das Schreiben (403, Freigabe ohne Bearbeiten): Sitzung wird schreibgeschuetzt, Aenderung bleibt, Banner, keine weiteren Versuche, "Kopie speichern" liefert sie, Bearbeiten wird abgewiesen', async () => {
+        const f = path.join(davRoot, 'ro.kdbx');
+        fs.copyFileSync(f4, f);
+        const before = fs.readFileSync(f);
+        const p = await newPage('?syncretry=1&syncinterval=1');
+        let puts = 0;
+        await p.route('**/dav/ro.kdbx', (route) => { if (route.request().method() === 'PUT') { puts++; return route.fulfill({ status: 403, body: '' }); } return route.continue(); });
+        await login(p, 'ro.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'ro-aenderung'); await p.click('#apply-btn');
+        expect(await p.locator('#readonly-banner').isHidden(), 'Banner vor dem Versuch zu speichern');
+        await p.click('#save-btn');
+        await waitStatus(p, /Server erlaubt hier kein Schreiben/);
+        expect(await p.locator('#readonly-banner').isVisible() && await p.locator('#ro-copy').isVisible(), 'Banner mit "Kopie speichern" fehlt');
+        const sent = puts;
+        await p.waitForTimeout(2500);
+        expect(puts === sent, `weitere Schreibversuche nach dem 403: ${puts - sent}`);
+        await p.click('#edit-btn');
+        await waitStatus(p, /nur lesen/);
+        expect(await p.locator('#e-user').count() === 0, 'Editor darf nicht aufgehen');
+        const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#ro-copy')]);
+        const out = path.join(tmp, 'ro-copy.kdbx'); fs.copyFileSync(await dl.path(), out);
+        expect(xc(['show', out, 'Bank/Konto']).includes('ro-aenderung'), 'Kopie enthaelt die Aenderung nicht');
+        expect(Buffer.compare(before, fs.readFileSync(f)) === 0, 'Datei auf dem Server wurde veraendert');
+        await p.context().close();
+    });
+
     await step('Konflikt: anderes Geraet aendert die Datei zwischenzeitlich -> Zusammenfuehrung, beide Aenderungen bleiben, Server-Stand wird gesichert', async () => {
         const p = await newPage();
         await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
