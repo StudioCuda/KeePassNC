@@ -1,0 +1,20 @@
+# Easy to follow, hard to trip over. Most editors read this on their own.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+# Markdown: one paragraph or list item per line, no hard wrapping (your editor wraps for you).
+# Two trailing spaces mean a line break there, so don't trim them.
+[*.md]
+trim_trailing_whitespace = false
+max_line_length = off
+
+# Windows batch files need CRLF (see .gitattributes)
+[*.cmd]
+end_of_line = crlf
