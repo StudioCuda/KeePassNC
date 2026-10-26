@@ -941,6 +941,38 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Auto-Speichern hinter einem Speichern, das am Zusammenfuehren scheitert: keine zweite Konflikt-Sicherung, kein "Gespeichert"; ein eigenes Speichern versucht es weiter', async () => {
+        const f = path.join(davRoot, 'autoblocked.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await p.evaluate(() => localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'change' })));
+        await p.reload();
+        // The first save is slow: the auto-save of the next change (800 ms later) queues behind it and runs only after its merge failed
+        await p.route('**/dav/autoblocked.kdbx', async (r) => {
+            if (r.request().method() === 'PUT') await new Promise((res) => setTimeout(res, 2500));
+            return r.continue();
+        });
+        await login(p, 'autoblocked.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'erste-aenderung'); await p.click('#apply-btn');
+        await p.waitForTimeout(1100); // the auto-save of this change is on its way: its PUT takes 2.5 s
+        fs.copyFileSync(path.join(davRoot, 'vault3.kdbx'), f); // another database at the same path (same password): that save will fail to merge
+        await p.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'zweite-aenderung'); await p.click('#apply-btn'); // auto-save in 800 ms
+        await waitStatus(p, /andere Datenbank/, 20000);
+        await p.waitForTimeout(4500); // the queued auto-save has had its turn
+        const backups = fs.readdirSync(davRoot).filter((n) => /^autoblocked\.kdbx\.conflict-/.test(n)).length;
+        expect(backups === 1, 'Konflikt-Sicherungen: ' + backups);
+        expect(/andere Datenbank/.test(await status(p)), 'Status wurde ueberschrieben: ' + await status(p));
+        expect(await p.locator('#save-btn').isEnabled(), 'Speichern muss erneut moeglich sein');
+        await p.click('#save-btn'); // a save of your own tries again
+        await waitStatus(p, /andere Datenbank/);
+        await p.waitForTimeout(500);
+        const after = fs.readdirSync(davRoot).filter((n) => /^autoblocked\.kdbx\.conflict-/.test(n)).length;
+        expect(after === 2, 'eigenes Speichern versucht es nicht erneut: ' + after);
+        await p.context().close();
+    });
+
     await step('Server ohne ETag: zwei Geraete speichern nacheinander -> zusammengefuehrt statt still ueberschrieben, fremde Fassung als conflict-Sicherung; unveraenderte Datei wird nicht dauernd neu uebernommen', async () => {
         const f = path.join(davRoot, 'noetag-shared.kdbx');
         fs.copyFileSync(f4, f);
