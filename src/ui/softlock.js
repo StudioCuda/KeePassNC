@@ -7,7 +7,7 @@ import { h, icon, iconBtn, closeAllDialogs, confirmDialog } from './dom.js';
 import { filePicker } from './file-picker.js';
 import { loginShell } from './login.js';
 import { stopDetailTimers } from './detail.js';
-import { doSave, refreshDirtyIndicator } from './session.js';
+import { confirmDiscard, doSave, refreshDirtyIndicator } from './session.js';
 
 const { state } = ctx;
 let lastMessage = '';
@@ -46,7 +46,7 @@ export function showSoftLock(message) {
         }
     });
     discard.addEventListener('click', async () => {
-        if (await confirmDialog({ title: t('lock'), message: t('lock.unsaved'), confirmLabel: t('lock.anyway'), cancelLabel: t('cancel'), danger: true })) ctx.ui.showLogin(t('locked'));
+        if (await confirmDiscard()) ctx.ui.showLogin(t('locked'));
     });
     const card = h('main', { class: 'login-card' },
         h('div', { class: 'login-top' }, h('h2', { text: t('softlock.title') })),
