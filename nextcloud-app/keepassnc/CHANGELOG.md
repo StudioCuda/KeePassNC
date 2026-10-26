@@ -3,6 +3,10 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-10-26
+First stable release. Before it, the code went through reviews by two separate AI models and a check of the fixes by a third; `SECURITY.md` has the short version.
+
 ### Added
 - A third hover button in the entry list: open the entry's URL in a new tab.
 - An optional "Make it safe for Excel & co." switch in the CSV export. Cells starting with `=`, `+`, `-` or `@` get a leading `'`, so a spreadsheet doesn't run them as formulas. Off by default, because it changes those values.
@@ -10,17 +14,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Auto-lock with changes that couldn't be saved (a local file, or no connection to the server) no longer leaves the entries on screen. An unlock screen takes over and says the changes live only in memory; the master password (and key file) brings you back and offers to save. Locking by hand still asks first. `SECURITY.md` explains the trade-off.
 ### Fixed
 - A database you may only read (a share without "Edit", or a server answering 403 on save) is now really read-only: a banner stays, changes are refused before they touch anything, and "Save a copy" downloads what you changed anyway.
-- `Ctrl+S` with nothing to save no longer downloads a 9-byte "Saved" file for a local database. After a sync pulled changes from another device, the list and the open entry follow the new data, and the editor no longer opens while a pull may swap the database under it (that could lose your input or move an entry out of its group).
+- `Ctrl+S` with nothing to save no longer downloads a 9-byte "Saved" file for a local database. After a sync pulled changes from another device, the list and the open entry follow the new data, and the editor no longer opens while a pull may swap the database under it (that could lose your input or move an entry out of its group). `Ctrl+S` with an open entry editor asks to apply or cancel the entry first, so a merge can no longer overwrite what you were typing.
 - A save that can't be merged (the file at that path became another database, or an entry exists twice) says so in plain words, keeps your changes, offers "Save a copy", and stops adding a `conflict-….bak` on every retry.
 - WebDAV servers without an `ETag` (or hiding it via CORS): a write now compares with the version read last, so another device's change is merged and kept as `conflict-….bak` instead of being overwritten, and a clean database isn't re-downloaded on every sync. A small window remains.
 - Conflict backups made within the same second no longer clash on their name (`-2`, `-3`); the settings now say which file names count as backups.
 - Opening a file with an unusually heavy key derivation (Argon2 over 1 GiB, 1000 iterations or 8 threads, or AES-KDF over 100 million rounds) asks first instead of freezing the tab. AES-KDF with more than a billion rounds is refused outright.
 - The clipboard timer leaves alone what you copied in the meantime, where the browser lets the page read the clipboard.
 - Locking forgets the passwords the strength rating had cached in the page.
-- Auto-lock while a save is still running (a slow server) waits for it to finish. If it fails, the unlock screen keeps your changes instead of dropping to the login and losing them.
-- `Ctrl+S` with an open entry editor asks to apply or cancel the entry first, also when other changes are pending. A merge with another device's changes can no longer overwrite what you were typing.
+- Auto-lock while a save is still running (a slow server) waits for it, for ten seconds at most. If it fails or hangs, the unlock screen keeps your changes instead of dropping to the login and losing them; a manual lock asks first.
 - Remembering a key file in two tabs at once on a fresh Nextcloud account no longer invalidates one of the records.
-- Locking while a save is still running no longer waits forever when the server stops answering: after ten seconds the changes count as unsaved, so an auto-lock puts up the unlock screen and a manual lock asks first.
 
 ## [0.18.1] - 2026-10-25
 ### Changed
