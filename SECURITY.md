@@ -23,8 +23,13 @@ There has been no independent audit yet. Treat it accordingly: until then, keep 
 format being boring is the point.
 
 Saving is defensive too: writes use ETag checks (a server that sends no ETag, or doesn't expose it to the page via CORS, gets a
-byte comparison with the version we read last, right before writing: a small window remains there, not none), a backup copy goes next to the file first, and if two devices edited at once the
-two versions are merged instead of one quietly winning. The app loads no external scripts or fonts and runs under a strict CSP.
+byte comparison with the version we read last, right before writing: a small window remains there, not none), a backup copy goes
+next to the file first (unless the folder doesn't let you create files, then you are told), and if two devices edited at once the
+two versions are merged instead of one quietly winning. If the file at that path has become a different database, nothing is
+merged or overwritten: you get a plain message and your changes stay in the tab. Backup copies are named
+`<file>.[conflict-]YYYYMMDD-HHMMSS.bak`, and clean-up deletes any file with that name pattern, whoever made it. The app loads no
+external scripts or fonts and runs under a strict CSP (the standalone page via `<meta>`, the Nextcloud page via the header
+Nextcloud sends).
 
 In Nextcloud the page is served on its own, without Nextcloud's layout and scripts. Any other app's JavaScript would otherwise run on
 the very page where your passwords sit decrypted. The header with the app menu and your account menu is KeePassNC's own: the server
