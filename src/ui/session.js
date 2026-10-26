@@ -108,6 +108,7 @@ export function rebind() {
 export async function doSave({ auto = false } = {}) {
     const v = state.vault;
     if (!v) return;
+    if (auto && v.mergeBlocked) return; // the server file can't be merged: only an explicit save tries again
     // Read-only: nothing goes to the server, Ctrl+S / the button hand out a copy instead (not on its own in the auto-lock)
     if (v.readOnly && (v.dirty || v.unsynced)) { if (!auto) await saveCopy(); return; }
     // Ctrl+S and the palette don't look at the button state. A local file has nothing to hand out without changes (no empty
@@ -152,7 +153,7 @@ export async function doSave({ auto = false } = {}) {
 /** Background sync (interval, reconnect, tab visible): pushes local changes up or pulls changes from others. */
 export async function syncNow({ announce = false } = {}) {
     const v = state.vault;
-    if (!v || state.source?.type !== 'dav' || syncing || state.editing || (v.readOnly && (v.dirty || v.unsynced))) return;
+    if (!v || state.source?.type !== 'dav' || syncing || state.editing || (v.mergeBlocked && !announce) || (v.readOnly && (v.dirty || v.unsynced))) return;
     syncing = true;
     $('#sync-state')?.classList.add('busy');
     try {
