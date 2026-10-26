@@ -136,11 +136,18 @@ export async function doSave({ auto = false } = {}) {
     if (state.editing && !auto) { setStatus(t('save.editing')); return; }
     const btn = $('#save-btn');
     if (btn) btn.disabled = true;
-    setStatus(auto ? t('saving.auto') : t('saving'));
+    const statusEl = $('#status');
+    const before = statusEl && [statusEl.textContent, statusEl.dataset.kind];
+    const busyText = auto ? t('saving.auto') : t('saving');
+    setStatus(busyText);
     const mayPull = !v.dirty; // without changes of our own, sync() may pull and swap the database
     if (mayPull) pulls++;
     try {
-        const res = await (v.dirty ? v.save() : v.sync());
+        const res = await (v.dirty ? v.save({ auto }) : v.sync({ background: auto }));
+        if (res.skipped) { // queued behind a save that failed to merge: nothing happened, the status stays as it was
+            if (before && statusEl.textContent === busyText) { statusEl.textContent = before[0]; statusEl.dataset.kind = before[1]; } // not over the outcome of that save
+            return;
+        }
         state.lastSyncFailed = !!res.offline;
         if (state.source.type === 'file') {
             download(state.source.name, res.bytes);

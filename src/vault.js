@@ -876,14 +876,15 @@ export class Vault {
      * If the server is unreachable and an offline copy exists, that's no error: {offline: true}, sync follows later.
      * @returns {Promise<{merged?: boolean, offline?: boolean, bytes?: ArrayBuffer}>}
      */
-    save() { return this._exclusive(() => this._save()); }
+    save({ auto = false } = {}) { return this._exclusive(() => (auto && this.mergeBlocked ? { skipped: true } : this._save())); }
 
     /**
      * Syncs with the server: upload unsynced versions, otherwise pull changes from other devices.
      * background: a timer asked, not the user. A sync queued behind a save that then fails to merge must not try again (every attempt
      * leaves a conflict backup behind), so this is checked here, once the save is over, and not only when the sync was asked for.
+     * save({ auto: true }) works the same way. Both answer { skipped: true } when they stood down.
      */
-    sync({ background = false } = {}) { return this._exclusive(() => (background && this.mergeBlocked ? {} : this._sync())); }
+    sync({ background = false } = {}) { return this._exclusive(() => (background && this.mergeBlocked ? { skipped: true } : this._sync())); }
 
     async _save() {
         this._writable();
