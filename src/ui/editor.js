@@ -5,7 +5,7 @@ import { excluded, reusedBy } from '../core/audit.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
 import { h, icon, iconBtn, toast } from './dom.js';
-import { changed, refreshDirtyIndicator } from './session.js';
+import { changed, isSwapping, refreshDirtyIndicator } from './session.js';
 import { strengthBar, binData, sizeLabel } from './detail.js';
 import { groupSelect, selectedGroup } from './groups.js';
 import { openGenerator } from './generator-dialog.js';
@@ -17,6 +17,7 @@ const { state } = ctx;
 
 export function startEdit(entry, group) {
     if (state.vault.readOnly) { setStatus(errText(state.vault.readOnlyError()), 'warn'); return; }
+    if (isSwapping()) { setStatus(t('sync.busy'), 'warn'); return; } // a pull in flight would swap the database under the editor
     const g = entry?.parentGroup || group || (state.filter.type === 'group' && state.filter.group !== state.vault.recycleBin ? state.filter.group : null) || state.vault.root.groups.find((x) => x !== state.vault.recycleBin) || state.vault.root;
     state.editing = { entry, group: g };
     state.view = 'detail';

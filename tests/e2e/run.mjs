@@ -928,6 +928,33 @@ async function main() {
         await p1.context().close(); await p2.context().close();
     });
 
+    await step('Editor oeffnen, waehrend ein Abgleich noch laeuft: der Editor oeffnet sich nicht (Hinweis); danach zeigt er den Stand des anderen Geraets, Eintrag bleibt in seiner Gruppe, Eingabe wird gespeichert', async () => {
+        const f = path.join(davRoot, 'inflight.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        let hold = false;
+        await p.route('**/dav/inflight.kdbx', async (r) => { if (hold && r.request().method() === 'GET') await new Promise((res) => setTimeout(res, 3000)); return r.continue(); });
+        await login(p, 'inflight.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.waitForTimeout(1100);
+        xc(['edit', '-q', f, 'Bank/Konto', '-u', 'anderes-geraet'], null); // "other device"
+        hold = true;
+        await p.keyboard.press('Control+s'); // the pull starts, its download is held back
+        await p.waitForTimeout(500);
+        await p.click('#edit-btn');
+        await waitStatus(p, /abgeglichen/);
+        expect(await p.locator('#e-user').count() === 0, 'Editor darf waehrend des Abgleichs nicht aufgehen');
+        hold = false;
+        await waitStatus(p, /anderen Ger/); // pulled
+        await p.click('#edit-btn');
+        expect(await p.inputValue('#e-user') === 'anderes-geraet', 'Editor zeigt nicht den Stand des anderen Geraets: ' + await p.inputValue('#e-user'));
+        await p.fill('#e-pass', 'pw-im-editor'); await p.click('#apply-btn');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        const k = xc(['show', '-s', f, 'Bank/Konto'], null);
+        expect(k.includes('pw-im-editor') && k.includes('anderes-geraet'), 'Eintrag/Eingabe nach dem Abgleich: ' + k);
+        await p.context().close();
+    });
+
     await step('Datenschutz/Sicherheit: keine externen Anfragen, keine JS-Fehler, CSP gesetzt, Server sah nie Klartext', async () => {
         expect(problems.external.length === 0, 'Externe Anfragen: ' + problems.external.join(', '));
         expect(problems.pageErrors.length === 0, 'Seitenfehler: ' + problems.pageErrors.join(' | '));
