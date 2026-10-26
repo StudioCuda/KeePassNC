@@ -451,6 +451,7 @@ export default {
     'login.wipe': 'Lokale Daten dieses Browsers löschen',
     'login.wipe.confirm': 'Wirklich löschen? (nochmal klicken)',
     'login.wiped': 'Lokale Daten (Offline-Kopien, App-Cache, Einstellungen) wurden gelöscht.',
+    'merge.banner': 'Die Datei auf dem Server lässt sich nicht mit deinen Änderungen zusammenführen. Sie liegen nur in diesem Tab, speichere eine Kopie, um sie zu behalten.',
     'merge.apply': 'Zusammenführen',
     'merge.choose': 'Datei wählen',
     'merge.creds': 'Diese Kopie öffnet mit anderen Zugangsdaten. Bitte die eingeben, die sie braucht:',

@@ -451,6 +451,7 @@ export default {
     'login.wipe': 'Delete local data of this browser',
     'login.wipe.confirm': 'Really delete? (click again)',
     'login.wiped': 'Local data (offline copies, app cache, settings) has been deleted.',
+    'merge.banner': 'The file on the server can’t be merged with your changes. They only live in this tab, save a copy to keep them.',
     'merge.apply': 'Merge',
     'merge.choose': 'Choose file',
     'merge.creds': 'This copy opens with different credentials. Enter the ones it uses:',

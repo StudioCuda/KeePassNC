@@ -39,17 +39,22 @@ export function refreshDirtyIndicator() {
     refreshReadOnly();
 }
 
-/** Banner (never goes away on its own) and the dimmed actions: a share that only allows reading, or a server that refused to save. */
+/**
+ * Banner (never goes away on its own) and the dimmed actions: a share that only allows reading, a server that refused to save, or a
+ * server file that can't be merged with our changes. "Save a copy" is there whenever changes exist that live only in this tab.
+ */
 export function refreshReadOnly() {
     const v = state.vault;
     const ro = !!v?.readOnly;
+    const pending = !!v && (v.dirty || v.unsynced);
+    const blocked = !ro && !!v?.mergeBlocked && pending;
     document.body.classList.toggle('readonly', ro);
     const banner = $('#readonly-banner');
     if (!banner) return;
-    banner.hidden = !ro;
-    if (!ro) return;
-    $('#ro-text', banner).textContent = t(v.dirty || v.unsynced ? 'ro.banner.dirty' : 'ro.banner');
-    $('#ro-copy', banner).hidden = !(v.dirty || v.unsynced);
+    banner.hidden = !(ro || blocked);
+    if (banner.hidden) return;
+    $('#ro-text', banner).textContent = t(blocked ? 'merge.banner' : pending ? 'ro.banner.dirty' : 'ro.banner');
+    $('#ro-copy', banner).hidden = !pending;
 }
 
 /** From now on the session only reads. Changes made so far stay in memory (and can be saved as a copy). */

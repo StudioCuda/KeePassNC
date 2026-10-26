@@ -896,6 +896,11 @@ async function main() {
         const msg = await status(p);
         expect(!/default group is different|MergeError/.test(msg), 'rohe Meldung: ' + msg);
         expect(await p.locator('#save-btn').isEnabled(), 'Speichern muss erneut moeglich sein');
+        expect(await p.locator('#readonly-banner').isVisible() && await p.locator('#ro-copy').isVisible(), 'Hinweis mit "Kopie speichern" fehlt');
+        expect(await p.locator('#new-btn').evaluate((b) => getComputedStyle(b).opacity) === '1', 'Neu darf nicht abgedunkelt sein: das ist kein Lesemodus');
+        const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#ro-copy')]);
+        const copy = path.join(tmp, 'merge-copy.kdbx'); fs.copyFileSync(await dl.path(), copy);
+        expect(xc(['show', copy, 'Bank/Konto'], null).includes('bob-bleibt'), 'Kopie enthaelt die Aenderung nicht');
         const backups = () => fs.readdirSync(davRoot).filter((n) => /^replaced\.kdbx\.conflict-/.test(n)).length;
         const n = backups();
         expect(n === 1, 'Konflikt-Sicherung des ersten Versuchs: ' + n);
