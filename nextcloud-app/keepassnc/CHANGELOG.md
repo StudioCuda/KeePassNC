@@ -4,8 +4,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-26
+Small follow-ups from the check of the 1.0.0 fixes.
+
 ### Fixed
 - If the save that was still running when the unlock screen came up finishes after all, and nothing else is unsaved, the unlock screen turns into the normal lock. It no longer claims the changes live only in memory, and nothing stays decrypted longer than needed.
+- Two quick `Ctrl+S` presses without changes of your own can no longer let the entry editor open while a pull may still swap the database. An auto-save queued behind a save that failed to merge no longer leaves a second `conflict-….bak`.
 
 ## [1.0.0] - 2026-10-26
 First stable release. Before it, the code went through reviews by two separate AI models and a check of the fixes by a third; `SECURITY.md` has the short version.
