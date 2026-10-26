@@ -408,6 +408,35 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Auto-Sperre mit ungespeicherten Aenderungen (lokale Datei): Sperrbildschirm statt offenem Tresor, nichts geht verloren; Entsperren per Passwort, danach Speichern-Angebot', async () => {
+        const p = await newPage('?autolock=5');
+        await p.locator('input[value=file]').check({ force: true });
+        await p.setInputFiles('#local-file', path.join(davRoot, 'vault3.kdbx'));
+        await p.fill('#master', PW); await p.click('#open-btn'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'bob-softlock'); await p.click('#apply-btn');
+        await p.locator('#softlock-form').waitFor({ timeout: 20000 });
+        const html = await p.content();
+        expect(!/alice|bob-softlock|Konto/.test(html), 'Auf dem Sperrbildschirm stehen noch Daten im DOM');
+        expect(/nur im Arbeitsspeicher/.test(await p.locator('#softlock-note').innerText()), 'Hinweis auf den Arbeitsspeicher fehlt');
+        // without a new key derivation: wrong password answers at once, nothing opens
+        await p.fill('#sl-master', 'falsch'); await p.click('#sl-unlock');
+        await waitStatusText(p, '#sl-error', /Falsches Master-Passwort/);
+        expect(await p.locator('#softlock-form').count() === 1, 'Falsches Passwort darf nicht entsperren');
+        // Ctrl+S and friends do nothing in the soft lock
+        await p.keyboard.press('Control+s');
+        // the idle timer doesn't turn it into a real lock behind the user's back
+        await p.waitForTimeout(7000);
+        expect(await p.locator('#softlock-form').count() === 1 && await p.locator('#login-form').count() === 0, 'Soft-Lock darf nicht in die Anmeldung kippen');
+        await p.fill('#sl-master', PW); await p.click('#sl-unlock');
+        await p.locator('#confirm-ok').waitFor();
+        expect(await rows(p).count() > 0, 'Nach dem Entsperren fehlt die Liste');
+        const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#confirm-ok')]);
+        const out = path.join(tmp, 'softlock.kdbx'); fs.copyFileSync(await dl.path(), out);
+        expect(xc(['show', out, 'Konto']).includes('bob-softlock'), 'Aenderung ging beim Sperren/Entsperren verloren');
+        await p.context().close();
+    });
+
     await step('KDBX 3.1: oeffnen, aendern, speichern -> bleibt 3.1 und KeePassXC liest es', async () => {
         const f3 = path.join(davRoot, 'vault3.kdbx');
         const p = await newPage();
@@ -804,32 +833,27 @@ async function main() {
         await p.context().close();
     });
 
-    await step('Auto-Sperre mit ungespeicherten Aenderungen (lokale Datei): Sperrbildschirm statt offenem Tresor, nichts geht verloren; Entsperren per Passwort, danach Speichern-Angebot', async () => {
-        const p = await newPage('?autolock=5');
-        await p.locator('input[value=file]').check({ force: true });
-        await p.setInputFiles('#local-file', path.join(davRoot, 'vault3.kdbx'));
-        await p.fill('#master', PW); await p.click('#open-btn'); await rows(p).first().waitFor();
+    await step('Speichern, obwohl die Datei durch eine andere Datenbank ersetzt wurde: verstaendliche Meldung statt "default group is different", Aenderung bleibt, Hintergrund-Speichern wiederholt nichts', async () => {
+        const f = path.join(davRoot, 'replaced.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage('?syncretry=1');
+        await login(p, 'replaced.kdbx'); await rows(p).first().waitFor();
         await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
-        await p.click('#edit-btn'); await p.fill('#e-user', 'bob-softlock'); await p.click('#apply-btn');
-        await p.locator('#softlock-form').waitFor({ timeout: 20000 });
-        const html = await p.content();
-        expect(!/alice|bob-softlock|Konto/.test(html), 'Auf dem Sperrbildschirm stehen noch Daten im DOM');
-        expect(/nur im Arbeitsspeicher/.test(await p.locator('#softlock-note').innerText()), 'Hinweis auf den Arbeitsspeicher fehlt');
-        // without a new key derivation: wrong password answers at once, nothing opens
-        await p.fill('#sl-master', 'falsch'); await p.click('#sl-unlock');
-        await waitStatusText(p, '#sl-error', /Falsches Master-Passwort/);
-        expect(await p.locator('#softlock-form').count() === 1, 'Falsches Passwort darf nicht entsperren');
-        // Ctrl+S and friends do nothing in the soft lock
-        await p.keyboard.press('Control+s');
-        // the idle timer doesn't turn it into a real lock behind the user's back
-        await p.waitForTimeout(7000);
-        expect(await p.locator('#softlock-form').count() === 1 && await p.locator('#login-form').count() === 0, 'Soft-Lock darf nicht in die Anmeldung kippen');
-        await p.fill('#sl-master', PW); await p.click('#sl-unlock');
-        await p.locator('#confirm-ok').waitFor();
-        expect(await rows(p).count() > 0, 'Nach dem Entsperren fehlt die Liste');
-        const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#confirm-ok')]);
-        const out = path.join(tmp, 'softlock.kdbx'); fs.copyFileSync(await dl.path(), out);
-        expect(xc(['show', out, 'Konto']).includes('bob-softlock'), 'Aenderung ging beim Sperren/Entsperren verloren');
+        await p.click('#edit-btn'); await p.fill('#e-user', 'bob-bleibt'); await p.click('#apply-btn');
+        await p.waitForTimeout(1100);
+        fs.copyFileSync(path.join(davRoot, 'vault3.kdbx'), f); // another database at the same path (same password)
+        const other = fs.readFileSync(f);
+        await p.click('#save-btn');
+        await waitStatus(p, /andere Datenbank/);
+        const msg = await status(p);
+        expect(!/default group is different|MergeError/.test(msg), 'rohe Meldung: ' + msg);
+        expect(await p.locator('#save-btn').isEnabled(), 'Speichern muss erneut moeglich sein');
+        const backups = () => fs.readdirSync(davRoot).filter((n) => /^replaced\.kdbx\.conflict-/.test(n)).length;
+        const n = backups();
+        expect(n === 1, 'Konflikt-Sicherung des ersten Versuchs: ' + n);
+        await p.waitForTimeout(2500); // retry timer and auto-save would each leave another conflict backup
+        expect(backups() === n, 'weitere Konflikt-Sicherungen im Hintergrund: ' + (backups() - n));
+        expect(Buffer.compare(other, fs.readFileSync(f)) === 0, 'Datei auf dem Server wurde ueberschrieben');
         await p.context().close();
     });
 

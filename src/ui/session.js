@@ -70,6 +70,7 @@ export function rebind() {
 export async function doSave({ auto = false } = {}) {
     const v = state.vault;
     if (!v) return;
+    if (auto && v.mergeBlocked) return; // the server file can't be merged: only an explicit save tries again
     // Ctrl+S and the palette don't look at the button state. A local file has nothing to hand out without changes (no empty
     // download), and a pull would swap the database under an open editor (syncNow keeps out of it, too).
     if (!v.dirty && state.source.type === 'file') { setStatus(t('save.nothing')); return; }
@@ -111,7 +112,7 @@ export async function doSave({ auto = false } = {}) {
 /** Background sync (interval, reconnect, tab visible): pushes local changes up or pulls changes from others. */
 export async function syncNow({ announce = false } = {}) {
     const v = state.vault;
-    if (!v || state.source?.type !== 'dav' || syncing || state.editing || state.softLocked) return;
+    if (!v || state.source?.type !== 'dav' || syncing || state.editing || state.softLocked || (v.mergeBlocked && !announce)) return;
     syncing = true;
     $('#sync-state')?.classList.add('busy');
     try {

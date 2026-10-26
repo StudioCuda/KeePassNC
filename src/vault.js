@@ -196,6 +196,7 @@ export class Vault {
         this._backedUp = false;
         this.backupKeep = 10; // number of backup copies kept per kind (0 = never delete)
         this.dirty = false; // changes in memory only (not serialized yet)
+        this.mergeBlocked = false; // the last upload failed because the server file can't be merged (see _push)
         this.cache = cache || null;
         this.unsynced = false; // saved locally (offline copy), the server doesn't have this version yet
         this._pending = null;
@@ -877,6 +878,7 @@ export class Vault {
     }
 
     async _push() {
+        this.mergeBlocked = false;
         if (!this._backedUp) {
             await this._backup(this._remoteBytes, stamp());
             this._backedUp = true;
@@ -909,7 +911,15 @@ export class Vault {
                     throw err;
                 });
                 const header = this._mergedHeader(remoteDb);
-                this.db.merge(remoteDb);
+                try {
+                    this.db.merge(remoteDb);
+                } catch (err) {
+                    if (!(err instanceof KdbxError && err.code === Consts.ErrorCodes.MergeError)) throw err;
+                    // Retrying changes nothing (every attempt would leave another conflict backup behind): background sync and auto-save stand down until the user saves again
+                    this.mergeBlocked = true;
+                    if (/^duplicate/.test(err.message)) throw new VaultError('Ein Eintrag oder eine Gruppe kommt doppelt vor (lokal oder auf dem Server), das laesst sich nicht zusammenfuehren.', 'e.merge.dup');
+                    throw new VaultError('Die Datei auf dem Server ist eine andere Datenbank (ersetzt oder neu angelegt). Deine Aenderungen bleiben hier, zusammenfuehren geht nicht.', 'e.merge.server');
+                }
                 if (header !== this.db.header) { this.db.header = header; this.db.meta.headerHash = undefined; }
                 this._pending = await this.db.save();
                 this.etag = remote.etag;
