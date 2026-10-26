@@ -209,6 +209,14 @@ export function confirmDiscard() {
 }
 
 let locking = null;
+const LOCK_WAIT_MS = 10000;
+
+/** Did the saves and syncs started so far end within ms? */
+async function settledWithin(vault, ms) {
+    let timer;
+    const timeout = new Promise((resolve) => { timer = setTimeout(() => resolve(false), ms); });
+    try { return await Promise.race([vault.settled().then(() => true), timeout]); } finally { clearTimeout(timer); }
+}
 
 /** The idle timer asks every second: while a lock is under way (waiting for a save, a dialog) the later calls join it. */
 export function lock(message) {
@@ -217,17 +225,18 @@ export function lock(message) {
 
 async function doLock(message) {
     const auto = state.autoLockRequest === true;
-    // A save or sync in flight has already cleared the dirty flag: wait for its outcome, it decides what is still unsaved
-    await state.vault?.settled();
+    // A save or sync in flight has already cleared the dirty flag: wait for its outcome, it decides what is still unsaved.
+    // A request that never answers must not keep the entries on screen: after LOCK_WAIT_MS we treat the changes as unsaved.
+    const stuck = state.vault ? !(await settledWithin(state.vault, LOCK_WAIT_MS)) : false;
     const v = state.vault;
-    if (v && (v.dirty || v.unsynced) && state.source.type === 'dav') {
+    if (v && (v.dirty || v.unsynced || stuck) && state.source.type === 'dav') {
         // WebDAV: save first. Locally saved (offline) versions may stay, unlocking transfers them later.
-        if (v.dirty) await doSave({ auto: true });
-        if (state.vault?.dirty) {
+        if (v.dirty && !stuck) await doSave({ auto: true });
+        if (stuck || state.vault?.dirty) {
             if (auto) { softLock(message); return; }
             if (!(await confirmDiscard())) return;
         }
-    } else if (v?.dirty) {
+    } else if (v?.dirty || stuck) {
         if (auto) { softLock(message); return; }
         if (!(await confirmDiscard())) return;
     }

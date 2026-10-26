@@ -1007,6 +1007,33 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Auto-Sperre, waehrend ein Speichern gar nicht mehr antwortet: nach einer Wartezeit Sperrbildschirm statt offener Eintraege, die Aenderung bleibt und wird nach dem Entsperren gespeichert', async () => {
+        const f = path.join(davRoot, 'hangput.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage('?autolock=5');
+        let release; const hold = new Promise((res) => { release = res; });
+        let hang = true;
+        await p.route('**/dav/hangput.kdbx', async (r) => {
+            if (hang && r.request().method() === 'PUT') { await hold; return r.fulfill({ status: 500, body: 'kaputt' }); }
+            return r.continue();
+        });
+        await login(p, 'hangput.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'haengt-fest'); await p.click('#apply-btn');
+        await p.click('#save-btn'); // the PUT never answers; the idle lock fires meanwhile and may not wait forever
+        await p.locator('#softlock-form').waitFor({ timeout: 40000 });
+        expect(await p.locator('#login-form').count() === 0, 'Harte Sperre, obwohl das Speichern noch haengt');
+        expect(!/haengt-fest|Konto/.test(await p.content()), 'Auf dem Sperrbildschirm stehen noch Daten im DOM');
+        hang = false; release();
+        await p.waitForTimeout(500);
+        await p.fill('#sl-master', PW); await p.click('#sl-unlock');
+        await p.locator('#confirm-ok').waitFor();
+        await p.click('#confirm-ok');
+        await waitStatus(p, /^Gespeichert\./);
+        expect(xc(['show', f, 'Bank/Konto']).includes('haengt-fest'), 'Aenderung nach dem Entsperren nicht auf dem Server');
+        await p.context().close();
+    });
+
     await step('Strg+S bei offenem Editor und schmutzigem Tresor: Rueckfrage statt Merge, die getippte Eingabe bleibt; nach dem Uebernehmen wird zusammengefuehrt', async () => {
         const f = path.join(davRoot, 'editmerge.kdbx');
         fs.copyFileSync(f4, f);
