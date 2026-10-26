@@ -156,12 +156,15 @@ async function loadWith(buf, password, kf) {
 }
 
 /** Errors from Kdbx.load as understandable VaultErrors (wrong credentials, no/unknown KDBX file), otherwise unchanged. */
+/** A file header asks for more AES-KDF rounds than we ever open (core/kdf-policy.js, REFUSE_AES_ROUNDS). */
+export const tooManyRoundsError = () => new VaultError('Die Datei verlangt unsinnig viele Durchlaeufe der Schluesselableitung und wird nicht geoeffnet.', 'e.kdf.rounds');
+
 function loadError(e) {
     if (e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) {
         return new VaultError('Falsches Master-Passwort oder falsche Schluesseldatei.', 'e.badkey');
     }
     if (e instanceof KdbxError && e.code === Consts.ErrorCodes.Unsupported && /aes rounds/.test(e.message)) {
-        return new VaultError('Die Datei verlangt unsinnig viele Durchlaeufe der Schluesselableitung und wird nicht geoeffnet.', 'e.kdf.rounds');
+        return tooManyRoundsError();
     }
     if (e instanceof KdbxError && [Consts.ErrorCodes.BadSignature, Consts.ErrorCodes.InvalidVersion, Consts.ErrorCodes.Unsupported].includes(e.code)) {
         return new VaultError('Das ist keine gueltige KDBX-Datei (oder eine nicht unterstuetzte Version).', 'e.badfile');
