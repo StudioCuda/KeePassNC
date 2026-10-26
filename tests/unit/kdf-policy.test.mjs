@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { heavyDemand, memoryLevel, isWeaker, minIterations, suggestIterations, newDbIterations, NEW_DB, MAX_ITERATIONS } from '../../src/core/kdf-policy.js';
+import { heavyDemand, memoryLevel, isWeaker, minIterations, suggestIterations, newDbIterations, NEW_DB, MAX_ITERATIONS, MAX_AES_ROUNDS, REFUSE_AES_ROUNDS, refusedDemand } from '../../src/core/kdf-policy.js';
 
 const a = (memoryMiB, iterations, kdf = 'argon2id') => ({ kdf, memoryKiB: memoryMiB * 1024, iterations, parallelism: 2 });
 const aes = (rounds) => ({ kdf: 'aes', rounds });
@@ -46,13 +46,21 @@ test('Neue Datenbank: AES-256, Argon2id mit 64 MiB, Durchlaeufe aus dem Probelau
     assert.equal(newDbIterations(0.01), MAX_ITERATIONS);
 });
 
-test('heavyDemand: nur Argon2 ueber dem, was die App selbst anbietet, fragt nach', () => {
+test('heavyDemand: Argon2 ueber dem, was die App selbst anbietet, fragt nach', () => {
     const ar = (memoryKiB, iterations, parallelism) => ({ kdf: 'argon2id', memoryKiB, iterations, parallelism, rounds: null });
     assert.equal(heavyDemand(ar(64 * 1024, 3, 2)), null);
     assert.equal(heavyDemand(ar(1024 * 1024, 1000, 8)), null, 'genau die Obergrenzen');
     assert.deepEqual(heavyDemand(ar(2 * 1024 * 1024, 100, 4)), { memoryMiB: 2048, iterations: 100, parallelism: 4 });
     assert.notEqual(heavyDemand(ar(64 * 1024, 1001, 2)), null);
     assert.notEqual(heavyDemand(ar(64 * 1024, 3, 255)), null);
-    assert.equal(heavyDemand({ kdf: 'aes', memoryKiB: null, iterations: null, parallelism: null, rounds: 5e9 }), null, 'AES-KDF ist hier nicht Thema');
+    const aes = (rounds) => ({ kdf: 'aes', memoryKiB: null, iterations: null, parallelism: null, rounds });
+    assert.equal(heavyDemand(aes(600000)), null);
+    assert.equal(heavyDemand(aes(MAX_AES_ROUNDS)), null, 'genau die Obergrenze');
+    assert.deepEqual(heavyDemand(aes(MAX_AES_ROUNDS + 1)), { rounds: MAX_AES_ROUNDS + 1 }, 'AES-KDF ueber der Grenze fragt nach');
+    assert.equal(refusedDemand(aes(MAX_AES_ROUNDS + 1)), null, 'nur fragen, nicht ablehnen');
+    assert.equal(refusedDemand(aes(REFUSE_AES_ROUNDS)), null, 'genau die harte Grenze');
+    assert.deepEqual(refusedDemand(aes(REFUSE_AES_ROUNDS + 1)), { rounds: REFUSE_AES_ROUNDS + 1 }, 'darueber wird abgelehnt');
+    assert.equal(refusedDemand(ar(64 * 1024, 1e9, 2)), null, 'Argon2 wird nie hier abgelehnt');
+    assert.equal(refusedDemand(null), null);
     assert.equal(heavyDemand(null), null);
 });

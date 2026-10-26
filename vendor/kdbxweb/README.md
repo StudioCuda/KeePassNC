@@ -2,7 +2,7 @@
 
 [kdbxweb](https://github.com/keeweb/kdbxweb) by Antelle, MIT (see `LICENSE`). Git state `UPSTREAM_COMMIT` (2.2.0, npm stops at 2.1.1).
 
-Five local fixes and one addition, all already applied in `lib/`. The diffs in `patches/` record what changed, so it can be carried
+Six local fixes and one addition, all already applied in `lib/`. The diffs in `patches/` record what changed, so it can be carried
 over after an update. They are not uniform: four are `git diff` output with different path prefixes (`a/lib/...` or
 `a/vendor/kdbxweb/lib/...`, and `date-overflow-fix.patch` doesn't apply cleanly to `UPSTREAM_COMMIT` as it is), `xml-tab-fix.patch` and
 `history-customdata-fix.patch` are plain `diff` output. Read them as a list of changes to redo, not as something to feed to
@@ -17,3 +17,4 @@ over after an update. They are not uniform: four are `git diff` output with diff
 - `date-overflow-fix.patch`: read binary timestamps without `Int64.value`, which threw "too large number" on the huge "never" values some apps (KeePassDX) write, and cap them at the latest date .NET can represent. Upstream fixed the same in keenext/kdbxweb.
 - `twofish.patch`: Twofish-256 as a third cipher next to AES and ChaCha20 (`lib/crypto/twofish.ts`, written from the 1998
   specification), so files KeePassXC encrypted with Twofish open and save. Upstream never had it.
+- `aes-rounds-limit.patch`: `KeyEncryptorAes.encrypt` refuses more than 1 000 000 000 rounds (`KdbxError` `Unsupported`, "too many aes rounds"). The round count comes from the file header; the app asks before opening files over 100 million rounds (`src/core/kdf-policy.js`) and this is the limit behind that question.
