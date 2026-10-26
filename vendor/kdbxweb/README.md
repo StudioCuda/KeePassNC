@@ -2,7 +2,11 @@
 
 [kdbxweb](https://github.com/keeweb/kdbxweb) by Antelle, MIT (see `LICENSE`). Git state `UPSTREAM_COMMIT` (2.2.0, npm stops at 2.1.1).
 
-Five local fixes and one addition, all already applied in `lib/`. The diffs are in `patches/` so they can be re-applied after an update:
+Five local fixes and one addition, all already applied in `lib/`. The diffs in `patches/` record what changed, so it can be carried
+over after an update. They are not uniform: four are `git diff` output with different path prefixes (`a/lib/...` or
+`a/vendor/kdbxweb/lib/...`, and `date-overflow-fix.patch` doesn't apply cleanly to `UPSTREAM_COMMIT` as it is), `xml-tab-fix.patch` and
+`history-customdata-fix.patch` are plain `diff` output. Read them as a list of changes to redo, not as something to feed to
+`git apply`. A comparison of `lib/` with `UPSTREAM_COMMIT` (second review of 0.18.0) found exactly these changes and nothing else.
 
 - `enable-searching-fix.patch`: write missing optional group fields as defaults instead of empty elements, which KeePassXC rejects.
 - `xml-tab-fix.patch`: keep the tab character (0x09) when cleaning XML. It's valid in XML 1.0, upstream dropped it.
