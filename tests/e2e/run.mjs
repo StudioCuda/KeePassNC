@@ -680,6 +680,21 @@ async function main() {
         await p.setInputFiles('#csv-file', { name: 'zurueck.csv', mimeType: 'text/csv', buffer: Buffer.from(ours) });
         await p.click('#csv-import');
         expect(await rows(p).count() === parseCsv(ours).length - 1, 'Wiedereingelesener Export: ' + await rows(p).count());
+        // Spreadsheet-safe export: opt-in; cells that start with a formula character get an apostrophe, the default export doesn't
+        const evil = `"Group","Title","Username","Password","URL","Notes"\n"","=cmd|' /c calc'!A1","u","-pw-x","",""`;
+        await openCsv();
+        await p.setInputFiles('#csv-file', { name: 'formel.csv', mimeType: 'text/csv', buffer: Buffer.from(evil) });
+        await p.click('#csv-import');
+        const exportAs = async (safe) => {
+            await openCsv();
+            await p.check('#csv-sure');
+            if (safe) await p.check('#csv-safe');
+            const [d] = await Promise.all([p.waitForEvent('download'), p.click('#csv-export')]);
+            return fs.readFileSync(await d.path(), 'utf8');
+        };
+        const plain = await exportAs(false), safe = await exportAs(true);
+        expect(plain.includes(`"=cmd|`) && plain.includes(`"-pw-x"`) && !plain.includes(`"'=cmd`), 'Standardexport darf nichts veraendern');
+        expect(safe.includes(`"'=cmd|`) && safe.includes(`"'-pw-x"`) && !/(^|,)"[=+\-@]/m.test(safe), 'abgesicherter Export beginnt noch mit Formelzeichen');
         await p.context().close();
     });
 
@@ -786,6 +801,29 @@ async function main() {
         expect(konten.length === 1, 'Konto kommt ' + konten.length + 'x vor');
         expect(xc(['show', '-s', f, 'Bank/Konto']).includes('pw-im-editor'), 'Eingabe fehlt in der Datei');
         await p.context().close();
+    });
+
+    await step('Server ohne ETag: zwei Geraete speichern nacheinander -> zusammengefuehrt statt still ueberschrieben, fremde Fassung als conflict-Sicherung; unveraenderte Datei wird nicht dauernd neu uebernommen', async () => {
+        const f = path.join(davRoot, 'noetag-shared.kdbx');
+        fs.copyFileSync(f4, f);
+        const p1 = await newPage(), p2 = await newPage();
+        await login(p1, 'noetag-shared.kdbx'); await rows(p1).first().waitFor();
+        await login(p2, 'noetag-shared.kdbx'); await rows(p2).first().waitFor();
+        // Nothing changed on the server: the sync doesn't take over "news" again and again (it used to, with no ETag to compare)
+        await p1.keyboard.press('Control+s'); await waitStatus(p1, /^Gespeichert\./);
+        await p1.waitForTimeout(300);
+        expect(!/uebernommen|übernommen/.test(await status(p1)), 'unveraenderte Datei wurde neu uebernommen: ' + await status(p1));
+        await p2.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p2.click('#edit-btn'); await p2.fill('#e-user', 'zweites-geraet'); await p2.click('#apply-btn');
+        await p2.click('#save-btn'); await waitStatus(p2, /^Gespeichert\./);
+        await p1.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
+        await p1.click('#edit-btn'); await p1.fill('#e-user', 'erstes-geraet'); await p1.click('#apply-btn');
+        await p1.waitForTimeout(1100);
+        await p1.click('#save-btn'); await waitStatus(p1, /zusammengef/);
+        expect(xc(['show', f, 'Bank/Konto']).includes('zweites-geraet'), 'Aenderung des zweiten Geraets ging verloren');
+        expect(xc(['show', f, 'Web/Mail']).includes('erstes-geraet'), 'Aenderung des ersten Geraets fehlt');
+        expect(fs.readdirSync(davRoot).some((n) => /^noetag-shared.*conflict-.*\.bak$/.test(n)), 'conflict-Sicherung der fremden Fassung fehlt');
+        await p1.context().close(); await p2.context().close();
     });
 
     await step('Datenschutz/Sicherheit: keine externen Anfragen, keine JS-Fehler, CSP gesetzt, Server sah nie Klartext', async () => {
