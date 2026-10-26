@@ -991,6 +991,29 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Strg+S zweimal schnell ohne eigene Aenderungen: der Editor oeffnet sich auch nicht, wenn der erste Abgleich schon zu Ende ist und der zweite noch laeuft', async () => {
+        const f = path.join(davRoot, 'doublesave.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        let heads = 0, hold = false;
+        await p.route('**/dav/doublesave.kdbx', async (r) => {
+            if (hold && r.request().method() === 'HEAD') await new Promise((res) => setTimeout(res, ++heads === 1 ? 800 : 3000));
+            return r.continue();
+        });
+        await login(p, 'doublesave.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        hold = true;
+        await p.keyboard.press('Control+s'); // pull 1: its HEAD is held for 0.8 s
+        await p.waitForTimeout(200);
+        await p.keyboard.press('Control+s'); // pull 2 queues behind it: its HEAD is held for 3 s
+        await p.waitForTimeout(1300); // pull 1 is over, pull 2 is still running
+        expect(heads === 2, 'zweiter Abgleich laeuft nicht: ' + heads);
+        await p.click('#edit-btn');
+        expect(await p.locator('#e-user').count() === 0, 'Editor geht auf, obwohl ein Abgleich die Datenbank noch tauschen kann');
+        hold = false;
+        await p.context().close();
+    });
+
     await step('Auto-Sperre, waehrend das Speichern noch laeuft (traeger Server) und dann scheitert: Sperrbildschirm statt Anmeldung, die Aenderung bleibt und wird nach dem Entsperren gespeichert', async () => {
         const f = path.join(davRoot, 'slowput.kdbx');
         fs.copyFileSync(f4, f);

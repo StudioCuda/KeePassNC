@@ -8,7 +8,7 @@ import { setNcHeaderOffline } from './ncheader.js';
 import { fmtDate } from '../i18n.js';
 
 const { state } = ctx;
-let autoSaveTimer = null, syncing = false, pulling = false;
+let autoSaveTimer = null, syncing = false, pulls = 0; // pulls: running saves that may pull (overlapping Ctrl+S)
 // The server version no longer opens with this session's credentials: ask for the new ones (credentials-dialog.js)
 const REMOTE_CREDS = new Set(['e.merge.pw', 'e.pull.pw']);
 
@@ -122,7 +122,7 @@ function redrawAfterSwap() {
 }
 
 /** Is a sync running that may replace the database (pull)? Then no editor may open: it would keep the old entry and group objects. */
-export const isSwapping = () => syncing || pulling;
+export const isSwapping = () => syncing || pulls > 0;
 
 export async function doSave({ auto = false } = {}) {
     const v = state.vault;
@@ -137,7 +137,8 @@ export async function doSave({ auto = false } = {}) {
     const btn = $('#save-btn');
     if (btn) btn.disabled = true;
     setStatus(auto ? t('saving.auto') : t('saving'));
-    pulling = !v.dirty; // without changes of our own, sync() may pull and swap the database
+    const mayPull = !v.dirty; // without changes of our own, sync() may pull and swap the database
+    if (mayPull) pulls++;
     try {
         const res = await (v.dirty ? v.save() : v.sync());
         state.lastSyncFailed = !!res.offline;
@@ -166,7 +167,7 @@ export async function doSave({ auto = false } = {}) {
         else setStatus(t('save.failed', { msg: errText(e) }), 'error');
         if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
     } finally {
-        pulling = false;
+        if (mayPull) pulls--;
         refreshDirtyIndicator();
     }
 }
