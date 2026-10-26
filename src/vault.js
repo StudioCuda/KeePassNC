@@ -43,6 +43,27 @@ export function cryptoSettings(header) {
     return JSON.stringify([h.versionMajor, h.versionMinor, h.dataCipherUuid?.toString() ?? null, h.compression ?? null, h.keyEncryptionRounds ?? null, kdf]);
 }
 
+/** Cipher and key derivation of a file header as the settings dialog and the policy rules (core/kdf-policy.js) use them. */
+function headerSettings(h) {
+    const kp = h.kdfParameters;
+    const cipher = Object.keys(CIPHER_ID).find((c) => CIPHER_ID[c] === h.dataCipherUuid?.toString()) ?? null;
+    const out = { version: h.versionMajor, cipher, kdf: 'aes', memoryKiB: null, iterations: null, parallelism: null, rounds: null };
+    if (!kp) { out.rounds = Number(h.keyEncryptionRounds ?? 0); return out; }
+    const id = kp.get('$UUID'), b64 = id ? btoa(String.fromCharCode(...new Uint8Array(id))) : '';
+    if (b64 === Consts.KdfId.Argon2d || b64 === Consts.KdfId.Argon2id) {
+        out.kdf = b64 === Consts.KdfId.Argon2id ? 'argon2id' : 'argon2d';
+        out.memoryKiB = Math.round(Number(kp.get('M')) / 1024);
+        out.iterations = Number(kp.get('I'));
+        out.parallelism = Number(kp.get('P'));
+    } else out.rounds = Number(kp.get('R'));
+    return out;
+}
+
+/** What opening this file will demand, read from the unencrypted header before any password is tried; null if there is no readable header. */
+export function kdfDemand(buf) {
+    try { return headerSettings(KdbxHeader.read(new BinaryStream(buf), null)); } catch { return null; }
+}
+
 /** Display names for Vault.securitySettings(); KDF_LABEL is also the format keyfile-store.js expects. */
 export const KDF_LABEL = { argon2d: 'Argon2d', argon2id: 'Argon2id', aes: 'AES-KDF' };
 export const CIPHER_LABEL = { aes: 'AES-256', chacha20: 'ChaCha20', twofish: 'Twofish' };
@@ -196,12 +217,25 @@ export class Vault {
         this._backedUp = false;
         this.backupKeep = 10; // number of backup copies kept per kind (0 = never delete)
         this.dirty = false; // changes in memory only (not serialized yet)
+        this.readOnly = false; // share without write permission (or a 403 on saving): every change is turned away, see _writable
         this.mergeBlocked = false; // the last upload failed because the server file can't be merged (see _push)
         this.cache = cache || null;
         this.unsynced = false; // saved locally (offline copy), the server doesn't have this version yet
         this._pending = null;
         this._chain = Promise.resolve();
     }
+
+    /** Read-only session: changes are refused before they touch the database, so nothing looks saved or counts as dirty. */
+    _writable() {
+        if (this.readOnly) throw this.readOnlyError();
+    }
+
+    readOnlyError() {
+        return new VaultError('Du darfst diese Datei nur lesen (z. B. Freigabe ohne "Bearbeiten"). Aenderungen koennen hier nicht gespeichert werden.', 'e.dav.readonly');
+    }
+
+    /** The current state as a new KDBX file, for "save a copy" in a read-only session. Doesn't touch the dirty flag or the server. */
+    copyBytes() { return this._exclusive(() => this.db.save()); }
 
     _exclusive(fn) {
         const run = this._chain.then(fn);
@@ -261,6 +295,7 @@ export class Vault {
      * credentials. Result like save().
      */
     changeCredentials({ password, keyfile }) {
+        this._writable();
         return this._exclusive(async () => {
             const pw = password === undefined ? this._pw : ProtectedValue.fromString(password);
             const kf = keyfile === undefined ? this._kf : keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
@@ -313,6 +348,7 @@ export class Vault {
      * Returns {added, changed, removed} (entries). Errors: e.badkey, e.badfile, e.merge.other (different database).
      */
     async mergeFrom(buf, creds) {
+        this._writable();
         let other;
         try {
             other = creds ? (await loadWith(buf, creds.password, creds.keyfile ? toArrayBuffer(creds.keyfile) : undefined)).db
@@ -382,6 +418,7 @@ export class Vault {
      * no history entry is created (like in KeePassXC).
      */
     applyEntry(entry, group, data) {
+        this._writable();
         const isNew = !entry;
         if (isNew) entry = this.db.createEntry(group);
         else if (!this.entryDiffers(entry, data)) return entry;
@@ -427,6 +464,7 @@ export class Vault {
 
     /** Adds and/or removes tags on several entries. Every entry that really changes gets a history entry, like an edit. Returns how many changed. */
     editTags(entries, { add = [], remove = [] }) {
+        this._writable();
         let n = 0;
         for (const e of entries) {
             const next = editTags(e.tags, { add, remove });
@@ -492,18 +530,7 @@ export class Vault {
     // ---------------------------------------------------------------- Security settings (file header)
     /** {version, cipher: 'aes'|'chacha20'|'twofish'|null, kdf: 'argon2d'|'argon2id'|'aes', memoryKiB, iterations, parallelism, rounds} */
     securitySettings() {
-        const h = this.db.header, kp = h.kdfParameters;
-        const cipher = Object.keys(CIPHER_ID).find((c) => CIPHER_ID[c] === h.dataCipherUuid?.toString()) ?? null;
-        const out = { version: h.versionMajor, cipher, kdf: 'aes', memoryKiB: null, iterations: null, parallelism: null, rounds: null };
-        if (!kp) { out.rounds = Number(h.keyEncryptionRounds ?? 0); return out; }
-        const id = kp.get('$UUID'), b64 = id ? btoa(String.fromCharCode(...new Uint8Array(id))) : '';
-        if (b64 === Consts.KdfId.Argon2d || b64 === Consts.KdfId.Argon2id) {
-            out.kdf = b64 === Consts.KdfId.Argon2id ? 'argon2id' : 'argon2d';
-            out.memoryKiB = Math.round(Number(kp.get('M')) / 1024);
-            out.iterations = Number(kp.get('I'));
-            out.parallelism = Number(kp.get('P'));
-        } else out.rounds = Number(kp.get('R'));
-        return out;
+        return headerSettings(this.db.header);
     }
 
     /** Key derivation in the format keyfile-store.js expects (see chooseKdfParams). */
@@ -518,6 +545,7 @@ export class Vault {
      * merging with another device (Vault._mergedHeader) recognizes the newer header.
      */
     updateSecuritySettings({ cipher, kdf, memoryKiB, iterations, parallelism, rounds, upgrade = false }) {
+        this._writable();
         const cur = this.securitySettings();
         const needs4 = upgrade || kdf !== 'aes' || cipher === 'chacha20';
         if (needs4 && cur.version < 4) this.db.upgrade();
@@ -563,6 +591,7 @@ export class Vault {
      * them correctly. New history limits apply immediately to all entries (like in KeePassXC).
      */
     updateGeneralSettings({ name, desc, defaultUser, recycleBin, historyMaxItems, historyMaxSize }) {
+        this._writable();
         const m = this.db.meta;
         if (name !== undefined) m.name = name;
         if (desc !== undefined) m.desc = desc;
@@ -579,6 +608,7 @@ export class Vault {
     }
 
     removeEntry(entry) {
+        this._writable();
         if (this.isInRecycleBin(entry)) this.db.move(entry, null); // delete permanently
         else this.db.remove(entry);
         this.dirty = true;
@@ -590,6 +620,7 @@ export class Vault {
      * linked: username and password point to the original via field references ({REF:U@I:…}, {REF:P@I:…}), like "Clone" in KeePassXC.
      */
     duplicateEntry(entry, suffix = ' - Kopie', { linked = false } = {}) {
+        this._writable();
         const copy = this.db.createEntry(entry.parentGroup);
         copy.copyFrom(entry);
         for (const k of [...copy.fields.keys()]) if (isPasskeyField(k)) copy.fields.delete(k);
@@ -610,6 +641,7 @@ export class Vault {
     }
 
     moveEntry(entry, group) {
+        this._writable();
         if (entry.parentGroup === group) return;
         this.db.move(entry, group);
         this.dirty = true;
@@ -622,12 +654,13 @@ export class Vault {
         walk(this.root, 0);
         return out;
     }
-    createGroup(parent, name) { const g = this.db.createGroup(parent, name.trim() || 'Neue Gruppe'); this.dirty = true; return g; }
+    createGroup(parent, name) { this._writable(); const g = this.db.createGroup(parent, name.trim() || 'Neue Gruppe'); this.dirty = true; return g; }
     /**
      * icon/customIcon: icon as with applyEntry. iconScope exists like in KeePassXC: 'groups' (all subgroups), 'entries' (entries
      * directly in the group) or 'all' (everything below) get the same icon, without a history entry.
      */
     updateGroup(group, { name, notes, icon, customIcon, iconScope }) {
+        this._writable();
         if (name !== undefined) group.name = name.trim() || group.name;
         if (notes !== undefined) group.notes = notes;
         this._setIcon(group, { icon, customIcon });
@@ -643,6 +676,7 @@ export class Vault {
     }
     /** Recycle bin is active -> group moves into it; otherwise permanent. */
     removeGroup(group) {
+        this._writable();
         if (group === this.root) throw new VaultError('Die Wurzelgruppe kann nicht geloescht werden.', 'e.root.delete');
         if (group === this.recycleBin) throw new VaultError('Der Papierkorb kann nicht geloescht werden - nur leeren.', 'e.bin.delete');
         if (this.isInRecycleBin(group)) this.db.move(group, null); else this.db.remove(group);
@@ -654,6 +688,7 @@ export class Vault {
         return true;
     }
     moveGroup(group, target) {
+        this._writable();
         if (!this.canMoveGroup(group, target)) return false;
         this.db.move(group, target);
         this.dirty = true;
@@ -665,6 +700,7 @@ export class Vault {
      * subgroups. This keeps the import together and lets you get rid of it again with one click. Returns the new group.
      */
     async importEntries(entries, name) {
+        this._writable();
         const top = this.db.createGroup(this.root, name);
         const sub = (parent, part) => parent.groups.find((g) => g.name === part) || this.db.createGroup(parent, part);
         const free = (n, taken) => { let k = 2, out = n; while (taken(out)) out = `${n} (${k++})`; return out; }; // "name", "name (2)", ...
@@ -695,6 +731,7 @@ export class Vault {
     }
 
     emptyRecycleBin() {
+        this._writable();
         const rb = this.recycleBin;
         if (!rb) return 0;
         let n = 0;
@@ -707,6 +744,7 @@ export class Vault {
     // ---------------------------------------------------------------- History
     /** Restores an earlier version; the current version itself becomes a history entry. */
     restoreHistory(entry, index) {
+        this._writable();
         const old = entry.history[index];
         if (!old) return;
         const created = entry.times.creationTime, keep = entry.history, uuid = entry.uuid, parent = entry.parentGroup, prev = entry.previousParentGroup, loc = entry.times.locationChanged, usage = entry.times.usageCount;
@@ -718,14 +756,15 @@ export class Vault {
         entry.times.update();
         this.dirty = true;
     }
-    deleteHistory(entry, index) { entry.removeHistory(index, 1); entry.times.update(); this.dirty = true; }
-    clearHistory(entry) { entry.removeHistory(0, entry.history.length); this.dirty = true; }
+    deleteHistory(entry, index) { this._writable(); entry.removeHistory(index, 1); entry.times.update(); this.dirty = true; }
+    clearHistory(entry) { this._writable(); entry.removeHistory(0, entry.history.length); this.dirty = true; }
 
     // ---------------------------------------------------------------- Attachments
     /** Stores file contents in the database for applyEntry's `attachments.add` (nothing is attached until the entry is applied). */
     makeBinary(buffer) { return this.db.createBinary(buffer); }
     /** Remove the passkey from the entry; the previous version stays in the history (recoverable until the history is cleared). */
     removePasskey(entry) {
+        this._writable();
         const keys = [...entry.fields.keys()].filter(isPasskeyField);
         if (!keys.length) return false;
         this._pushHistory(entry);
@@ -758,6 +797,7 @@ export class Vault {
      * @returns {string} UUID of the icon
      */
     addCustomIcon(bytes, name = '') {
+        this._writable();
         const u8 = new Uint8Array(bytes);
         const known = this.findCustomIcon(u8);
         if (known) return known;
@@ -786,6 +826,7 @@ export class Vault {
      * it from coming back when merging with another version (like kdbxweb when cleaning up).
      */
     removeCustomIcon(id) {
+        this._writable();
         if (!this.db.meta.customIcons.has(id)) return;
         for (const item of this.root.allGroupsAndEntries()) {
             if (item.customIcon?.id === id) { item.customIcon = undefined; item.times.update(); }
@@ -832,6 +873,7 @@ export class Vault {
     sync() { return this._exclusive(() => this._sync()); }
 
     async _save() {
+        this._writable();
         this.dirty = false; // changes during serialization set the flag again
         let out;
         try { out = await this.db.save(); } catch (e) { this.dirty = true; throw e; }

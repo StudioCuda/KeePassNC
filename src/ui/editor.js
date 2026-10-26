@@ -16,6 +16,7 @@ import { readQr } from '../qr.js';
 const { state } = ctx;
 
 export function startEdit(entry, group) {
+    if (state.vault.readOnly) { setStatus(errText(state.vault.readOnlyError()), 'warn'); return; }
     const g = entry?.parentGroup || group || (state.filter.type === 'group' && state.filter.group !== state.vault.recycleBin ? state.filter.group : null) || state.vault.root.groups.find((x) => x !== state.vault.recycleBin) || state.vault.root;
     state.editing = { entry, group: g };
     state.view = 'detail';

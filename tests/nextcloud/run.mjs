@@ -370,13 +370,17 @@ async function main() {
         return await status(page);
     });
 
-    await step('Freigabe nur zum Lesen: beim Oeffnen als "nur lesbar" markiert, Speichern scheitert verstaendlich, Datei unveraendert', async () => {
+    await step('Freigabe nur zum Lesen: beim Oeffnen als "nur lesbar" markiert, dauerhafter Hinweis, Bearbeiten wird abgewiesen, Datei unveraendert', async () => {
         const ownerFile = await shareFolder('Team RO', 1);
         const before = fs.readFileSync(ownerFile);
         await openShared('/Team RO/team.kdbx');
         expect(/nur lesbar/.test(await status(page)), 'kein Hinweis beim Oeffnen: ' + await status(page));
-        await editMail('alice-darf-nicht');
+        expect(await page.locator('#readonly-banner').isVisible(), 'Dauerhafter Hinweis "Schreibgeschuetzt" fehlt');
+        await page.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
+        await page.click('#edit-btn'); // the editor doesn't even open
         await waitStatus(page, /nur lesen/, 30000);
+        expect(await page.locator('#e-user').count() === 0, 'Editor darf in einer schreibgeschuetzten Freigabe nicht aufgehen');
+        expect(await page.locator('#readonly-banner').isVisible(), 'Hinweis ist nach der ersten Aktion weg');
         expect(!/Status 403/.test(await status(page)), 'rohe Fehlermeldung: ' + await status(page));
         expect(Buffer.compare(before, fs.readFileSync(ownerFile)) === 0, 'Datei des Besitzers wurde veraendert');
         return await status(page);

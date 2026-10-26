@@ -15,6 +15,7 @@ import { clearBitsCache } from '../core/entropy.js';
 import { openSettings } from './settings-dialog.js';
 import { pickFolder, splitPath } from './folder-picker.js';
 import { remoteFields } from './remote.js';
+import { confirmHeavyKdf } from './kdf-guard.js';
 
 const { state } = ctx;
 
@@ -24,6 +25,7 @@ export function showLogin(message) {
     closeAllDialogs();
     stopDetailTimers();
     clearBitsCache(); // keyed by the plain passwords of the database that is closing
+    document.body.classList.remove('readonly');
     state.vault = null; state.softLocked = false; state.selEntry = null; state.editing = null; state.query = ''; clearMarks();
     document.body.classList.remove('in-vault');
     const NC = ctx.NC;
@@ -197,6 +199,7 @@ export function showLogin(message) {
                     throw new VaultError(t(e.code === 'wrong' ? (src === 'file' ? 'err.kf.wrong.file' : 'err.kf.wrong') : 'err.kf.format'));
                 }
             }
+            if (!(await confirmHeavyKdf(buf))) return;
             let vault;
             try {
                 vault = await Vault.open({ buf, password: masterInput.value, keyfile, dav, etag, cache: cacheInfo, unsynced, remoteBuf, fromCache });
@@ -210,6 +213,7 @@ export function showLogin(message) {
             // Nextcloud reports the permissions (share read-only?); other WebDAV servers don't, then saving decides
             const perms = NC && dav && !offlineOpen ? await dav.permissions() : null;
             const readOnly = perms !== null && !perms.includes('W');
+            vault.readOnly = readOnly;
             let kfNote = '';
             if (usedRemembered && (isWeakerThan(kfRec.kdf, vault.kdfParams()) || (usePepper && !kfRec.server))) {
                 // Older/weaker record (v0.4.0, database KDF raised since, in Nextcloud still without server secret):

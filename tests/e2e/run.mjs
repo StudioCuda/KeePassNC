@@ -97,8 +97,29 @@ async function main() {
         fs.writeFileSync(path.join(davRoot, 'hungrig.kdbx'), d);
         const p = await newPage();
         await login(p, 'hungrig.kdbx');
+        await p.locator('#confirm-ok').waitFor(); // more than the app itself would ever write: asks before computing
+        expect(/4096 MiB/.test(await p.locator('.modal, .dialog, [role=dialog]').first().innerText()), 'Rueckfrage nennt den Speicher nicht');
+        await p.click('#confirm-ok');
         await p.waitForFunction(() => /4096 MB Arbeitsspeicher/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 60000 });
         expect(!/RangeError|Fehler:/.test(await p.locator('#login-error').innerText()), 'Rohe Fehlermeldung statt verstaendlichem Text');
+        await p.context().close();
+    });
+
+    await step('Datei mit riesiger Schluesselableitung (5000 Durchlaeufe im Header): Rueckfrage vor dem Rechnen, Abbrechen oeffnet nichts; normale Dateien fragen nie', async () => {
+        const buf = Buffer.from(fs.readFileSync(f4));
+        const tag = Buffer.from([0x05, 0x01, 0, 0, 0, 0x49, 0x08, 0, 0, 0]); // KDF parameter "I" (UInt64) in the header
+        const at = buf.indexOf(tag);
+        expect(at > 0, 'Parameter I nicht im Header gefunden (kein Argon2?)');
+        buf.writeBigUInt64LE(5000n, at + tag.length);
+        fs.writeFileSync(path.join(davRoot, 'heavy.kdbx'), buf);
+        const p = await newPage();
+        await login(p, 'heavy.kdbx');
+        await p.locator('#confirm-ok').waitFor({ timeout: 15000 });
+        expect(/5000 Durchl/.test(await p.locator('.modal, .dialog, [role=dialog]').first().innerText()), 'Dialog nennt die Durchlaeufe nicht');
+        await p.click('#confirm-cancel');
+        await p.waitForTimeout(1500);
+        expect(await rows(p).count() === 0 && await p.locator('#login-form').count() === 1, 'Abbrechen darf nichts oeffnen');
+        expect(await p.locator('#open-btn').isEnabled(), 'Anmelden muss wieder moeglich sein');
         await p.context().close();
     });
 
@@ -332,6 +353,33 @@ async function main() {
         expect(/Recycle Bin\/[\s\S]*Neu E2E/.test(ls) && !/^Web\/[\s\S]*Neu E2E[\s\S]*Bank/m.test(ls.split('Recycle Bin')[0]), 'Papierkorb:\n' + ls);
     });
     await page.context().close();
+
+    await step('Server verweigert das Schreiben (403, Freigabe ohne Bearbeiten): Sitzung wird schreibgeschuetzt, Aenderung bleibt, Banner, keine weiteren Versuche, "Kopie speichern" liefert sie, Bearbeiten wird abgewiesen', async () => {
+        const f = path.join(davRoot, 'ro.kdbx');
+        fs.copyFileSync(f4, f);
+        const before = fs.readFileSync(f);
+        const p = await newPage('?syncretry=1&syncinterval=1');
+        let puts = 0;
+        await p.route('**/dav/ro.kdbx', (route) => { if (route.request().method() === 'PUT') { puts++; return route.fulfill({ status: 403, body: '' }); } return route.continue(); });
+        await login(p, 'ro.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'ro-aenderung'); await p.click('#apply-btn');
+        expect(await p.locator('#readonly-banner').isHidden(), 'Banner vor dem Versuch zu speichern');
+        await p.click('#save-btn');
+        await waitStatus(p, /Server erlaubt hier kein Schreiben/);
+        expect(await p.locator('#readonly-banner').isVisible() && await p.locator('#ro-copy').isVisible(), 'Banner mit "Kopie speichern" fehlt');
+        const sent = puts;
+        await p.waitForTimeout(2500);
+        expect(puts === sent, `weitere Schreibversuche nach dem 403: ${puts - sent}`);
+        await p.click('#edit-btn');
+        await waitStatus(p, /nur lesen/);
+        expect(await p.locator('#e-user').count() === 0, 'Editor darf nicht aufgehen');
+        const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#ro-copy')]);
+        const out = path.join(tmp, 'ro-copy.kdbx'); fs.copyFileSync(await dl.path(), out);
+        expect(xc(['show', out, 'Bank/Konto']).includes('ro-aenderung'), 'Kopie enthaelt die Aenderung nicht');
+        expect(Buffer.compare(before, fs.readFileSync(f)) === 0, 'Datei auf dem Server wurde veraendert');
+        await p.context().close();
+    });
 
     await step('Konflikt: anderes Geraet aendert die Datei zwischenzeitlich -> Zusammenfuehrung, beide Aenderungen bleiben, Server-Stand wird gesichert', async () => {
         const p = await newPage();

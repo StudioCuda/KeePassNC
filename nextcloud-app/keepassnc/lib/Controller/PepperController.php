@@ -41,7 +41,13 @@ class PepperController extends Controller {
 			return $this->noStore(new JSONResponse(['error' => 'unauthorized'], Http::STATUS_UNAUTHORIZED));
 		}
 		$cur = $this->read($uid);
-		return $this->noStore(new JSONResponse($cur ?? $this->create($uid)));
+		if ($cur === null) {
+			$mine = $this->create($uid);
+			// Two tabs can get here at once, and the last write wins. Look again and hand out what is stored rather than what this
+			// request wrote, so both tabs end up with the same value. (Narrows the window; setValueString has no "only if absent".)
+			$cur = $this->read($uid) ?? $mine;
+		}
+		return $this->noStore(new JSONResponse($cur));
 	}
 
 	#[NoAdminRequired]

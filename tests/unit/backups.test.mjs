@@ -45,3 +45,20 @@ test('Alle Sicherungskopien loeschen (nach neuen Zugangsdaten) laesst fremde Dat
         assert.deepEqual(fs.readdirSync(dir).sort(), ['daily.kdbx', 'daily.kdbx.manual.bak', 'other.kdbx.20260101-100000.bak']);
     } finally { await srv.stop(); }
 });
+
+test('Zwei Sicherungen in derselben Sekunde: die zweite geht nicht verloren, Aufraeumen zaehlt beide', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kpnc-bak-'));
+    const srv = await startServer({ webRoot: dir, davRoot: dir });
+    try {
+        fs.writeFileSync(path.join(dir, 'daily.kdbx'), 'x');
+        const dav = new DavFile({ url: `http://127.0.0.1:${srv.port}/dav/daily.kdbx`, user: srv.user, pass: srv.pass });
+        const stamp = 'conflict-20260101-110000';
+        await dav.putCopy(Buffer.from('eins'), stamp);
+        await dav.putCopy(Buffer.from('zwei'), stamp);
+        await dav.putCopy(Buffer.from('drei'), stamp);
+        assert.deepEqual(fs.readdirSync(dir).filter((n) => n.endsWith('.bak')).sort(), [`daily.kdbx.${stamp}-2.bak`, `daily.kdbx.${stamp}-3.bak`, `daily.kdbx.${stamp}.bak`]);
+        assert.equal(fs.readFileSync(path.join(dir, `daily.kdbx.${stamp}-2.bak`), 'utf8'), 'zwei');
+        // the newest of the same second stays, the first one goes
+        assert.deepEqual(await dav.pruneBackups(2), [`daily.kdbx.${stamp}.bak`]);
+    } finally { await srv.stop(); }
+});

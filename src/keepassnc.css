@@ -427,6 +427,10 @@ textarea.c-value { min-height: 0; resize: vertical; }
 .hint.reuse[hidden] { display: none; }
 .softlock-note { color: var(--warn); font-weight: 600; }
 .softlock-more { text-align: center; }
+.ro-banner { display: flex; align-items: center; gap: 10px; padding: 6px 14px; font-size: 13px; color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, var(--surface)); border-bottom: 1px solid var(--border); flex: none; }
+.ro-banner[hidden] { display: none; }
+.ro-banner .icon { flex: none; }
+body.readonly #new-btn, body.readonly #fab-new, body.readonly #edit-btn, body.readonly #del-btn { opacity: .45; }
 .statusbar { display: flex; justify-content: space-between; gap: 16px; padding: 4px 14px; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--border); background: var(--surface); flex: none; min-height: 28px; }
 #status { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } #status[data-kind=error] { color: var(--bad); } #status[data-kind=warn] { color: var(--warn); }
 .fab { display: none; }

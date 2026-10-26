@@ -21,7 +21,7 @@ export function changed() {
 
 /** In "on every change" mode wait briefly (batching several clicks), then save. */
 export function scheduleAutoSave() {
-    if (state.source?.type !== 'dav' || ctx.settings.autosync !== 'change') return;
+    if (state.source?.type !== 'dav' || ctx.settings.autosync !== 'change' || state.vault?.readOnly) return;
     clearTimeout(autoSaveTimer);
     autoSaveTimer = setTimeout(() => { if (state.vault?.dirty && !state.editing) doSave({ auto: true }); }, 800);
 }
@@ -36,6 +36,44 @@ export function refreshDirtyIndicator() {
     $('.label', b).textContent = v.dirty ? t('save.dirty') : v.unsynced ? t('save.upload') : t('save');
     b.disabled = isDav ? !pending : !v.dirty;
     refreshSyncState();
+    refreshReadOnly();
+}
+
+/** Banner (never goes away on its own) and the dimmed actions: a share that only allows reading, or a server that refused to save. */
+export function refreshReadOnly() {
+    const v = state.vault;
+    const ro = !!v?.readOnly;
+    document.body.classList.toggle('readonly', ro);
+    const banner = $('#readonly-banner');
+    if (!banner) return;
+    banner.hidden = !ro;
+    if (!ro) return;
+    $('#ro-text', banner).textContent = t(v.dirty || v.unsynced ? 'ro.banner.dirty' : 'ro.banner');
+    $('#ro-copy', banner).hidden = !(v.dirty || v.unsynced);
+}
+
+/** From now on the session only reads. Changes made so far stay in memory (and can be saved as a copy). */
+export function enterReadOnly() {
+    const v = state.vault;
+    if (!v || v.readOnly) return;
+    v.readOnly = true;
+    state.source.readOnly = true;
+    clearTimeout(autoSaveTimer);
+    refreshDirtyIndicator();
+}
+
+/** The current state as a download of its own, next to the shared file that can't be written. */
+export async function saveCopy() {
+    const v = state.vault;
+    if (!v) return;
+    try {
+        const name = state.source.name.replace(/\.kdbx$/i, '') + '-copy.kdbx';
+        download(name, await v.copyBytes());
+        setStatus(t('ro.copy.saved', { name }));
+    } catch (e) {
+        if (!e?.key) console.error(e);
+        setStatus(t('save.failed', { msg: errText(e) }), 'error');
+    }
 }
 
 export function refreshSyncState() {
@@ -71,6 +109,8 @@ export async function doSave({ auto = false } = {}) {
     const v = state.vault;
     if (!v) return;
     if (auto && v.mergeBlocked) return; // the server file can't be merged: only an explicit save tries again
+    // Read-only: nothing goes to the server, Ctrl+S / the button hand out a copy instead (not on its own in the auto-lock)
+    if (v.readOnly && (v.dirty || v.unsynced)) { if (!auto) await saveCopy(); return; }
     // Ctrl+S and the palette don't look at the button state. A local file has nothing to hand out without changes (no empty
     // download), and a pull would swap the database under an open editor (syncNow keeps out of it, too).
     if (!v.dirty && state.source.type === 'file') { setStatus(t('save.nothing')); return; }
@@ -102,7 +142,8 @@ export async function doSave({ auto = false } = {}) {
     } catch (e) {
         if (!e?.key) console.error(e); // explained errors (with translation) show in the status, only unexpected ones go to the console
         state.lastSyncFailed = isOffline(e);
-        setStatus(t('save.failed', { msg: errText(e) }), 'error');
+        if (e?.key === 'e.dav.readonly') { enterReadOnly(); setStatus(t('ro.refused'), 'warn'); } // the server says no: keep the changes, stop trying
+        else setStatus(t('save.failed', { msg: errText(e) }), 'error');
         if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
     } finally {
         refreshDirtyIndicator();
@@ -112,7 +153,7 @@ export async function doSave({ auto = false } = {}) {
 /** Background sync (interval, reconnect, tab visible): pushes local changes up or pulls changes from others. */
 export async function syncNow({ announce = false } = {}) {
     const v = state.vault;
-    if (!v || state.source?.type !== 'dav' || syncing || state.editing || state.softLocked || (v.mergeBlocked && !announce)) return;
+    if (!v || state.source?.type !== 'dav' || syncing || state.editing || state.softLocked || (v.mergeBlocked && !announce) || (v.readOnly && (v.dirty || v.unsynced))) return;
     syncing = true;
     $('#sync-state')?.classList.add('busy');
     try {
@@ -131,7 +172,8 @@ export async function syncNow({ announce = false } = {}) {
     } catch (e) {
         if (!e?.key) console.error(e); // explained errors (with translation) show in the status, only unexpected ones go to the console
         state.lastSyncFailed = isOffline(e);
-        if (announce || !isOffline(e)) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
+        if (e?.key === 'e.dav.readonly') { enterReadOnly(); setStatus(t('ro.refused'), 'warn'); }
+        else if (announce || !isOffline(e)) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
         if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
     } finally {
         syncing = false;
@@ -186,6 +228,10 @@ export function stopTimers() {
 }
 
 export function installGlobalListeners() {
+    // Every change goes through the Vault, which refuses it in a read-only session. Whatever button or shortcut tried it, say why nothing happened.
+    const readOnlyNote = (ev) => { const err = ev.reason ?? ev.error; if (err?.key === 'e.dav.readonly') { ev.preventDefault(); setStatus(errText(err), 'warn'); } };
+    addEventListener('unhandledrejection', readOnlyNote);
+    addEventListener('error', readOnlyNote);
     for (const ev of ['mousemove', 'keydown', 'click', 'touchstart']) addEventListener(ev, () => { state.lastActivity = Date.now(); }, { passive: true });
     addEventListener('beforeunload', (e) => { if (state.vault?.dirty) { e.preventDefault(); e.returnValue = ''; } });
     addEventListener('online', () => { if (state.vault?.unsynced || state.offlineMode) syncNow({ announce: true }); });
