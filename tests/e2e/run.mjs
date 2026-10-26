@@ -1042,6 +1042,29 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Auto-Sperre, waehrend ein Speichern haengt und dann doch noch klappt: erst Sperrbildschirm, sobald nichts mehr ungespeichert ist die echte Sperre mit der urspruenglichen Meldung', async () => {
+        const f = path.join(davRoot, 'latput.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage('?autolock=5');
+        let slow = true;
+        await p.route('**/dav/latput.kdbx', async (r) => {
+            if (slow && r.request().method() === 'PUT') { await new Promise((res) => setTimeout(res, 18000)); return r.continue(); }
+            return r.continue();
+        });
+        await login(p, 'latput.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'kommt-spaeter'); await p.click('#apply-btn');
+        await p.click('#save-btn'); // the PUT answers only after the lock stopped waiting for it
+        await p.locator('#softlock-form').waitFor({ timeout: 25000 });
+        slow = false;
+        await p.locator('#login-form').waitFor({ timeout: 25000 }); // the save went through: nothing may stay decrypted in memory
+        expect(await p.locator('#softlock-form').count() === 0, 'Sperrbildschirm steht noch, obwohl alles gespeichert ist');
+        expect(/automatisch gesperrt/i.test(await p.locator('.login-card').innerText()), 'urspruengliche Meldung fehlt: ' + await p.locator('.login-card').innerText());
+        expect(xc(['show', f, 'Bank/Konto']).includes('kommt-spaeter'), 'Aenderung nicht auf dem Server');
+        expect(!/kommt-spaeter|Konto/.test(await p.content()), 'Auf dem Anmeldebildschirm stehen noch Daten im DOM');
+        await p.context().close();
+    });
+
     await step('Strg+S bei offenem Editor und schmutzigem Tresor: Rueckfrage statt Merge, die getippte Eingabe bleibt; nach dem Uebernehmen wird zusammengefuehrt', async () => {
         const f = path.join(davRoot, 'editmerge.kdbx');
         fs.copyFileSync(f4, f);

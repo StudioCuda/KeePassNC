@@ -4,6 +4,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- If the save that was still running when the unlock screen came up finishes after all, and nothing else is unsaved, the unlock screen turns into the normal lock. It no longer claims the changes live only in memory, and nothing stays decrypted longer than needed.
+
 ## [1.0.0] - 2026-10-26
 First stable release. Before it, the code went through reviews by two separate AI models and a check of the fixes by a third; `SECURITY.md` has the short version.
 
