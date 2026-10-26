@@ -96,8 +96,29 @@ async function main() {
         fs.writeFileSync(path.join(davRoot, 'hungrig.kdbx'), d);
         const p = await newPage();
         await login(p, 'hungrig.kdbx');
+        await p.locator('#confirm-ok').waitFor(); // more than the app itself would ever write: asks before computing
+        expect(/4096 MiB/.test(await p.locator('.modal, .dialog, [role=dialog]').first().innerText()), 'Rueckfrage nennt den Speicher nicht');
+        await p.click('#confirm-ok');
         await p.waitForFunction(() => /4096 MB Arbeitsspeicher/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 60000 });
         expect(!/RangeError|Fehler:/.test(await p.locator('#login-error').innerText()), 'Rohe Fehlermeldung statt verstaendlichem Text');
+        await p.context().close();
+    });
+
+    await step('Datei mit riesiger Schluesselableitung (5000 Durchlaeufe im Header): Rueckfrage vor dem Rechnen, Abbrechen oeffnet nichts; normale Dateien fragen nie', async () => {
+        const buf = Buffer.from(fs.readFileSync(f4));
+        const tag = Buffer.from([0x05, 0x01, 0, 0, 0, 0x49, 0x08, 0, 0, 0]); // KDF parameter "I" (UInt64) in the header
+        const at = buf.indexOf(tag);
+        expect(at > 0, 'Parameter I nicht im Header gefunden (kein Argon2?)');
+        buf.writeBigUInt64LE(5000n, at + tag.length);
+        fs.writeFileSync(path.join(davRoot, 'heavy.kdbx'), buf);
+        const p = await newPage();
+        await login(p, 'heavy.kdbx');
+        await p.locator('#confirm-ok').waitFor({ timeout: 15000 });
+        expect(/5000 Durchl/.test(await p.locator('.modal, .dialog, [role=dialog]').first().innerText()), 'Dialog nennt die Durchlaeufe nicht');
+        await p.click('#confirm-cancel');
+        await p.waitForTimeout(1500);
+        expect(await rows(p).count() === 0 && await p.locator('#login-form').count() === 1, 'Abbrechen darf nichts oeffnen');
+        expect(await p.locator('#open-btn').isEnabled(), 'Anmelden muss wieder moeglich sein');
         await p.context().close();
     });
 

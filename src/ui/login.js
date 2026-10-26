@@ -15,6 +15,7 @@ import { clearBitsCache } from '../core/entropy.js';
 import { openSettings } from './settings-dialog.js';
 import { pickFolder, splitPath } from './folder-picker.js';
 import { remoteFields } from './remote.js';
+import { confirmHeavyKdf } from './kdf-guard.js';
 
 const { state } = ctx;
 
@@ -197,6 +198,7 @@ export function showLogin(message) {
                     throw new VaultError(t(e.code === 'wrong' ? (src === 'file' ? 'err.kf.wrong.file' : 'err.kf.wrong') : 'err.kf.format'));
                 }
             }
+            if (!(await confirmHeavyKdf(buf))) return;
             let vault;
             try {
                 vault = await Vault.open({ buf, password: masterInput.value, keyfile, dav, etag, cache: cacheInfo, unsynced, remoteBuf, fromCache });

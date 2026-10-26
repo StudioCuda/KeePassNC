@@ -5,6 +5,7 @@ import { ctx } from './ctx.js';
 import { h, modal, toast } from './dom.js';
 import { filePicker } from './file-picker.js';
 import { changed } from './session.js';
+import { confirmHeavyKdf } from './kdf-guard.js';
 
 const { state } = ctx;
 
@@ -43,7 +44,9 @@ export function openMerge({ onBack } = {}) {
         try {
             kf = kfInput.files[0] ? new Uint8Array(await kfInput.files[0].arrayBuffer()) : null;
             const creds = credBox.hidden ? undefined : { password: pw.value, keyfile: kf };
-            const n = await v.mergeFrom(await pick.read(), creds);
+            const other = await pick.read();
+            if (!(await confirmHeavyKdf(other))) return;
+            const n = await v.mergeFrom(other, creds);
             finished = true;
             m.close();
             changed();
