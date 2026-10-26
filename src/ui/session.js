@@ -252,6 +252,20 @@ function softLock(message) {
     clearTimeout(autoSaveTimer);
     state.softLocked = true;
     ctx.ui.showSoftLock(message ?? t('locked'));
+    lockOnceSaved(state.vault, message);
+}
+
+/**
+ * A save that was still running when the soft lock came up may end well after all: then nothing is unsaved anymore, the note
+ * on the lock screen is wrong, and the entries would stay decrypted for no reason. Once the last save or sync is over and
+ * nothing is dirty or unsynced, the soft lock becomes the real one.
+ */
+async function lockOnceSaved(v, message) {
+    let chain;
+    do { chain = v.settled(); await chain; } while (chain !== v.settled()); // a save queued meanwhile counts, too
+    if (!state.softLocked || state.vault !== v || v.dirty || v.unsynced) return;
+    clearTimeout(autoSaveTimer);
+    ctx.ui.showLogin(message ?? t('locked'));
 }
 
 /** The idle timer and the hidden tab lock without asking: with changes that can't be saved that means the soft lock (doLock). */
