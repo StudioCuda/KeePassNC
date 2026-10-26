@@ -878,6 +878,9 @@ export class Vault {
         for (let attempt = 1; ; attempt++) {
             const out = this._pending;
             try {
+                // A server that sends no ETag (or a CORS setup that hides it) can't check If-Match. Then compare with what we last read,
+                // right before writing; a difference takes the usual conflict path (backup of the other version, merge, retry).
+                if (!this.etag && !(await this._serverUnchanged())) throw new ConflictError();
                 this.etag = await this.dav.put(out, this.etag);
                 this._remoteBytes = out;
                 this._base = { pw: this._pw, kf: this._kf };
@@ -934,12 +937,19 @@ export class Vault {
         return (this.db.meta.settingsChanged?.getTime() ?? 0) > (remoteDb.meta.settingsChanged?.getTime() ?? 0) ? local : remote;
     }
 
+    /** Is the file on the server still the version we read last? Only for servers without ETag, see _push. */
+    async _serverUnchanged() {
+        const remote = await this.dav.get();
+        return !!this._remoteBytes && sameBytes(remote.buf, this._remoteBytes);
+    }
+
     async _pull() {
         const etag = await this.dav.head();
         if (etag && etag === this.etag) return { pulled: false };
         const remote = await this.dav.get();
         if (this.dirty || this.unsynced) return { pulled: false }; // changed locally in the meantime: merge on the next save
         if (remote.etag && remote.etag === this.etag) return { pulled: false };
+        if (!remote.etag && this._remoteBytes && sameBytes(remote.buf, this._remoteBytes)) return { pulled: false }; // no ETag to compare: same bytes, nothing new
         let remoteDb;
         try {
             remoteDb = await Kdbx.load(remote.buf, this._baseCredentials());

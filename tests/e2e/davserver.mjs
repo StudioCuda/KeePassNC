@@ -16,6 +16,7 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
     const options = { cors };
     const ncFiles = `/remote.php/dav/files/${encodeURIComponent(ncId)}`;
     const etagOf = (buf) => `"${crypto.createHash('sha1').update(buf).digest('hex')}"`;
+    const noEtag = (file) => path.basename(file).startsWith('noetag-'); // behaves like a server (or proxy) that sends no ETag and ignores If-Match
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
 
     const server = http.createServer((req, res) => {
@@ -48,7 +49,7 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
             if (req.method === 'GET' || req.method === 'HEAD') {
                 if (!fs.existsSync(file)) { res.writeHead(404).end(); return; }
                 const buf = fs.readFileSync(file);
-                res.writeHead(200, { ETag: etagOf(buf), 'Content-Type': 'application/octet-stream', 'Content-Length': buf.length });
+                res.writeHead(200, { ...(noEtag(file) ? {} : { ETag: etagOf(buf) }), 'Content-Type': 'application/octet-stream', 'Content-Length': buf.length });
                 res.end(req.method === 'GET' ? buf : undefined);
                 return;
             }
@@ -59,10 +60,10 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
                     const exists = fs.existsSync(file);
                     const cur = exists ? etagOf(fs.readFileSync(file)) : null;
                     if (req.headers['if-none-match'] === '*' && exists) { res.writeHead(412).end(); return; }
-                    if (req.headers['if-match'] && req.headers['if-match'] !== cur) { res.writeHead(412).end(); return; }
+                    if (req.headers['if-match'] && req.headers['if-match'] !== cur && !noEtag(file)) { res.writeHead(412).end(); return; }
                     const body = Buffer.concat(chunks);
                     fs.writeFileSync(file, body);
-                    res.writeHead(exists ? 204 : 201, { ETag: etagOf(body) }).end();
+                    res.writeHead(exists ? 204 : 201, noEtag(file) ? {} : { ETag: etagOf(body) }).end();
                 });
                 return;
             }
