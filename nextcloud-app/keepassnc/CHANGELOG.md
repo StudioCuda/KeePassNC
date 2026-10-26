@@ -14,7 +14,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - A save that can't be merged (the file at that path became another database, or an entry exists twice) says so in plain words, keeps your changes, offers "Save a copy", and stops adding a `conflict-….bak` on every retry.
 - WebDAV servers without an `ETag` (or hiding it via CORS): a write now compares with the version read last, so another device's change is merged and kept as `conflict-….bak` instead of being overwritten, and a clean database isn't re-downloaded on every sync. A small window remains.
 - Conflict backups made within the same second no longer clash on their name (`-2`, `-3`); the settings now say which file names count as backups.
-- Opening a file with an unusually heavy key derivation (over 1 GiB, 1000 iterations or 8 threads) asks first instead of freezing the tab.
+- Opening a file with an unusually heavy key derivation (Argon2 over 1 GiB, 1000 iterations or 8 threads, or AES-KDF over 10 million rounds) asks first instead of freezing the tab. AES-KDF with more than a billion rounds is refused outright.
 - The clipboard timer leaves alone what you copied in the meantime, where the browser lets the page read the clipboard.
 - Locking forgets the passwords the strength rating had cached in the page.
 - Remembering a key file in two tabs at once on a fresh Nextcloud account no longer invalidates one of the records.

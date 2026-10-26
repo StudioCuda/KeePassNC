@@ -1,7 +1,12 @@
 import * as CryptoEngine from './crypto-engine';
 import { arrayToBuffer, zeroBuffer } from '../utils/byte-utils';
+import { KdbxError } from '../errors/kdbx-error';
+import { ErrorCodes } from '../defs/consts';
 
 const maxRoundsPreIteration = 10000;
+// The file header decides the number of rounds (KeePass's "one second" setting is a few million). Refuse absurd values
+// instead of letting a file freeze the tab.
+const maxRounds = 1000000000;
 const aesBlockSize = 16;
 const credentialSize = 32;
 
@@ -18,6 +23,9 @@ export function encrypt(
     key: Uint8Array | ArrayBuffer,
     rounds: number
 ): Promise<Uint8Array> {
+    if (!(rounds <= maxRounds)) {
+        return Promise.reject(new KdbxError(ErrorCodes.Unsupported, 'too many aes rounds'));
+    }
     const algo = CryptoEngine.createAesCbc();
     return algo
         .importKey(arrayToBuffer(key))

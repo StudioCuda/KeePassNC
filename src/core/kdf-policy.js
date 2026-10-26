@@ -5,6 +5,10 @@
 export const MEMORY_PRESETS_MIB = [64, 128, 256, 512, 1024];
 export const PARALLELISM_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 export const MAX_ITERATIONS = 1000;
+/** AES-KDF rounds we still open without asking (KeePass's "one second" setting is a few million on a desktop; the browser is slower). */
+export const MAX_AES_ROUNDS = 10_000_000;
+/** Above this the library refuses (vendor/kdbxweb key-encryptor-aes.ts) and so do we, without asking: a confirmation must not buy unlimited work. */
+export const REFUSE_AES_ROUNDS = 1_000_000_000;
 /** From this measured duration (ms) we point out that phones often need considerably longer. */
 export const SLOW_MS = 3000;
 
@@ -16,14 +20,18 @@ export function memoryLevel(memoryMiB) {
 /**
  * Is a file we are about to open asking for more than this app would ever write itself (the presets above, MAX_ITERATIONS)?
  * Then deriving the key can take minutes or kill the tab, and a file nobody expected to be that heavy deserves a question first.
- * s like Vault.securitySettings(); returns the offending values or null.
+ * s like Vault.securitySettings(); returns the offending values ({memoryMiB, iterations, parallelism}, or {rounds} for AES-KDF) or null.
  */
 export function heavyDemand(s) {
-    if (!s || !isArgon(s)) return null;
+    if (!s) return null;
+    if (!isArgon(s)) return s.rounds > MAX_AES_ROUNDS ? { rounds: s.rounds } : null;
     const memoryMiB = Math.round(s.memoryKiB / 1024);
     if (memoryMiB <= MEMORY_PRESETS_MIB.at(-1) && s.iterations <= MAX_ITERATIONS && s.parallelism <= PARALLELISM_OPTIONS.at(-1)) return null;
     return { memoryMiB, iterations: s.iterations, parallelism: s.parallelism };
 }
+
+/** Would opening this file mean more AES-KDF rounds than we ever do? Then it is refused, not asked about. */
+export const refusedDemand = (s) => (s && !isArgon(s) && s.rounds > REFUSE_AES_ROUNDS ? { rounds: s.rounds } : null);
 
 const isArgon = (s) => s.kdf === 'argon2d' || s.kdf === 'argon2id';
 

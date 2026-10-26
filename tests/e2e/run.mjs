@@ -123,6 +123,29 @@ async function main() {
         await p.context().close();
     });
 
+    await step('KDBX 3.1 mit AES-KDF und riesiger Rundenzahl: 50 Mio. fragt (Abbrechen oeffnet nichts), ueber einer Milliarde wird ohne Rueckfrage abgelehnt', async () => {
+        const withRounds = (name, rounds) => {
+            const d = Buffer.from(fs.readFileSync(path.join(davRoot, 'vault3.kdbx')));
+            let o = 12; for (;;) { const id = d[o], len = d.readUInt16LE(o + 1); if (id === 6) { expect(len === 8, 'TransformRounds hat nicht 8 Byte'); d.writeBigUInt64LE(BigInt(rounds), o + 3); break; } expect(id !== 0, 'TransformRounds nicht im Header'); o += 3 + len; }
+            fs.writeFileSync(path.join(davRoot, name), d);
+        };
+        withRounds('aes-viel.kdbx', 50_000_000);
+        let p = await newPage();
+        await login(p, 'aes-viel.kdbx');
+        await p.locator('#confirm-ok').waitFor({ timeout: 15000 });
+        expect(/50000000 Durchl/.test(await p.locator('.modal, .dialog, [role=dialog]').first().innerText()), 'Dialog nennt die Runden nicht');
+        await p.click('#confirm-cancel');
+        await p.waitForTimeout(1000);
+        expect(await rows(p).count() === 0 && await p.locator('#login-form').count() === 1 && await p.locator('#open-btn').isEnabled(), 'Abbrechen darf nichts oeffnen');
+        await p.context().close();
+        withRounds('aes-absurd.kdbx', 2_000_000_000);
+        p = await newPage();
+        await login(p, 'aes-absurd.kdbx');
+        await p.waitForFunction(() => /Milliarde/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 15000 });
+        expect(await p.locator('#confirm-ok').count() === 0 && await rows(p).count() === 0, 'Absurde Rundenzahl darf nicht zur Wahl stehen');
+        await p.context().close();
+    });
+
     await step('Argon2 rechnet in einem Web Worker, der danach beendet wird; ohne Worker-Datei rechnet die Seite selbst', async () => {
         const p = await newPage();
         const workers = [];
