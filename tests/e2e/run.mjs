@@ -104,6 +104,24 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Datei mit riesiger Schluesselableitung (5000 Durchlaeufe im Header): Rueckfrage vor dem Rechnen, Abbrechen oeffnet nichts; normale Dateien fragen nie', async () => {
+        const buf = Buffer.from(fs.readFileSync(f4));
+        const tag = Buffer.from([0x05, 0x01, 0, 0, 0, 0x49, 0x08, 0, 0, 0]); // KDF parameter "I" (UInt64) in the header
+        const at = buf.indexOf(tag);
+        expect(at > 0, 'Parameter I nicht im Header gefunden (kein Argon2?)');
+        buf.writeBigUInt64LE(5000n, at + tag.length);
+        fs.writeFileSync(path.join(davRoot, 'heavy.kdbx'), buf);
+        const p = await newPage();
+        await login(p, 'heavy.kdbx');
+        await p.locator('#confirm-ok').waitFor({ timeout: 15000 });
+        expect(/5000 Durchl/.test(await p.locator('.modal, .dialog, [role=dialog]').first().innerText()), 'Dialog nennt die Durchlaeufe nicht');
+        await p.click('#confirm-cancel');
+        await p.waitForTimeout(1500);
+        expect(await rows(p).count() === 0 && await p.locator('#login-form').count() === 1, 'Abbrechen darf nichts oeffnen');
+        expect(await p.locator('#open-btn').isEnabled(), 'Anmelden muss wieder moeglich sein');
+        await p.context().close();
+    });
+
     await step('Argon2 rechnet in einem Web Worker, der danach beendet wird; ohne Worker-Datei rechnet die Seite selbst', async () => {
         const p = await newPage();
         const workers = [];
@@ -806,21 +824,27 @@ async function main() {
         await p.context().close();
     });
 
-    await step('Datei mit riesiger Schluesselableitung (5000 Durchlaeufe im Header): Rueckfrage vor dem Rechnen, Abbrechen oeffnet nichts; normale Dateien fragen nie', async () => {
-        const buf = Buffer.from(fs.readFileSync(f4));
-        const tag = Buffer.from([0x05, 0x01, 0, 0, 0, 0x49, 0x08, 0, 0, 0]); // KDF parameter "I" (UInt64) in the header
-        const at = buf.indexOf(tag);
-        expect(at > 0, 'Parameter I nicht im Header gefunden (kein Argon2?)');
-        buf.writeBigUInt64LE(5000n, at + tag.length);
-        fs.writeFileSync(path.join(davRoot, 'heavy.kdbx'), buf);
-        const p = await newPage();
-        await login(p, 'heavy.kdbx');
-        await p.locator('#confirm-ok').waitFor({ timeout: 15000 });
-        expect(/5000 Durchl/.test(await p.locator('.modal, .dialog, [role=dialog]').first().innerText()), 'Dialog nennt die Durchlaeufe nicht');
-        await p.click('#confirm-cancel');
-        await p.waitForTimeout(1500);
-        expect(await rows(p).count() === 0 && await p.locator('#login-form').count() === 1, 'Abbrechen darf nichts oeffnen');
-        expect(await p.locator('#open-btn').isEnabled(), 'Anmelden muss wieder moeglich sein');
+    await step('Speichern, obwohl die Datei durch eine andere Datenbank ersetzt wurde: verstaendliche Meldung statt "default group is different", Aenderung bleibt, Hintergrund-Speichern wiederholt nichts', async () => {
+        const f = path.join(davRoot, 'replaced.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage('?syncretry=1');
+        await login(p, 'replaced.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'bob-bleibt'); await p.click('#apply-btn');
+        await p.waitForTimeout(1100);
+        fs.copyFileSync(path.join(davRoot, 'vault3.kdbx'), f); // another database at the same path (same password)
+        const other = fs.readFileSync(f);
+        await p.click('#save-btn');
+        await waitStatus(p, /andere Datenbank/);
+        const msg = await status(p);
+        expect(!/default group is different|MergeError/.test(msg), 'rohe Meldung: ' + msg);
+        expect(await p.locator('#save-btn').isEnabled(), 'Speichern muss erneut moeglich sein');
+        const backups = () => fs.readdirSync(davRoot).filter((n) => /^replaced\.kdbx\.conflict-/.test(n)).length;
+        const n = backups();
+        expect(n === 1, 'Konflikt-Sicherung des ersten Versuchs: ' + n);
+        await p.waitForTimeout(2500); // retry timer and auto-save would each leave another conflict backup
+        expect(backups() === n, 'weitere Konflikt-Sicherungen im Hintergrund: ' + (backups() - n));
+        expect(Buffer.compare(other, fs.readFileSync(f)) === 0, 'Datei auf dem Server wurde ueberschrieben');
         await p.context().close();
     });
 
