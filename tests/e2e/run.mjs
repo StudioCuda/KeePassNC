@@ -911,6 +911,11 @@ async function main() {
         const f = path.join(davRoot, 'replaced.kdbx');
         fs.copyFileSync(f4, f);
         const p = await newPage('?syncretry=1');
+        // The first save takes longer than the retry interval (1 s): the retry's sync is queued behind it and must not try the merge again
+        await p.route('**/dav/replaced.kdbx', async (r) => {
+            if (r.request().method() === 'PUT') await new Promise((res) => setTimeout(res, 1600));
+            return r.continue();
+        });
         await login(p, 'replaced.kdbx'); await rows(p).first().waitFor();
         await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
         await p.click('#edit-btn'); await p.fill('#e-user', 'bob-bleibt'); await p.click('#apply-btn');
