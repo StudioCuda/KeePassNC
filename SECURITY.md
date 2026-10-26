@@ -4,9 +4,7 @@ KeePassNC handles password databases, so security reports are welcome, and borin
 
 ## Reporting
 
-Please **don't** open a public issue for a vulnerability. Use GitHub's private vulnerability reporting
-("Security" tab → "Report a vulnerability") on this repository. Include what you did, what you expected and what happened.
-You'll get an answer, though this is a small project, so "within a few days" is the honest promise.
+Please **don't** open a public issue for a vulnerability. Use GitHub's private vulnerability reporting ("Security" tab → "Report a vulnerability") on this repository. Include what you did, what you expected and what happened. You'll get an answer, though this is a small project, so "within a few days" is the honest promise.
 
 ## What we consider in scope
 
@@ -17,78 +15,35 @@ You'll get an answer, though this is a small project, so "within a few days" is 
 
 ## Model in short
 
-Decryption happens in the browser only. The server sees the encrypted KDBX and, for the key file memory feature, a random per-user
-secret that is useless without the master password. Details and the known residual risk are in `docs/KEYFILE-MEMORY.md`.
-The code has been reviewed by two separate AI models (see Reviews below), but there has been no independent human audit yet, and
-one is welcome. Until then, keep your regular KeePassXC copy around. The file format being boring is the point.
+Decryption happens in the browser only. The server sees the encrypted KDBX and, for the key file memory feature, a random per-user secret that is useless without the master password. Details and the known residual risk are in `docs/KEYFILE-MEMORY.md`. The code has been reviewed by two separate AI models (see Reviews below), but there has been no independent human audit yet, and one is welcome. Until then, keep your regular KeePassXC copy around. The file format being boring is the point.
 
-Saving is defensive too: writes use ETag checks (a server that sends no ETag, or doesn't expose it to the page via CORS, gets a
-byte comparison with the version we read last, right before writing: a small window remains there, not none), a backup copy goes
-next to the file first (unless the folder doesn't let you create files, then you are told), and if two devices edited at once the
-two versions are merged instead of one quietly winning. If the file at that path has become a different database, nothing is
-merged or overwritten: you get a plain message and your changes stay in the tab. Backup copies are named
-`<file>.[conflict-]YYYYMMDD-HHMMSS.bak`, and clean-up deletes any file with that name pattern, whoever made it. The app loads no
-external scripts or fonts and runs under a strict CSP (the standalone page via `<meta>`, the Nextcloud page via the header
-Nextcloud sends).
+Saving is defensive too: writes use ETag checks (a server that sends no ETag, or doesn't expose it to the page via CORS, gets a byte comparison with the version we read last, right before writing: a small window remains there, not none), a backup copy goes next to the file first (unless the folder doesn't let you create files, then you are told), and if two devices edited at once the two versions are merged instead of one quietly winning. If the file at that path has become a different database, nothing is merged or overwritten: you get a plain message and your changes stay in the tab. Backup copies are named `<file>.[conflict-]YYYYMMDD-HHMMSS.bak`, and clean-up deletes any file with that name pattern, whoever made it. The app loads no external scripts or fonts and runs under a strict CSP (the standalone page via `<meta>`, the Nextcloud page via the header Nextcloud sends).
 
-In Nextcloud the page is served on its own, without Nextcloud's layout and scripts. Any other app's JavaScript would otherwise run on
-the very page where your passwords sit decrypted. The header with the app menu and your account menu is KeePassNC's own: the server
-hands over the menu entries and the instance color, the browser checks them, and nothing else runs. That's why the header has no
-unified search, notifications or contacts menu, which all need Nextcloud's JavaScript. The color reaches the page as data and gets
-applied through the CSSOM, so the CSP still allows no inline styles at all.
+In Nextcloud the page is served on its own, without Nextcloud's layout and scripts. Any other app's JavaScript would otherwise run on the very page where your passwords sit decrypted. The header with the app menu and your account menu is KeePassNC's own: the server hands over the menu entries and the instance color, the browser checks them, and nothing else runs. That's why the header has no unified search, notifications or contacts menu, which all need Nextcloud's JavaScript. The color reaches the page as data and gets applied through the CSSOM, so the CSP still allows no inline styles at all.
 
 ## Reviews
 
-Before 1.0.0, v0.18.1 went through two independent code reviews, one by DeepSeek V4.1 Flash and one by GPT-6 Luna, each with its own
-brief and without seeing the other's findings. Claude fixed what they found (#160 to #181), and a third model, Qwen3.8, then
-checked every finding against the code (2026-10-26, commit `f586fde`) and confirmed each one fixed or left as is on purpose. These are AI reviews, not an
-audit by people, and we don't pretend otherwise. The findings that mattered, all fixed:
+Before 1.0.0, v0.18.1 went through two independent code reviews, one by DeepSeek V4.1 Flash and one by GPT-6 Luna, each with its own brief and without seeing the other's findings. Claude fixed what they found (#160 to #181), and a third model, Qwen3.8, then checked every finding against the code (2026-10-26, commit `f586fde`) and confirmed each one fixed or left as is on purpose. These are AI reviews, not an audit by people, and we don't pretend otherwise. The findings that mattered, all fixed:
 
-- Auto-lock could lose changes while a save was still running or failing. It now waits (up to ten seconds) and falls back to the
-  unlock screen.
+- Auto-lock could lose changes while a save was still running or failing. It now waits (up to ten seconds) and falls back to the unlock screen.
 - `Ctrl+S` could merge another device's changes under an open entry editor and drop what was typed, or leave an entry twice.
-- A file asking for billions of AES-KDF rounds froze the tab without a question. Over 100 million rounds the app asks, over a
-  billion it refuses.
+- A file asking for billions of AES-KDF rounds froze the tab without a question. Over 100 million rounds the app asks, over a billion it refuses.
 - Decrypted passwords stayed in memory (the strength cache) after locking.
 - A server without `ETag` support could let two devices overwrite each other.
 
-One thing was left as it is on purpose: the CSV export doesn't escape cells starting with `=`, `+`, `-` or `@` unless you switch on
-"Make it safe for Excel & co.", because that changes the passwords in the file. A review also tried to make one entry's URL placeholder
-leak another entry's password; it can't.
+One thing was left as it is on purpose: the CSV export doesn't escape cells starting with `=`, `+`, `-` or `@` unless you switch on "Make it safe for Excel & co.", because that changes the passwords in the file. A review also tried to make one entry's URL placeholder leak another entry's password; it can't.
 
 ## Known limitations
 
 Things we know about and can't fix from inside the app. Reports that find a way around them are very welcome.
 
-- **Your Nextcloud is the trust boundary.** The browser keeps data per origin, not per app. Every other app on the same Nextcloud
-  instance, and any XSS bug anywhere in it, runs with the same rights as KeePassNC in your browser. Such a script can read what
-  KeePassNC stores locally (encrypted offline copy, key file memory record) and can replace the app's offline cache, so that a fake
-  page starts the next time the server is down. Only a separate origin would really wall that off. In practice: install apps you trust.
-- **Key file memory turns two factors into one, on that device.** If you let KeePassNC remember the key file, the master password
-  carries the whole load there. On Nextcloud the record is also bound to a per-user server secret, so a copied browser profile alone
-  isn't enough. A still valid session cookie in that profile is, though. Lost a device? Use "Invalidate on all devices" and sign out
-  its Nextcloud sessions.
-- **Old copies keep the old credentials.** After you change the master password or key file, everything written before still
-  opens with the old ones: the backup copies next to the file (the dialog can delete them), Nextcloud's own file versions and trash
-  bin, offline copies on other devices until they sync, and any copy someone already made. If you change them because the old ones
-  leaked, clean up those places too.
-- **Auto-lock with unsaved changes only hides the session.** If the idle timer (or "lock when the tab is hidden") fires while changes
-  couldn't be saved (a local file, or the server isn't reachable), locking for real would throw them away. Instead the view goes
-  and the unlock screen says so; the database stays decrypted in the memory of the page until you enter the master password again
-  (the key file too, if there is one) and save, or close the tab. Nothing is written to the browser. For a database on a
-  server you can switch on the offline copy instead: changes that can't be uploaded are then stored encrypted, and the lock is real.
-  A local file has no such place, so it always gets the soft lock.
-  Locking by hand still asks first whether to throw the changes away.
-- **The standalone page (`web/`) sets its CSP via `<meta>`.** `frame-ancestors` doesn't work there. If you host it yourself, send the
-  CSP as an HTTP header from your web server. Argon2 runs in a worker loaded from `keepassnc-argon2.js` next to `keepassnc.js`, so
-  a `worker-src` (if you set one) needs `'self'`, and a CSP on that file itself needs `'wasm-unsafe-eval'`. Otherwise the page falls
-  back to doing the math itself, which works but freezes the page while it unlocks. Reading a TOTP QR code from a picture uses a
-  second worker, `keepassnc-qr.js`, under the same `worker-src` rule.
-- **Some hosting setups replace the CSP.** YunoHost, for example, swaps every page's `Content-Security-Policy` for a bare
-  `upgrade-insecure-requests`. Everything still works and decrypts only in your browser, but without the strict CSP. Admins can
-  restore it for `/apps/keepassnc/` in their web server.
-- **The server delivers the code.** Like every web app, KeePassNC trusts the server that ships its JavaScript. A malicious server admin
-  is out of scope.
+- **Your Nextcloud is the trust boundary.** The browser keeps data per origin, not per app. Every other app on the same Nextcloud instance, and any XSS bug anywhere in it, runs with the same rights as KeePassNC in your browser. Such a script can read what KeePassNC stores locally (encrypted offline copy, key file memory record) and can replace the app's offline cache, so that a fake page starts the next time the server is down. Only a separate origin would really wall that off. In practice: install apps you trust.
+- **Key file memory turns two factors into one, on that device.** If you let KeePassNC remember the key file, the master password carries the whole load there. On Nextcloud the record is also bound to a per-user server secret, so a copied browser profile alone isn't enough. A still valid session cookie in that profile is, though. Lost a device? Use "Invalidate on all devices" and sign out its Nextcloud sessions.
+- **Old copies keep the old credentials.** After you change the master password or key file, everything written before still opens with the old ones: the backup copies next to the file (the dialog can delete them), Nextcloud's own file versions and trash bin, offline copies on other devices until they sync, and any copy someone already made. If you change them because the old ones leaked, clean up those places too.
+- **Auto-lock with unsaved changes only hides the session.** If the idle timer (or "lock when the tab is hidden") fires while changes couldn't be saved (a local file, or the server isn't reachable), locking for real would throw them away. Instead the view goes and the unlock screen says so; the database stays decrypted in the memory of the page until you enter the master password again (the key file too, if there is one) and save, or close the tab. Nothing is written to the browser. For a database on a server you can switch on the offline copy instead: changes that can't be uploaded are then stored encrypted, and the lock is real. A local file has no such place, so it always gets the soft lock. Locking by hand still asks first whether to throw the changes away.
+- **The standalone page (`web/`) sets its CSP via `<meta>`.** `frame-ancestors` doesn't work there. If you host it yourself, send the CSP as an HTTP header from your web server. Argon2 runs in a worker loaded from `keepassnc-argon2.js` next to `keepassnc.js`, so a `worker-src` (if you set one) needs `'self'`, and a CSP on that file itself needs `'wasm-unsafe-eval'`. Otherwise the page falls back to doing the math itself, which works but freezes the page while it unlocks. Reading a TOTP QR code from a picture uses a second worker, `keepassnc-qr.js`, under the same `worker-src` rule.
+- **Some hosting setups replace the CSP.** YunoHost, for example, swaps every page's `Content-Security-Policy` for a bare `upgrade-insecure-requests`. Everything still works and decrypts only in your browser, but without the strict CSP. Admins can restore it for `/apps/keepassnc/` in their web server.
+- **The server delivers the code.** Like every web app, KeePassNC trusts the server that ships its JavaScript. A malicious server admin is out of scope.
 
 ## Not tested yet
 
