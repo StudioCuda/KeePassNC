@@ -1,63 +1,35 @@
 # Notes for AI assistants
 
-KeePassNC opens KeePass (KDBX) files in the browser, as a Nextcloud app and as a standalone page. Decryption happens in the
-browser only. Start with `README.md`, `CONTRIBUTING.md` (build, tests, layout) and `SECURITY.md`.
+KeePassNC opens KeePass (KDBX) files in the browser, as a Nextcloud app and as a standalone page. Decryption happens in the browser only. Start with `README.md`, `CONTRIBUTING.md` (build, tests, layout) and `SECURITY.md`.
 
 ## Hard rules
 
-- The master password, key file and plaintext never leave the browser. Don't weaken `src/keyfile-store.js`, the CSRF, session
-  or CSP checks, or any test, just to get something green.
-- Strict CSP: no inline styles, inline handlers or external resources. Colors and spacing go through classes and the CSS
-  variables at the top of `src/keepassnc.css`.
+- The master password, key file and plaintext never leave the browser. Don't weaken `src/keyfile-store.js`, the CSRF, session or CSP checks, or any test, just to get something green.
+- Strict CSP: no inline styles, inline handlers or external resources. Colors and spacing go through classes and the CSS variables at the top of `src/keepassnc.css`.
 - No KeePassXC code (GPL). Ideas are fine.
 - The App Store signing key never goes into the repo, CI or a chat. Signing and App Store uploads happen on the maintainer's machine.
 - On a network block (403/407), report it instead of working around it.
 
 ## Conventions
 
-- One topic per branch and pull request; `main` is protected and the maintainer merges (squash). Required checks: `e2e (nc34)`,
-  `e2e (nc35)`, `browsers (firefox)`, `browsers (webkit)`. `e2e (nc-master)` is an early warning only.
-- Before pushing: `npm run build` and `npm run test:unit`, plus the browser tests that cover the change
-  (`CHROMIUM=/path/to/chrome npm run test:ui`, `test:e2e`, …). Build output isn't committed.
-- Fast lane: a pull request that only touches `*.md`, `docs/*`, `LICENSE` or `.github/ISSUE_TEMPLATE/*` skips the long test steps
-  and still reports every required check (`tools/ci-docs-only.sh`, used by `nextcloud.yml`). Anything else, `appinfo/info.xml`
-  included, runs the full tests. Keep text-only changes in their own pull request to get the fast lane.
+- One topic per branch and pull request; `main` is protected and the maintainer merges (squash). Required checks: `e2e (nc34)`, `e2e (nc35)`, `browsers (firefox)`, `browsers (webkit)`. `e2e (nc-master)` is an early warning only.
+- Before pushing: `npm run build` and `npm run test:unit`, plus the browser tests that cover the change (`CHROMIUM=/path/to/chrome npm run test:ui`, `test:e2e`, …). Build output isn't committed.
+- Fast lane: a pull request that only touches `*.md`, `docs/*`, `LICENSE` or `.github/ISSUE_TEMPLATE/*` skips the long test steps and still reports every required check (`tools/ci-docs-only.sh`, used by `nextcloud.yml`). Anything else, `appinfo/info.xml` included, runs the full tests. Keep text-only changes in their own pull request to get the fast lane.
+- Markdown has no hard wraps: one paragraph or list item per line, so every viewer renders it alike.
 - Code, comments and identifiers are written in English. Working language with the user can be theirs.
 - New UI text goes into both `src/i18n-de.js` and `src/i18n-en.js`.
 - User-visible changes get a line under `## [Unreleased]` in `nextcloud-app/keepassnc/CHANGELOG.md`.
-- Releases: a release PR bumps `package.json`, `package-lock.json` and `appinfo/info.xml` (including the tag `vX.Y.Z` in the
-  `<screenshot>` URLs: the App Store caches screenshots per URL forever) and dates the changelog section.
-  After the merge, `.github/workflows/release.yml` tags `vX.Y.Z` and creates the GitHub release once `main` is green. The
-  maintainer then runs `tools/publish-release.sh` (or `tools\publish-nextcloud-release.cmd`) on their machine, which signs and
-  pushes to the App Store, see `docs/APPSTORE.md`. `SKIP_STORE=1` (or `tools\sign-github-release.cmd`) leaves the App Store out.
-- Before a release PR, compare the whole header and the frame around the app with the newest stable Nextcloud, left and right: logo,
-  app menu and account menu (`src/ui/ncheader.js`, the `.nch` block in `src/keepassnc.css`), and the rounded content panel in front of
-  the instance colour (the "Nextcloud-Rahmen" block at the end of `src/keepassnc.css`: margin, radius, the breakpoint where it goes
-  edge to edge, the background). Read the sources of its newest release tag (`vNN.x.y`), not your memory and not the previous major:
-  the files are listed in `tools/nc-header.json` (header, menus, and `core/css/apps.scss` and `DefaultTheme.php` for the frame), plus
-  `NcHeaderMenu`, `NcListItem`, `NcAvatar`, `NcPopover` and `NcButton` in the `@nextcloud/vue` version from its `package.json`.
-  `node tools/nc-header-check.mjs` (also weekly in CI, `nc-header.yml`) says whether any of that moved since the release we matched.
-  If the look changed, adopt it in its own PR first and pin the new state with `--update`.
+- Releases: a release PR bumps `package.json`, `package-lock.json` and `appinfo/info.xml` (including the tag `vX.Y.Z` in the `<screenshot>` URLs: the App Store caches screenshots per URL forever) and dates the changelog section. After the merge, `.github/workflows/release.yml` tags `vX.Y.Z` and creates the GitHub release once `main` is green. The maintainer then runs `tools/publish-release.sh` (or `tools\publish-nextcloud-release.cmd`) on their machine, which signs and pushes to the App Store, see `docs/APPSTORE.md`. `SKIP_STORE=1` (or `tools\sign-github-release.cmd`) leaves the App Store out.
+- Before a release PR, compare the whole header and the frame around the app with the newest stable Nextcloud, left and right: logo, app menu and account menu (`src/ui/ncheader.js`, the `.nch` block in `src/keepassnc.css`), and the rounded content panel in front of the instance colour (the "Nextcloud-Rahmen" block at the end of `src/keepassnc.css`: margin, radius, the breakpoint where it goes edge to edge, the background). Read the sources of its newest release tag (`vNN.x.y`), not your memory and not the previous major: the files are listed in `tools/nc-header.json` (header, menus, and `core/css/apps.scss` and `DefaultTheme.php` for the frame), plus `NcHeaderMenu`, `NcListItem`, `NcAvatar`, `NcPopover` and `NcButton` in the `@nextcloud/vue` version from its `package.json`. `node tools/nc-header-check.mjs` (also weekly in CI, `nc-header.yml`) says whether any of that moved since the release we matched. If the look changed, adopt it in its own PR first and pin the new state with `--update`.
 - Public texts (README, PRs, commits, changelog, `info.xml`) are in English: relaxed, a little playful, never salesy.
-- Commits are authored as `StudioCuda <341092375+StudioCuda@users.noreply.github.com>` and carry a `Co-Authored-By` trailer
-  for the AI. The committer is whoever actually commits: an AI session sets `Claude <noreply@anthropic.com>` as committer
-  (`GIT_COMMITTER_NAME` / `GIT_COMMITTER_EMAIL`, so GitHub shows the commit as Verified) and keeps the author, a human
-  committing by hand uses their own identity. Don't force author and committer to be the same.
-- Pull requests and GitHub comments carry exactly one AI note, as the very last lines: a `---` rule and
-  `_Generated by [Claude Code](https://claude.ai/code)_` (the GitHub connection adds the same footer and drops duplicates).
-  No extra "Made with AI help", no "🤖 Generated with" line, no session link.
-  Same for commits: one `Co-Authored-By`, no session link. Squash with a short message of your own, or the trailers pile up.
-- README screenshots: `python3 -I tools/make-showcase.py <dir> && npm run build && SHOTS_DB=showcase SHOTS_LANG=en node tools/shots.mjs <dir> <out>`,
-  then copy the six images used by the README into `docs/screenshots/`. Since the Nextcloud header, the README shows the app inside
-  Nextcloud: run a local Nextcloud with the app enabled and add `SHOTS_NC=<base url> SHOTS_NC_USER=… SHOTS_NC_PASS=…` (see `tools/shots.mjs`).
+- Commits are authored as `StudioCuda <341092375+StudioCuda@users.noreply.github.com>` and carry a `Co-Authored-By` trailer for the AI. The committer is whoever actually commits: an AI session sets `Claude <noreply@anthropic.com>` as committer (`GIT_COMMITTER_NAME` / `GIT_COMMITTER_EMAIL`, so GitHub shows the commit as Verified) and keeps the author, a human committing by hand uses their own identity. Don't force author and committer to be the same.
+- Pull requests and GitHub comments carry exactly one AI note, as the very last lines: a `---` rule and `_Generated by [Claude Code](https://claude.ai/code)_` (the GitHub connection adds the same footer and drops duplicates). No extra "Made with AI help", no "🤖 Generated with" line, no session link. Same for commits: one `Co-Authored-By`, no session link. Squash with a short message of your own, or the trailers pile up.
+- README screenshots: `python3 -I tools/make-showcase.py <dir> && npm run build && SHOTS_DB=showcase SHOTS_LANG=en node tools/shots.mjs <dir> <out>`, then copy the six images used by the README into `docs/screenshots/`. Since the Nextcloud header, the README shows the app inside Nextcloud: run a local Nextcloud with the app enabled and add `SHOTS_NC=<base url> SHOTS_NC_USER=… SHOTS_NC_PASS=…` (see `tools/shots.mjs`).
 
 ## Known test quirks
 
-- `keepassxc-cli edit` fails with "Cannot process 0 length data" when it changes an entry in the same second as that entry's last
-  change. Tests that let KeePassXC edit a file kdbxweb just wrote wait 1.1 s first (see `tests/compat/run.ts`).
-- TOTP codes: compare the app with `keepassxc-cli` in up to three tries 1.2 s apart (see `tests/e2e/run.mjs`, `tests/e2e/ui.mjs`).
-  The app refreshes the code once a second and `keepassxc-cli` needs up to a few seconds to unlock a file with big KDF
-  settings, so a single comparison can straddle the window boundary.
+- `keepassxc-cli edit` fails with "Cannot process 0 length data" when it changes an entry in the same second as that entry's last change. Tests that let KeePassXC edit a file kdbxweb just wrote wait 1.1 s first (see `tests/compat/run.ts`).
+- TOTP codes: compare the app with `keepassxc-cli` in up to three tries 1.2 s apart (see `tests/e2e/run.mjs`, `tests/e2e/ui.mjs`). The app refreshes the code once a second and `keepassxc-cli` needs up to a few seconds to unlock a file with big KDF settings, so a single comparison can straddle the window boundary.
 - WebKit reports some aborted requests as page errors; `knownFetchNoise` + `uncaughtWatch` in `tests/browser.mjs` tell them apart.
 
 No test is known to be flaky right now. If one turns up, find the cause before adding a retry.

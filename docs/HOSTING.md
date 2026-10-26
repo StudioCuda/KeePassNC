@@ -29,15 +29,12 @@ Header always set X-Content-Type-Options "nosniff"
 
 For `web/` on a different domain than your Nextcloud, WebDAV needs CORS, see `CONTRIBUTING.md`. More on the CSP in `SECURITY.md`.
 
-`web/` and `web-generator/` already ship a ready-made `.htaccess` with these headers and an HTTPS redirect, so on Apache hosting such as Netcup shared
-webhosting you only upload the folder's contents (the dotfile included, make sure your FTP client shows hidden files).
+`web/` and `web-generator/` already ship a ready-made `.htaccess` with these headers and an HTTPS redirect, so on Apache hosting such as Netcup shared webhosting you only upload the folder's contents (the dotfile included, make sure your FTP client shows hidden files).
 
 ## A demo that doesn't need a server
 
-Because `web/` starts with "Local file", visitors can try it with nothing but a `.kdbx` file (or "New database", which they download).
-Nothing is uploaded: the file is read and decrypted in the browser tab.
+Because `web/` starts with "Local file", visitors can try it with nothing but a `.kdbx` file (or "New database", which they download). Nothing is uploaded: the file is read and decrypted in the browser tab.
 
 ## License
 
-KeePassNC is AGPL-3.0-or-later. If you run a modified version for others, they're entitled to the source of your changes. Both pages link to this
-repository in their footer or "About" text; keep that link, or point it at your fork.
+KeePassNC is AGPL-3.0-or-later. If you run a modified version for others, they're entitled to the source of your changes. Both pages link to this repository in their footer or "About" text; keep that link, or point it at your fork.
