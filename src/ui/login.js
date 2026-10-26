@@ -26,7 +26,7 @@ export function showLogin(message) {
     stopDetailTimers();
     clearBitsCache(); // keyed by the plain passwords of the database that is closing
     document.body.classList.remove('readonly');
-    state.vault = null; state.selEntry = null; state.editing = null; state.query = ''; clearMarks();
+    state.vault = null; state.softLocked = false; state.selEntry = null; state.editing = null; state.query = ''; clearMarks();
     document.body.classList.remove('in-vault');
     const NC = ctx.NC;
     warmNextcloudAuth(NC);

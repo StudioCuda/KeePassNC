@@ -74,6 +74,7 @@ async function main() {
     const status = (page) => page.locator('#status').innerText();
     const waitStatus = (page, re, timeout = 15000) => page.waitForFunction((src) => new RegExp(src).test(document.querySelector('#status')?.textContent || ''), re.source, { timeout });
     const rows = (page) => page.locator('[data-testid=entry-row]');
+    const waitStatusText = (page, sel, re, timeout = 15000) => page.waitForFunction(([q, src]) => new RegExp(src).test(document.querySelector(q)?.textContent || ''), [sel, re.source], { timeout });
     const f4 = path.join(davRoot, 'vault4.kdbx');
 
     await step('Falsches Master-Passwort -> verstaendliche Fehlermeldung, kein Absturz', async () => {
@@ -452,6 +453,35 @@ async function main() {
         await p.waitForFunction(() => /Automatisch gesperrt/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 20000 });
         for (let i = 0; i < 20 && !xc(['show', f4, 'Bank/Konto']).includes('bob-auto-gespeichert'); i++) await new Promise((r) => setTimeout(r, 500));
         expect(xc(['show', f4, 'Bank/Konto']).includes('bob-auto-gespeichert'), 'Aenderung ging beim Auto-Sperren verloren');
+        await p.context().close();
+    });
+
+    await step('Auto-Sperre mit ungespeicherten Aenderungen (lokale Datei): Sperrbildschirm statt offenem Tresor, nichts geht verloren; Entsperren per Passwort, danach Speichern-Angebot', async () => {
+        const p = await newPage('?autolock=5');
+        await p.locator('input[value=file]').check({ force: true });
+        await p.setInputFiles('#local-file', path.join(davRoot, 'vault3.kdbx'));
+        await p.fill('#master', PW); await p.click('#open-btn'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'bob-softlock'); await p.click('#apply-btn');
+        await p.locator('#softlock-form').waitFor({ timeout: 20000 });
+        const html = await p.content();
+        expect(!/alice|bob-softlock|Konto/.test(html), 'Auf dem Sperrbildschirm stehen noch Daten im DOM');
+        expect(/nur im Arbeitsspeicher/.test(await p.locator('#softlock-note').innerText()), 'Hinweis auf den Arbeitsspeicher fehlt');
+        // without a new key derivation: wrong password answers at once, nothing opens
+        await p.fill('#sl-master', 'falsch'); await p.click('#sl-unlock');
+        await waitStatusText(p, '#sl-error', /Falsches Master-Passwort/);
+        expect(await p.locator('#softlock-form').count() === 1, 'Falsches Passwort darf nicht entsperren');
+        // Ctrl+S and friends do nothing in the soft lock
+        await p.keyboard.press('Control+s');
+        // the idle timer doesn't turn it into a real lock behind the user's back
+        await p.waitForTimeout(7000);
+        expect(await p.locator('#softlock-form').count() === 1 && await p.locator('#login-form').count() === 0, 'Soft-Lock darf nicht in die Anmeldung kippen');
+        await p.fill('#sl-master', PW); await p.click('#sl-unlock');
+        await p.locator('#confirm-ok').waitFor();
+        expect(await rows(p).count() > 0, 'Nach dem Entsperren fehlt die Liste');
+        const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#confirm-ok')]);
+        const out = path.join(tmp, 'softlock.kdbx'); fs.copyFileSync(await dl.path(), out);
+        expect(xc(['show', out, 'Konto']).includes('bob-softlock'), 'Aenderung ging beim Sperren/Entsperren verloren');
         await p.context().close();
     });
 

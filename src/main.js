@@ -4,6 +4,7 @@ import { setLang } from './i18n.js';
 import { ctx, applyTheme } from './ui/ctx.js';
 import { showLogin } from './ui/login.js';
 import { showCreate } from './ui/create.js';
+import { showSoftLock } from './ui/softlock.js';
 import { installShortcuts } from './ui/shell.js';
 import { installGlobalListeners, ensureOfflineApp } from './ui/session.js';
 import { langNow } from './ui/settings-dialog.js';
@@ -20,8 +21,9 @@ const ncHeader = renderNcHeader(ctx.NC); // Nextcloud only: header bar like the 
 if (ncHeader) { document.body.prepend(ncHeader); document.body.classList.add('has-nch'); }
 ctx.ui.showLogin = showLogin;
 ctx.ui.showCreate = showCreate;
+ctx.ui.showSoftLock = showSoftLock;
 ctx.ui.askRemoteCredentials = askRemoteCredentials;
-ctx.ui.rerender = () => (ctx.state.vault ? ctx.ui.showMain() : showLogin());
+ctx.ui.rerender = () => (ctx.state.vault ? (ctx.state.softLocked ? showSoftLock() : ctx.ui.showMain()) : showLogin());
 installGlobalListeners();
 installShortcuts();
 if (ctx.NC?.newFile) showCreate(); else showLogin(); // ?new= from "+ New" in Files

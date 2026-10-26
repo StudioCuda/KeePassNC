@@ -53,6 +53,13 @@ Things we know about and can't fix from inside the app. Reports that find a way 
   opens with the old ones: the backup copies next to the file (the dialog can delete them), Nextcloud's own file versions and trash
   bin, offline copies on other devices until they sync, and any copy someone already made. If you change them because the old ones
   leaked, clean up those places too.
+- **Auto-lock with unsaved changes only hides the session.** If the idle timer (or "lock when the tab is hidden") fires while changes
+  couldn't be saved (a local file, or the server isn't reachable), locking for real would throw them away. Instead the view goes
+  and the unlock screen says so; the database stays decrypted in the memory of the page until you enter the master password again
+  (the key file too, if there is one) and save, or close the tab. Nothing is written to the browser. For a database on a
+  server you can switch on the offline copy instead: changes that can't be uploaded are then stored encrypted, and the lock is real.
+  A local file has no such place, so it always gets the soft lock.
+  Locking by hand still asks first whether to throw the changes away.
 - **The standalone page (`web/`) sets its CSP via `<meta>`.** `frame-ancestors` doesn't work there. If you host it yourself, send the
   CSP as an HTTP header from your web server. Argon2 runs in a worker loaded from `keepassnc-argon2.js` next to `keepassnc.js`, so
   a `worker-src` (if you set one) needs `'self'`, and a CSP on that file itself needs `'wasm-unsafe-eval'`. Otherwise the page falls

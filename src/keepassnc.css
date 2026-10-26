@@ -425,6 +425,8 @@ textarea.c-value { min-height: 0; resize: vertical; }
 .meter { margin-top: -6px; }
 .hint.reuse { margin-top: -6px; color: var(--warn); overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; } /* never more than two lines, however long the titles are */
 .hint.reuse[hidden] { display: none; }
+.softlock-note { color: var(--warn); font-weight: 600; }
+.softlock-more { text-align: center; }
 .ro-banner { display: flex; align-items: center; gap: 10px; padding: 6px 14px; font-size: 13px; color: var(--warn); background: color-mix(in srgb, var(--warn) 10%, var(--surface)); border-bottom: 1px solid var(--border); flex: none; }
 .ro-banner[hidden] { display: none; }
 .ro-banner .icon { flex: none; }

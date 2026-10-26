@@ -153,7 +153,7 @@ export async function doSave({ auto = false } = {}) {
 /** Background sync (interval, reconnect, tab visible): pushes local changes up or pulls changes from others. */
 export async function syncNow({ announce = false } = {}) {
     const v = state.vault;
-    if (!v || state.source?.type !== 'dav' || syncing || state.editing || (v.mergeBlocked && !announce) || (v.readOnly && (v.dirty || v.unsynced))) return;
+    if (!v || state.source?.type !== 'dav' || syncing || state.editing || state.softLocked || (v.mergeBlocked && !announce) || (v.readOnly && (v.dirty || v.unsynced))) return;
     syncing = true;
     $('#sync-state')?.classList.add('busy');
     try {
@@ -189,21 +189,31 @@ export async function lock(message) {
         // WebDAV: save first. Locally saved (offline) versions may stay, unlocking transfers them later.
         if (v.dirty) await doSave({ auto: true });
         if (state.vault?.dirty) {
-            if (auto) { setStatus(t('lock.blocked'), 'warn'); return; }
+            if (auto) { softLock(message); return; }
             if (!(await confirmDialog({ title: t('lock'), message: t('lock.unsaved'), confirmLabel: t('lock.anyway'), cancelLabel: t('cancel'), danger: true }))) return;
         }
     } else if (v?.dirty) {
-        if (auto) { setStatus(t('lock.blocked'), 'warn'); return; }
+        if (auto) { softLock(message); return; }
         if (!(await confirmDialog({ title: t('lock'), message: t('lock.unsaved'), confirmLabel: t('lock.anyway'), cancelLabel: t('cancel'), danger: true }))) return;
     }
     clearTimeout(autoSaveTimer);
     ctx.ui.showLogin(message ?? t('locked'));
 }
 
+/**
+ * Auto-lock with changes that couldn't be saved (local file, or the server isn't there): locking for real would throw them away.
+ * The view goes, the database stays in memory until the master password comes back (softlock.js).
+ */
+function softLock(message) {
+    clearTimeout(autoSaveTimer);
+    state.softLocked = true;
+    ctx.ui.showSoftLock(message ?? t('locked'));
+}
+
 export function startTimers() {
     stopTimers();
     state.idleTimer = setInterval(() => {
-        if (!state.vault) return;
+        if (!state.vault || state.softLocked) return;
         if (Date.now() - state.lastActivity > ctx.settings.autolockSeconds * 1000) { state.autoLockRequest = true; lock(t('locked.auto')).finally(() => { state.autoLockRequest = false; }); }
         else if (ctx.settings.lockOnHide && document.hidden && state.hiddenSince && Date.now() - state.hiddenSince > 60000) { state.autoLockRequest = true; lock(t('locked.hidden')).finally(() => { state.autoLockRequest = false; }); }
     }, 1000);

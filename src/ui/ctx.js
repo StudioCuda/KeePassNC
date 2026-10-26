@@ -30,6 +30,7 @@ export const ctx = {
         marked: new Set(), // entries marked for a batch action (Ctrl/Shift+click or the select button)
         selecting: false, // select mode: a click ticks instead of opening
         editing: null, // {entry|null, group}
+        softLocked: false, // auto-lock with unsaved changes: view hidden, database still in memory (softlock.js)
         query: '',
         lastActivity: Date.now(),
         offlineMode: false,

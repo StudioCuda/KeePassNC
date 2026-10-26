@@ -775,6 +775,29 @@ async function main() {
         await m.context().close();
     });
 
+    await step('Soft-Lock (Auto-Sperre, lokale Datei mit Passwort + Schluesseldatei): Passwort allein entsperrt nicht, mit Schluesseldatei sofort; die Aenderung ist noch da', async () => {
+        const p = await newPage();
+        await p.goto(`${base}/?autolock=5`);
+        await p.locator('input[value=file]').check({ force: true });
+        await p.setInputFiles('#local-file', dbFile);
+        await p.fill('#master', meta.password); await p.setInputFiles('#keyfile', KEY);
+        await p.click('#open-btn'); await waitOpened(p, 90000);
+        await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Amazon' }).first().click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'softlock-nutzer'); await p.click('#apply-btn');
+        await p.locator('#softlock-form').waitFor({ timeout: 20000 });
+        await p.fill('#sl-master', meta.password); await p.click('#sl-unlock');
+        await p.locator('#sl-error', { hasText: 'Falsches Master-Passwort' }).waitFor();
+        await p.setInputFiles('#sl-keyfile', KEY);
+        await p.fill('#sl-master', 'falsch'); await p.click('#sl-unlock');
+        await p.locator('#sl-error', { hasText: 'Falsches Master-Passwort' }).waitFor();
+        await p.fill('#sl-master', meta.password); await p.click('#sl-unlock');
+        await p.locator('#confirm-cancel').click();
+        await pick(p, 'Amazon');
+        expect((await p.locator('#detail').innerText()).includes('softlock-nutzer'), 'Aenderung nach dem Entsperren nicht mehr da');
+        await p.context().close();
+    });
+
     await step('Keine JS-Fehler, keine externen Anfragen', async () => {
         expect(pageErrors.length === 0, pageErrors.slice(0, 3).join(' | '));
         expect(external.length === 0, external.join(', '));

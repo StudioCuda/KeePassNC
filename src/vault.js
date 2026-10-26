@@ -271,6 +271,16 @@ export class Vault {
         return sameBytes(a, b);
     }
 
+    /**
+     * Are these the credentials this database was opened with? For the soft lock: compares against what the session holds,
+     * no key derivation (so it answers at once). keyfile: bytes of the chosen file, needed when the database has one.
+     */
+    async matchesCredentials(pw, keyfile) {
+        const pwOk = await this.checkPassword(pw);
+        const kfOk = !this._kf || (!!keyfile && await sameKeyfile(this._kf, keyfile));
+        return pwOk && kfOk;
+    }
+
     get hasKeyfile() { return !!this._kf; }
     /** false: database with key file only (no password part, not even an empty password). */
     get hasPassword() { return !!this._pw; }
