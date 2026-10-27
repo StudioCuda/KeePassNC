@@ -3,6 +3,10 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [1.0.2] - 2026-10-27
+Saving behind a proxy or compression that rewrites the file's `ETag` (issue #193).
+
 ### Fixed
 - If the server keeps refusing a save because of the file's version tag (ETag) although nobody else changed the file, the app now says so, in place of blaming another device, and stops after the first try. It no longer leaves three `conflict-….bak` copies per save. Usually a proxy or compression in front of Nextcloud is the cause.
 - Saving no longer fails with "changed continuously by another device" when a proxy or web server with compression rewrites the file's `ETag` (`-gzip`, `-br`, `W/`). The extra bits are cut off, so the server's check can match again (issue #193).
