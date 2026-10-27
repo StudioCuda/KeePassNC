@@ -63,7 +63,7 @@ KeePassXC, KeePassDX and Strongbox keep working on it, no lock-in.]]></descripti
 KeePassXC, KeePassDX, Strongbox & Co. können sie jederzeit weiterverwenden.]]></description>
     <version>1.0.2</version>
     <licence>AGPL-3.0-or-later</licence>
-    <author>KeePassNC</author>
+    <author>Matthias Steinbrecher / Studio Cuda</author>
     <namespace>Keepassnc</namespace>
     <documentation>
         <user>https://github.com/StudioCuda/KeePassNC#readme</user>
