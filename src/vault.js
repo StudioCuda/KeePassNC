@@ -958,6 +958,12 @@ export class Vault {
                 if (!(e instanceof ConflictError)) throw e;
                 if (attempt >= 3) throw new VaultError('Die Datei wird gerade von einem anderen Geraet laufend geaendert - bitte spaeter erneut speichern. Deine Aenderungen sind lokal gesichert.', 'e.busy');
                 const remote = await this.dav.get();
+                // The server still holds the very version our If-Match named, and said no anyway: nobody else is writing, the ETag itself
+                // doesn't survive the way to the server (a proxy rewriting it). Merging again changes nothing and only piles up conflict backups.
+                if (remote.etag && remote.etag === this.etag) {
+                    this.mergeBlocked = true;
+                    throw new VaultError('Der Server lehnt das Speichern ab, obwohl niemand sonst die Datei geaendert hat (Versionskennung wird auf dem Weg veraendert). Deine Aenderungen sind lokal gesichert.', 'e.etag');
+                }
                 await this._backup(remote.buf, `conflict-${stamp()}`);
                 await this._prune();
                 const remoteDb = await Kdbx.load(remote.buf, this._baseCredentials()).catch((err) => {

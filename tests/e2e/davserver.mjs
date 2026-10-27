@@ -16,6 +16,8 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
     const options = { cors };
     const ncFiles = `/remote.php/dav/files/${encodeURIComponent(ncId)}`;
     const etagOf = (buf) => `"${crypto.createHash('sha1').update(buf).digest('hex')}"`;
+    const badEtag = (file) => path.basename(file).startsWith('badetag-'); // a proxy in front rewrites the ETag in the answer: our If-Match never matches
+    const etagOut = (file, buf) => (badEtag(file) ? `"proxy-${etagOf(buf).slice(1)}` : etagOf(buf));
     const noEtag = (file) => path.basename(file).startsWith('noetag-'); // behaves like a server (or proxy) that sends no ETag and ignores If-Match
     const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png' };
 
@@ -49,7 +51,7 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
             if (req.method === 'GET' || req.method === 'HEAD') {
                 if (!fs.existsSync(file)) { res.writeHead(404).end(); return; }
                 const buf = fs.readFileSync(file);
-                res.writeHead(200, { ...(noEtag(file) ? {} : { ETag: etagOf(buf) }), 'Content-Type': 'application/octet-stream', 'Content-Length': buf.length });
+                res.writeHead(200, { ...(noEtag(file) ? {} : { ETag: etagOut(file, buf) }), 'Content-Type': 'application/octet-stream', 'Content-Length': buf.length });
                 res.end(req.method === 'GET' ? buf : undefined);
                 return;
             }
@@ -63,7 +65,7 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
                     if (req.headers['if-match'] && req.headers['if-match'] !== cur && !noEtag(file)) { res.writeHead(412).end(); return; }
                     const body = Buffer.concat(chunks);
                     fs.writeFileSync(file, body);
-                    res.writeHead(exists ? 204 : 201, noEtag(file) ? {} : { ETag: etagOf(body) }).end();
+                    res.writeHead(exists ? 204 : 201, noEtag(file) ? {} : { ETag: etagOut(file, body) }).end();
                 });
                 return;
             }

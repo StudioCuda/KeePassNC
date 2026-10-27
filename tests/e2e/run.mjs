@@ -973,6 +973,23 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Server lehnt unseren If-Match ab, obwohl niemand sonst schreibt (Proxy verbiegt den ETag): eigene Meldung, genau ein Versuch, keine Konflikt-Sicherung, Kopie speichern geht', async () => {
+        const f = path.join(davRoot, 'badetag-shared.kdbx');
+        fs.copyFileSync(f4, f);
+        const before = fs.readFileSync(f);
+        const p = await newPage();
+        await login(p, 'badetag-shared.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'bleibt-hier'); await p.click('#apply-btn');
+        await p.click('#save-btn');
+        await waitStatus(p, /Versionskennung/);
+        expect(!/laufend|anderen Ger/.test(await status(p)), 'falsche Schuldzuweisung: ' + await status(p));
+        expect(fs.readdirSync(davRoot).filter((n) => /^badetag-shared\.kdbx\.conflict-/.test(n)).length === 0, 'Konflikt-Sicherung trotz unveraenderter Datei');
+        expect(await p.locator('#readonly-banner').isVisible() && await p.locator('#ro-copy').isVisible(), 'Hinweis mit "Kopie speichern" fehlt');
+        expect(Buffer.compare(before, fs.readFileSync(f)) === 0, 'Datei auf dem Server wurde veraendert');
+        await p.context().close();
+    });
+
     await step('Server ohne ETag: zwei Geraete speichern nacheinander -> zusammengefuehrt statt still ueberschrieben, fremde Fassung als conflict-Sicherung; unveraenderte Datei wird nicht dauernd neu uebernommen', async () => {
         const f = path.join(davRoot, 'noetag-shared.kdbx');
         fs.copyFileSync(f4, f);
