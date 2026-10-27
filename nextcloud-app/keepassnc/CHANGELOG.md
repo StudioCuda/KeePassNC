@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Fixed
+- Saving no longer fails with "changed continuously by another device" when a proxy or web server with compression rewrites the file's `ETag` (`-gzip`, `-br`, `W/`). The extra bits are cut off, so the server's check can match again (issue #193).
 
 ## [1.0.1] - 2026-10-26
 Small follow-ups from the check of the 1.0.0 fixes.
