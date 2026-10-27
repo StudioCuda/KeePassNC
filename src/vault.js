@@ -962,7 +962,7 @@ export class Vault {
                 // doesn't survive the way to the server (a proxy rewriting it). Merging again changes nothing and only piles up conflict backups.
                 if (remote.etag && remote.etag === this.etag) {
                     this.mergeBlocked = 'etag';
-                    throw new VaultError('Der Server lehnt das Speichern ab, obwohl niemand sonst die Datei geaendert hat (Versionskennung wird auf dem Weg veraendert). Deine Aenderungen sind lokal gesichert.', 'e.etag');
+                    throw new VaultError('Der Server lehnt das Speichern ab, obwohl niemand sonst die Datei geaendert hat (Versionskennung wird auf dem Weg veraendert). Deine Aenderungen bleiben in diesem Tab.', 'e.etag');
                 }
                 await this._backup(remote.buf, `conflict-${stamp()}`);
                 await this._prune();

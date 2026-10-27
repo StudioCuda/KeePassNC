@@ -3,6 +3,8 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Fixed
+- The message for a save the server refuses over the file's version tag no longer says the changes are "kept locally" when no offline copy exists. They stay in the tab, as the banner says.
 
 ## [1.0.2] - 2026-10-27
 Saving behind a proxy or compression that rewrites the file's `ETag` (issue #193).

@@ -168,7 +168,7 @@ export default {
     'e.keyfile.bad': 'This key file can’t be read (damaged, or not a key file format KeePass knows).',
     'e.bin.delete': 'The recycle bin cannot be deleted - only emptied.',
     'e.busy': 'The file is being changed continuously by another device - please save again later. Your changes are kept locally.',
-    'e.etag': 'The server refuses the save, although nobody else changed the file. A proxy or compression in front of Nextcloud probably alters the file’s version tag (ETag). Ask whoever runs the server to switch that off for /remote.php/dav. Your changes are kept locally, save a copy until then.',
+    'e.etag': 'The server refuses the save, although nobody else changed the file. A proxy or compression in front of Nextcloud probably alters the file’s version tag (ETag). Ask whoever runs the server to switch that off for /remote.php/dav. Your changes stay in this tab, save a copy until then.',
     'e.conflict': 'The file was changed on the server in the meantime.',
     'e.dav.backup': 'Backup copy failed (status {status}).',
     'e.dav.denied': 'Access denied - check the sign-in or credentials.',
