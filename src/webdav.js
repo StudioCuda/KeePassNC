@@ -57,8 +57,18 @@ export function offlineFailKey(e, cacheOn) {
     return cacheOn ? 'err.offline.nocopy' : 'err.offline.nooption';
 }
 
+/**
+ * Compression in front of the server rewrites the ETag of the answer: Apache's mod_deflate / mod_brotli append "-gzip" / "-br",
+ * nginx turns it weak (W/"..."). The server's own check for If-Match knows only the plain value, so the write would meet a 412
+ * every time, with nobody else involved. Cut those additions off again; a plain ETag passes through untouched.
+ */
+export function cleanEtag(raw) {
+    if (!raw) return null;
+    return raw.replace(/^W\//, '').replace(/-(?:gzip|br)(?="?$)/, '');
+}
+
 function etagOf(res) {
-    return res.headers.get('etag') || res.headers.get('oc-etag') || null;
+    return cleanEtag(res.headers.get('etag')) || cleanEtag(res.headers.get('oc-etag'));
 }
 
 /** Sign-in via HTTP Basic (user + app password), e.g. for the standalone page. */
