@@ -168,7 +168,7 @@ export default {
     'e.keyfile.bad': 'Diese Schlüsseldatei ist unlesbar (beschädigt oder kein Schlüsseldatei-Format, das KeePass kennt).',
     'e.bin.delete': 'Der Papierkorb kann nicht gelöscht werden - nur leeren.',
     'e.busy': 'Die Datei wird gerade von einem anderen Gerät laufend geändert - bitte später erneut speichern. Deine Änderungen sind lokal gesichert.',
-    'e.etag': 'Der Server lehnt das Speichern ab, obwohl niemand sonst die Datei geändert hat. Vermutlich verändert ein Proxy oder eine Kompression vor Nextcloud die Versionskennung (ETag) der Datei. Bitte die Person, die den Server betreut, das für /remote.php/dav auszuschalten. Deine Änderungen sind lokal gesichert, speichere bis dahin eine Kopie.',
+    'e.etag': 'Der Server lehnt das Speichern ab, obwohl niemand sonst die Datei geändert hat. Vermutlich verändert ein Proxy oder eine Kompression vor Nextcloud die Versionskennung (ETag) der Datei. Bitte die Person, die den Server betreut, das für /remote.php/dav auszuschalten. Deine Änderungen bleiben in diesem Tab, speichere bis dahin eine Kopie.',
     'e.conflict': 'Die Datei wurde zwischenzeitlich auf dem Server geändert.',
     'e.dav.backup': 'Sicherungskopie fehlgeschlagen (Status {status}).',
     'e.dav.denied': 'Zugriff verweigert - Anmeldung oder Zugangsdaten prüfen.',
