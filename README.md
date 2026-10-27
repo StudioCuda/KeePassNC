@@ -43,7 +43,7 @@ You need Nextcloud 34 or newer. KeePassNC is in the [Nextcloud App Store](https:
 
 </details>
 
-Then click a `.kdbx` file in Files. No database yet? **+ New** → **KeePass database** in Files makes one.
+Then click a `.kdbx` file in Files. No database yet? **+ New** → **KeePass database** in Files makes one. Saving trouble? See [Troubleshooting](docs/TROUBLESHOOTING.md).
 
 ## Security
 
