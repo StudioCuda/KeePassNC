@@ -53,7 +53,7 @@ export function refreshReadOnly() {
     if (!banner) return;
     banner.hidden = !(ro || blocked);
     if (banner.hidden) return;
-    $('#ro-text', banner).textContent = t(blocked ? 'merge.banner' : pending ? 'ro.banner.dirty' : 'ro.banner');
+    $('#ro-text', banner).textContent = t(blocked ? (v.mergeBlocked === 'etag' ? 'merge.banner.etag' : 'merge.banner') : pending ? 'ro.banner.dirty' : 'ro.banner');
     $('#ro-copy', banner).hidden = !pending;
 }
 

@@ -224,7 +224,7 @@ export class Vault {
         this.backupKeep = 10; // number of backup copies kept per kind (0 = never delete)
         this.dirty = false; // changes in memory only (not serialized yet)
         this.readOnly = false; // share without write permission (or a 403 on saving): every change is turned away, see _writable
-        this.mergeBlocked = false; // the last upload failed because the server file can't be merged (see _push)
+        this.mergeBlocked = false; // the last upload failed because the server file can't be merged, or 'etag' if the server refuses our If-Match for nothing (see _push)
         this.cache = cache || null;
         this.unsynced = false; // saved locally (offline copy), the server doesn't have this version yet
         this._pending = null;
@@ -958,6 +958,12 @@ export class Vault {
                 if (!(e instanceof ConflictError)) throw e;
                 if (attempt >= 3) throw new VaultError('Die Datei wird gerade von einem anderen Geraet laufend geaendert - bitte spaeter erneut speichern. Deine Aenderungen sind lokal gesichert.', 'e.busy');
                 const remote = await this.dav.get();
+                // The server still holds the very version our If-Match named, and said no anyway: nobody else is writing, the ETag itself
+                // doesn't survive the way to the server (a proxy rewriting it). Merging again changes nothing and only piles up conflict backups.
+                if (remote.etag && remote.etag === this.etag) {
+                    this.mergeBlocked = 'etag';
+                    throw new VaultError('Der Server lehnt das Speichern ab, obwohl niemand sonst die Datei geaendert hat (Versionskennung wird auf dem Weg veraendert). Deine Aenderungen sind lokal gesichert.', 'e.etag');
+                }
                 await this._backup(remote.buf, `conflict-${stamp()}`);
                 await this._prune();
                 const remoteDb = await Kdbx.load(remote.buf, this._baseCredentials()).catch((err) => {
