@@ -986,6 +986,7 @@ async function main() {
         expect(!/laufend|anderen Ger/.test(await status(p)), 'falsche Schuldzuweisung: ' + await status(p));
         expect(fs.readdirSync(davRoot).filter((n) => /^badetag-shared\.kdbx\.conflict-/.test(n)).length === 0, 'Konflikt-Sicherung trotz unveraenderter Datei');
         expect(await p.locator('#readonly-banner').isVisible() && await p.locator('#ro-copy').isVisible(), 'Hinweis mit "Kopie speichern" fehlt');
+        expect(/nimmt das Speichern nicht an/.test(await p.locator('#ro-text').textContent()), 'Banner nennt den falschen Grund: ' + await p.locator('#ro-text').textContent());
         expect(Buffer.compare(before, fs.readFileSync(f)) === 0, 'Datei auf dem Server wurde veraendert');
         await p.context().close();
     });
