@@ -153,7 +153,7 @@ export function renderList(entries = visibleEntries()) {
         const color = entryColor(e);
         if (color) { main.classList.add('tinted'); main.style.setProperty('--entry-color', color); } // CSSOM, no style attribute (CSP)
         const wrap = h('div', { class: 'entry-wrap', draggable: 'true' }, main,
-            h('div', { class: 'row-actions', 'aria-hidden': 'true' }, openableUrl(resolvedUrl(e, { own: true })) ? iconBtn('globe', t('row.openurl'), () => openEntryUrl(e), { tabindex: '-1' }) : null, iconBtn('user', t('copy') + ': ' + t('f.user'), () => copy(user, t('f.user')), { tabindex: '-1' }), iconBtn('key', t('copy') + ': ' + t('f.password'), () => copy(resolvedField(e, 'Password'), t('f.password')), { tabindex: '-1' })));
+            h('div', { class: 'row-actions', 'aria-hidden': 'true' }, openableUrl(resolvedUrl(e, { own: true })) ? iconBtn('globe', t('row.openurl'), () => openEntryUrl(e), { tabindex: '-1' }) : null, iconBtn('user', t('entry.copy.user'), () => copy(user, t('f.user')), { tabindex: '-1' }), iconBtn('key', t('entry.copy.password'), () => copy(resolvedField(e, 'Password'), t('f.password')), { tabindex: '-1' })));
         wrap.addEventListener('dragstart', (ev) => startEntryDrag(ev, e));
         body.append(wrap);
     }
