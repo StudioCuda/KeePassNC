@@ -10,7 +10,7 @@ export default {
     'attachment.toolarge': '“{name}”太大了（最大 64 MiB）。',
     'attachments': '附件',
     'attachments.none': '没有附件。',
-    'autolock.1': '1 分钟', 'autolock.2': '2 分钟', 'autolock.5': '5 分钟', 'autolock.15': '15 分钟', 'autolock.30': '30 分钟', 'autolock.60': '60 分钟',
+    'autolock.1': '1 分钟', 'autolock.2': '2 分钟', 'autolock.10': '10 分钟', 'autolock.20': '20 分钟', 'autolock.60': '60 分钟', 'autolock.120': '2 小时', 'autolock.480': '8 小时', 'autolock.720': '12 小时',
     'autosync.change': '每次改动时', 'autosync.1': '每 1 分钟', 'autosync.2': '每 2 分钟', 'autosync.5': '每 5 分钟', 'autosync.10': '每 10 分钟', 'autosync.off': '仅手动',
     'back': '返回',
     'bin.empty': '清空回收站',

@@ -10,7 +10,7 @@ export default {
     'attachment.toolarge': '„{name}“ ist zu groß (max. 64 MiB).',
     'attachments': 'Anhänge',
     'attachments.none': 'Keine Anhänge.',
-    'autolock.1': '1 Minute', 'autolock.2': '2 Minuten', 'autolock.5': '5 Minuten', 'autolock.15': '15 Minuten', 'autolock.30': '30 Minuten', 'autolock.60': '60 Minuten',
+    'autolock.1': '1 Minute', 'autolock.2': '2 Minuten', 'autolock.10': '10 Minuten', 'autolock.20': '20 Minuten', 'autolock.60': '60 Minuten', 'autolock.120': '2 Stunden', 'autolock.480': '8 Stunden', 'autolock.720': '12 Stunden',
     'autosync.change': 'Bei jeder Änderung', 'autosync.1': 'Alle 1 Minute', 'autosync.2': 'Alle 2 Minuten', 'autosync.5': 'Alle 5 Minuten', 'autosync.10': 'Alle 10 Minuten', 'autosync.off': 'Nur manuell',
     'back': 'Zurück',
     'bin.empty': 'Papierkorb leeren',
