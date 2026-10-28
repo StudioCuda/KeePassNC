@@ -3,6 +3,9 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [1.0.3] - 2026-10-28
+Longer auto-lock steps for people who keep the vault open all day.
 ### Added
 - Auto-lock can wait 2, 8 or 12 hours, for people who keep the vault open all day (#200).
 
