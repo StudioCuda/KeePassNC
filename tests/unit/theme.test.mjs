@@ -148,10 +148,15 @@ test('Einstellungen: altes, automatisch gespeichertes "auto" wird einmalig zu "w
     try {
         assert.equal(loadSettings('').theme, 'nextcloud', 'Standard');
         assert.equal(loadSettings('').ncAccent, true);
-        store['kpnc.settings'] = JSON.stringify({ theme: 'auto', autolock: 15 });
+        store['kpnc.settings'] = JSON.stringify({ theme: 'auto', autolock: 20 });
         const s = loadSettings('');
         assert.equal(s.theme, 'nextcloud');
-        assert.equal(s.autolock, 15);
+        assert.equal(s.autolock, 20);
+        for (const [saved, want] of [[5, 2], [15, 10], [30, 20], [720, 720], [0, 10], ['x', 10]]) {
+            store['kpnc.settings'] = JSON.stringify({ autolock: saved });
+            assert.equal(loadSettings('').autolock, want, `autolock ${saved}`);
+        }
+        store['kpnc.settings'] = JSON.stringify({ theme: 'auto', autolock: 20 });
         s.theme = 'auto'; saveSettings(s); // jetzt bewusst gewaehlt: bleibt
         assert.equal(JSON.parse(store['kpnc.settings']).themeV, 2);
         assert.equal(loadSettings('').theme, 'auto');

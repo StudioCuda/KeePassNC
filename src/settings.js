@@ -1,7 +1,7 @@
 // Settings (convenience values only, no secrets) in localStorage. URL parameters override them for tests/shortcuts.
 // Labels of the select lists live in the translations (autosync.<value>, autolock.<value>, clip.<value>).
 export const AUTOSYNC_OPTIONS = ['change', '1', '2', '5', '10', 'off'];
-export const AUTOLOCK_OPTIONS = [1, 2, 5, 15, 30, 60];
+export const AUTOLOCK_OPTIONS = [1, 2, 10, 20, 60, 120, 480, 720];
 export const CLIPBOARD_OPTIONS = [10, 20, 30, 60, 120];
 export const THEME_OPTIONS = ['nextcloud', 'auto', 'light', 'dark']; // 'nextcloud' only in Nextcloud; standalone it behaves like 'auto'
 export const BACKUPKEEP_OPTIONS = [3, 10, 30, 0];
@@ -9,7 +9,7 @@ export const LANG_OPTIONS = ['auto', 'de', 'en', 'zh-CN'];
 
 export const DEFAULTS = {
     autosync: 'change', // 'change' | '1' | '2' | '5' | '10' | 'off'
-    autolock: 5, // minutes
+    autolock: 10, // minutes
     clipboard: 20, // seconds
     lockOnHide: false, // lock when the tab has been in the background for more than 60 s
     offline: false, // keep an encrypted copy + app page in this browser
@@ -36,7 +36,9 @@ export function loadSettings(search = location.search) {
         Object.assign(s, saved, { themeV: 2 });
     } catch { /* broken entry: defaults */ }
     s.autosync = String(oneOf(AUTOSYNC_OPTIONS, s.autosync, DEFAULTS.autosync));
-    s.autolock = Number(oneOf(AUTOLOCK_OPTIONS, s.autolock, DEFAULTS.autolock));
+    // 5, 15 and 30 minutes were options up to 1.0.2: a saved value that is gone moves to the next shorter one, never to a longer one
+    const al = Number(s.autolock);
+    s.autolock = AUTOLOCK_OPTIONS.includes(al) ? al : (AUTOLOCK_OPTIONS.filter((k) => k < al).pop() ?? DEFAULTS.autolock);
     s.clipboard = Number(oneOf(CLIPBOARD_OPTIONS, s.clipboard, DEFAULTS.clipboard));
     s.backupKeep = Number(oneOf(BACKUPKEEP_OPTIONS, s.backupKeep, DEFAULTS.backupKeep));
     s.theme = oneOf(THEME_OPTIONS, s.theme, DEFAULTS.theme);

@@ -3,7 +3,11 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Added
+- Auto-lock can wait 2, 8 or 12 hours, for people who keep the vault open all day (#200).
+
 ### Changed
+- The auto-lock list is shorter: 1, 2, 10, 20 and 60 minutes, then 2, 8 and 12 hours. The default is 10 minutes. A saved 5, 15 or 30 minutes moves to the next shorter step.
 - The App Store lists "Matthias Steinbrecher / Studio Cuda" as the author, in place of "KeePassNC".
 
 ### Fixed
