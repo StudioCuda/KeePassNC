@@ -61,7 +61,7 @@ KeePassXC, KeePassDX and Strongbox keep working on it, no lock-in.]]></descripti
 **Bleibt eine normale KeePass-Datei**
 
 KeePassXC, KeePassDX, Strongbox & Co. können sie jederzeit weiterverwenden.]]></description>
-    <version>1.0.2</version>
+    <version>1.0.3</version>
     <licence>AGPL-3.0-or-later</licence>
     <author>Matthias Steinbrecher / Studio Cuda</author>
     <namespace>Keepassnc</namespace>
@@ -75,10 +75,10 @@ KeePassXC, KeePassDX, Strongbox & Co. können sie jederzeit weiterverwenden.]]><
     <website>https://github.com/StudioCuda/KeePassNC</website>
     <bugs>https://github.com/StudioCuda/KeePassNC/issues</bugs>
     <repository type="git">https://github.com/StudioCuda/KeePassNC.git</repository>
-    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v1.0.2/docs/screenshots/desktop-detail.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v1.0.2/docs/screenshots/dark-detail.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v1.0.2/docs/screenshots/desktop-reports.png</screenshot>
-    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v1.0.2/docs/screenshots/mobile-list.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v1.0.3/docs/screenshots/desktop-detail.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v1.0.3/docs/screenshots/dark-detail.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v1.0.3/docs/screenshots/desktop-reports.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/StudioCuda/KeePassNC/v1.0.3/docs/screenshots/mobile-list.png</screenshot>
     <donation type="other" title="GitHub Sponsors">https://github.com/sponsors/StudioCuda</donation>
     <dependencies>
         <php min-version="8.2"/>
