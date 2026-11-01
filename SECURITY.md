@@ -21,6 +21,14 @@ Saving is defensive too: writes use ETag checks (a server that sends no ETag, or
 
 In Nextcloud the page is served on its own, without Nextcloud's layout and scripts. Any other app's JavaScript would otherwise run on the very page where your passwords sit decrypted. The header with the app menu and your account menu is KeePassNC's own: the server hands over the menu entries and the instance color, the browser checks them, and nothing else runs. That's why the header has no unified search, notifications or contacts menu, which all need Nextcloud's JavaScript. The color reaches the page as data and gets applied through the CSSOM, so the CSP still allows no inline styles at all.
 
+## Quantum computers
+
+Nothing to do here. A KDBX file is encrypted with AES-256 or ChaCha20 under a key from your master password. There's no public key for a quantum computer to break, and against symmetric crypto it only halves the key length, which still leaves plenty.
+
+The "quantum-safe" badges elsewhere are about key exchange for sharing and sync. KeePassNC has neither: the file is decrypted in your browser and the server only sees the encrypted KDBX.
+
+What matters is a long master password and decent Argon2 settings. The password is the weak spot against any attacker, quantum or not, and Argon2 with a good chunk of memory makes every guess expensive.
+
 ## Reviews
 
 Before 1.0.0, v0.18.1 went through two independent code reviews, one by DeepSeek V4.1 Flash and one by GPT-6 Luna, each with its own brief and without seeing the other's findings. Claude fixed what they found (#160 to #181), and a third model, Qwen3.8, then checked every finding against the code (2026-10-26, commit `f586fde`) and confirmed each one fixed or left as is on purpose. These are AI reviews, not an audit by people, and we don't pretend otherwise. The findings that mattered, all fixed:
