@@ -27,7 +27,7 @@ Nothing to do here. A KDBX file is encrypted with AES-256 or ChaCha20 under a ke
 
 The "quantum-safe" badges elsewhere are about key exchange for sharing and sync. KeePassNC has neither: the file is decrypted in your browser and the server only sees the encrypted KDBX.
 
-What matters is a long master password and decent Argon2 settings. The password is the weak spot against any attacker, quantum or not, and Argon2 with a good chunk of memory makes every guess expensive. We also won't invent a file format with post-quantum extras: staying readable by KeePassXC and friends is the point.
+What matters is a long master password and decent Argon2 settings. The password is the weak spot against any attacker, quantum or not, and Argon2 with a good chunk of memory makes every guess expensive.
 
 ## Reviews
 
