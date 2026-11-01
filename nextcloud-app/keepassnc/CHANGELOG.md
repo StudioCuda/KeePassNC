@@ -5,6 +5,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 ### Changed
 - Row hover buttons read "Copy username" / "Copy password" like "Open URL", and the globe icon gets wider meridians (#203).
+- The key icon gets a smaller ring and a tidier bit (#204).
 
 ## [1.0.3] - 2026-10-28
 Longer auto-lock steps for people who keep the vault open all day.
