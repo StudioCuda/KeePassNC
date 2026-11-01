@@ -11,6 +11,7 @@ Open and edit KeePass databases (KDBX 3.1 / 4.x) straight from Files. Click the 
 
 **Safe by design**
 
+- Your Nextcloud, nothing else: no extra account, no subscription, no third-party cloud. The file stays on your own server.
 - Everything is decrypted in your browser. The master password and the plaintext never leave it; the server only ever sees the encrypted file.
 - Saves are checked against the file's ETag, and a backup is made first.
 - If two devices edit at once, the versions are merged instead of one quietly winning.
@@ -39,6 +40,7 @@ KeePassXC, KeePassDX and Strongbox keep working on it, no lock-in.]]></descripti
 
 **Sicher gebaut**
 
+- Nur deine Nextcloud, sonst nichts: kein zusätzliches Konto, kein Abo, keine fremde Cloud. Die Datei bleibt auf deinem eigenen Server.
 - Entschlüsselt wird ausschließlich im Browser. Master-Passwort und Klartext verlassen ihn nie, der Server sieht nur die verschlüsselte Datei.
 - Gespeichert wird mit ETag-Prüfung, vorher wird eine Sicherungskopie angelegt (alte Kopien werden automatisch aufgeräumt).
 - Ändern mehrere Geräte gleichzeitig, werden die Stände zusammengeführt, statt dass einer still gewinnt.
