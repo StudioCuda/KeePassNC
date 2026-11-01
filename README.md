@@ -15,6 +15,7 @@ It's still a plain KeePass file, so **KeePassXC, KeePassDX and Strongbox keep wo
 
 ## Why you can relax
 
+- **Your Nextcloud, nothing else.** No extra account, no subscription, no third-party cloud. The file lives on your own server, and the app talks to no one else.
 - **Decrypted only in your browser.** Your master password and your passwords never leave it. The server only ever stores the encrypted file.
 - **Careful saving.** A backup copy is made before every save. If two devices change the file at once, both changes are kept.
 - **Works offline.** Turn on the encrypted offline copy and your passwords stay usable even when the server or network is down.
