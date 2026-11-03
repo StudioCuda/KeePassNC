@@ -3,6 +3,9 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+
+## [1.0.4] - 2026-11-03
+A clear message instead of a cryptic error on plain HTTP, and two small icon touch-ups.
 ### Fixed
 - Over plain HTTP the browser hides its encryption, and opening or creating a database failed with "randomBytes is not a function". KeePassNC now says it needs HTTPS (or localhost) instead (#208).
 
