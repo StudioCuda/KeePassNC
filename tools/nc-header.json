@@ -15,5 +15,5 @@
     "core/css/apps.scss": "bf078345ac0b12a449edffbc7805800ffb2b4c64edc05f910bba3ef034e0d302",
     "apps/theming/lib/Themes/DefaultTheme.php": "c2c80e96ae11821f831ae774dfa6c7ad079f79c824d6029c3e4918248bf81b16"
   },
-  "vue": "^9.13.1"
+  "vue": "^9.14.0"
 }
