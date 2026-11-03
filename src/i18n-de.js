@@ -185,6 +185,8 @@ export default {
     'e.otp.base32': 'Ungültiges Base32-Zeichen im TOTP-Geheimnis.',
     'e.otp.secret': 'Die otpauth-URL enthält kein Geheimnis (secret).',
     'e.otp.type': 'Es wird nur TOTP unterstützt.',
+    'https.title': 'KeePassNC braucht HTTPS',
+    'https.text': 'Dein Browser bietet Verschlüsselung nur auf sicheren Seiten an: HTTPS oder localhost. Diese Seite läuft über unverschlüsseltes HTTP, also gibt es nichts, womit sich entschlüsseln ließe. Öffne sie über https:// (oder bitte die Betreuung dieser Nextcloud, HTTPS einzuschalten), dann geht’s.',
     'nc.urlfix': 'Diese Nextcloud liefert App-Pfade mit doppeltem Webroot (/nc/nc/apps/...). KeePassNC läuft trotzdem, andere Apps vielleicht nicht. In der config.php darf apps_paths[].url den Webroot nicht enthalten: "/apps", nicht "/nc/apps".',
     'e.nc.session': 'Sitzung abgelaufen - bitte die Seite neu laden und erneut anmelden.',
     'e.kf.nopepper': 'Kein Geheimwert vom Server verfügbar.',

@@ -33,7 +33,7 @@ That's the short list. [Everything else](docs/FEATURES.md) (search tricks, short
 
 ## Install
 
-You need Nextcloud 34 or newer. KeePassNC is in the [Nextcloud App Store](https://apps.nextcloud.com/apps/keepassnc), so the easy way is: **Apps** → search for *KeePassNC* → **Download and enable**. Or on the command line: `sudo -u www-data php occ app:install keepassnc`
+You need Nextcloud 34 or newer, served over HTTPS (or `localhost`): browsers hide their encryption on plain HTTP, and KeePassNC says so instead of opening anything. KeePassNC is in the [Nextcloud App Store](https://apps.nextcloud.com/apps/keepassnc), so the easy way is: **Apps** → search for *KeePassNC* → **Download and enable**. Or on the command line: `sudo -u www-data php occ app:install keepassnc`
 
 <details>
 <summary>Manual install</summary>
