@@ -472,6 +472,8 @@ export default {
     'more': '更多',
     'move': '移动',
     'n.entries': '{n} 个条目',
+    'https.title': 'KeePassNC 需要 HTTPS',
+    'https.text': '浏览器只在安全页面（HTTPS 或 localhost）上提供加密功能。当前页面使用的是未加密的 HTTP，因此无法解密。请改用 https:// 打开（或请 Nextcloud 管理员启用 HTTPS）。',
     'nc.urlfix': '这个 Nextcloud 给出的应用路径里网站根目录重复了两次（/nc/nc/apps/...）。KeePassNC 仍能正常运行，但其他应用可能不行。请在 config.php 中去掉 apps_paths[].url 里的网站根目录：应写 "/apps"，而不是 "/nc/apps"。',
     'nav.all': '全部条目', 'nav.attachment': '带附件', 'nav.bin': '回收站', 'nav.filters': '筛选', 'nav.expiring': '即将/已经过期', 'nav.groups': '分组', 'nav.passkey': '通行密钥', 'nav.tags': '标签', 'nav.totp': '带 TOTP', 'nav.weak': '弱口令',
     'nch.apps': '应用', 'nch.apps.current': '打开应用菜单，当前在 {app}', 'nch.apps.open': '打开应用菜单', 'nch.home': '主页', 'nch.more': '更多应用', 'nch.more.actions': '更多', 'nch.actions': '操作', 'nch.offline': '无法连接 Nextcloud', 'nch.user': '账号菜单',

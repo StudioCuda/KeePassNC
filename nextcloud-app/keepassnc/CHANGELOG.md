@@ -3,6 +3,9 @@
 Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
+### Fixed
+- Over plain HTTP the browser hides its encryption, and opening or creating a database failed with "randomBytes is not a function". KeePassNC now says it needs HTTPS (or localhost) instead (#208).
+
 ### Changed
 - Row hover buttons read "Copy username" / "Copy password" like "Open URL", and the globe icon gets wider meridians (#203).
 - The key icon gets a smaller ring and a tidier bit (#204).
