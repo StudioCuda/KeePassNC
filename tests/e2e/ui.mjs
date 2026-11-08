@@ -772,6 +772,23 @@ async function main() {
         expect(!(await m.locator('.strength-bits').first().isVisible().catch(() => false)), 'Bits sollten mobil ausgeblendet sein');
         await m.click('.back-btn');
         expect(await m.locator('.listpane').isVisible(), 'zurueck zur Liste');
+        // the Back key and sideways swipes walk the panes instead of leaving the app
+        await rows(m).first().click(); await m.goBack();
+        expect(await m.locator('.listpane').isVisible() && await m.locator('#lock-btn').isVisible(), 'Zurueck-Taste: Liste statt Seite verlassen');
+        const swipe = (dx) => m.evaluate((d) => {
+            const host = document.querySelector('.panes'), pt = (x) => ({ clientX: x, clientY: 400 });
+            const fire = (type, x) => { const ev = new Event(type, { bubbles: true }); ev.touches = type === 'touchend' ? [] : [pt(x)]; ev.changedTouches = [pt(x)]; host.dispatchEvent(ev); };
+            const x0 = d > 0 ? 100 : 300; fire('touchstart', x0); fire('touchend', x0 + d);
+        }, dx);
+        await rows(m).first().click(); await swipe(130);
+        const drawer = () => m.locator('.shell').getAttribute('data-drawer'); // the drawer is only moved off-screen, so "visible" would always be true
+        expect(await m.locator('.listpane').isVisible() && await drawer() === '0', 'Wischen nach rechts: vom Eintrag zur Liste');
+        await swipe(130);
+        expect(await drawer() === '1', 'Wischen nach rechts in der Liste oeffnet die Gruppen');
+        await m.goBack();
+        expect(await drawer() === '0', 'Zurueck-Taste schliesst die Gruppen');
+        await swipe(130); await swipe(-130);
+        expect(await drawer() === '0', 'Wischen nach links schliesst die Gruppen');
         await m.click('.menu-btn.in-list');
         await m.locator('#nav-reports').waitFor({ state: 'visible' });
         expect(await m.locator('.sidebar').isVisible(), 'Drawer');
