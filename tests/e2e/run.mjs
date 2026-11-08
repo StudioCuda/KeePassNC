@@ -374,7 +374,7 @@ async function main() {
 
     await step('Loeschen verschiebt in den Papierkorb (KeePassXC zeigt "Recycle Bin")', async () => {
         await page.fill('#search', ''); await page.locator('[data-testid=entry-row]', { hasText: 'Neu E2E' }).click();
-        await page.click('#del-btn'); await page.click('#save-btn'); await waitStatus(page, /^Gespeichert\./);
+        await page.click('#entry-more'); await page.click('#del-btn'); await page.click('#save-btn'); await waitStatus(page, /^Gespeichert\./);
         const ls = xc(['ls', '-R', f4]);
         expect(/Recycle Bin\/[\s\S]*Neu E2E/.test(ls) && !/^Web\/[\s\S]*Neu E2E[\s\S]*Bank/m.test(ls.split('Recycle Bin')[0]), 'Papierkorb:\n' + ls);
     });

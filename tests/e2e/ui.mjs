@@ -158,13 +158,13 @@ async function main() {
         await page.waitForFunction(() => /Lizenzen/.test(document.querySelector('.crumbs')?.textContent || ''));
         // Delete with undo
         await pick(page, 'Posteo');
-        await page.click('#del-btn');
+        await page.click('#entry-more'); await page.click('#del-btn');
         expect(await count(page, 'nav-all') === total, 'nach Loeschen');
         await page.locator('.toast-action', { hasText: 'Rückgängig' }).click();
         expect(await count(page, 'nav-all') === total + 1, 'Rueckgaengig stellt wieder her');
         // Posteo stays in the recycle bin; Etsy is deleted and restored
-        await pick(page, 'Posteo'); await page.click('#del-btn');
-        await pick(page, 'Etsy'); await page.click('#del-btn');
+        await pick(page, 'Posteo'); await page.click('#entry-more'); await page.click('#del-btn');
+        await pick(page, 'Etsy'); await page.click('#entry-more'); await page.click('#del-btn');
         await page.click('#nav-bin');
         await rows(page).filter({ hasText: 'Etsy' }).first().click();
         await page.click('#restore-btn');
@@ -388,6 +388,14 @@ async function main() {
         await page.click('[data-testid=pw-toggle]'); const pw = (await page.locator('[data-testid=pw-value]').innerText()).trim();
         await page.waitForFunction((x) => navigator.clipboard.readText().then((y) => y === x), pw);
         await page.waitForFunction(() => navigator.clipboard.readText().then((y) => y === ''), null, { timeout: 15000 });
+    });
+
+    await step('Kopieren-Knopf zeigt kurz einen Haken, dann wieder das Kopier-Symbol', async () => {
+        if (browserName !== 'chromium') return 'nur Chromium: Firefox/WebKit gewaehren das Schreiben der Zwischenablage nicht ohne Geste';
+        await pick(page, 'Amazon');
+        await page.click('[data-testid=user-copy]');
+        await page.waitForSelector('[data-testid=user-copy].done');
+        await page.waitForSelector('[data-testid=user-copy]:not(.done)', { timeout: 4000 });
     });
 
     await step('Zwischenablage: wurde zwischendurch etwas anderes kopiert, leert der Timer es nicht', async () => {
@@ -696,7 +704,8 @@ async function main() {
         expect(await page.inputValue('#e-user') === 'standard-user', 'Standard-Benutzer nicht vorausgefuellt');
         await page.click('#cancel-btn');
         await pick(page, 'Otto');
-        expect(/Endgültig löschen/.test(await page.locator('#del-btn').innerText()), 'Loeschen-Knopf sollte "Endgueltig" sagen');
+        await page.click('#entry-more');
+        expect(/Endgültig löschen/.test(await page.locator('#del-btn').innerText()), 'Loeschen-Eintrag sollte "Endgueltig" sagen');
         await page.click('#del-btn'); await page.click('#confirm-ok');
         await page.keyboard.press('Control+s');
         await waitStatus(page, /^Gespeichert\./, 60000);
@@ -758,6 +767,9 @@ async function main() {
         await rows(m).first().click();
         expect(await m.locator('.detailpane').isVisible() && !(await m.locator('.listpane').isVisible()), 'Detail sichtbar');
         expect(await overflow() <= 0, 'Overflow im Detail: ' + await overflow());
+        const fab = await m.locator('#edit-btn').boundingBox();
+        expect(fab.width >= 50 && fab.x + fab.width > 340 && fab.y + fab.height > 700 && fab.y + fab.height <= 844, `Bearbeiten-Knopf nicht als runder Knopf unten rechts: ${JSON.stringify(fab)}`);
+        expect(!(await m.locator('.strength-bits').first().isVisible().catch(() => false)), 'Bits sollten mobil ausgeblendet sein');
         await m.click('.back-btn');
         expect(await m.locator('.listpane').isVisible(), 'zurueck zur Liste');
         await m.click('.menu-btn.in-list');

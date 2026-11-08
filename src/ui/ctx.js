@@ -57,9 +57,16 @@ export function pref(key, value) {
 }
 
 /** Status line at the bottom; warnings/errors additionally as a notice (toast). */
+let statusTimer = null;
 export function setStatus(msg, kind = 'info') {
     const el = $('#status');
-    if (el) { el.textContent = msg; el.dataset.kind = kind; }
+    if (el) {
+        el.textContent = msg; el.dataset.kind = kind;
+        const bar = el.closest('.statusbar'); // on a phone the bar only shows up for a moment (CSS: [data-idle])
+        bar?.removeAttribute('data-idle');
+        clearTimeout(statusTimer);
+        statusTimer = setTimeout(() => bar?.setAttribute('data-idle', ''), kind === 'info' ? 5000 : 9000);
+    }
     if (kind === 'error' || kind === 'warn') toast(msg, { kind, timeout: kind === 'error' ? 8000 : 6000 });
 }
 
@@ -84,8 +91,10 @@ export async function copy(text, label) {
         toast(t('copied.short', { what: label }), { timeout: 1800 });
         clearTimeout(clipboardTimer);
         clipboardTimer = setTimeout(async () => { if (await clearable(text)) navigator.clipboard.writeText('').catch(() => {}); }, ctx.settings.clipboard * 1000);
+        return true;
     } catch {
         setStatus(t('copy.failed'), 'error');
+        return false;
     }
 }
 
