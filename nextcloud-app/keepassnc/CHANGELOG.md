@@ -5,6 +5,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- Delete moved into the "⋯" menu of an entry (with its Undo toast), so the red button no longer sits next to Edit.
+- Copy buttons show a check mark for a moment once the value is on the clipboard.
+- On a phone, Edit is a round button in the corner, like "+" in the list, and the status line only floats in for a few seconds instead of using a strip at the bottom. The password strength shows the word and the bars, the bits stay in the tooltip.
+- The created/modified line is plain text now, without the dashed box.
 - On a phone, the Back key (or the system's back gesture) goes from an entry to the list and from the groups to the list, instead of leaving the app. A swipe to the right does the same, and from the list it opens the groups; a swipe to the left closes them.
 
 ## [1.0.4] - 2026-11-03

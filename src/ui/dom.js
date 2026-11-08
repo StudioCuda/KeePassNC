@@ -193,7 +193,7 @@ export function popupMenu(anchor, items, { align = 'start', x, y } = {}) {
     const menu = h('div', { class: 'menu', role: 'menu' });
     for (const it of items) {
         if (it === 'sep') { menu.append(h('div', { class: 'menu-sep' })); continue; }
-        menu.append(h('button', { type: 'button', role: 'menuitem', class: 'menu-item' + (it.danger ? ' danger' : ''), disabled: it.disabled, onclick: () => { closeMenus(); it.onclick(); } },
+        menu.append(h('button', { type: 'button', role: 'menuitem', id: it.id, class: 'menu-item' + (it.danger ? ' danger' : ''), disabled: it.disabled, onclick: () => { closeMenus(); it.onclick(); } },
             it.icon ? icon(it.icon) : h('span', { class: 'icon' }), h('span', { class: 'grow', text: it.label }), it.hint ? h('kbd', { text: it.hint }) : null));
     }
     document.body.append(menu);

@@ -100,7 +100,7 @@ button.link { background: none; border: 0; padding: 0; color: var(--accent); fon
 .icon-btn { display: inline-grid; place-items: center; width: 36px; height: 36px; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--muted); text-decoration: none; flex: none; transition: background .12s, color .12s; }
 .icon-btn:hover:not(:disabled) { background: var(--surface-3); color: var(--text); }
 .icon-btn.small { width: 28px; height: 28px; }
-.sr-or-wide { display: inline; }
+.icon-btn.done, .icon-btn.done:hover:not(:disabled) { color: var(--ok); }
 
 .seg-group { display: flex; padding: 3px; background: var(--surface-3); border-radius: 10px; gap: 2px; }
 .seg-group > .seg, .seg-group > .seg-btn { flex: 1; }
@@ -414,7 +414,7 @@ input[type=radio].swatch.none { background: linear-gradient(135deg, transparent 
 .att-preview { display: block; max-width: 100%; max-height: 70vh; margin: 0 auto; border-radius: var(--radius-sm); background: var(--surface-2); }
 .att-preview-text { max-height: 70vh; overflow: auto; margin: 0; padding: 12px; border-radius: var(--radius-sm); background: var(--surface-2); font-family: var(--mono); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .hist-row { font-size: 13.5px; flex-wrap: wrap; } .row-end { display: flex; justify-content: flex-end; padding-top: 8px; }
-.meta { display: flex; flex-wrap: wrap; gap: 4px 20px; font-size: 12.5px; color: var(--muted); box-shadow: none; background: transparent; border-style: dashed; }
+.meta { display: flex; flex-wrap: wrap; gap: 4px 20px; padding: 2px 4px; font-size: 12.5px; color: var(--muted); box-shadow: none; background: transparent; border: 0; }
 .passkey-card { border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
 .tags-card { padding-bottom: 12px; }
 .editor { display: flex; flex-direction: column; } .editor .detail-head h2 { flex: 1; font-size: 20px; }
@@ -508,11 +508,13 @@ body.readonly #new-btn, body.readonly #fab-new, body.readonly #edit-btn, body.re
     .back-btn { display: inline-grid; }
     .topbar > .menu-btn, #settings-btn { display: none; }
     .menu-btn.in-list { display: inline-grid; }
-    .brand .brand-name, .btn .label, .dh-actions .sr-or-wide { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } /* no room for the words, but buttons keep their names for screen readers */
+    .brand .brand-name, .btn .label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; } /* no room for the words, but buttons keep their names for screen readers */
     .pill { font-size: 0; width: 11px; height: 11px; padding: 0; border-radius: 50%; flex: none; }
     .pill[data-state=synced] { background: var(--ok); } .pill[data-state=dirty], .pill[data-state=unsynced] { background: var(--warn); } .pill[data-state=offline] { background: var(--bad); }
     .pill.busy::before { display: none; }
-    .detail-head { flex-wrap: wrap; } .dh-text { flex: 1 1 140px; } .dh-actions { flex: 1 1 100%; justify-content: flex-start; }
+    .detail-head { flex-wrap: wrap; backdrop-filter: none; } .dh-text { flex: 1 1 140px; } .dh-actions { margin-left: auto; } /* no blur here: it would make the head the anchor of the fixed Edit button */
+    #edit-btn { position: fixed; z-index: 10; right: 18px; bottom: 44px; width: 56px; height: 56px; padding: 0; justify-content: center; border-radius: 18px; box-shadow: var(--shadow-2); } /* the pencil sits where the thumb is, like the + in the list */
+    #edit-btn .icon { width: 26px; height: 26px; } #edit-btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
     .brand { margin: 0; }
     .searchbox { margin-left: 0; flex: 1 1 auto; }
     .topbar .spacer { display: none; }
@@ -531,9 +533,10 @@ body.readonly #new-btn, body.readonly #fab-new, body.readonly #edit-btn, body.re
     .row-actions { display: none !important; } .entry-wrap:hover .badges { visibility: visible; }
     .statusbar #status-right { display: none; }
     @media (max-width: 340px) { .strength-bits { display: none; } } /* the exact bits stay in the tooltip */
-    .strength { gap: 8px; } .strength .bars i { width: 16px; } /* next to the three password buttons there is little room: keep "Good · 98 bit" on one line */
-    /* The status line may be longer than the screen (e.g. "opened … key file …"): two lines instead of cutting it off */
-    .statusbar { padding: 6px 14px; line-height: 1.35; }
+    .strength { gap: 8px; } .strength .bars i { width: 16px; } .field.pw .strength-bits { display: none; } /* next to the three password buttons there is little room: the word and the bars are enough, the bits stay in the tooltip */
+    /* The status line floats over the content for a few seconds and then steps aside (setStatus), so it costs no room; it may be longer than the screen (e.g. "opened … key file …"): two lines instead of cutting it off */
+    .statusbar { position: fixed; z-index: 12; left: 0; right: 0; bottom: 0; padding: 6px 14px; line-height: 1.35; transition: opacity .2s; }
+    .statusbar[data-idle] { opacity: 0; visibility: hidden; pointer-events: none; }
     #status { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
     /* Database dialog: tabs and tiles fit a narrow screen, issue chips go under the title */
     .seg-btn { padding: 4px 6px; font-size: 13px; min-width: 0; text-align: center; line-height: 1.2; }
