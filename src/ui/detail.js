@@ -24,7 +24,16 @@ function field(label, valueNode, actions = [], cls = '') {
     return h('div', { class: 'field ' + cls }, h('div', { class: 'flabel', text: label }), h('div', { class: 'fvalue' }, h('div', { class: 'fv-main' }, valueNode), h('div', { class: 'fv-actions' }, ...actions)));
 }
 const linkOrText = (text, href, attrs = {}) => href ? h('a', { ...attrs, href, target: '_blank', rel: 'noopener noreferrer', text, title: domainOf(href) }) : h('span', { ...attrs, text });
-const copyBtn = (text, label, extra = {}) => iconBtn('copy', t('copy') + ': ' + label, () => copy(typeof text === 'function' ? text() : text, label), extra);
+/** A copy button shows a check for a moment after a successful copy: the answer sits where the finger is. */
+function flashDone(btn) {
+    btn.replaceChildren(icon('check')); btn.classList.add('done');
+    clearTimeout(btn.doneTimer);
+    btn.doneTimer = setTimeout(() => { btn.replaceChildren(icon('copy')); btn.classList.remove('done'); }, 1400);
+}
+const copyBtn = (text, label, extra = {}) => {
+    const btn = iconBtn('copy', t('copy') + ': ' + label, async () => { if (await copy(typeof text === 'function' ? await text() : text, label)) flashDone(btn); }, extra);
+    return btn;
+};
 
 export function renderDetail(host) {
     stopDetailTimers();
@@ -36,7 +45,7 @@ export function renderDetail(host) {
         return;
     }
     const v = state.vault;
-    const inBin = v.isInRecycleBin(e), forever = v.deletesForever(e);
+    const inBin = v.isInRecycleBin(e);
     const pwText = resolvedField(e, 'Password');
     const title = fieldText(e.fields.get('Title')) || t('entry.untitled');
 
@@ -48,8 +57,7 @@ export function renderDetail(host) {
         h('div', { class: 'dh-actions' },
             h('button', { id: 'edit-btn', type: 'button', class: 'primary', onclick: () => startEdit(e) }, icon('edit'), h('span', { text: t('edit') })),
             inBin ? h('button', { id: 'restore-btn', type: 'button', onclick: () => restoreEntry(e) }, icon('restore'), h('span', { text: t('restore') })) : null,
-            iconBtn('more', t('more'), (ev) => entryMenu(ev.currentTarget, e), { id: 'entry-more' }),
-            h('button', { id: 'del-btn', type: 'button', class: 'danger-ghost', onclick: () => deleteEntry(e), title: forever ? t('delete.forever') : t('delete') }, icon('trash'), h('span', { class: 'sr-or-wide', text: forever ? t('delete.forever') : t('delete') }))));
+            iconBtn('more', t('more'), (ev) => entryMenu(ev.currentTarget, e), { id: 'entry-more' })));
 
     // --- Fields
     const cards = [];
@@ -97,8 +105,6 @@ export function renderDetail(host) {
         };
         tick(); totpTimer = setInterval(tick, 1000);
         main.push(field('TOTP', h('div', { class: 'totp-box' }, codeEl, h('span', { class: 'ring-wrap' }, ring, remEl)), [copyBtn(async () => (await totp(otpCfg)).code, 'TOTP', { 'data-testid': 'totp-copy' })], 'totp'));
-        // copyBtn with async: own behaviour
-        main[main.length - 1].querySelector('[data-testid=totp-copy]').onclick = async () => copy((await totp(otpCfg)).code, 'TOTP');
     }
     cards.push(h('section', { class: 'card' }, ...main));
 
@@ -233,7 +239,9 @@ function entryMenu(anchor, e) {
         { label: t('duplicate'), icon: 'duplicate', onclick: () => (v.isInRecycleBin(e) ? duplicate(e) : duplicateDialog(e)) },
         { label: t('move'), icon: 'moveTo', onclick: () => moveEntryDialog(e) },
         { label: t('entry.copy.user'), icon: 'user', hint: 'Ctrl+B', onclick: () => copy(resolvedField(e, 'UserName'), t('f.user')) },
-        { label: t('entry.copy.url'), icon: 'link', onclick: () => copy(resolvedUrl(e, { own: true }), t('f.url')) }
+        { label: t('entry.copy.url'), icon: 'link', onclick: () => copy(resolvedUrl(e, { own: true }), t('f.url')) },
+        'sep',
+        { id: 'del-btn', label: v.deletesForever(e) ? t('delete.forever') : t('delete'), icon: 'trash', hint: 'Del', danger: true, onclick: () => deleteEntry(e) }
     ], { align: 'end' });
 }
 function duplicate(e, linked = false) {

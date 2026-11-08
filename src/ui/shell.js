@@ -51,7 +51,7 @@ export function showMain() {
             h('section', { id: 'list', class: 'listpane', 'aria-label': t('list.label') }),
             h('section', { id: 'detail', class: 'detailpane', 'aria-label': t('detail.label') })),
         h('button', { type: 'button', class: 'fab', id: 'fab-new', 'aria-label': t('entry.new'), onclick: () => startEdit(null) }, icon('plus')),
-        h('footer', { class: 'statusbar' }, h('span', { id: 'status', role: 'status', 'data-testid': 'status' }), h('span', { class: 'muted', id: 'status-right' })));
+        h('footer', { class: 'statusbar', 'data-idle': true }, h('span', { id: 'status', role: 'status', 'data-testid': 'status' }), h('span', { class: 'muted', id: 'status-right' })));
     ctx.app.replaceChildren(shell);
     refresh();
     refreshReadOnly();
