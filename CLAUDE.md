@@ -12,7 +12,7 @@ KeePassNC opens KeePass (KDBX) files in the browser, as a Nextcloud app and as a
 
 ## Conventions
 
-- One topic per branch and pull request; `main` is protected, merges are squash. Claude resolves merge conflicts itself. With every PR, Claude suggests how to merge it (itself, or GitHub auto-merge with `gh pr merge --auto --squash`) and the maintainer confirms. After that, it merges as soon as the required checks are green. Required checks: `e2e (nc34)`, `e2e (nc35)`, `browsers (firefox)`, `browsers (webkit)`. `e2e (nc-master)` is an early warning only.
+- One topic per branch and pull request; `main` is protected, merges are squash. Claude resolves merge conflicts itself. With every PR, Claude suggests in the chat how to merge it (itself, or GitHub auto-merge with `gh pr merge --auto --squash`) and the maintainer confirms; the suggestion stays out of the PR text. After that, it merges as soon as the required checks are green. Required checks: `e2e (nc34)`, `e2e (nc35)`, `browsers (firefox)`, `browsers (webkit)`. `e2e (nc-master)` is an early warning only.
 - Before pushing: `npm run build` and `npm run test:unit`, plus the browser tests that cover the change (`CHROMIUM=/path/to/chrome npm run test:ui`, `test:e2e`, …). Build output isn't committed.
 - Fast lane: a pull request that only touches `*.md`, `docs/*`, `LICENSE` or `.github/ISSUE_TEMPLATE/*` skips the long test steps and still reports every required check (`tools/ci-docs-only.sh`, used by `nextcloud.yml`). Anything else, `appinfo/info.xml` included, runs the full tests. Keep text-only changes in their own pull request to get the fast lane.
 - Markdown has no hard wraps: one paragraph or list item per line, so every viewer renders it alike.
