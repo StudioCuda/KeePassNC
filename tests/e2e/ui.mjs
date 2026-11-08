@@ -739,13 +739,14 @@ async function main() {
     });
 
     await step('Login-Seite: "Lokale Datei" ist vorgewaehlt; auf sehr breiten Fenstern ragt das Master-Passwort-Feld ueber das Formular, auf schmalen nicht', async () => {
-        const measure = (pg) => pg.evaluate(() => { const m = document.querySelector('#master').getBoundingClientRect(), f = document.querySelector('#login-form').getBoundingClientRect(); return { m: m.width, f: f.width, h: m.height, l: m.left - f.left }; });
+        const measure = (pg) => pg.evaluate(() => { const m = document.querySelector('#master').getBoundingClientRect(), f = document.querySelector('#login-form').getBoundingClientRect(); const cs = getComputedStyle(document.querySelector('#master')); return { m: m.width, f: f.width, h: m.height, l: m.left - f.left, caret: m.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft) - f.left }; });
         const wctx = await browser.newContext({ locale: 'de-DE', viewport: { width: 1800, height: 900 } }); // without plainWebdav: the real default tab
         const w = await wctx.newPage();
         await w.goto(base); await w.locator('#login-form').waitFor();
         expect(await w.locator('input[name=src]:checked').getAttribute('value') === 'file', 'Standard-Tab sollte "Lokale Datei" sein');
         const wide = await measure(w);
         expect(wide.m > wide.f && wide.h >= 70 && wide.l < 0, `breit: Feld ${wide.m}px, Formular ${wide.f}px, Hoehe ${wide.h}px`);
+        expect(Math.abs(wide.caret) <= 1, `Cursor sitzt ${wide.caret}px neben dem linken Rand der Karte`);
         await w.setViewportSize({ width: 1100, height: 900 });
         const narrow = await measure(w);
         expect(narrow.m <= narrow.f && narrow.h < 60, `schmal: Feld ${narrow.m}px, Formular ${narrow.f}px, Hoehe ${narrow.h}px`);

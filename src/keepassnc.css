@@ -208,7 +208,7 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .login-card { container-type: inline-size; }
 @container (min-width: 600px) {
     .login .pw-row { margin-block: 8px 6px; margin-inline: calc(-1 * min(80px, (100cqw - 460px) / 2 + 10px)); }
-    .login #master { min-height: 72px; font-size: 24px; padding-inline: 64px; border-radius: 16px; }
+    .login #master { min-height: 72px; font-size: 24px; padding-inline: 51px 64px; border-radius: 16px; } /* 51 = the 80 px it reaches out, less the form's 1 px border and 26 px padding and its own 2 px border: the caret blinks on the card's left edge */
     .login #master:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
     .login #master::placeholder { text-align: center; } /* input and caret stay left, so the caret blinks at the left edge; only the placeholder is centred (Chromium, Firefox and WebKit all honour this) */
     .login .pw-field { filter: drop-shadow(0 8px 16px rgb(0 0 0 / .06)); } .login .pw-field > .icon-btn { right: 18px; }
