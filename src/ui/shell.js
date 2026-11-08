@@ -16,6 +16,7 @@ import { openCsv } from './csv-dialog.js';
 import { openSettings } from './settings-dialog.js';
 import { doSave, lock, refreshDirtyIndicator, refreshReadOnly, saveCopy, syncNow } from './session.js';
 import { saveSettings } from '../settings.js';
+import { installMobileNav } from './mobile-nav.js';
 
 const { state } = ctx;
 const LIMIT = 200;
@@ -55,6 +56,7 @@ export function showMain() {
     ctx.app.replaceChildren(shell);
     refresh();
     refreshReadOnly();
+    installMobileNav();
 }
 
 export function applyView() {

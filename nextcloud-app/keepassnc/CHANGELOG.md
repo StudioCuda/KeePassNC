@@ -4,6 +4,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- On a phone, the Back key (or the system's back gesture) goes from an entry to the list and from the groups to the list, instead of leaving the app. A swipe to the right does the same, and from the list it opens the groups; a swipe to the left closes them.
+
 ## [1.0.4] - 2026-11-03
 A clear message instead of a cryptic error on plain HTTP, and two small icon touch-ups.
 ### Fixed
