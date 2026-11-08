@@ -58,6 +58,8 @@ async function session(name, viewport, { scheme = 'light', lang = LANG } = {}) {
     await page.click('#open-btn');
     await page.waitForSelector('.shell', { timeout: 60000 });
     await page.waitForTimeout(400);
+    // On a phone the status line floats over the content and fades out after a few seconds; shoot the calm state
+    if (viewport.width <= 760) await page.waitForSelector('.statusbar[data-idle]', { state: 'attached', timeout: 15000 });
     return page;
 }
 // Click an entry by title (meta.picks) or otherwise by position in the list
