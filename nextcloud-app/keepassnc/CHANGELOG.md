@@ -4,6 +4,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-11-08
+A calmer phone layout, and the Back key and swipes walk the panes.
+
 ### Changed
 - Delete moved into the "⋯" menu of an entry (with its Undo toast), so the red button no longer sits next to Edit.
 - Copy buttons show a check mark for a moment once the value is on the clipboard.
