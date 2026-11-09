@@ -31,7 +31,7 @@ export function showMain() {
     const saveBtn = h('button', { id: 'save-btn', type: 'button', class: 'btn save', onclick: () => doSave() }, icon('save'), h('span', { class: 'label', text: t('save') }));
     const bar = h('header', { class: 'topbar' },
         iconBtn('menu', t('nav.groups'), () => { const s = $('.shell'); s.dataset.drawer = s.dataset.drawer === '1' ? '0' : '1'; }, { class: 'menu-btn', id: 'menu-btn' }),
-        h('div', { class: 'brand' }, h('span', { class: 'brand-mark small' }, icon('shield')), h('h1', { class: 'brand-name', text: 'KeePassNC' })),
+        h('div', { class: 'brand' }, h('span', { class: 'brand-seal', 'aria-hidden': 'true' }, icon('shield')), h('h1', { class: 'brand-name', text: 'KeePassNC' })),
         h('span', { class: 'file-name', id: 'file-name', title: state.source.name }, icon('file'), h('span', { text: state.source.name })),
         h('label', { class: 'searchbox' }, icon('search'), search, h('kbd', { text: 'Ctrl K' })),
         h('div', { class: 'spacer' }),

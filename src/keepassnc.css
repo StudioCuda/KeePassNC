@@ -167,11 +167,10 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 /* ---------- Login ---------- */
 .login { min-height: 100vh; display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(420px, .95fr); }
 .login-hero { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 18px; padding: 64px clamp(32px, 6vw, 96px); color: #fff; background: radial-gradient(1200px 600px at 0% 0%, var(--hero-2) 0%, transparent 60%), var(--hero); overflow: hidden; }
+.hero-head { display: flex; align-items: center; gap: .32em; font-size: clamp(34px, 4.4vw, 56px); } .hero-seal { flex: none; display: grid; place-items: center; } .hero-seal .icon { width: 1.3em; height: 1.3em; } /* the shield as tall as the name, no tile */
 .login-hero h1 { font-size: clamp(34px, 4.4vw, 56px); letter-spacing: -.02em; line-height: 1.05; }
 .login-hero .tagline { font-size: clamp(16px, 1.5vw, 20px); opacity: .88; max-width: 34ch; }
-.brand-mark { display: inline-grid; place-items: center; width: 64px; height: 64px; border-radius: 18px; background: rgb(255 255 255 / .16); border: 1px solid rgb(255 255 255 / .28); backdrop-filter: blur(6px); }
-.brand-mark .icon { width: 32px; height: 32px; }
-.brand-mark.small { width: 30px; height: 30px; border-radius: 9px; background: var(--accent-2); border: 0; color: var(--on-accent-2); } .brand-mark.small .icon { width: 18px; height: 18px; }
+.brand-seal { flex: none; display: grid; place-items: center; color: var(--accent); } .brand-seal .icon { width: 26px; height: 26px; } /* no tile behind the shield: just the mark, like .login-seal */
 .trust { list-style: none; margin: 18px 0 0; padding: 0; display: grid; gap: 12px; max-width: 44ch; }
 .trust li span { white-space: pre-line; } /* the texts carry their own line breaks */
 .trust li { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; opacity: .92; } .trust .icon { margin-top: 2px; }
@@ -456,7 +455,7 @@ body.readonly #new-btn, body.readonly #fab-new, body.readonly #edit-btn, body.re
 .gen-preview { flex: 1; min-height: 64px; display: flex; align-items: center; padding: 10px 14px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); font: 600 20px/1.35 var(--mono); overflow-wrap: anywhere; word-break: break-all; } .gen-preview.phrase { word-break: normal; }
 /* Fixed heights so the dialog doesn't jump when sliding and switching: passphrase 5 lines, simple 2, password set via JS so
    the dialog is as tall as with the passphrase. min-height so unusually long values still have room. */
-.gen-preview.ph { min-height: calc(5 * 27px + 22px); } .gen-preview.si { min-height: calc(2 * 27px + 22px); } .gen-preview.pw { min-height: max(64px, var(--gen-pw-h, 64px)); } .gen-preview.error { color: var(--bad); font: 14px var(--font); }
+.gen-preview.ph { min-height: calc(5 * 27px + 22px); } .gen-preview.si, .gen-preview.pw { min-height: max(64px, var(--gen-pw-h, 64px)); } .gen-preview.error { color: var(--bad); font: 14px var(--font); }
 .slider-row { display: grid; grid-template-columns: 110px 1fr 76px; gap: 12px; align-items: center; } .slider-label { font-size: 13.5px; font-weight: 550; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px 14px; }
 .check-grid > .wide { grid-column: 1 / -1; } .gen-chars { font: 500 13px var(--mono); color: var(--muted); }
@@ -525,7 +524,7 @@ body.readonly #new-btn, body.readonly #fab-new, body.readonly #edit-btn, body.re
     .detail-head { padding: 12px 14px 4px; gap: 10px; } .detail-body { padding: 8px 14px 90px; } .avatar.lg { width: 44px; height: 44px; }
     .dh-text h2 { font-size: 18px; }
     .grid2, .custom-row { grid-template-columns: 1fr; }
-    .login { grid-template-columns: 1fr; } .login-hero { padding: 28px 22px; gap: 10px; } .login-hero .trust { display: none; } .brand-mark { width: 46px; height: 46px; border-radius: 14px; } .brand-mark .icon { width: 24px; height: 24px; }
+    .login { grid-template-columns: 1fr; } .login-hero { padding: 28px 22px; gap: 10px; } .login-hero .trust { display: none; } .hero-head { font-size: 30px; }
     .login-card { padding: 18px 14px 32px; } .login-seal, .login-hero .login-mark { display: none; } .login-mark { width: 125vw; height: 125vw; right: -38vw; bottom: -30vw; }
     .modal { max-height: 94vh; } .backdrop { align-items: end; padding: 0; } .modal { border-radius: 18px 18px 0 0; max-width: none !important; }
     .slider-row { grid-template-columns: 1fr 70px; } .slider-row .slider-label { grid-column: 1 / -1; }

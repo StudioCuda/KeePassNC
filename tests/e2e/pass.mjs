@@ -56,17 +56,20 @@ await step('German browser: German page; switch to English sticks after reload',
     expect(await page.locator('html').getAttribute('lang') === 'de', 'lang nicht de');
     await page.locator('#pass-lang').click();
     expect(await page.locator('h1').innerText() === 'Password generator', 'Umschalten auf Englisch hat nicht gewirkt');
-    expect(await page.locator('#pass-lang').innerText() === '中文', 'Umschalter zeigt nicht die naechste Sprache');
+    expect(await page.locator('#pass-lang').innerText() === 'Deutsch', 'Umschalter zeigt nicht die andere Sprache');
     await page.reload(); await page.locator('#gen-preview').waitFor();
     expect(await page.locator('h1').innerText() === 'Password generator', 'Wahl nicht gemerkt');
     await page.locator('#pass-lang').click();
-    expect(await page.locator('h1').innerText() === '口令生成器', 'Umschalten auf Chinesisch hat nicht gewirkt');
-    expect(await page.locator('html').getAttribute('lang') === 'zh-CN', 'lang nicht zh-CN');
-    expect(await page.locator('#pass-lang').innerText() === 'Deutsch', 'Umschalter springt nicht zurueck auf Deutsch');
+    expect(await page.locator('h1').innerText() === 'Passwort-Generator', 'Zurueckschalten auf Deutsch hat nicht gewirkt');
+    expect(await page.locator('#pass-lang').innerText() === 'English', 'Umschalter springt nicht zurueck auf English');
     await ctx.close();
 });
-await step('Other languages fall back to English', async () => {
-    const { ctx, page } = await open('fr-FR');
+await step('Other languages (Chinese included) fall back to English; no third language is offered', async () => {
+    let { ctx, page } = await open('zh-CN');
+    expect(await page.locator('h1').innerText() === 'Password generator', 'kein Englisch');
+    expect(await page.locator('#pass-lang').innerText() === 'Deutsch', 'Umschalter bietet nicht nur Deutsch an');
+    await ctx.close();
+    ({ ctx, page } = await open('fr-FR'));
     expect(await page.locator('h1').innerText() === 'Password generator', 'kein Englisch');
     await ctx.close();
 });

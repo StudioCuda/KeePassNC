@@ -1,12 +1,15 @@
 // Generator page (web-generator/): just the password generator from KeePassNC, no login, no network. Language: browser (de or en),
 // switchable at the bottom. Builds with DOM methods only; the page's CSP forbids any connection (connect-src 'none').
-import { setLang, detectLang, t, LANGS } from './i18n.js';
+import { setLang, t } from './i18n.js';
 import { themeVars } from './theme.js';
 import { h, icon, toast } from './ui/dom.js';
 import { createGenerator } from './ui/generator-panel.js';
 
 const REPO = 'https://github.com/StudioCuda/KeePassNC';
 const root = document.getElementById('app');
+// This page only offers English and German; English is the default (German when the browser asks for it)
+const PAGE_LANGS = ['en', 'de'];
+const pageLang = (saved) => (PAGE_LANGS.includes(saved) ? saved : /^de/i.test(navigator.language || '') ? 'de' : 'en');
 
 // Accent like a Nextcloud instance with its own colour (same derivation as in the app, ui/ctx.js -> applyTheme): Nextcloud blue
 const ACCENT = '#0082c9';
@@ -30,17 +33,17 @@ async function copy(text, label) {
 }
 
 function render() {
-    const lang = detectLang(pref('lang'), '', navigator.language);
+    const lang = pageLang(pref('lang'));
     setLang(lang);
     document.title = `${t('pass.title')} · KeePassNC`;
     const g = createGenerator({ pref, copy, copyOnClick: true });
     g.copyBtn.classList.add('primary', 'big'); // the page's main action: full width, accent colour
-    const other = LANGS[(LANGS.indexOf(lang) + 1) % LANGS.length];
+    const other = PAGE_LANGS.find((l) => l !== lang);
     const switchLang = h('button', { type: 'button', class: 'link', id: 'pass-lang', lang: other, text: t('lang.name.' + other), onclick: () => { pref('lang', other); render(); } });
     // Same background as the login in Nextcloud (.login.solo in keepassnc.css): light, fine grain, big logo
     root.replaceChildren(h('div', { class: 'login solo pass-wrap' }, h('div', { class: 'login-mark', 'aria-hidden': 'true' }, icon('shield-fine')), h('main', { class: 'pass' },
         h('header', { class: 'pass-head' },
-            h('div', { class: 'pass-title' }, h('span', { class: 'brand-mark small', 'aria-hidden': 'true' }, icon('shield')), h('h1', { text: t('pass.title') })),
+            h('div', { class: 'pass-title' }, h('span', { class: 'login-seal', 'aria-hidden': 'true' }, icon('shield')), h('h1', { text: t('pass.title') })),
             // Each sentence on its own line
             h('p', { class: 'muted pass-lead' }, ...t('pass.lead').split(/(?<=\.) /).map((x) => h('span', { text: x })))),
         h('section', { class: 'card pass-card' }, g.body, g.copyBtn),
