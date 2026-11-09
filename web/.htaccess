@@ -15,4 +15,13 @@ Header always set Referrer-Policy "no-referrer"
 Header always set X-Content-Type-Options "nosniff"
 </IfModule>
 
+# Reuse files for two hours, then ask the server again, so an update shows up the same day.
+<IfModule mod_expires.c>
+ExpiresActive On
+ExpiresDefault "access plus 2 hours"
+</IfModule>
+<IfModule mod_headers.c>
+Header set Cache-Control "public, max-age=7200, must-revalidate"
+</IfModule>
+
 Options -Indexes
