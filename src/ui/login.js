@@ -302,5 +302,7 @@ export function loginHero() {
         h('ul', { class: 'trust' },
             h('li', {}, icon('lock'), h('span', { text: t('login.trust.1') })),
             h('li', {}, icon('cloudOff'), h('span', { text: t('login.trust.2') })),
-            h('li', {}, icon('file'), h('span', { text: t('login.trust.3') }))));
+            h('li', {}, icon('file'), h('span', { text: t('login.trust.3') })),
+            // The web page works, but the app is the better home: a link to its App Store page (a plain link, no request from this page)
+            h('li', {}, icon('cloud'), h('span', {}, t('login.trust.4'), '\n', h('a', { href: 'https://apps.nextcloud.com/apps/keepassnc', rel: 'noopener', id: 'nc-store-link', text: t('login.trust.4.link') })))));
 }

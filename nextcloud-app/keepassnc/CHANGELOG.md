@@ -8,6 +8,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Password generator: the "Simple" field is as tall as the "Password" one, so the layout no longer jumps when switching tabs.
 - Generator page: English and German only, English by default; the title uses the shield without a tile, like the unlock view in Nextcloud.
 - Standalone page: the shield sits without a tile next to the name, on the login and in the top bar of an open database.
+- Standalone page: the tagline says "in the browser" instead of "in Nextcloud", and a new line points to the app in the Nextcloud App Store.
 
 ## [1.1.0] - 2026-11-08
 A calmer phone layout, and the Back key and swipes walk the panes.
