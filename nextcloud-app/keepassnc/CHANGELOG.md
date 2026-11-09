@@ -5,6 +5,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- The three dots of the "More" buttons (entry, folders, tags) are bold enough to be seen.
+- Standalone page: the tagline breaks after "in the browser -".
 - Generator page: on tall screens the generator sits around the middle of the page instead of at the very top.
 - Password generator: the "Simple" field is as tall as the "Password" one, so the layout no longer jumps when switching tabs.
 - Generator page: English and German only, English by default; the title uses the shield without a tile, like the unlock view in Nextcloud.

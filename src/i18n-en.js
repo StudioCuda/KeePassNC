@@ -448,7 +448,7 @@ export default {
     'login.src.dav': 'Nextcloud / WebDAV',
     'login.src.file': 'Local file',
     'login.src.nc': 'Nextcloud file',
-    'login.tagline': 'Your KeePass vault in the browser - lean, fast, nothing to install.',
+    'login.tagline': 'Your KeePass vault in the browser -\nlean, fast, nothing to install.',
     'login.title': 'Open vault',
     'login.trust.short': 'Decrypted in your browser only.',
     'login.trust.1': 'Decryption happens only in this browser.\nThe master password and plaintext never leave it.',

@@ -448,7 +448,7 @@ export default {
     'login.src.dav': 'Nextcloud / WebDAV',
     'login.src.file': 'Lokale Datei',
     'login.src.nc': 'Nextcloud-Datei',
-    'login.tagline': 'Dein KeePass-Tresor im Browser - schlank, schnell und ohne Installation.',
+    'login.tagline': 'Dein KeePass-Tresor im Browser -\nschlank, schnell und ohne Installation.',
     'login.title': 'Tresor öffnen',
     'login.trust.short': 'Wird nur in deinem Browser entschlüsselt.',
     'login.trust.1': 'Entschlüsselt wird nur in diesem Browser.\nMaster-Passwort und Klartext verlassen ihn nie.',
