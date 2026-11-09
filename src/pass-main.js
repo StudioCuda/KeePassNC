@@ -9,7 +9,7 @@ const REPO = 'https://github.com/StudioCuda/KeePassNC';
 const root = document.getElementById('app');
 // This page only offers English and German; English is the default (German when the browser asks for it)
 const PAGE_LANGS = ['en', 'de'];
-const pageLang = (saved) => (PAGE_LANGS.includes(saved) ? saved : /^de/i.test(navigator.language || '') ? 'de' : 'en');
+const pageLang = (saved) => (PAGE_LANGS.includes(saved) ? saved : /^de/i.test(navigator.language || '') ? 'de' : 'en');
 
 // Accent like a Nextcloud instance with its own colour (same derivation as in the app, ui/ctx.js -> applyTheme): Nextcloud blue
 const ACCENT = '#0082c9';
