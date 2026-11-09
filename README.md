@@ -13,6 +13,10 @@ It's still a plain KeePass file, so **KeePassXC, KeePassDX and Strongbox keep wo
   <img src="docs/screenshots/mobile-detail.png" width="18%" alt="Entry with a passkey on a phone">
 </p>
 
+## Try it
+
+No install needed. Open the [demo](https://keepass.studiocuda.at), download the [sample database](https://keepass.studiocuda.at/demo.kdbx), choose it under **Local file** and unlock it with `correct horse battery staple`. It's made-up data, and nothing leaves your browser. The [password generator](https://pass.studiocuda.at) also works on its own.
+
 ## Why you can relax
 
 - **Your Nextcloud, nothing else.** No extra account, no subscription, no third-party cloud. The file lives on your own server, and the app talks to no one else.
