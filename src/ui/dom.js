@@ -80,7 +80,7 @@ export const P = {
     wifi: 'M3 9a14 14 0 0 1 18 0M6 12.500a9 9 0 0 1 12 0M9 16a4.500 4.500 0 0 1 6 0M12 19.500h.01'
 };
 const NS = 'http://www.w3.org/2000/svg';
-export function icon(name, cls = '') { return name === 'shield' ? markIcon(MARK.bold, cls) : name === 'shield-fine' ? markIcon(MARK.fine, cls) : pathIcon(P[name] || P.file, cls); }
+export function icon(name, cls = '') { return name === 'shield' ? markIcon(MARK.bold, cls) : name === 'shield-fine' ? markIcon(MARK.fine, cls) : pathIcon(P[name] || P.file, name === 'more' ? ('more ' + cls).trim() : cls); }
 /** The brand mark (brand.js): a filled path; "shield" for icons, "shield-fine" with a thinner edge for the large watermark. */
 function markIcon(d, cls) {
     const svg = document.createElementNS(NS, 'svg'), path = document.createElementNS(NS, 'path');

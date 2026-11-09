@@ -445,7 +445,7 @@ export default {
     'login.src.dav': 'Nextcloud / WebDAV',
     'login.src.file': '本地文件',
     'login.src.nc': 'Nextcloud 文件',
-    'login.tagline': '你的 KeePass 保险库就在浏览器里 - 轻快、快速、无需安装。',
+    'login.tagline': '你的 KeePass 保险库就在浏览器里 -\n轻快、快速、无需安装。',
     'login.title': '打开保险库',
     'login.trust.short': '只在这个浏览器里解密。',
     'login.trust.1': '解密只发生在这个浏览器里。\n主密码和明文都不会离开它。',
