@@ -2,8 +2,8 @@
 .login.pass-wrap { display: block; } /* Background: .login.solo from keepassnc.css */
 /* A bit more colour than in Nextcloud: the shield bolder */
 .pass-wrap > .login-mark { opacity: calc(var(--login-mark) * 1.9); }
-.pass { min-height: 100vh; max-width: 560px; margin: 0 auto; padding: max(40px, calc((100vh - 600px) / 2)) 16px 24px; display: flex; flex-direction: column; gap: 20px; }
-/* On tall screens the block sits around the middle; a fixed offset from the top (not real centring), so it doesn't jump when a tab is shorter */
+.pass { min-height: 100vh; max-width: 560px; margin: 0 auto; padding: max(40px, calc((100vh - 720px) / 2)) 16px 24px; display: flex; flex-direction: column; gap: 20px; }
+/* On tall screens the block sits around the middle; a fixed offset from the top (not real centring, the Simple tab is shorter) using the height of the two tall tabs, so nothing jumps */
 .pass-head { display: flex; flex-direction: column; gap: 12px; }
 .pass-title { display: flex; align-items: center; gap: 12px; }
 .pass-head h1 { font-size: 24px; font-weight: 600; letter-spacing: .01em; line-height: 1.2; } /* like the title of the unlock view in Nextcloud */
