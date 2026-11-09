@@ -29,7 +29,7 @@ Header always set X-Content-Type-Options "nosniff"
 
 For `web/` on a different domain than your Nextcloud, WebDAV needs CORS, see `CONTRIBUTING.md`. More on the CSP in `SECURITY.md`.
 
-`web/` and `web-generator/` already ship a ready-made `.htaccess` with these headers and an HTTPS redirect, so on Apache hosting such as Netcup shared webhosting you only upload the folder's contents (the dotfile included, make sure your FTP client shows hidden files).
+`web/` and `web-generator/` already ship a ready-made `.htaccess` with these headers and an HTTPS redirect, so on Apache hosting such as Netcup shared webhosting you only upload the folder's contents (the dotfile included, make sure your FTP client shows hidden files). It also sets a two-hour browser cache, so an update reaches returning visitors the same day. Some hosts put their own web server in front for static files and ignore that line: if the response still says `max-age=2419200` (or similar), change the cache time for static files in your hosting panel.
 
 ## A demo that doesn't need a server
 
