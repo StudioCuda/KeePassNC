@@ -449,7 +449,7 @@ export default {
     'login.title': '打开保险库',
     'login.trust.short': '只在这个浏览器里解密。',
     'login.trust.1': '解密只发生在这个浏览器里。\n主密码和明文都不会离开它。',
-    'login.trust.2': '服务器只看到加密后的文件 -\n服务不可用时离线副本仍然可用。',
+    'login.trust.2': '服务器只看到加密后的文件。',
     'login.trust.3': '兼容 KeePassXC、KeePass 2 和 KeeWeb（KDBX 3.1、4.0、4.1）。',
     'login.trust.4': '最好作为 Nextcloud 应用使用：',
     'login.trust.4.link': 'Nextcloud 应用商店中的 KeePassNC',
