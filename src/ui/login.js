@@ -296,8 +296,8 @@ export function loginShell(card) {
 export function loginHero() {
     return h('aside', { class: 'login-hero' },
         h('div', { class: 'login-mark', 'aria-hidden': 'true' }, icon('shield-fine')),
-        h('div', { class: 'brand-mark' }, icon('shield')),
-        h('h1', { text: 'KeePassNC' }),
+        // Shield without a tile, left of the name: like the social preview image
+        h('div', { class: 'hero-head' }, h('span', { class: 'hero-seal', 'aria-hidden': 'true' }, icon('shield')), h('h1', { text: 'KeePassNC' })),
         h('p', { class: 'tagline', text: t('login.tagline') }),
         h('ul', { class: 'trust' },
             h('li', {}, icon('lock'), h('span', { text: t('login.trust.1') })),

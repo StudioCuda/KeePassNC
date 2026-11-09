@@ -89,13 +89,38 @@ export function createGenerator({ pref, copy, onUse, copyOnClick = false } = {})
     // rebuilding <select> elements (WebKit reports CSP violations when doing so, see tests/browser.mjs).
     const phBox = h('div', { class: 'stack' }, ...phraseOpts());
     // In password mode the preview is tall enough that the dialog is exactly as tall as in passphrase mode: to get that, briefly
-    // show the passphrase options and measure (synchronous, so no visible flicker).
+    // show the passphrase options and measure (synchronous, so no visible flicker). "Simple" gets the same height, so stepping
+    // through the tabs doesn't make the field jump (there the password options are shown for a moment to measure them).
     function fitPasswordPreview() {
-        if (mode !== 'pw' || !body.isConnected) return;
-        preview.classList.replace('pw', 'ph'); phBox.hidden = false; optsBox.hidden = true;
+        if (mode === 'ph' || !body.isConnected) return;
+        const was = mode, kept = [...optsBox.childNodes];
+        preview.classList.replace(was, 'ph'); phBox.hidden = false; optsBox.hidden = true;
         const target = body.offsetHeight;
         preview.classList.replace('ph', 'pw'); phBox.hidden = true; optsBox.hidden = false;
+        if (was === 'si') optsBox.replaceChildren(...pwOptsNodes());
         preview.style.setProperty('--gen-pw-h', Math.max(0, target - (body.offsetHeight - preview.offsetHeight)) + 'px'); // CSSOM, no style attribute (CSP)
+        if (was === 'si') { optsBox.replaceChildren(...kept); preview.classList.replace('pw', 'si'); }
+    }
+
+    function pwOptsNodes() {
+        const classChk = (k) => {
+            const c = chk('gen-' + k, t('gen.class.' + k), pwOpts, k);
+            // Special characters spaced out so they can be told apart; the two groups each get their own row
+            if (k.startsWith('special')) { c.classList.add('wide'); c.append(h('span', { class: 'gen-chars', text: [...CLASSES[k]].join(' ') })); }
+            return c;
+        };
+        // Rarely needed, hence under "More"; open as soon as something is set there, so nothing takes effect invisibly
+        const moreUsed = pwOpts.extended || pwOpts.custom || pwOpts.exclude;
+        return [
+            num('gen-length', t('gen.length'), 4, 128, pwOpts, 'length'),
+            h('div', { class: 'check-grid gen-cls' }, ...CLASS_KEYS.map(classChk)),
+            h('div', { class: 'check-grid' }, chk('gen-lookalike', t('gen.lookalike'), pwOpts, 'lookalike'), chk('gen-every', t('gen.every'), pwOpts, 'everyGroup')),
+            h('details', { class: 'gen-more', id: 'gen-more', open: !!moreUsed, ontoggle: fitPasswordPreview }, h('summary', { text: t('gen.more') }),
+                h('div', { class: 'stack' },
+                    h('div', { class: 'check-grid' }, chk('gen-extended', t('gen.class.extended'), pwOpts, 'extended')),
+                    h('div', { class: 'grid2' },
+                        h('label', {}, h('span', { text: t('gen.custom') }), h('input', { id: 'gen-custom', value: pwOpts.custom, oninput: (e) => { pwOpts.custom = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' })),
+                        h('label', {}, h('span', { text: t('gen.exclude') }), h('input', { id: 'gen-exclude', value: pwOpts.exclude, oninput: (e) => { pwOpts.exclude = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' })))))];
     }
 
     function renderOpts() {
@@ -103,24 +128,7 @@ export function createGenerator({ pref, copy, onUse, copyOnClick = false } = {})
         phBox.hidden = mode !== 'ph'; optsBox.hidden = mode === 'ph';
         tabs.replaceChildren(tab('ph', t('gen.passphrase')), tab('pw', t('gen.password')), tab('si', t('gen.simple')));
         if (mode === 'pw') {
-            const classChk = (k) => {
-                const c = chk('gen-' + k, t('gen.class.' + k), pwOpts, k);
-                // Special characters spaced out so they can be told apart; the two groups each get their own row
-                if (k.startsWith('special')) { c.classList.add('wide'); c.append(h('span', { class: 'gen-chars', text: [...CLASSES[k]].join(' ') })); }
-                return c;
-            };
-            // Rarely needed, hence under "More"; open as soon as something is set there, so nothing takes effect invisibly
-            const moreUsed = pwOpts.extended || pwOpts.custom || pwOpts.exclude;
-            optsBox.replaceChildren(
-                num('gen-length', t('gen.length'), 4, 128, pwOpts, 'length'),
-                h('div', { class: 'check-grid gen-cls' }, ...CLASS_KEYS.map(classChk)),
-                h('div', { class: 'check-grid' }, chk('gen-lookalike', t('gen.lookalike'), pwOpts, 'lookalike'), chk('gen-every', t('gen.every'), pwOpts, 'everyGroup')),
-                h('details', { class: 'gen-more', id: 'gen-more', open: !!moreUsed, ontoggle: fitPasswordPreview }, h('summary', { text: t('gen.more') }),
-                    h('div', { class: 'stack' },
-                        h('div', { class: 'check-grid' }, chk('gen-extended', t('gen.class.extended'), pwOpts, 'extended')),
-                        h('div', { class: 'grid2' },
-                            h('label', {}, h('span', { text: t('gen.custom') }), h('input', { id: 'gen-custom', value: pwOpts.custom, oninput: (e) => { pwOpts.custom = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' })),
-                            h('label', {}, h('span', { text: t('gen.exclude') }), h('input', { id: 'gen-exclude', value: pwOpts.exclude, oninput: (e) => { pwOpts.exclude = e.target.value; generate(); }, autocomplete: 'off', spellcheck: 'false' }))))));
+            optsBox.replaceChildren(...pwOptsNodes());
         } else if (mode === 'si') {
             const sep = sepSelect('gen-si-sep', siOpts);
             optsBox.replaceChildren(num('gen-blocks', t('gen.blocks'), 1, 6, siOpts, 'blocks', t('gen.simple.hint')),
