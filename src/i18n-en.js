@@ -452,7 +452,7 @@ export default {
     'login.title': 'Open vault',
     'login.trust.short': 'Decrypted in your browser only.',
     'login.trust.1': 'Decryption happens only in this browser.\nThe master password and plaintext never leave it.',
-    'login.trust.2': 'The server only sees the encrypted file -\nduring an outage an offline copy stays usable.',
+    'login.trust.2': 'The server only sees the encrypted file.',
     'login.trust.3': 'Compatible with KeePassXC, KeePass 2 and KeeWeb (KDBX 3.1, 4.0, 4.1).',
     'login.trust.4': 'Best as a Nextcloud app:',
     'login.trust.4.link': 'KeePassNC in the Nextcloud App Store',

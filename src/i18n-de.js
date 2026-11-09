@@ -452,7 +452,7 @@ export default {
     'login.title': 'Tresor öffnen',
     'login.trust.short': 'Wird nur in deinem Browser entschlüsselt.',
     'login.trust.1': 'Entschlüsselt wird nur in diesem Browser.\nMaster-Passwort und Klartext verlassen ihn nie.',
-    'login.trust.2': 'Der Server sieht nur die verschlüsselte Datei -\nauch bei Ausfall bleibt eine Offline-Kopie nutzbar.',
+    'login.trust.2': 'Der Server sieht nur die verschlüsselte Datei.',
     'login.trust.3': 'Kompatibel mit KeePassXC, KeePass 2 und KeeWeb (KDBX 3.1, 4.0, 4.1).',
     'login.trust.4': 'Am besten als Nextcloud-App:',
     'login.trust.4.link': 'KeePassNC im Nextcloud App Store',

@@ -5,6 +5,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- Standalone page: the note on the unlock screen only says that the server sees just the encrypted file. The offline copy promise is dropped there, since it only holds with a Nextcloud or WebDAV connection.
 - The three dots of the "More" buttons (entry, folders, tags) are bold enough to be seen.
 - Standalone page: the tagline breaks after "in the browser -".
 - Generator page: on tall screens the generator sits around the middle of the page instead of at the very top.
