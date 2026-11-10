@@ -3,7 +3,8 @@
 
 Click your `.kdbx` file, type your master password, done.
 
-It's still a plain KeePass file, so **KeePassXC, KeePassDX and Strongbox keep working on the very same file**. No lock-in, no special format, no drama.
+It's still a plain KeePass file, so **KeePassXC, KeePassDX and Strongbox keep working on the very same file**.
+No lock-in, no special format, no drama.
 
 ![KeePassNC in Nextcloud on a desktop: the Nextcloud header on top, groups and tags on the left, the entry list, and an entry with a live TOTP code](docs/screenshots/desktop-detail.png)
 
