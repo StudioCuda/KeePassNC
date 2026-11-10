@@ -16,7 +16,7 @@ No lock-in, no special format, no drama.
 
 ## Try it
 
-No install needed. Open the [demo](https://keepass.studiocuda.at), download the [sample database](https://keepass.studiocuda.at/demo.kdbx), choose it under **Local file** and unlock it with <CopyToClipboard>correct horse battery staple</CopyToClipboard>. It's made-up data, and nothing leaves your browser.
+No install needed. Open the [demo](https://keepass.studiocuda.at), download the [sample database](https://keepass.studiocuda.at/demo.kdbx), choose it under **Local file** and unlock it with `correct horse battery staple`. It's made-up data, and nothing leaves your browser.
 The [password generator](https://pass.studiocuda.at) also works on its own.
 
 ## Why you can relax
