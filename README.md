@@ -1,7 +1,7 @@
 # KeePassNC
 ### Your KeePass passwords, [right in Nextcloud](https://apps.nextcloud.com/apps/keepassnc).
 
-Click your `.kdbx` file in Files, type your master password, done.
+Click your `.kdbx` file, type your master password, done.
 
 It's still a plain KeePass file, so **KeePassXC, KeePassDX and Strongbox keep working on the very same file**. No lock-in, no special format, no drama.
 
@@ -15,7 +15,8 @@ It's still a plain KeePass file, so **KeePassXC, KeePassDX and Strongbox keep wo
 
 ## Try it
 
-No install needed. Open the [demo](https://keepass.studiocuda.at), download the [sample database](https://keepass.studiocuda.at/demo.kdbx), choose it under **Local file** and unlock it with `correct horse battery staple`. It's made-up data, and nothing leaves your browser. The [password generator](https://pass.studiocuda.at) also works on its own.
+No install needed. Open the [demo](https://keepass.studiocuda.at), download the [sample database](https://keepass.studiocuda.at/demo.kdbx), choose it under **Local file** and unlock it with `correct horse battery staple`. It's made-up data, and nothing leaves your browser.
+The [password generator](https://pass.studiocuda.at) also works on its own.
 
 ## Why you can relax
 
@@ -37,7 +38,7 @@ That's the short list. [Everything else](docs/FEATURES.md) (search tricks, short
 
 ## Install
 
-You need Nextcloud 34 or newer, served over HTTPS (or `localhost`): browsers hide their encryption on plain HTTP, and KeePassNC says so instead of opening anything. KeePassNC is in the [Nextcloud App Store](https://apps.nextcloud.com/apps/keepassnc), so the easy way is: **Apps** → search for *KeePassNC* → **Download and enable**. Or on the command line: `sudo -u www-data php occ app:install keepassnc`
+You need Nextcloud 34 or newer, served over HTTPS (or `localhost`). KeePassNC is in the [Nextcloud App Store](https://apps.nextcloud.com/apps/keepassnc), so the easy way is: **Apps** → search for *KeePassNC* → **Download and enable**. Or on the command line: `sudo -u www-data php occ app:install keepassnc`
 
 <details>
 <summary>Manual install</summary>
@@ -48,17 +49,19 @@ You need Nextcloud 34 or newer, served over HTTPS (or `localhost`): browsers hid
 
 </details>
 
-Then click a `.kdbx` file in Files. No database yet? **+ New** → **KeePass database** in Files makes one. Saving trouble? See [Troubleshooting](docs/TROUBLESHOOTING.md).
+Then click a `.kdbx` file in Nextcloud Files. No database yet? **+ New** → **KeePass database** in Files makes one.
 
 ## Security
 
-All decryption happens in your browser, and the app loads nothing from other servers. The code went through reviews by two separate AI models, every finding was fixed or answered, and a third model checked the fixes. Security audits and problem reports are very welcome, please send them privately, see [`SECURITY.md`](SECURITY.md). That page also lists what's known and what hasn't been tested yet.
+All decryption happens in your browser, and the app loads nothing from other servers.
+The code went through reviews by two separate AI models, every finding was fixed or answered, and a third model checked the fixes. Security audits and problem reports are very welcome, please send them privately, see [`SECURITY.md`](SECURITY.md). That page also lists what's known and what hasn't been tested yet.
 
 ## Why this exists
 
 KeeWeb, the KeePass app many people used inside Nextcloud, stopped getting updates. KeePassNC picks up where it left off, with the same idea: your passwords stay in a normal KeePass file on your own server, and you open them in the browser.
 
-What it doesn't do: fill in passwords on websites, or create new passkeys for websites. Both need a browser extension, which is a different project. Databases locked with a hardware key (YubiKey challenge-response in KeePassXC) are left out on purpose: browsers can't talk to the key that way.
+What it doesn't do: fill in passwords on websites, or create new passkeys for websites. Both need a browser extension, which is a different project.
+Databases locked with a hardware YubiKey are left out on purpose: browsers can't talk to the key that way.
 
 ## Contributing
 
