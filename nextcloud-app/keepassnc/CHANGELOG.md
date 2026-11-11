@@ -4,6 +4,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-11-11
+A TOTP quick button in the list, plus a round of standalone-page polish.
+
 ### Added
 - Entries with a one-time code get a fourth quick button in the list (next to the globe, user and key): it copies the current TOTP code.
 
