@@ -195,6 +195,7 @@ export default {
     'entry.copy.url': '复制网址',
     'entry.copy.user': '复制用户名',
     'entry.copy.password': '复制口令',
+    'entry.copy.totp': '复制 TOTP 验证码',
     'entry.delete.forever.msg': '“{name}”将被永久删除，无法撤销。',
     'entry.edit': '编辑条目',
     'entry.moved': '已移入“{group}”。',

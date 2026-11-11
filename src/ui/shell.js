@@ -1,10 +1,10 @@
 // Main view: header, three columns (sidebar | list | details), mobile navigation, keyboard shortcuts, command palette.
-import { t } from '../i18n.js';
+import { t, errText } from '../i18n.js';
 import { fieldOf, domainOf, hasTotp, isPasskey, entryColor, openableUrl } from '../core/util.js';
 import { SORTS } from './common.js';
-import { ctx, copy, applyTheme, clearMarks } from './ctx.js';
+import { ctx, copy, applyTheme, clearMarks, setStatus } from './ctx.js';
 import { $, h, icon, iconBtn, modal } from './dom.js';
-import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl } from './common.js';
+import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl, otpConfigOf } from './common.js';
 import { renderSidebar, newGroup, setFilter, startEntryDrag, emptyBin, tagMenu } from './groups.js';
 import { renderDetail, deleteEntry, stopDetailTimers } from './detail.js';
 import { pruneMarks, markClick, selectAll, selectionBar, deleteEntries } from './selection.js';
@@ -15,10 +15,15 @@ import { openMerge } from './merge-dialog.js';
 import { openCsv } from './csv-dialog.js';
 import { openSettings } from './settings-dialog.js';
 import { doSave, lock, refreshDirtyIndicator, refreshReadOnly, saveCopy, syncNow } from './session.js';
+import { totp } from '../totp.js';
 import { saveSettings } from '../settings.js';
 import { installMobileNav } from './mobile-nav.js';
 
 const { state } = ctx;
+/** The current code is made at the moment of the click, as in the detail view. */
+async function copyTotp(e) {
+    try { const cfg = otpConfigOf(e); if (cfg) await copy((await totp(cfg)).code, 'TOTP'); } catch (err) { setStatus(errText(err), 'error'); }
+}
 const LIMIT = 200;
 let shown = LIMIT;
 
@@ -155,7 +160,7 @@ export function renderList(entries = visibleEntries()) {
         const color = entryColor(e);
         if (color) { main.classList.add('tinted'); main.style.setProperty('--entry-color', color); } // CSSOM, no style attribute (CSP)
         const wrap = h('div', { class: 'entry-wrap', draggable: 'true' }, main,
-            h('div', { class: 'row-actions', 'aria-hidden': 'true' }, openableUrl(resolvedUrl(e, { own: true })) ? iconBtn('globe', t('row.openurl'), () => openEntryUrl(e), { tabindex: '-1' }) : null, iconBtn('user', t('entry.copy.user'), () => copy(user, t('f.user')), { tabindex: '-1' }), iconBtn('key', t('entry.copy.password'), () => copy(resolvedField(e, 'Password'), t('f.password')), { tabindex: '-1' })));
+            h('div', { class: 'row-actions', 'aria-hidden': 'true' }, openableUrl(resolvedUrl(e, { own: true })) ? iconBtn('globe', t('row.openurl'), () => openEntryUrl(e), { tabindex: '-1' }) : null, iconBtn('user', t('entry.copy.user'), () => copy(user, t('f.user')), { tabindex: '-1' }), iconBtn('key', t('entry.copy.password'), () => copy(resolvedField(e, 'Password'), t('f.password')), { tabindex: '-1' }), hasTotp(e) ? iconBtn('totp', t('entry.copy.totp'), () => copyTotp(e), { tabindex: '-1' }) : null));
         wrap.addEventListener('dragstart', (ev) => startEntryDrag(ev, e));
         body.append(wrap);
     }

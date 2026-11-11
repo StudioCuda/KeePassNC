@@ -198,6 +198,7 @@ export default {
     'entry.copy.url': 'Copy URL',
     'entry.copy.user': 'Copy username',
     'entry.copy.password': 'Copy password',
+    'entry.copy.totp': 'Copy TOTP code',
     'entry.delete.forever.msg': '“{name}” will be deleted permanently. This cannot be undone.',
     'entry.edit': 'Edit entry',
     'entry.moved': 'Moved to “{group}”.',
