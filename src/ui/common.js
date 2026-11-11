@@ -4,6 +4,8 @@ import { parseQuery, matches } from '../core/search.js';
 import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolvePlaceholders, openableUrl } from '../core/util.js';
 import { excluded } from '../core/audit.js';
 import { t } from '../i18n.js';
+import { fieldText } from '../vault.js';
+import { parseOtpConfig } from '../totp.js';
 import { ctx } from './ctx.js';
 import { h, icon, pathIcon } from './dom.js';
 import { KP_ICONS, GROUP_DEFAULT_ICON } from './kpicons.js';
@@ -109,3 +111,6 @@ export function expiryBadge(e) {
     if (d <= 30) return h('span', { class: 'badge warn', title: t('expires.in', { n: d }) }, icon('clock'), t('days.short', { n: d }));
     return null;
 }
+
+/** TOTP settings of an entry (null without any); throws when they cannot be read. List and detail view share it. */
+export const otpConfigOf = (e) => parseOtpConfig(fieldText(e.fields.get('otp')), fieldText(e.fields.get('TOTP Seed')), fieldText(e.fields.get('TOTP Settings')));

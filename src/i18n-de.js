@@ -198,6 +198,7 @@ export default {
     'entry.copy.url': 'URL kopieren',
     'entry.copy.user': 'Benutzername kopieren',
     'entry.copy.password': 'Passwort kopieren',
+    'entry.copy.totp': 'TOTP-Code kopieren',
     'entry.delete.forever.msg': '„{name}“ wird endgültig gelöscht. Das kann nicht rückgängig gemacht werden.',
     'entry.edit': 'Eintrag bearbeiten',
     'entry.moved': 'Verschoben nach „{group}“.',

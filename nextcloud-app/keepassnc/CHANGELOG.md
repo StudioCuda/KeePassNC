@@ -4,6 +4,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Entries with a one-time code get a fourth quick button in the list (next to the globe, user and key): it copies the current TOTP code.
+
 ### Changed
 - Standalone page: the note on the unlock screen only says that the server sees just the encrypted file. The offline copy promise is dropped there, since it only holds with a Nextcloud or WebDAV connection.
 - The three dots of the "More" buttons (entry, folders, tags) are bold enough to be seen.

@@ -287,6 +287,12 @@ async function main() {
         await page.waitForFunction(() => /^\d+$/.test(document.querySelector('[data-testid=totp-code]')?.textContent || ''));
         expect(/^\d{6}$/.test((await page.locator('[data-testid=totp-code]').innerText()).trim()), 'altes Seed-Feld');
         expect(await page.locator('.ring-fg').count() === 1, 'Ring');
+        // Quick button in the list: only for entries with a one-time code, and it copies the current code
+        await page.fill('#search', 'title:"Mit TOTP (alt)"'); await rows(page).filter({ hasText: 'Mit TOTP (alt)' }).first().waitFor();
+        const qb = page.locator('.entry-wrap', { has: rows(page).filter({ hasText: 'Mit TOTP (alt)' }) }).locator('.row-actions button');
+        expect(await qb.count() >= 3 && await qb.last().getAttribute('title') === 'TOTP-Code kopieren', 'Schnellbutton TOTP in der Zeile');
+        if (browserName === 'chromium') { await qb.last().click({ force: true }); await page.waitForFunction(() => navigator.clipboard.readText().then((x) => /^\d{6}$/.test(x))); }
+        await page.fill('#search', '');
     });
 
     await step('Passkey-Eintrag: Karte sichtbar, Bearbeiten erhaelt alle KPEX_PASSKEY_*-Felder samt Schutz-Flag (Pruefung nach dem Speichern)', async () => {

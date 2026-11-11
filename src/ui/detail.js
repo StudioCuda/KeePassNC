@@ -1,11 +1,11 @@
 // Detail view of an entry: fields, password (strength, large view), TOTP ring, passkey info, attachments, history.
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
-import { parseOtpConfig, totp } from '../totp.js';
+import { totp } from '../totp.js';
 import { entryExpiry, domainOf, openableUrl, isSystemField, isPasskey, groupPath, fieldOf, previewKind, previewOf } from '../core/util.js';
 import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, copy, download, setStatus, pref } from './ctx.js';
 import { h, icon, iconBtn, modal, toast, confirmDialog, popupMenu } from './dom.js';
-import { avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl } from './common.js';
+import { avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl, otpConfigOf } from './common.js';
 import { colorizedPassword, strengthBar } from './pwview.js';
 import { changed } from './session.js';
 import { setFilter, groupSelect, selectedGroup } from './groups.js';
@@ -86,7 +86,7 @@ export function renderDetail(host) {
 
     // TOTP
     let otpCfg = null;
-    try { otpCfg = parseOtpConfig(fieldText(e.fields.get('otp')), fieldText(e.fields.get('TOTP Seed')), fieldText(e.fields.get('TOTP Settings'))); } catch (err) { main.push(field('TOTP', h('span', { class: 'error', text: errText(err) }))); }
+    try { otpCfg = otpConfigOf(e); } catch (err) { main.push(field('TOTP', h('span', { class: 'error', text: errText(err) }))); }
     if (otpCfg) {
         const codeEl = h('span', { class: 'totp', 'data-testid': 'totp-code', text: '------' });
         const NSs = 'http://www.w3.org/2000/svg';
