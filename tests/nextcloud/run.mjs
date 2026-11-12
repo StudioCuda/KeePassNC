@@ -139,6 +139,7 @@ async function main() {
         const csp = r.headers()['content-security-policy'] || '';
         expect(/script-src 'self' 'wasm-unsafe-eval'/.test(csp) && !/unsafe-inline/.test(csp), 'CSP: ' + csp);
         expect(/frame-ancestors 'none'/.test(csp), 'Seite darf nicht einbettbar sein (frame-ancestors): ' + csp);
+        expect(/form-action 'none'/.test(csp), 'Formulare duerfen nirgendwohin abschicken (form-action): ' + csp);
         expect(r.headers()['cache-control']?.includes('no-store'), 'no-store fehlt');
         expect(await page.inputValue('#nc-path') === '/Passwörter privat/vault4.kdbx', 'Pfad nicht vorbelegt');
         expect(await page.locator('#nc-path').getAttribute('readonly') !== null, 'Pfad sollte readonly sein');
