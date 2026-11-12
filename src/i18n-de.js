@@ -276,7 +276,7 @@ export default {
     'gen.simple.hint': 'Jeder Block aus drei Silben bringt ca. 32 Bit, die Ziffern noch 6 dazu.',
     'gen.use': 'Verwenden',
     'gen.wordlist.de': 'Wortliste: dys2p de-7776 (7776 Wörter, CC0). Jedes Wort bringt knapp 13 Bit.',
-    'gen.wordlist.en': 'Wortliste: EFF Large Wordlist (7776 Wörter, CC BY 3.0 US). Jedes Wort bringt knapp 13 Bit.',
+    'gen.wordlist.en': 'Wortliste: EFF Large Wordlist (7772 Wörter, CC BY 3.0 US). Jedes Wort bringt knapp 13 Bit.',
     'gen.words': 'Wörter',
     'database': 'Datenbank',
     'generator': 'Passwort-Generator',

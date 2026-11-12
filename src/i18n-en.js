@@ -276,7 +276,7 @@ export default {
     'gen.simple.hint': 'Each block of three syllables adds about 32 bits, the digits another 6.',
     'gen.use': 'Use',
     'gen.wordlist.de': 'Word list: dys2p de-7776 (7776 words, CC0). Each word adds just under 13 bits.',
-    'gen.wordlist.en': 'Word list: EFF Large Wordlist (7776 words, CC BY 3.0 US). Each word adds just under 13 bits.',
+    'gen.wordlist.en': 'Word list: EFF Large Wordlist (7772 words, CC BY 3.0 US). Each word adds just under 13 bits.',
     'gen.words': 'Words',
     'database': 'Database',
     'generator': 'Password generator',

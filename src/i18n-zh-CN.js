@@ -273,7 +273,7 @@ export default {
     'gen.simple.hint': '每三个音节约增加 32 位，数字再增加 6 位。',
     'gen.use': '使用',
     'gen.wordlist.de': '词库：dys2p de-7776（7776 个词，CC0）。每个词约增加 13 位。',
-    'gen.wordlist.en': '词库：EFF Large Wordlist（7776 个词，CC BY 3.0 US）。每个词约增加 13 位。',
+    'gen.wordlist.en': '词库：EFF Large Wordlist（7772 个词，CC BY 3.0 US）。每个词约增加 13 位。',
     'gen.words': '词语',
     'database': '数据库',
     'generator': '口令生成器',
