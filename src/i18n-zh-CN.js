@@ -407,6 +407,7 @@ export default {
     'set.kf.revoke.failed': '作废失败：{msg}',
     'set.kf.server': '服务器保护',
     'lang.auto': '自动',
+    'list.badregex': '没有匹配项：“{re}”不是有效的正则表达式。',
     'list.empty': '此视图没有条目。',
     'list.label': '条目',
     'list.more': '再显示 {n} 条',

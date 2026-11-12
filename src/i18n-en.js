@@ -410,6 +410,7 @@ export default {
     'set.kf.revoke.failed': 'Invalidating failed: {msg}',
     'set.kf.server': 'server-protected',
     'lang.auto': 'Automatic',
+    'list.badregex': 'No matches: “{re}” isn’t a valid regular expression.',
     'list.empty': 'No entries in this view.',
     'list.label': 'Entries',
     'list.more': 'Show {n} more',

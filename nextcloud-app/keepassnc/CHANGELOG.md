@@ -7,6 +7,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
 
+### Fixed
+- Search: regular expressions keep their backslashes, so `*title:\d+` really looks for digits instead of the letter d.
+- Search: a regular expression that doesn't work matches nothing (it used to match every entry with that field empty), and the list says so.
+- Search: custom fields with digits or underscores in the name work, like `_PIN2:1234` or `_KP2A_URL_1:example`, and names with spaces or colons go in quotes: `_"Security Question":blue`.
+- Search: wildcards like `a*a*b` no longer freeze the page for minutes on an entry with huge notes.
+
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
 
