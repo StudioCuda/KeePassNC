@@ -802,6 +802,57 @@ async function main() {
         await p.context().close();
     });
 
+    await step('CSV aus einem deutschen Excel (Semikolons, Windows-1252, Umlaute, Anfuehrungszeichen) kommt richtig an, KeePassXC sieht es; unbekannte Spalten werden gemeldet statt leer importiert', async () => {
+        const fSemi = path.join(davRoot, 'semikolon.kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fSemi);
+        // A KeePassXC export saved again by a German Excel as plain "CSV (Trennzeichen-getrennt)": Windows-1252 (€ = 0x80), semicolons,
+        // CRLF, quotes only where needed, LF inside a cell; the stray quote in 5"€uro must not swallow anything
+        const csv = 'Group;Title;Username;Password;URL;Notes;TOTP;Icon;Last Modified;Created\r\n'
+            + 'Passwords/Bank;Sparkasse Köln;jürgen;"pa;ss""wört";https://sparkasse.de;"Zwei\nZeilen; mit Grüßen";;0;;\r\n'
+            + 'Passwords;Bäckerei Müller;anna;5"€uro;https://baeckerei.example;;;0;;\r\n';
+        const ansi = Buffer.from(Array.from(csv, (c) => (c === '€' ? 0x80 : c.charCodeAt(0))));
+        const p = await newPage();
+        await login(p, 'semikolon.kdbx'); await rows(p).first().waitFor();
+        const openCsv = async () => { if (!await p.locator('#csv-btn').isVisible()) { await p.click('#reports-btn'); await p.click('#rep-tab-info'); } await p.click('#csv-btn'); await p.locator('#csv-file').waitFor({ state: 'attached' }); };
+        await openCsv();
+        await p.setInputFiles('#csv-file', { name: 'fremd.csv', mimeType: 'text/csv', buffer: Buffer.from('Titel;Benutzername;Kennwort\r\nGMX;bob;pw\r\n') });
+        await p.waitForFunction(() => /Spalten dieser CSV-Datei kennt KeePassNC nicht/.test(document.querySelector('#csv-summary')?.textContent || ''));
+        expect(await p.isDisabled('#csv-import'), 'eine Datei ohne bekannte Spalte laesst sich importieren');
+        await p.setInputFiles('#csv-file', { name: 'excel.csv', mimeType: 'text/csv', buffer: ansi });
+        await p.waitForFunction(() => /Gefundene Einträge: 2\. Nicht übernommen: Icon\./.test(document.querySelector('#csv-summary')?.textContent || ''));
+        await p.click('#csv-import');
+        expect(await rows(p).count() === 2, 'Liste zeigt nicht die neue Gruppe: ' + await rows(p).count());
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        await p.context().close();
+        const bank = xc(['show', '-s', fSemi, 'Import excel/Bank/Sparkasse Köln']);
+        expect(bank.includes('UserName: jürgen') && bank.includes('Password: pa;ss"wört') && bank.includes('URL: https://sparkasse.de') && bank.includes('Zwei\nZeilen; mit Grüßen'), 'Sparkasse in KeePassXC:\n' + bank);
+        const shop = xc(['show', '-s', fSemi, 'Import excel/Bäckerei Müller']);
+        expect(shop.includes('UserName: anna') && shop.includes('Password: 5"€uro') && shop.includes('URL: https://baeckerei.example'), 'Baeckerei in KeePassXC:\n' + shop);
+    });
+
+    await step('Bitwarden-JSON: SSH-Schluessel wird Schluesseldatei-Anhang plus Felder (KeePassXC sieht beides), ein Passkey wird als nicht vollstaendig gemeldet', async () => {
+        const fSsh = path.join(davRoot, 'ssh.kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fSsh);
+        const priv = '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\n-----END OPENSSH PRIVATE KEY-----';
+        const bitwarden = JSON.stringify({ encrypted: false, folders: [], items: [
+            { type: 5, folderId: null, name: 'Server-Schluessel', notes: 'Laptop', sshKey: { privateKey: priv, publicKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest anna@laptop', keyFingerprint: 'SHA256:Test' } },
+            { type: 1, folderId: null, name: 'Mit Passkey', login: { username: 'pk', password: 'pw-pk', fido2Credentials: [{ credentialId: 'c', rpId: 'example.org' }] } }] });
+        const p = await newPage();
+        await login(p, 'ssh.kdbx'); await rows(p).first().waitFor();
+        if (!await p.locator('#csv-btn').isVisible()) { await p.click('#reports-btn'); await p.click('#rep-tab-info'); }
+        await p.click('#csv-btn'); await p.locator('#csv-file').waitFor({ state: 'attached' });
+        await p.setInputFiles('#csv-file', { name: 'bw-ssh.json', mimeType: 'application/json', buffer: Buffer.from(bitwarden) });
+        await p.waitForFunction(() => /Bitwarden \(JSON\)\. Gefundene Einträge: 2\. Einträge, die nicht vollständig mitkommen: 1\./.test(document.querySelector('#csv-summary')?.textContent || ''));
+        await p.click('#csv-import');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        await p.context().close();
+        const att = path.join(tmp, 'id_ed25519'); xc(['attachment-export', fSsh, 'Import bw-ssh/Server-Schluessel', 'id_ed25519', att]);
+        expect(fs.readFileSync(att, 'utf8') === priv + '\n', 'Schluesseldatei kommt byte-genau (mit Zeilenende) an');
+        expect(xc(['show', '-s', '-a', 'SSH public key', fSsh, 'Import bw-ssh/Server-Schluessel']).trim() === 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest anna@laptop', 'Feld SSH public key');
+        expect(xc(['show', '-s', '-a', 'SSH fingerprint', fSsh, 'Import bw-ssh/Server-Schluessel']).trim() === 'SHA256:Test', 'Feld SSH fingerprint');
+        expect(xc(['show', '-s', fSsh, 'Import bw-ssh/Mit Passkey']).includes('Password: pw-pk'), 'der Login mit Passkey kommt ohne den Passkey mit');
+    });
+
     await step('JSON-Import: Passwords-Backup (Ordner, Tags, Zusatzfelder), Passman (Anhang), Bitwarden (zweite Adresse, TOTP) -> KeePassXC sieht alles; Backup mit Passwort wird abgewiesen', async () => {
         const fJson = path.join(davRoot, 'json.kdbx');
         fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fJson);

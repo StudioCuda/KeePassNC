@@ -721,7 +721,7 @@ export class Vault {
             e.tags = r.tags;
             // extra fields (never over a standard or system field) and attachments, when the source has them (see core/import.js)
             for (const c of r.custom || []) e.fields.set(free(c.name, (n) => STANDARD_FIELDS.includes(n) || isSystemField(n) || e.fields.has(n)), c.protect ? ProtectedValue.fromString(c.value) : c.value);
-            for (const a of r.attachments || []) e.binaries.set(free(a.name, (n) => e.binaries.has(n)), await this.makeBinary(a.data.buffer));
+            for (const a of r.attachments || []) e.binaries.set(free(a.name, (n) => e.binaries.has(n)), await this.makeBinary(toArrayBuffer(a.data))); // exactly its bytes, even as a view into a bigger buffer
             if (r.created) e.times.creationTime = r.created;
             if (r.modified) e.times.lastModTime = r.modified;
         }

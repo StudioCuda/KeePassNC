@@ -7,6 +7,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
 
+### Fixed
+- CSV import reads semicolon and tab separated files too, like the ones a German Excel saves, in UTF-8 or Excel's Windows encoding. They used to come in as a pile of empty entries, and umlauts as �.
+- A CSV file whose columns KeePassNC doesn't know now gets a clear message instead of turning into empty entries.
+- A stray quote in the middle of a CSV field (`pass"word`) no longer swallows the rows after it into one field.
+- Bitwarden JSON: SSH keys come along, the private key as a key file attachment (ready for KeePassXC's SSH agent), public key and fingerprint as fields. The import also says when an entry loses something on the way, such as a passkey.
+
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
 
