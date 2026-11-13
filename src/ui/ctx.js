@@ -5,6 +5,7 @@ import { keyfileBackend } from '../cache.js';
 import { t } from '../i18n.js';
 import { ncThemeFrom, themeVars, THEME_VARS } from '../theme.js';
 import { $, toast } from './dom.js';
+import { timeouts } from '../webdav.js';
 
 export const kfStore = createKeyfileStore(keyfileBackend);
 /** ID of a remembered key file for a locally chosen file (in Nextcloud additionally separated per user). */
@@ -15,6 +16,7 @@ export const params = new URLSearchParams(location.search);
 export const SW_CACHE = 'kpnc-app-v1';
 export const LOCK_WAIT_MS = Math.max(1, parseFloat(params.get('lockwait')) || 10) * 1000; // how long the lock waits for a running save (at least 1 s; shorter only for tests)
 export const SYNC_RETRY_MS = (parseFloat(params.get('syncretry')) || 30) * 1000; // unsynced offline states are retried every 30 s
+if (params.has('davtimeout')) timeouts.ms = Math.max(1, parseFloat(params.get('davtimeout')) || 60) * 1000; // when a WebDAV request counts as hung (webdav.js; shorter only for tests)
 
 export const ctx = {
     params,

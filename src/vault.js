@@ -2,7 +2,7 @@
 // All the cryptography happens here in the browser; the server only ever sees the encrypted file.
 import * as kdbxweb from '../vendor/kdbxweb/lib/index';
 import { argon2 } from './argon2.js';
-import { ConflictError, DavError, isOffline } from './webdav.js';
+import { ConflictError, DavError, isOffline, writeProblem } from './webdav.js';
 import { cachePut } from './cache.js';
 import { excluded } from './core/audit.js';
 import { editTags, entryColor, groupPath, isOutOfMemory, isPasskeyField, isSystemField, resolvePlaceholders, toOtpUri, uuidHex, valueText } from './core/util.js';
@@ -225,11 +225,27 @@ export class Vault {
         this.dirty = false; // changes in memory only (not serialized yet)
         this.readOnly = false; // share without write permission (or a 403 on saving): every change is turned away, see _writable
         this.mergeBlocked = false; // the last upload failed because the server file can't be merged, or 'etag' if the server refuses our If-Match for nothing (see _push)
+        this.writeBlocked = null; // why the last save or sync was turned down: 'full', 'locked' or 'gone' (writeProblem in webdav.js), for the banner
         this.cache = cache || null;
         this.unsynced = false; // saved locally (offline copy), the server doesn't have this version yet
         this._pending = null;
+        this._unstored = false; // a save is under way whose version is neither on the server nor in the offline copy yet (see unsaved)
         this._chain = Promise.resolve();
     }
+
+    /**
+     * Would closing the tab lose changes? Not only when dirty: while a save serializes and uploads, dirty is already false, and without
+     * an offline copy that version lives nowhere else until the server has it. A version the offline copy holds is safe, it is uploaded
+     * when the file is opened next, except while the file is gone from the server: opening goes through the server, which has nothing.
+     */
+    get unsaved() { return this.dirty || this._unstored || (this.unsynced && this.writeBlocked === 'gone'); }
+
+    /**
+     * Retrying in the background changes nothing: the server file can't be merged (every attempt would leave a conflict backup behind),
+     * or it is gone (saving never creates it by itself, see recreate). Auto-save and background syncs stand down until the user saves.
+     * No space left and a locked file may pass by themselves, so those keep being retried.
+     */
+    get waitsForUser() { return !!this.mergeBlocked || this.writeBlocked === 'gone'; }
 
     /** Read-only session: changes are refused before they touch the database, so nothing looks saved or counts as dirty. */
     _writable() {
@@ -876,31 +892,60 @@ export class Vault {
      * If the server is unreachable and an offline copy exists, that's no error: {offline: true}, sync follows later.
      * @returns {Promise<{merged?: boolean, offline?: boolean, bytes?: ArrayBuffer}>}
      */
-    save({ auto = false } = {}) { return this._exclusive(() => (auto && this.mergeBlocked ? { skipped: true } : this._save())); }
+    save({ auto = false } = {}) { return this._exclusive(() => (auto && this.waitsForUser ? { skipped: true } : this._save())); }
 
     /**
      * Syncs with the server: upload unsynced versions, otherwise pull changes from other devices.
-     * background: a timer asked, not the user. A sync queued behind a save that then fails to merge must not try again (every attempt
-     * leaves a conflict backup behind), so this is checked here, once the save is over, and not only when the sync was asked for.
+     * background: a timer asked, not the user. A sync queued behind a save that then fails to merge (or finds the file gone) must not try
+     * again (see waitsForUser), so this is checked here, once the save is over, and not only when the sync was asked for.
      * save({ auto: true }) works the same way. Both answer { skipped: true } when they stood down.
      */
-    sync({ background = false } = {}) { return this._exclusive(() => (background && this.mergeBlocked ? { skipped: true } : this._sync())); }
+    sync({ background = false } = {}) { return this._exclusive(() => (background && this.waitsForUser ? { skipped: true } : this._sync())); }
 
-    async _save() {
+    /**
+     * The file is gone from the server (writeBlocked 'gone': moved or deleted there): put the current state back at the same address.
+     * Only on the user's word, a moved file would turn up twice. Never overwrites (DavFile.create): if something is there again by now,
+     * that's a conflict like any other (backup of the other version, merge). Result like save(), plus recreated: true.
+     */
+    recreate() {
+        this._writable();
+        return this._exclusive(() => this._save(async () => {
+            try {
+                this.etag = await this.dav.create(this._pending);
+            } catch (e) {
+                if (e instanceof DavError && e.status === 412) return this._push();
+                throw e;
+            }
+            await this._uploaded(this._pending);
+            return { merged: false, recreated: true };
+        }));
+    }
+
+    /** send: how the serialized version (this._pending) gets to the server, _push unless recreate() asks otherwise. */
+    async _save(send = () => this._push()) {
         this._writable();
         this.dirty = false; // changes during serialization set the flag again
-        let out;
-        try { out = await this.db.save(); } catch (e) { this.dirty = true; throw e; }
-        if (!this.dav) return { merged: false, bytes: out };
-        const stored = await this._cacheWrite(out, true);
-        this._pending = out;
-        this.unsynced = true;
+        this._unstored = true;
         try {
-            return await this._push();
-        } catch (e) {
-            if (!stored) { this.unsynced = false; this._pending = null; this.dirty = true; throw e; } // without a local copy nothing may count as "saved"
-            if (isOffline(e)) return { offline: true };
-            throw e;
+            let out;
+            try { out = await this.db.save(); } catch (e) { this.dirty = true; throw e; }
+            if (!this.dav) return { merged: false, bytes: out };
+            const stored = await this._cacheWrite(out, true);
+            this._pending = out;
+            this.unsynced = true;
+            this._unstored = !stored;
+            try {
+                const res = await send();
+                this.writeBlocked = null;
+                return res;
+            } catch (e) {
+                const err = this._refused(e);
+                if (!stored) { this.unsynced = false; this._pending = null; this.dirty = true; throw err; } // without a local copy nothing may count as "saved"
+                if (isOffline(err)) return { offline: true };
+                throw err;
+            }
+        } finally {
+            this._unstored = false; // on the server, in the offline copy, or dirty again
         }
     }
 
@@ -908,11 +953,34 @@ export class Vault {
         if (!this.dav) return {};
         if (this.dirty) return this._save();
         try {
-            return this.unsynced ? await this._push() : await this._pull();
+            const res = this.unsynced ? await this._push() : await this._pull();
+            this.writeBlocked = null;
+            return res;
         } catch (e) {
-            if (isOffline(e)) return { offline: true };
-            throw e;
+            const err = this._refused(e);
+            if (isOffline(err)) return { offline: true };
+            throw err;
         }
+    }
+
+    /**
+     * Remembers why the server turned the file down, for the banner (writeBlocked; null for any other failure, an outage included).
+     * A 404 or 409 here means the file or its folder was moved or deleted: say that, not "check the path" as when opening. Only putting
+     * the file back (recreate) learns that the folder is gone, too, and its own message says so.
+     */
+    _refused(e) {
+        this.writeBlocked = writeProblem(e);
+        if (this.writeBlocked !== 'gone' || e.key === 'e.dav.nofolder') return e;
+        return new VaultError('Die Datei ist auf dem Server nicht mehr da (verschoben oder geloescht).', 'e.gone');
+    }
+
+    /** out is on the server now (this.etag names it): it is the base for the next merge, and nothing waits for an upload anymore. */
+    async _uploaded(out) {
+        this._remoteBytes = out;
+        this._base = { pw: this._pw, kf: this._kf };
+        this.unsynced = false;
+        this._pending = null;
+        await this._cacheWrite(out, false);
     }
 
     /**
@@ -948,11 +1016,7 @@ export class Vault {
                 // right before writing; a difference takes the usual conflict path (backup of the other version, merge, retry).
                 if (!this.etag && !(await this._serverUnchanged())) throw new ConflictError();
                 this.etag = await this.dav.put(out, this.etag);
-                this._remoteBytes = out;
-                this._base = { pw: this._pw, kf: this._kf };
-                this.unsynced = false;
-                this._pending = null;
-                await this._cacheWrite(out, false);
+                await this._uploaded(out);
                 return { merged, noBackup: this.noBackup };
             } catch (e) {
                 if (!(e instanceof ConflictError)) throw e;

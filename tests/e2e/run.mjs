@@ -49,7 +49,7 @@ const expect = (cond, msg) => { if (!cond) throw new Error(msg); };
 
 async function main() {
     makeFixtures();
-    const { server, port, log } = await startServer({ webRoot: path.join(root, 'web'), davRoot });
+    const { server, port, log, options: srvOptions } = await startServer({ webRoot: path.join(root, 'web'), davRoot });
     const base = `http://127.0.0.1:${port}`;
     const browser = await launchBrowser();
     const problems = { external: [], pageErrors: [], consoleErrors: [] };
@@ -1135,6 +1135,133 @@ async function main() {
         expect(/automatisch gesperrt/i.test(await p.locator('.login-card').innerText()), 'urspruengliche Meldung fehlt: ' + await p.locator('.login-card').innerText());
         expect(xc(['show', f, 'Bank/Konto']).includes('kommt-spaeter'), 'Aenderung nicht auf dem Server');
         expect(!/kommt-spaeter|Konto/.test(await p.content()), 'Auf dem Anmeldebildschirm stehen noch Daten im DOM');
+        await p.context().close();
+    });
+
+    // The test server misbehaves for one file at a time (davserver.mjs, options.fault); every step switches that off again when it ends.
+    const faulty = async (fault, fn) => { srvOptions.fault = fault; try { return await fn(); } finally { srvOptions.fault = null; } };
+    const editKonto = async (p, user) => {
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', user); await p.click('#apply-btn');
+    };
+    const bannerText = (p) => p.locator('#ro-text').textContent();
+    /** Closing the tab: true if the page asked first (it stays open then), false if it simply closed. */
+    async function leaveAsks(p) {
+        let onDialog, onClose;
+        const outcome = new Promise((resolve) => {
+            onDialog = (d) => { if (d.type() === 'beforeunload') { resolve(true); d.dismiss().catch(() => {}); } };
+            onClose = () => resolve(false);
+            p.on('dialog', onDialog); p.on('close', onClose);
+            setTimeout(() => resolve(null), 8000);
+        });
+        await p.close({ runBeforeUnload: true });
+        const asked = await outcome;
+        p.off('dialog', onDialog); p.off('close', onClose);
+        expect(asked !== null, 'Tab hat weder gefragt noch sich geschlossen');
+        return asked;
+    }
+
+    await step('Server voll (507) beim Speichern: klare Meldung, Banner mit "Kopie speichern" (der Download hat die Aenderung), nach dem Aufraeumen speichert er normal', async () => {
+        const f = path.join(davRoot, 'full.kdbx');
+        fs.copyFileSync(f4, f);
+        const before = fs.readFileSync(f);
+        const p = await newPage();
+        await login(p, 'full.kdbx'); await rows(p).first().waitFor();
+        await faulty((m, rel) => (m === 'PUT' && rel.startsWith('full.kdbx') ? 507 : undefined), async () => { // the backup copy too
+            await editKonto(p, 'kein-platz');
+            await p.click('#save-btn');
+            await waitStatus(p, /kein Platz mehr frei/);
+            expect(await p.locator('#readonly-banner').isVisible() && await p.locator('#ro-copy').isVisible(), 'Banner mit "Kopie speichern" fehlt');
+            expect(/Platz schaffen|Schaffe Platz/.test(await bannerText(p)), 'Banner nennt den falschen Grund: ' + await bannerText(p));
+            expect(await p.locator('#ro-recreate').isHidden(), '"Datei wieder anlegen" passt nicht zu einem vollen Server');
+            expect(/Speichern \*/.test(await p.locator('#save-btn').innerText()), 'Aenderung muss als ungespeichert markiert bleiben');
+            const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#ro-copy')]);
+            const copy = path.join(tmp, 'full-copy.kdbx'); fs.copyFileSync(await dl.path(), copy);
+            expect(xc(['show', copy, 'Bank/Konto']).includes('kein-platz'), 'Kopie enthaelt die Aenderung nicht');
+            expect(Buffer.compare(before, fs.readFileSync(f)) === 0, 'Datei auf dem Server wurde veraendert');
+        });
+        await p.click('#save-btn'); // space again
+        await waitStatus(p, /^Gespeichert\./);
+        expect(await p.locator('#readonly-banner').isHidden(), 'Banner bleibt nach dem Speichern stehen');
+        expect(xc(['show', f, 'Bank/Konto']).includes('kein-platz'), 'Aenderung nicht auf dem Server');
+        await p.context().close();
+    });
+
+    await step('Datei auf dem Server gesperrt (423): eigene Meldung und Banner mit "Kopie speichern", nach dem Entsperren speichert sie normal', async () => {
+        const f = path.join(davRoot, 'locked.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'locked.kdbx'); await rows(p).first().waitFor();
+        await faulty((m, rel) => (m === 'PUT' && rel === 'locked.kdbx' ? 423 : undefined), async () => {
+            await editKonto(p, 'war-gesperrt');
+            await p.click('#save-btn');
+            await waitStatus(p, /gesperrt/);
+            expect(await p.locator('#readonly-banner').isVisible() && await p.locator('#ro-copy').isVisible(), 'Banner mit "Kopie speichern" fehlt');
+            expect(/gesperrt/.test(await bannerText(p)), 'Banner nennt den falschen Grund: ' + await bannerText(p));
+        });
+        await p.click('#save-btn');
+        await waitStatus(p, /^Gespeichert\./);
+        expect(await p.locator('#readonly-banner').isHidden(), 'Banner bleibt nach dem Speichern stehen');
+        expect(xc(['show', f, 'Bank/Konto']).includes('war-gesperrt'), 'Aenderung nicht auf dem Server');
+        await p.context().close();
+    });
+
+    await step('Datei auf dem Server geloescht: Speichern sagt das und legt sie nicht still neu an, Banner mit "Datei wieder anlegen" und "Kopie speichern"; Wieder-Anlegen bringt sie mit der Aenderung zurueck', async () => {
+        const f = path.join(davRoot, 'gone.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'gone.kdbx'); await rows(p).first().waitFor();
+        await editKonto(p, 'wieder-da');
+        fs.rmSync(f); // deleted (or moved away) on another device
+        await p.click('#save-btn');
+        await waitStatus(p, /nicht mehr da/);
+        expect(!fs.existsSync(f), 'Speichern hat die geloeschte Datei von selbst neu angelegt');
+        expect(await p.locator('#readonly-banner').isVisible() && await p.locator('#ro-copy').isVisible() && await p.locator('#ro-recreate').isVisible(), 'Banner mit beiden Angeboten fehlt');
+        expect(/verschoben oder gelöscht/.test(await bannerText(p)), 'Banner nennt den falschen Grund: ' + await bannerText(p));
+        expect(await p.locator('#new-btn').evaluate((b) => getComputedStyle(b).opacity) === '1', 'Neu darf nicht abgedunkelt sein: das ist kein Lesemodus');
+        await p.click('#ro-recreate');
+        await waitStatus(p, /wieder auf dem Server/);
+        expect(xc(['show', f, 'Bank/Konto']).includes('wieder-da'), 'Aenderung fehlt in der wieder angelegten Datei');
+        expect(await p.locator('#readonly-banner').isHidden(), 'Banner bleibt stehen');
+        await editKonto(p, 'danach-normal'); // from here on it saves the usual way, against the new ETag
+        await p.click('#save-btn');
+        await waitStatus(p, /^Gespeichert\./);
+        expect(xc(['show', f, 'Bank/Konto']).includes('danach-normal'), 'zweite Aenderung nicht auf dem Server');
+        await p.context().close();
+    });
+
+    await step('Speichern, auf das der Server nie antwortet (ohne Offline-Kopie): nach der Wartezeit eine klare Meldung statt endlosem Warten, die Aenderung bleibt ungespeichert, das naechste Speichern klappt', async () => {
+        const f = path.join(davRoot, 'noanswer.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage('?davtimeout=2');
+        await login(p, 'noanswer.kdbx'); await rows(p).first().waitFor();
+        await faulty((m, rel) => (m === 'PUT' && rel === 'noanswer.kdbx' ? 'hang' : undefined), async () => {
+            await editKonto(p, 'ohne-antwort');
+            await p.click('#save-btn');
+            await waitStatus(p, /nicht rechtzeitig geantwortet/, 20000);
+            expect(/Speichern \*/.test(await p.locator('#save-btn').innerText()), 'Aenderung muss als ungespeichert markiert bleiben');
+        });
+        await p.click('#save-btn');
+        await waitStatus(p, /^Gespeichert\./);
+        expect(xc(['show', f, 'Bank/Konto']).includes('ohne-antwort'), 'Aenderung nicht auf dem Server');
+        await p.context().close();
+    });
+
+    await step('Tab schliessen (ohne Offline-Kopie): fragt bei ungespeicherten Aenderungen und auch noch, waehrend das Speichern laeuft; nicht mehr, sobald alles auf dem Server ist', async () => {
+        const f = path.join(davRoot, 'leave.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'leave.kdbx'); await rows(p).first().waitFor();
+        await editKonto(p, 'beim-gehen');
+        expect(await leaveAsks(p), 'keine Rueckfrage bei einer ungespeicherten Aenderung');
+        await faulty((m, rel) => (m === 'PUT' && rel === 'leave.kdbx' ? { delay: 4000 } : undefined), async () => {
+            await p.click('#save-btn');
+            await p.waitForTimeout(1000); // dirty is false by now, the PUT is on its way
+            expect(await leaveAsks(p), 'keine Rueckfrage, waehrend das Speichern noch laeuft');
+            await waitStatus(p, /^Gespeichert\./, 20000);
+        });
+        expect(xc(['show', f, 'Bank/Konto']).includes('beim-gehen'), 'Aenderung nicht auf dem Server');
+        expect(!(await leaveAsks(p)), 'Rueckfrage, obwohl alles gespeichert ist');
         await p.context().close();
     });
 
