@@ -103,7 +103,7 @@ export function openCredentials({ onBack } = {}) {
             m.close();
             const notes = [];
             if (state.source.type === 'file') download(state.source.name, res.bytes);
-            if (res.merged) { rebind(); ctx.ui.refresh?.(); }
+            if (res.merged || res.tabMerged) { rebind(); ctx.ui.refresh?.(); }
             const kfNote = await updateRemembered(change, password);
             if (kfNote) notes.push(kfNote);
             if (delBackups?.checked && !res.offline) {

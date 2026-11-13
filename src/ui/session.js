@@ -3,7 +3,7 @@ import { isOffline } from '../webdav.js';
 import { ARGON2_WORKER_URL } from '../argon2.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus, download, SW_CACHE, SYNC_RETRY_MS, LOCK_WAIT_MS, params } from './ctx.js';
-import { $, confirmDialog } from './dom.js';
+import { $, confirmDialog, toast } from './dom.js';
 import { setNcHeaderOffline } from './ncheader.js';
 import { fmtDate } from '../i18n.js';
 
@@ -121,6 +121,12 @@ function redrawAfterSwap() {
     ctx.ui.refresh?.();
 }
 
+/** The database took in changes another tab with the same file had stored in the offline copy (Vault._absorb): show them, say where they came from. */
+function tabsMerged() {
+    redrawAfterSwap();
+    toast(t('sync.tabs'));
+}
+
 /** Is a sync running that may replace the database (pull)? Then no editor may open: it would keep the old entry and group objects. */
 export const isSwapping = () => syncing || pulls > 0;
 
@@ -149,6 +155,7 @@ export async function doSave({ auto = false } = {}) {
             return;
         }
         state.lastSyncFailed = !!res.offline;
+        if (res.tabMerged) tabsMerged();
         if (state.source.type === 'file') {
             download(state.source.name, res.bytes);
             setStatus(t('saved.download', { name: state.source.name }));
@@ -188,6 +195,7 @@ export async function syncNow({ announce = false } = {}) {
     try {
         const res = await (v.dirty ? v.save() : v.sync({ background: !announce }));
         state.lastSyncFailed = !!res.offline;
+        if (res.tabMerged) tabsMerged();
         if (res.offline) {
             if (announce) setStatus(t('sync.failed.offline'), 'warn');
         } else {

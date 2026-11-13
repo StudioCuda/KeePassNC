@@ -1,5 +1,6 @@
 // Local offline copy: stores the ENCRYPTED KDBX (exactly the bytes that also sit on the server) in IndexedDB.
-// Entry: {bytes: ArrayBuffer, etag, modified: boolean, name, syncDate}. "modified" = local changes the server doesn't have yet.
+// Entry: {bytes: ArrayBuffer, etag, modified: boolean, name, syncDate, rev}. "modified" = local changes the server doesn't have yet;
+// rev = random id of this write, so a tab can tell whether another tab with the same database wrote since (see Vault._cacheWrite).
 // Plaintext, master password and key file are never stored here.
 const DB_NAME = 'keepassnc';
 const STORE = 'files';
@@ -33,6 +34,18 @@ export const cachePut = (key, rec) => tx('readwrite', (s) => s.put(rec, key));
 export const cacheDelete = (key) => tx('readwrite', (s) => s.delete(key));
 export const cacheClear = () => tx('readwrite', (s) => s.clear());
 export const cacheKeys = () => tx('readonly', (s) => s.getAllKeys());
+
+/**
+ * Writes rec unless refuse(stored entry) says no. Both happen in one transaction, and readwrite transactions on the store run one
+ * after the other, so no other tab can write in between. Resolves with the stored entry if refused, otherwise with null.
+ */
+export function cachePutUnless(key, rec, refuse) {
+    let refused = null;
+    return tx('readwrite', (s) => {
+        const r = s.get(key);
+        r.onsuccess = () => { if (refuse(r.result)) refused = r.result; else s.put(rec, key); };
+    }).then(() => refused);
+}
 
 /** Removes everything this app stored locally (offline copies, page cache, service worker, settings). */
 export async function wipeLocalData() {

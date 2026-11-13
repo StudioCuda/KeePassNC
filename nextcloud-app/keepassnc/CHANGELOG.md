@@ -7,6 +7,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
 
+### Fixed
+- Same database open in two tabs with the offline copy on: changes made in both while the server was away are all kept now, even if one tab is closed before the server comes back. Before, the tab that saved last quietly pushed the other tab's changes out of the offline copy.
+- Opened a database offline and saved later? The backup copy made before that first upload now holds what was on the server, not your local copy.
+
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
 

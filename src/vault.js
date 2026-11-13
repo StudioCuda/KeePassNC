@@ -3,7 +3,7 @@
 import * as kdbxweb from '../vendor/kdbxweb/lib/index';
 import { argon2 } from './argon2.js';
 import { ConflictError, DavError, isOffline } from './webdav.js';
-import { cachePut } from './cache.js';
+import { cachePutUnless } from './cache.js';
 import { excluded } from './core/audit.js';
 import { editTags, entryColor, groupPath, isOutOfMemory, isPasskeyField, isSystemField, resolvePlaceholders, toOtpUri, uuidHex, valueText } from './core/util.js';
 import { EXPORT_HEAD, otpUri } from './core/csv.js';
@@ -114,6 +114,7 @@ const sameBytes = (a, b) => {
     return d === 0;
 };
 const toArrayBuffer = (u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+const newRev = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
 const stamp = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '-');
 
 export function generatePassword(length = 24) {
@@ -175,16 +176,19 @@ function loadError(e) {
 export class Vault {
     /**
      * @param {{buf: ArrayBuffer, password: string, keyfile?: Uint8Array|ArrayBuffer, dav?: import('./webdav.js').DavFile, etag?: string|null,
-     *   cache?: {key: string, name: string}, unsynced?: boolean, remoteBuf?: ArrayBuffer, fromCache?: boolean}} o
+     *   cache?: {key: string, name: string}, unsynced?: boolean, remoteBuf?: ArrayBuffer, fromCache?: boolean, cacheRev?: string}} o
      * cache: key of the local offline copy; unsynced: buf holds local changes the server doesn't have yet (etag = base version);
-     * remoteBuf: current server version (for the backup copy); fromCache: buf came from the cache (don't write it back there).
+     * remoteBuf: current server version (for the backup copy); fromCache: buf came from the cache (don't write it back there);
+     * cacheRev: rev of the offline copy as the caller read it (see _cacheWrite).
      */
-    static async open({ buf, password, keyfile, dav, etag, cache, unsynced, remoteBuf, fromCache }) {
+    static async open({ buf, password, keyfile, dav, etag, cache, unsynced, remoteBuf, fromCache, cacheRev }) {
         const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile : toArrayBuffer(keyfile)) : undefined;
         const { db, pw } = await loadWith(buf, password, kf);
         const v = new Vault(db, pw, kf, dav, etag ?? null, remoteBuf || buf, cache);
+        v._cacheRev = cacheRev;
+        v._remoteFromCache = !!fromCache && !remoteBuf; // opened offline: _remoteBytes is the offline copy, not what the server holds (see _push)
         if (unsynced) { v.unsynced = true; v._pending = buf; }
-        else if (cache && !fromCache) await v._cacheWrite(buf, false);
+        else if (cache && !fromCache) await v._cacheWrite(buf, false); // unsynced changes another tab stored there meanwhile stay, our next save merges them
         return v;
     }
 
@@ -208,7 +212,7 @@ export class Vault {
         v._remoteBytes = bytes;
         v._backedUp = true; // nobody needs a backup copy of the empty database
         if (dav) v.etag = await dav.create(bytes);
-        await v._cacheWrite(bytes, false);
+        await v._cacheWrite(bytes, false, { force: true }); // a new file: whatever was stored under its name belongs to one that is gone
         return { vault: v, bytes };
     }
 
@@ -226,6 +230,9 @@ export class Vault {
         this.readOnly = false; // share without write permission (or a 403 on saving): every change is turned away, see _writable
         this.mergeBlocked = false; // the last upload failed because the server file can't be merged, or 'etag' if the server refuses our If-Match for nothing (see _push)
         this.cache = cache || null;
+        this._cacheRev = undefined; // rev of the offline copy as this vault last wrote or read it (another one: written by another tab)
+        this._remoteFromCache = false;
+        this._stuckRev = null; // rev of another tab's version in the offline copy that _absorb couldn't merge
         this.unsynced = false; // saved locally (offline copy), the server doesn't have this version yet
         this._pending = null;
         this._chain = Promise.resolve();
@@ -252,16 +259,81 @@ export class Vault {
         return run;
     }
 
-    /** Writes the offline copy; returns true if it was stored safely. */
-    async _cacheWrite(bytes, modified) {
+    /**
+     * Writes the offline copy; returns true if it was stored safely. Two tabs with the same database share it: if another tab stored
+     * changes there that the server doesn't have yet, nothing is written (the last tab to save would drop them, and they'd be gone once
+     * that tab is closed) and the result is {other: that entry}, to merge in with _absorb. force: write anyway.
+     */
+    async _cacheWrite(bytes, modified, { force = false } = {}) {
         if (!this.cache) return false;
+        const rev = newRev();
         try {
-            await cachePut(this.cache.key, { bytes, etag: this.etag, modified, name: this.cache.name, syncDate: Date.now() });
+            const other = await cachePutUnless(this.cache.key, { bytes, etag: this.etag, modified, name: this.cache.name, syncDate: Date.now(), rev },
+                (cur) => !force && !!cur?.modified && cur.rev !== this._cacheRev);
+            if (other) return { other };
+            this._cacheRev = rev;
             return true;
         } catch (e) {
             console.warn('Could not write the offline copy', e);
             return false;
         }
+    }
+
+    /**
+     * Merges what another tab stored in the offline copy (rec) into this database, like a version from the server: per entry the newer
+     * one wins. Returns false if it opens neither with our credentials nor with the server version's, or is another database: then it
+     * stays in the offline copy as it is (it may be the only place those changes live), and it isn't tried again on every save.
+     */
+    async _absorb(rec) {
+        if (this.readOnly || (rec.rev && rec.rev === this._stuckRev)) return false;
+        const own = { pw: this._pw, kf: this._kf };
+        let other = null;
+        for (const c of own.pw === this._base.pw && own.kf === this._base.kf ? [own] : [own, this._base]) {
+            try { other = await Kdbx.load(rec.bytes, new Credentials(c.pw, c.kf)); break; } catch { /* try the next ones */ }
+        }
+        try {
+            if (other) this._mergeIn(other);
+        } catch (e) {
+            if (!(e instanceof KdbxError && e.code === Consts.ErrorCodes.MergeError)) throw e;
+            other = null;
+        }
+        if (!other) {
+            console.warn('The offline copy holds changes from another tab that can\'t be merged here');
+            this._stuckRev = rec.rev;
+            return false;
+        }
+        this._cacheRev = rec.rev;
+        this.dirty = true;
+        return true;
+    }
+
+    /**
+     * Serializes the database into _pending and stores it as the offline copy with changes the server doesn't have yet. If another
+     * tab stored its own there in the meantime, they are merged in first and the database is serialized again. Returns {stored, tabMerged}.
+     */
+    async _stage() {
+        let tabMerged = false;
+        for (let attempt = 1; ; attempt++) {
+            this.dirty = false; // changes during serialization set the flag again
+            let out;
+            try { out = await this.db.save(); } catch (e) { this.dirty = true; throw e; }
+            const r = await this._cacheWrite(out, true);
+            if (typeof r === 'boolean' || attempt >= 3 || !(await this._absorb(r.other))) {
+                this._pending = out;
+                return { stored: r === true, tabMerged };
+            }
+            tabMerged = true;
+        }
+    }
+
+    /**
+     * Stores a version the server has (uploaded or pulled) as the offline copy. Changes another tab left there are merged in and
+     * uploaded right away, so they don't depend on that tab still being open. Returns {} or, after such a merge, the result of that save.
+     */
+    async _cacheSynced(bytes) {
+        const r = await this._cacheWrite(bytes, false);
+        if (!r?.other || !(await this._absorb(r.other))) return {};
+        return { ...(await this._save()), tabMerged: true };
     }
 
     get versionLabel() {
@@ -320,7 +392,7 @@ export class Vault {
             } catch (e) {
                 this._pw = prev.pw; this._kf = prev.kf; this.db.credentials = prev.creds; this.db.meta.keyChanged = prev.keyChanged;
                 if (this._pending) { // already stored locally with the new credentials: store again with the old ones, upload follows later
-                    try { this._pending = await this.db.save(); await this._cacheWrite(this._pending, true); } catch { this.dirty = true; }
+                    try { await this._stage(); } catch { this.dirty = true; }
                 } else this.dirty = true;
                 throw e;
             }
@@ -345,8 +417,7 @@ export class Vault {
             this.db = remoteDb; // nothing local: the server version wins (like _pull)
             this.etag = remote.etag;
             this._remoteBytes = remote.buf;
-            await this._cacheWrite(remote.buf, false);
-            return { pulled: true };
+            return { pulled: true, ...(await this._cacheSynced(remote.buf)) };
         });
     }
 
@@ -888,18 +959,18 @@ export class Vault {
 
     async _save() {
         this._writable();
-        this.dirty = false; // changes during serialization set the flag again
-        let out;
-        try { out = await this.db.save(); } catch (e) { this.dirty = true; throw e; }
-        if (!this.dav) return { merged: false, bytes: out };
-        const stored = await this._cacheWrite(out, true);
-        this._pending = out;
+        if (!this.dav) {
+            this.dirty = false; // changes during serialization set the flag again
+            try { return { merged: false, bytes: await this.db.save() }; } catch (e) { this.dirty = true; throw e; }
+        }
+        const { stored, tabMerged } = await this._stage();
+        const tabs = tabMerged ? { tabMerged } : {}; // tabMerged: the database took in changes another tab had stored, the views must follow
         this.unsynced = true;
         try {
-            return await this._push();
+            return { ...(await this._push()), ...tabs };
         } catch (e) {
             if (!stored) { this.unsynced = false; this._pending = null; this.dirty = true; throw e; } // without a local copy nothing may count as "saved"
-            if (isOffline(e)) return { offline: true };
+            if (isOffline(e)) return { offline: true, ...tabs };
             throw e;
         }
     }
@@ -936,11 +1007,12 @@ export class Vault {
     async _push() {
         this.mergeBlocked = false;
         if (!this._backedUp) {
-            await this._backup(this._remoteBytes, stamp());
+            // The backup protects the server's version. Opened offline, _remoteBytes is the offline copy (with unsynced changes it was never on the server): fetch the real one
+            await this._backup(this._remoteFromCache ? (await this.dav.get()).buf : this._remoteBytes, stamp());
             this._backedUp = true;
             await this._prune();
         }
-        let merged = false;
+        let merged = false, tabMerged = false;
         for (let attempt = 1; ; attempt++) {
             const out = this._pending;
             try {
@@ -952,8 +1024,8 @@ export class Vault {
                 this._base = { pw: this._pw, kf: this._kf };
                 this.unsynced = false;
                 this._pending = null;
-                await this._cacheWrite(out, false);
-                return { merged, noBackup: this.noBackup };
+                const after = await this._cacheSynced(out);
+                return { ...after, merged: merged || !!after.merged, noBackup: this.noBackup, ...(tabMerged ? { tabMerged } : {}) };
             } catch (e) {
                 if (!(e instanceof ConflictError)) throw e;
                 if (attempt >= 3) throw new VaultError('Die Datei wird gerade von einem anderen Geraet laufend geaendert - bitte spaeter erneut speichern. Deine Aenderungen sind lokal gesichert.', 'e.busy');
@@ -972,9 +1044,8 @@ export class Vault {
                     }
                     throw err;
                 });
-                const header = this._mergedHeader(remoteDb);
                 try {
-                    this.db.merge(remoteDb);
+                    this._mergeIn(remoteDb);
                 } catch (err) {
                     if (!(err instanceof KdbxError && err.code === Consts.ErrorCodes.MergeError)) throw err;
                     // Retrying changes nothing (every attempt would leave another conflict backup behind): background sync and auto-save stand down until the user saves again
@@ -982,14 +1053,27 @@ export class Vault {
                     if (/^duplicate/.test(err.message)) throw new VaultError('Ein Eintrag oder eine Gruppe kommt doppelt vor (lokal oder auf dem Server), das laesst sich nicht zusammenfuehren.', 'e.merge.dup');
                     throw new VaultError('Die Datei auf dem Server ist eine andere Datenbank (ersetzt oder neu angelegt). Deine Aenderungen bleiben hier, zusammenfuehren geht nicht.', 'e.merge.server');
                 }
-                if (header !== this.db.header) { this.db.header = header; this.db.meta.headerHash = undefined; }
-                this._pending = await this.db.save();
+                // The offline copy names the server version the merge is based on now. Until it is written, _pending is the old version:
+                // if serializing fails, the old ETag must stay, or the next upload would overwrite the server version without merging it
+                const prev = { etag: this.etag, remoteBytes: this._remoteBytes };
                 this.etag = remote.etag;
                 this._remoteBytes = remote.buf;
-                await this._cacheWrite(this._pending, true);
+                try {
+                    if ((await this._stage()).tabMerged) tabMerged = true;
+                } catch (err) {
+                    this.etag = prev.etag; this._remoteBytes = prev.remoteBytes;
+                    throw err;
+                }
                 merged = true;
             }
         }
+    }
+
+    /** Merges another version of this database into ours, with the file header _mergedHeader picks. A different database: KdbxError MergeError. */
+    _mergeIn(other) {
+        const header = this._mergedHeader(other);
+        this.db.merge(other);
+        if (header !== this.db.header) { this.db.header = header; this.db.meta.headerHash = undefined; }
     }
 
     /**
@@ -1034,7 +1118,6 @@ export class Vault {
         this.db = remoteDb; // no local changes: the server version is authoritative
         this.etag = remote.etag;
         this._remoteBytes = remote.buf;
-        await this._cacheWrite(remote.buf, false);
-        return { pulled: true };
+        return { pulled: true, ...(await this._cacheSynced(remote.buf)) };
     }
 }

@@ -587,6 +587,7 @@ export default {
     'sync.ok': '已同步',
     'sync.pending': '已保存在本地，等待上传',
     'sync.pulled': '已应用来自另一台设备的改动。',
+    'sync.tabs': '已合并另一个打开此数据库的标签页中的改动。',
     'theme.auto': '自动（跟随系统）', 'theme.dark': '深色', 'theme.light': '浅色', 'theme.nextcloud': '与 Nextcloud 一致',
     'tools': '工具',
     'tag.delete': '移除标签',

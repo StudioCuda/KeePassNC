@@ -587,6 +587,7 @@ export default {
     'sync.ok': 'In sync',
     'sync.pending': 'Saved locally, upload pending',
     'sync.pulled': 'Changes from another device applied.',
+    'sync.tabs': 'Changes from another tab with this database merged in.',
     'theme.auto': 'Automatic (system)', 'theme.dark': 'Dark', 'theme.light': 'Light', 'theme.nextcloud': 'Same as Nextcloud',
     'tools': 'Tools',
     'tag.delete': 'Remove tag',

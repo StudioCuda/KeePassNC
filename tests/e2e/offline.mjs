@@ -1,6 +1,6 @@
 // Outage tests (standalone page): the WebDAV server really is stopped and restarted.
 // Checks: app starts without a server (service worker), opening from the offline copy, changing without a server, restart, upload,
-// merging after a foreign change in the meantime, pulling foreign changes, deleting the local data.
+// merging after a foreign change in the meantime, pulling foreign changes, two tabs sharing one offline copy, deleting the local data.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -42,21 +42,24 @@ async function main() {
     const page = await ctx.newPage();
     // The server is deliberately stopped in the middle of requests; WebKit occasionally reports that as a page error (knownFetchNoise).
     // Real, uncaught errors still get through: via uncaughtWatch as an "UNCAUGHT:" console message.
-    page.on('pageerror', (e) => { if (!knownFetchNoise(e.message)) pageErrors.push(String(e)); });
-    page.on('console', (m) => { if (m.type() === 'error' && m.text().startsWith('UNCAUGHT: ')) pageErrors.push(m.text()); });
+    const watchErrors = (p) => {
+        p.on('pageerror', (e) => { if (!knownFetchNoise(e.message)) pageErrors.push(String(e)); });
+        p.on('console', (m) => { if (m.type() === 'error' && m.text().startsWith('UNCAUGHT: ')) pageErrors.push(m.text()); });
+    };
+    watchErrors(page);
     const url = (q = '') => `${base}/?syncretry=2${q}`;
     const rows = () => page.locator('[data-testid=entry-row]');
     const status = () => page.locator('#status').innerText();
-    const waitStatus = (re, t = 25000) => page.waitForFunction((s) => new RegExp(s).test(document.querySelector('#status')?.textContent || ''), re.source, { timeout: t });
+    const waitStatus = (re, t = 25000, p = page) => p.waitForFunction((s) => new RegExp(s).test(document.querySelector('#status')?.textContent || ''), re.source, { timeout: t });
     const syncState = () => page.locator('#sync-state').getAttribute('data-state');
-    const login = async () => {
-        await page.locator('input[value=dav]').check({ force: true });
-        await page.fill('#dav-url', `${base}/dav/vault4.kdbx`); await page.fill('#dav-user', 'tester'); await page.fill('#dav-pass', 'app-secret');
-        await page.fill('#master', PW); await page.click('#open-btn');
+    const login = async (p = page) => {
+        await p.locator('input[value=dav]').check({ force: true });
+        await p.fill('#dav-url', `${base}/dav/vault4.kdbx`); await p.fill('#dav-user', 'tester'); await p.fill('#dav-pass', 'app-secret');
+        await p.fill('#master', PW); await p.click('#open-btn');
     };
-    const editUser = async (title, user) => {
-        await page.locator('[data-testid=entry-row]', { hasText: title }).click();
-        await page.click('#edit-btn'); await page.fill('#e-user', user); await page.click('#apply-btn');
+    const editUser = async (title, user, p = page) => {
+        await p.locator('[data-testid=entry-row]', { hasText: title }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', user); await p.click('#apply-btn');
     };
 
     await step('Online-Anmeldung mit Offline-Option: Offline-Kopie + App-Cache werden angelegt', async () => {
@@ -93,7 +96,7 @@ async function main() {
         expect(!xc(['show', f4, 'Web/Mail']).includes('alice-offline'), 'Server darf die Aenderung noch nicht haben');
     });
 
-    await step('Fremdaenderung auf dem Server waehrend des Ausfalls + Wiederkehr: automatische Zusammenfuehrung, beide Aenderungen vorhanden', async () => {
+    await step('Fremdaenderung auf dem Server waehrend des Ausfalls + Wiederkehr: automatische Zusammenfuehrung, beide Aenderungen vorhanden, Sicherung vor dem ersten Hochladen ist der Server-Stand', async () => {
         xc(['edit', '-q', f4, 'Bank/Konto', '--url', 'https://extern.example']); // another device, server is down
         await recover();
         await waitStatus(/zusammengef|abgeglichen/, 30000);
@@ -102,6 +105,11 @@ async function main() {
         expect(m.includes('alice-offline'), 'Offline-Aenderung fehlt auf dem Server:\n' + m);
         expect(k.includes('https://extern.example'), 'Fremdaenderung verloren:\n' + k);
         expect(fs.readdirSync(davRoot).some((n) => /\.conflict-.*\.bak$/.test(n)), 'conflict-Sicherung fehlt');
+        // Opened from the offline copy with the unsynced change: the backup before the first upload must be what the server held, not that copy
+        const baks = fs.readdirSync(davRoot).filter((n) => /^vault4\.kdbx\.\d{8}-\d{6}\.bak$/.test(n));
+        expect(baks.length === 1, 'Sicherungen: ' + baks.join(', '));
+        const bm = xc(['show', path.join(davRoot, baks[0]), 'Web/Mail']), bk = xc(['show', path.join(davRoot, baks[0]), 'Bank/Konto']);
+        expect(!bm.includes('alice-offline') && bk.includes('https://extern.example'), 'Sicherung ist nicht der Server-Stand:\n' + bm + bk);
         return await status();
     });
 
@@ -112,6 +120,35 @@ async function main() {
         xc(['edit', '-q', f4, 'Bank/Konto', '--username', 'bob-extern']);
         await page.waitForFunction(() => /bob-extern/.test(document.querySelector('[data-testid=f-user]')?.textContent || ''), null, { timeout: 20000 });
         expect(/Änderungen von einem anderen Gerät/.test(await status()), await status());
+    });
+
+    await step('Zwei Tabs mit derselben Datenbank aendern waehrend des Ausfalls, einer wird geschlossen: der andere laedt beide Aenderungen hoch', async () => {
+        await page.goto(url()); await page.locator('#login-form').waitFor();
+        await login(); await rows().first().waitFor();
+        const tab = await ctx.newPage(); // same browser profile: same IndexedDB, so both tabs share one offline copy
+        watchErrors(tab);
+        let down = false;
+        try {
+            await tab.goto(url()); await tab.locator('#login-form').waitFor();
+            await login(tab); await tab.locator('[data-testid=entry-row]').first().waitFor();
+            await outage(); down = true;
+            await editUser('Mail', 'aus-tab-zwei', tab);
+            await waitStatus(/Server nicht erreichbar/, 25000, tab);
+            await editUser('Konto', 'aus-tab-eins');
+            await waitStatus(/Server nicht erreichbar/);
+            await page.locator('.toast', { hasText: 'anderen Tab' }).waitFor({ timeout: 10000 });
+            await rows().filter({ hasText: 'Mail' }).click();
+            expect((await page.locator('[data-testid=f-user]').innerText()).trim() === 'aus-tab-zwei', 'Aenderung des anderen Tabs fehlt in der Ansicht');
+            await tab.close(); // before the server is back: its change only lives in the offline copy now
+            await recover(); down = false;
+            await page.waitForFunction(() => document.querySelector('#sync-state')?.dataset.state === 'synced', null, { timeout: 30000 });
+            const m = xc(['show', f4, 'Web/Mail']), k = xc(['show', f4, 'Bank/Konto']);
+            expect(m.includes('aus-tab-zwei'), 'Aenderung des geschlossenen Tabs fehlt auf dem Server:\n' + m);
+            expect(k.includes('aus-tab-eins'), 'Aenderung des offenen Tabs fehlt auf dem Server:\n' + k);
+        } finally { // the next steps need the server, whatever happened here
+            if (!tab.isClosed()) await tab.close();
+            if (down) await recover();
+        }
     });
 
     await step('Ohne Offline-Option: Ausfall beim Speichern -> Fehlermeldung, Aenderung bleibt ungespeichert (nichts geht still verloren); Anmeldung bei Ausfall -> klare Meldung', async () => {
