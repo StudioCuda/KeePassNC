@@ -10,6 +10,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 - An entry deleted for good on one device and changed later on another no longer vanishes when the two versions meet (a save conflict or "Merge database"): the later change wins, and the group it sits in stays too. Whatever nobody touched since the deletion still goes.
 - Merging two versions no longer throws out custom icons that nothing happens to use right now, so your icon collection survives a save conflict.
+- An entry or group moved on another device (KeePassXC included) no longer turns up twice after a save conflict or "Merge database", in its old group and in the new one, which also made every merge after that fail. It now sits only in the group it was last moved to, on whichever device. And two groups moved into each other on two devices no longer vanish together.
+- Moved an entry into a brand-new group while another device edited it? The merge no longer skips that edit.
+- A file that holds an entry twice now says so when a save runs into a conflict, instead of claiming the server has a different database.
 
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.

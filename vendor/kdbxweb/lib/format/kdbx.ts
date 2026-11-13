@@ -24,6 +24,8 @@ export interface MergeObjectMap {
     remoteEntries: Map<string, KdbxEntry>;
     remoteGroups: Map<string, KdbxGroup>;
     deleted: Map<string, Date>;
+    /** ids of the local objects that go where the remote side has them (see Kdbx.remotePlaces) */
+    remotePlace: Set<string>;
 }
 
 export class Kdbx {
@@ -432,6 +434,7 @@ export class Kdbx {
         const remoteObjectMap = remote.getObjectMap();
         objectMap.remoteEntries = remoteObjectMap.entries;
         objectMap.remoteGroups = remoteObjectMap.groups;
+        objectMap.remotePlace = Kdbx.remotePlaces(objectMap);
 
         this.meta.merge(remote.meta, objectMap);
         root.merge(objectMap);
@@ -443,6 +446,66 @@ export class Kdbx {
 
         // no custom icon cleanup here: an icon nobody uses right now may be a library icon, or used by the other side's history
         this.cleanup({ historyRules: true, binaries: true });
+    }
+
+    /**
+     * Which local objects go where the remote side has them: those moved there later than here. Decided up front, against the move
+     * times from before the merge: entry.merge and group.merge take over the newer side's times as soon as they get to an object, and
+     * that can be before the group it left is merged, which then kept it as well (the same object in two groups, saved twice).
+     * Groups the two sides moved into each other would form a loop that nothing reaches from the root (gone with everything in it):
+     * then the group whose chosen place is the older one goes to its place on the other side, the same choice from either side.
+     */
+    private static remotePlaces(objectMap: MergeObjectMap): Set<string> {
+        const remotePlace = new Set<string>();
+        const compare = <T extends KdbxEntry | KdbxGroup>(local: Map<string, T>, remote: Map<string, T>) => {
+            for (const [id, item] of local) {
+                const remoteItem = remote.get(id);
+                if (remoteItem && remoteItem.locationChanged > item.locationChanged) {
+                    remotePlace.add(id);
+                }
+            }
+        };
+        compare(objectMap.entries, objectMap.remoteEntries);
+        compare(objectMap.groups, objectMap.remoteGroups);
+        const parentId = (id: string): string | undefined => {
+            const local = objectMap.groups.get(id);
+            return (local && !remotePlace.has(id) ? local : objectMap.remoteGroups.get(id))?.parentGroup?.uuid.id;
+        };
+        const placed = (id: string) =>
+            Math.max(objectMap.groups.get(id)?.locationChanged ?? 0, objectMap.remoteGroups.get(id)?.locationChanged ?? 0);
+        const flipped = new Set<string>();
+        for (let loop = Kdbx.findLoop(objectMap.groups.keys(), parentId); loop; loop = Kdbx.findLoop(objectMap.groups.keys(), parentId)) {
+            const both = loop.filter((id) => objectMap.groups.has(id) && objectMap.remoteGroups.has(id));
+            const candidates = both.filter((id) => !flipped.has(id));
+            if (!candidates.length) {
+                both.forEach((id) => remotePlace.delete(id)); // each flipped once already: back where this side has them, a tree
+                continue;
+            }
+            const oldest = candidates.reduce((x, y) => (placed(y) < placed(x) || (placed(y) === placed(x) && y < x) ? y : x));
+            if (!remotePlace.delete(oldest)) {
+                remotePlace.add(oldest);
+            }
+            flipped.add(oldest);
+        }
+        return remotePlace;
+    }
+
+    /** A loop in the group tree that parentId describes (its ids), or undefined if every group reaches the root. */
+    private static findLoop(ids: Iterable<string>, parentId: (id: string) => string | undefined): string[] | undefined {
+        const reachesRoot = new Set<string>();
+        for (const start of ids) {
+            const path: string[] = [];
+            let id: string | undefined = start;
+            while (id !== undefined && !reachesRoot.has(id) && !path.includes(id)) {
+                path.push(id);
+                id = parentId(id);
+            }
+            if (id !== undefined && !reachesRoot.has(id)) {
+                return path.slice(path.indexOf(id));
+            }
+            path.forEach((x) => reachesRoot.add(x));
+        }
+        return undefined;
     }
 
     /**
@@ -609,7 +672,8 @@ export class Kdbx {
             groups: new Map<string, KdbxGroup>(),
             remoteEntries: new Map<string, KdbxEntry>(),
             remoteGroups: new Map<string, KdbxGroup>(),
-            deleted: new Map<string, Date>()
+            deleted: new Map<string, Date>(),
+            remotePlace: new Set<string>()
         };
         for (const item of this.getDefaultGroup().allGroupsAndEntries()) {
             if (objectMap.entries.has(item.uuid.id)) {
