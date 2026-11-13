@@ -94,6 +94,26 @@ export class VaultError extends Error {
 
 export const fieldText = valueText;
 
+/** Line endings don't count: a form field only hands back \n, an entry from KeePass 2 may hold \r\n (or a lone \r). */
+function sameText(stored, given) {
+    const a = valueText(stored), b = given ?? '';
+    return a === b || a.replace(/\r\n?/g, '\n') === b.replace(/\r\n?/g, '\n');
+}
+
+/**
+ * Custom field names count exactly as given: KeePass allows spaces around them, so " PIN " and "PIN" are two fields. A name given
+ * twice, or the name of a field the entry has anyway (Title ... Notes, TOTP, passkey, KeePassHttp), would replace that field: refused.
+ */
+export function checkFieldNames(custom) {
+    const seen = new Set();
+    for (const { name } of custom || []) {
+        if (!name) continue;
+        if (STANDARD_FIELDS.includes(name) || isSystemField(name)) throw new VaultError(`Den Feldnamen "${name}" hat der Eintrag schon fuer eines seiner eigenen Felder.`, 'e.field.reserved', { name });
+        if (seen.has(name)) throw new VaultError(`Zwei Felder heissen "${name}".`, 'e.field.dup', { name });
+        seen.add(name);
+    }
+}
+
 export function isProtected(v) {
     return v instanceof ProtectedValue;
 }
@@ -423,30 +443,31 @@ export class Vault {
      * data: {Title, UserName, Password, URL, Notes, tags: string[], custom: [{name, value, protect}], expires?: boolean, expiryTime?: Date|null, otp?: string,
      *   icon?: number, customIcon?: string|null, excludeReports?: boolean, color?: string, attachments?: {remove: string[], add: Map<name, binary from makeBinary>}}
      *   (icon: see _setIcon; color: "#rrggbb" or ""; attachments: removals first, then additions, so a name can be replaced)
-     * Everything the editor doesn't show stays unchanged (passkey fields, browser data, colors, auto-type ...). Without an actual change
-     * no history entry is created (like in KeePassXC).
+     * Everything the editor doesn't show stays unchanged (passkey fields, browser data, colors, auto-type ...), and so does every value
+     * that didn't change (line endings don't count, see sameText). Without an actual change no history entry is created (like in KeePassXC).
+     * Custom field names are used exactly as given; one that is taken is refused before anything changes (checkFieldNames).
      */
     applyEntry(entry, group, data) {
         this._writable();
+        checkFieldNames(data.custom);
         const isNew = !entry;
         if (isNew) entry = this.db.createEntry(group);
         else if (!this.entryDiffers(entry, data)) return entry;
         else this._pushHistory(entry);
-        const set = (k, v) => entry.fields.set(k, v);
+        const set = (k, v, protect) => { if (isNew || !entry.fields.has(k) || !sameText(entry.fields.get(k), v)) entry.fields.set(k, protect ? ProtectedValue.fromString(v) : v); };
         set('Title', data.Title ?? '');
         set('UserName', data.UserName ?? '');
-        set('Password', ProtectedValue.fromString(data.Password ?? ''));
+        set('Password', data.Password ?? '', true);
         set('URL', data.URL ?? '');
         set('Notes', data.Notes ?? '');
         entry.tags = [...new Set((data.tags || []).map((t) => t.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
         const wanted = new Set();
         for (const c of data.custom || []) {
-            const name = (c.name || '').trim();
-            if (!name || STANDARD_FIELDS.includes(name) || isSystemField(name)) continue;
-            wanted.add(name);
-            const old = entry.fields.get(name);
-            const same = old !== undefined && valueText(old) === (c.value ?? '') && isProtected(old) === !!c.protect;
-            if (!same) entry.fields.set(name, c.protect ? ProtectedValue.fromString(c.value ?? '') : (c.value ?? ''));
+            if (!c.name) continue;
+            wanted.add(c.name);
+            const old = entry.fields.get(c.name);
+            const same = old !== undefined && sameText(old, c.value) && isProtected(old) === !!c.protect;
+            if (!same) entry.fields.set(c.name, c.protect ? ProtectedValue.fromString(c.value ?? '') : (c.value ?? ''));
         }
         for (const k of [...entry.fields.keys()]) if (!STANDARD_FIELDS.includes(k) && !isSystemField(k) && !wanted.has(k)) entry.fields.delete(k);
         if (data.otp !== undefined) {
@@ -489,14 +510,14 @@ export class Vault {
 
     /** true if the form values differ from the stored entry. */
     entryDiffers(entry, data) {
-        const same = (k, v) => valueText(entry.fields.get(k)) === (v ?? '');
+        const same = (k, v) => sameText(entry.fields.get(k), v);
         if (!(same('Title', data.Title) && same('UserName', data.UserName) && same('Password', data.Password) && same('URL', data.URL) && same('Notes', data.Notes))) return true;
         const tags = [...new Set((data.tags || []).map((t) => t.trim()).filter(Boolean))].sort().join('\n');
         if (tags !== [...entry.tags].sort().join('\n')) return true;
-        const custom = (data.custom || []).filter((c) => (c.name || '').trim() && !STANDARD_FIELDS.includes(c.name.trim()) && !isSystemField(c.name.trim()));
+        const custom = (data.custom || []).filter((c) => c.name && !STANDARD_FIELDS.includes(c.name) && !isSystemField(c.name));
         const existing = [...entry.fields].filter(([k]) => !STANDARD_FIELDS.includes(k) && !isSystemField(k));
         if (custom.length !== existing.length) return true;
-        for (const c of custom) { const o = entry.fields.get(c.name.trim()); if (o === undefined || valueText(o) !== (c.value ?? '') || isProtected(o) !== !!c.protect) return true; }
+        for (const c of custom) { const o = entry.fields.get(c.name); if (o === undefined || !sameText(o, c.value) || isProtected(o) !== !!c.protect) return true; }
         if (data.otp !== undefined) { const cur = valueText(entry.fields.get('otp')); if ((data.otp || '') !== cur && !(data.otp === '' && !entry.fields.has('otp') && !entry.fields.has('TOTP Seed'))) return true; }
         if (data.expires !== undefined) {
             if (!!data.expires !== !!entry.times.expires) return true;

@@ -323,7 +323,8 @@ export function installGlobalListeners() {
     addEventListener('unhandledrejection', readOnlyNote);
     addEventListener('error', readOnlyNote);
     for (const ev of ['mousemove', 'keydown', 'click', 'touchstart']) addEventListener(ev, () => { state.lastActivity = Date.now(); }, { passive: true });
-    addEventListener('beforeunload', (e) => { if (state.vault?.dirty) { e.preventDefault(); e.returnValue = ''; } });
+    // Closing the tab asks with unsaved changes, and with changes in the entry editor not applied yet (open, or waiting in the soft lock)
+    addEventListener('beforeunload', (e) => { if (state.vault?.dirty || ctx.ui.editorChanged?.()) { e.preventDefault(); e.returnValue = ''; } });
     addEventListener('online', () => { if (state.vault?.unsynced || state.offlineMode) syncNow({ announce: true }); });
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) { state.hiddenSince = Date.now(); return; }

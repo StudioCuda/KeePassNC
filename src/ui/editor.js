@@ -1,10 +1,10 @@
 // Create/edit an entry. Fields that aren't shown (passkeys, browser data, Auto-Type ...) stay unchanged in the vault (see Vault.applyEntry).
-import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
+import { fieldText, isProtected, STANDARD_FIELDS, checkFieldNames } from '../vault.js';
 import { isSystemField, entryExpiry, entryColor, ENTRY_COLORS, splitTags, toOtpUri } from '../core/util.js';
 import { excluded, reusedBy } from '../core/audit.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
-import { h, icon, iconBtn, toast } from './dom.js';
+import { h, icon, iconBtn, toast, confirmDialog } from './dom.js';
 import { changed, isSwapping, refreshDirtyIndicator } from './session.js';
 import { strengthBar, binData, sizeLabel } from './detail.js';
 import { groupSelect, selectedGroup } from './groups.js';
@@ -18,17 +18,21 @@ const firstGroup = () => state.vault.root.groups.find((x) => x !== state.vault.r
 
 /**
  * state.editing = {entry|null, group} plus, once the form is built: form, collect() (the form's values), relink(), base (the values it
- * started with) and gone (the entry was deleted meanwhile). While the soft lock hides the view the form is gone and draft holds the values.
+ * started with), gone (the entry was deleted meanwhile) and applying (Apply is running). While the soft lock hides the view the form is
+ * gone and draft holds the values.
  */
-export function startEdit(entry, group) {
+export async function startEdit(entry, group) {
     if (state.vault.readOnly) { setStatus(errText(state.vault.readOnlyError()), 'warn'); return; }
     if (isSwapping()) { setStatus(t('sync.busy'), 'warn'); return; } // a pull in flight would swap the database under the editor
+    if (state.editing && !(await leaveEditor())) return; // "New" while another entry is still being edited
     const g = entry?.parentGroup || group || (state.filter.type === 'group' && state.filter.group !== state.vault.recycleBin ? state.filter.group : null) || firstGroup();
     state.editing = { entry, group: g };
     state.view = 'detail';
     ctx.ui.refresh();
 }
 export function cancelEdit() { state.editing = null; ctx.ui.refresh(); }
+/** Back and Escape leave the editor like a click elsewhere does: with changes not applied yet they ask first. Cancel throws them away. */
+export async function leaveEdit() { if (state.editing && await leaveEditor()) ctx.ui.refresh(); }
 
 /** Compares two sets of form values (collect()); attachments by name, a new icon by its picture. */
 const draftKey = (d) => JSON.stringify({ ...d, generated: undefined, att: [[...d.att.add.keys()], [...d.att.remove]], iconSel: [d.iconSel.icon, d.iconSel.custom, d.iconSel.add?.url ?? null] });
@@ -38,6 +42,27 @@ export function editorChanged() {
     const ed = state.editing;
     const now = ed && (ed.draft || ed.collect?.());
     return !!now && draftKey(now) !== draftKey(ed.base);
+}
+
+let leaving = false; // the question below is open
+
+/**
+ * Before the editor makes way for something else (another entry, a new one, the command palette, Back, Escape): typed or picked
+ * something that isn't applied yet? Then ask, like locking does. true: go ahead, the editor is closed (state.editing = null);
+ * false: "Keep editing", and the editor comes back into view if a search had moved it aside (phone).
+ */
+export async function leaveEditor() {
+    const ed = state.editing;
+    if (!ed) return true;
+    if (ed.applying || leaving) return false; // Apply is still storing attachments and closes the editor itself in a moment; or we ask already
+    if (!editorChanged()) { state.editing = null; return true; }
+    leaving = true;
+    let discard;
+    try { discard = await confirmDialog({ title: t('edit.leave.title'), message: t('edit.leave'), confirmLabel: t('edit.leave.discard'), cancelLabel: t('lock.editing.keep'), danger: true }); } finally { leaving = false; }
+    if (state.editing !== ed || state.softLocked) return false; // the auto-lock came first: the draft waits in the soft lock
+    if (discard) { state.editing = null; return true; }
+    state.view = 'detail'; ctx.ui.applyView();
+    return false;
 }
 
 /**
@@ -92,7 +117,8 @@ export function renderEditor(host) {
     i.Notes.value = val('Notes');
     const exp = entryExpiry(entry || {});
     const dateStr = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    i.expiry.value = exp ? dateStr(exp) : dateStr(new Date(Date.now() + 365 * 86400000));
+    // Expires, but the file has no date for it (KeePass files can hold that): the box stays ticked and the date empty until one is picked
+    i.expiry.value = exp ? dateStr(exp) : entry?.times.expires ? '' : dateStr(new Date(Date.now() + 365 * 86400000));
     i.expiry.disabled = !i.expires.checked;
     i.expires.addEventListener('change', () => { i.expiry.disabled = !i.expires.checked; });
     const groupSel = groupSelect({ value: group, id: 'e-group' });
@@ -143,7 +169,7 @@ export function renderEditor(host) {
     // Values are multi-line (text area). Protected values sit hidden in a password field (display only) and only become
     // editable after a click on the eye; an <input> would lose line breaks on save.
     const lineCount = (v) => Math.min(12, v.split('\n').length);
-    const addCustom = (name = '', value = '', protect = false) => {
+    const addCustom = (name = '', value = '', protect = false, orig = name) => {
         const val = h('textarea', { placeholder: t('field.value'), class: 'c-value', 'aria-label': t('field.value'), rows: lineCount(value), autocomplete: 'off', spellcheck: 'false' });
         val.value = value;
         val.addEventListener('input', () => { val.rows = lineCount(val.value); });
@@ -161,6 +187,7 @@ export function renderEditor(host) {
             iconBtn('x', t('remove'), () => row.remove(), { type: 'button' }));
         // Windows line endings (KeePass 2) are kept as long as the value hasn't changed (text areas only deliver \n)
         row.customValue = () => (val.value === value.replace(/\r\n?/g, '\n') ? value : val.value);
+        row.origName = orig; // the field's name in the entry ('' for a new one): kept exactly, spaces and all, unless it is edited
         eye.hidden = !protect; setMasked(protect);
         customBox.append(row);
         return row;
@@ -205,13 +232,14 @@ export function renderEditor(host) {
     for (const k of [...allFields].sort()) fieldSugg.append(h('option', { value: k }));
 
     const goneNote = h('p', { class: 'level-note warn', id: 'e-gone', role: 'status', hidden: !ed.gone, text: t('entry.gone') });
+    const applyBtn = h('button', { type: 'submit', class: 'primary', id: 'apply-btn' }, icon('check'), h('span', { text: t('apply') }));
     const form = h('form', { class: 'editor', id: 'edit-form', novalidate: true },
         h('header', { class: 'detail-head' },
-            iconBtn('chevronLeft', t('back'), cancelEdit, { class: 'back-btn', type: 'button' }),
+            iconBtn('chevronLeft', t('back'), leaveEdit, { class: 'back-btn', type: 'button' }),
             h('h2', { text: entry ? t('entry.edit') : t('entry.new') }),
             h('div', { class: 'dh-actions' },
                 h('button', { type: 'button', id: 'cancel-btn', onclick: cancelEdit, text: t('cancel') }),
-                h('button', { type: 'submit', class: 'primary', id: 'apply-btn' }, icon('check'), h('span', { text: t('apply') })))),
+                applyBtn)),
         h('div', { class: 'detail-body' }, goneNote,
             h('section', { class: 'card stack' },
                 h('div', { class: 'title-row' }, iconBtnEl, h('label', { class: 'grow' }, h('span', { text: t('f.title') }), i.Title)),
@@ -232,7 +260,7 @@ export function renderEditor(host) {
     const collect = () => ({
         Title: i.Title.value, UserName: i.UserName.value, Password: i.Password.value, URL: i.URL.value, Notes: i.Notes.value, tags: i.tags.value, otp: i.otp.value,
         expires: i.expires.checked, expiry: i.expiry.value, excludeReports: i.excludeReports.checked, group: groupSel.value, color: colorBox.querySelector(':checked')?.value ?? '',
-        custom: [...customBox.querySelectorAll('.custom-row')].map((r) => ({ name: r.querySelector('.c-name').value, value: r.customValue(), protect: r.querySelector('.c-protect').checked })),
+        custom: [...customBox.querySelectorAll('.custom-row')].map((r) => ({ name: r.querySelector('.c-name').value, orig: r.origName, value: r.customValue(), protect: r.querySelector('.c-protect').checked })),
         iconSel, att: { add: new Map(att.add), remove: new Set(att.remove) }, generated
     });
     const restore = (d) => {
@@ -240,7 +268,7 @@ export function renderEditor(host) {
         i.expires.checked = d.expires; i.expiry.disabled = !d.expires; i.excludeReports.checked = d.excludeReports;
         if ([...groupSel.options].some((o) => o.value === d.group)) groupSel.value = d.group; // a group deleted meanwhile: the entry's own stays chosen
         for (const r of colorBox.querySelectorAll('input')) r.checked = r.value === d.color;
-        customBox.replaceChildren(); for (const c of d.custom) addCustom(c.name, c.value, c.protect);
+        customBox.replaceChildren(); for (const c of d.custom) addCustom(c.name, c.value, c.protect, c.orig);
         iconSel = d.iconSel; att.add = new Map(d.att.add); att.remove = new Set(d.att.remove); generated = d.generated;
         showIcon(); renderAtt(); i.Password.dispatchEvent(new Event('input')); // strength meter and the note on reused passwords
     };
@@ -259,28 +287,38 @@ export function renderEditor(host) {
     ed.base ??= collect();
     if (ed.draft) { restore(ed.draft); ed.draft = null; }
 
-    form.addEventListener('submit', async (ev) => {
-        ev.preventDefault();
+    // The name a custom field gets: an untouched one keeps its name exactly (KeePass allows spaces around it), a typed one is trimmed
+    const fieldName = (c) => (c.name === c.orig ? c.name : c.name.trim());
+    const apply = async () => {
+        const d = collect();
+        const custom = d.custom.map((c) => ({ name: fieldName(c), value: c.value, protect: c.protect }));
+        try { checkFieldNames(custom); } catch (err) { // a name that is taken would replace that field: say so, nothing is stored
+            setStatus(errText(err), 'error');
+            const rows = [...customBox.querySelectorAll('.custom-row')].filter((r, n) => custom[n].name === err.vars?.name);
+            (rows.find((r) => r.querySelector('.c-name').value !== r.origName) || rows.pop())?.querySelector('.c-name').focus();
+            return;
+        }
         relocate(ed); // a merge may have come in since the last redraw
         goneNote.hidden = !ed.gone;
         const old = ed.entry, entry = ed.gone ? null : old;
         const added = new Map();
         try {
             // Deleted meanwhile: the entry comes back as a new one, with the attachments the editor still lists (stored again, the merge dropped them)
-            if (ed.gone) for (const [name, bin] of old.binaries) if (!att.remove.has(name)) added.set(name, await v.makeBinary(bin?.hash ? bin.value : bin));
-            for (const [name, f] of att.add) added.set(name, await v.makeBinary(await f.arrayBuffer()));
+            if (ed.gone) for (const [name, bin] of old.binaries) if (!d.att.remove.has(name)) added.set(name, await v.makeBinary(bin?.hash ? bin.value : bin));
+            for (const [name, f] of d.att.add) added.set(name, await v.makeBinary(await f.arrayBuffer()));
         } catch (err) { setStatus(errText(err), 'error'); return; }
-        const d = collect();
+        // Closed (Cancel, a lock) or built anew (soft lock, other language) while the attachments were stored: nothing is applied
+        if (state.editing !== ed || ed.form !== form) return;
         const data = {
             Title: d.Title, UserName: d.UserName, Password: d.Password, URL: d.URL, Notes: d.Notes,
-            tags: splitTags(d.tags), custom: d.custom,
+            tags: splitTags(d.tags), custom,
             expires: d.expires, expiryTime: d.expires && d.expiry ? new Date(d.expiry + 'T23:59:59') : null,
-            ...commitIconSel(iconSel),
+            ...commitIconSel(d.iconSel),
             excludeReports: d.excludeReports,
-            attachments: { remove: [...att.remove], add: added },
+            attachments: { remove: [...d.att.remove], add: added },
             color: d.color
         };
-        if (d.expires && old?.times.expires && d.expiry === dateStr(old.times.expiryTime)) data.expiryTime = old.times.expiryTime; // leave the time of day unchanged
+        if (d.expires && old?.times.expires && old.times.expiryTime && d.expiry === dateStr(old.times.expiryTime)) data.expiryTime = old.times.expiryTime; // leave the time of day unchanged
         // Only a TOTP that was changed here is written: one that came in with a merge stays (and an entry created again needs its own)
         if (ed.gone ? d.otp.trim() : d.otp.trim() !== ed.base.otp) {
             data.otp = toOtpUri(d.otp, d.Title, d.UserName); // a bare secret is completed like KeePassXC does
@@ -293,6 +331,13 @@ export function renderEditor(host) {
         state.editing = null;
         changed();
         setStatus(recreated ? t('applied.recreated') : ctx.settings.autosync === 'change' && state.source.type === 'dav' ? t('applied.auto') : t('applied'));
+    };
+    form.addEventListener('submit', async (ev) => {
+        ev.preventDefault();
+        // One Apply at a time: a second click while the first one still stores the attachments would create a new entry twice
+        if (ed.applying) return;
+        ed.applying = true; applyBtn.disabled = true;
+        try { await apply(); } finally { ed.applying = false; applyBtn.disabled = false; }
     });
     form.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) form.requestSubmit(); });
     host.replaceChildren(form);
