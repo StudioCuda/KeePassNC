@@ -7,6 +7,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
 
+### Fixed
+- An entry deleted for good on one device and changed later on another no longer vanishes when the two versions meet (a save conflict or "Merge database"): the later change wins, and the group it sits in stays too. Whatever nobody touched since the deletion still goes.
+- Merging two versions no longer throws out custom icons that nothing happens to use right now, so your icon collection survives a save conflict.
+
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
 

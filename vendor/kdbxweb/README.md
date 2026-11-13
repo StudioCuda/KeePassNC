@@ -2,8 +2,8 @@
 
 [kdbxweb](https://github.com/keeweb/kdbxweb) by Antelle, MIT (see `LICENSE`). Git state `UPSTREAM_COMMIT` (2.2.0, npm stops at 2.1.1).
 
-Six local fixes and one addition, all already applied in `lib/`. The diffs in `patches/` record what changed, so it can be carried
-over after an update. They are not uniform: four are `git diff` output with different path prefixes (`a/lib/...` or
+Seven local fixes and one addition, all already applied in `lib/`. The diffs in `patches/` record what changed, so it can be carried
+over after an update. They are not uniform: six are `git diff` output with different path prefixes (`a/lib/...` or
 `a/vendor/kdbxweb/lib/...`, and `date-overflow-fix.patch` doesn't apply cleanly to `UPSTREAM_COMMIT` as it is), `xml-tab-fix.patch` and
 `history-customdata-fix.patch` are plain `diff` output. Read them as a list of changes to redo, not as something to feed to
 `git apply`. A comparison of `lib/` with `UPSTREAM_COMMIT` (second review of 0.18.0) found exactly these changes and nothing else.
@@ -18,3 +18,4 @@ over after an update. They are not uniform: four are `git diff` output with diff
 - `twofish.patch`: Twofish-256 as a third cipher next to AES and ChaCha20 (`lib/crypto/twofish.ts`, written from the 1998
   specification), so files KeePassXC encrypted with Twofish open and save. Upstream never had it.
 - `aes-rounds-limit.patch`: `KeyEncryptorAes.encrypt` refuses more than 1 000 000 000 rounds (`KdbxError` `Unsupported`, "too many aes rounds"). The round count comes from the file header; the app asks before opening files over 100 million rounds (`src/core/kdf-policy.js`) and this is the limit behind that question.
+- `merge-tombstones-fix.patch`: `Kdbx.merge` no longer treats every tombstone as final, and no longer purges custom icons. Upstream skipped every item with a tombstone before comparing any times, so an entry deleted for good on one device and changed later on the other was lost. Now deleted items are merged like the others, then the tombstones of both sides (one per object, the later deletion time) are applied to the merged tree, children first, like the synchronize mode of KeePass 2: an entry or group changed after its deletion stays and loses its tombstone, a group only goes once it is empty, times count in whole seconds. Unlike KeePass 2, a move counts as a change (restoring from the recycle bin only moves the entry). Icon tombstones work the same way against the icon's own time and the newest entry or group using it; references to a deleted icon are cleared, history included. And `merge()` no longer ends with `cleanup({ customIcons: true })`, which deleted every icon unused at that moment and wrote tombstones for them (library icons, icons the other side still uses); KeePass 2 and KeePassXC don't purge on merge either. Made on top of `enable-searching-fix.patch` (both touch `kdbx-group.ts`).

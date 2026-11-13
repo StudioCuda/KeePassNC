@@ -294,6 +294,31 @@ async function main() {
         if (!s1.includes('bob-aus-A') || !s2.includes('aus-B.example')) throw new Error('Merge unvollstaendig:\n' + s1 + s2);
     });
 
+    // 6b) Merge against tombstones as KeePassXC writes them: an entry KeePassXC deleted for good survives if the kdbxweb copy
+    // changed it later, and stays deleted if the change came first. The stale tombstone is dropped, KeePassXC reads the result.
+    await t('Merge: in KeePassXC endgueltig geloescht, in der kdbxweb-Kopie spaeter geaendert -> bleibt; vorher geaendert -> weg', async () => {
+        const fa = path.join(TMP, 'del-A.kdbx'), fx = path.join(TMP, 'del-XC.kdbx');
+        const { db, cred } = await makeDb({ version: 4, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2id });
+        await populate(db); await save(db, fa); fs.copyFileSync(fa, fx);
+        const entry = (d: any, title: string) => [...d.getDefaultGroup().allEntries()].find((x: any) => x.fields.get('Title') === title);
+        const konto = entry(db, 'Konto'), mailId = entry(db, 'Mail').uuid.id, kontoId = konto.uuid.id;
+        konto.fields.set('UserName', 'bob-vorher'); konto.times.update(); await save(db, fa); // before KeePassXC deletes it
+        await new Promise(r => setTimeout(r, 1100));
+        for (const p of ['Web äöü/Mail', 'Recycle Bin/Mail', 'Web äöü/Unter–Gruppe/Konto', 'Recycle Bin/Konto']) xc(['rm', fx, p], fx); // bin, then for good
+        await new Promise(r => setTimeout(r, 1100));
+        const A = await Kdbx.load(ab(fs.readFileSync(fa)), cred), X = await Kdbx.load(ab(fs.readFileSync(fx)), cred);
+        if (!X.deletedObjects.some((d: any) => d.uuid.id === mailId) || !X.deletedObjects.some((d: any) => d.uuid.id === kontoId)) throw new Error('KeePassXC schrieb keine Loeschmarken');
+        const mail = entry(A, 'Mail'); mail.fields.set('URL', 'https://spaeter.example'); mail.times.update();
+        A.merge(X); await save(A, fa);
+        if (entry(A, 'Konto')) throw new Error('Konto (vor dem Loeschen geaendert) ist wieder da');
+        const ids = A.deletedObjects.map((d: any) => d.uuid.id);
+        if (ids.includes(mailId) || !ids.includes(kontoId)) throw new Error('Loeschmarken nach dem Merge: Mail ' + ids.includes(mailId) + ', Konto ' + ids.includes(kontoId));
+        const show = xc(['show', fa, 'Web äöü/Mail'], fa) as string;
+        if (!show.includes('spaeter.example')) throw new Error('KeePassXC sieht Mail nicht:\n' + show);
+        const ls = xc(['ls', '-R', fa], fa) as string;
+        if (ls.includes('Konto')) throw new Error('KeePassXC sieht Konto noch:\n' + ls);
+    });
+
     // 7) Known edge case: file without EnableSearching fields (e.g. from pykeepass)
     await t('Randfall: Gruppen ohne EnableSearching/EnableAutoType (pykeepass-Datei) -> KeePassXC liest Ergebnis', async () => {
         const src = path.join(TMP, 'py.kdbx');
