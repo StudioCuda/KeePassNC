@@ -1,10 +1,10 @@
 // Main view: header, three columns (sidebar | list | details), mobile navigation, keyboard shortcuts, command palette.
-import { t, errText } from '../i18n.js';
+import { t } from '../i18n.js';
 import { fieldOf, domainOf, hasTotp, isPasskey, entryColor, openableUrl } from '../core/util.js';
 import { SORTS } from './common.js';
 import { ctx, copy, applyTheme, clearMarks, setStatus } from './ctx.js';
 import { $, h, icon, iconBtn, modal } from './dom.js';
-import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl, otpConfigOf } from './common.js';
+import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl, otpConfigOf, otpProblem } from './common.js';
 import { renderSidebar, newGroup, setFilter, startEntryDrag, emptyBin, tagMenu } from './groups.js';
 import { renderDetail, deleteEntry, stopDetailTimers } from './detail.js';
 import { pruneMarks, markClick, selectAll, selectionBar, deleteEntries } from './selection.js';
@@ -20,9 +20,11 @@ import { saveSettings } from '../settings.js';
 import { installMobileNav } from './mobile-nav.js';
 
 const { state } = ctx;
-/** The current code is made at the moment of the click, as in the detail view. */
+/** The current code is made at the moment of the click, as in the detail view; settings that make no code say so and copy nothing. */
 async function copyTotp(e) {
-    try { const cfg = otpConfigOf(e); if (cfg) await copy((await totp(cfg)).code, 'TOTP'); } catch (err) { setStatus(errText(err), 'error'); }
+    let code;
+    try { const cfg = otpConfigOf(e); code = cfg && (await totp(cfg)).code; } catch (err) { setStatus(t('totp.nocopy', { reason: otpProblem(err) }), 'error'); return; }
+    if (code) await copy(code, 'TOTP'); else setStatus(t('totp.nocopy', { reason: otpProblem(null) }), 'error');
 }
 const LIMIT = 200;
 let shown = LIMIT;

@@ -1,4 +1,6 @@
 // Small DOM-free helpers (also usable in Node tests).
+import { TIME_OTP_SECRET_FIELDS } from '../totp.js';
+
 export function valueText(v) {
     if (v === undefined || v === null) return '';
     return typeof v === 'string' ? v : v.getText();
@@ -33,16 +35,25 @@ export function groupPath(group) {
 /** Fields that make up a passkey (KeePassXC: KPEX_PASSKEY_*; KPXC_PASSKEY_* carried along as in isSystemField). */
 export const isPasskeyField = (name) => /^(KPEX|KPXC)_PASSKEY_/.test(name);
 export const isPasskey = (entry) => entry.fields.has('KPEX_PASSKEY_CREDENTIAL_ID') || entry.fields.has('KPEX_PASSKEY_PRIVATE_KEY_PEM');
-export const hasTotp = (entry) => entry.fields.has('otp') || entry.fields.has('TOTP Seed') || [...entry.fields.keys()].some((k) => k.startsWith('TimeOtp-'));
+/**
+ * A TOTP secret in any of the places src/totp.js reads (parseOtpConfig): badge, filter, has:totp and the quick button agree on it.
+ * Runs for every row of the list, so protected values are only measured, not decrypted.
+ */
+const filled = (v) => !!v && (typeof v === 'string' ? !!v.trim() : v.byteLength > 0);
+export const hasTotp = (entry) => ['otp', 'TOTP Seed', ...TIME_OTP_SECRET_FIELDS].some((k) => filled(entry.fields.get(k)));
+/** Fields that make up a TOTP: KeePassXC's "otp", the old "TOTP Seed"/"TOTP Settings", KeePass 2's TimeOtp-*. */
+export const isOtpField = (name) => name === 'otp' || name === 'TOTP Seed' || name === 'TOTP Settings' || name.startsWith('TimeOtp-');
 /**
  * otpauth URI for what a user typed or an import carried: a full URI stays as it is, a bare Base32 secret is completed the way
- * KeePassXC does (label "title:user", issuer, 30 s, 6 digits).
+ * KeePassXC does (label "title:user", issuer, 30 s, 6 digits). Bitwarden's Steam Guard form steam://SECRET gets KeePassXC's
+ * encoder=steam (5 characters). The KeeOtp plugin's "key=…&step=…" stays as it is, KeePassXC reads it too.
  */
 export function toOtpUri(input, title, user) {
     const o = String(input || '').trim();
-    if (!o || /^otpauth:\/\//i.test(o)) return o;
+    if (!o || /^otpauth:\/\//i.test(o) || /(^|&)key=/i.test(o)) return o;
+    const steam = /^steam:\/\//i.test(o);
     const issuer = encodeURIComponent(title || 'KeePassNC');
-    return `otpauth://totp/${issuer}${user ? ':' + encodeURIComponent(user) : ''}?secret=${o.replace(/[\s-]/g, '').toUpperCase()}&period=30&digits=6&issuer=${issuer}`;
+    return `otpauth://totp/${issuer}${user ? ':' + encodeURIComponent(user) : ''}?secret=${(steam ? o.slice(8) : o).replace(/[\s-]/g, '').toUpperCase()}&period=30&digits=${steam ? 5 : 6}&issuer=${issuer}${steam ? '&encoder=steam' : ''}`;
 }
 /** Detects "not enough memory" from WebAssembly/Argon2; browsers report it inconsistently (RangeError, RuntimeError, text messages). */
 export const isOutOfMemory = (e) => !!e && (e instanceof RangeError

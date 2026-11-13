@@ -6,6 +6,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
+- Changing an entry's TOTP in KeePassNC now replaces the older TOTP fields too (`TOTP Seed`, KeePass 2's `TimeOtp-*`), so KeePassXC and KeePass 2 stop making codes from the old secret. The editor shows a TOTP from those fields as well, so you can see, change or remove it.
+
+### Fixed
+- Entries with KeePass 2's own TOTP (the `TimeOtp-*` fields) wore the TOTP badge but never showed a code. Now they do: in the entry, behind the quick button and in the CSV export. Same for the KeeOtp plugin's format and a bare secret in the `otp` field.
+- TOTP settings that can't make a code (a broken secret, an unknown algorithm) say so in the entry instead of showing "------" forever, and the quick button tells you rather than copying nothing.
+- A TOTP algorithm spelled `SHA-256`, `HMAC-SHA-256` or `HmacSHA256` works now, not just `SHA256`.
+- The CSV export of an old-style TOTP without settings (`TOTP Seed` alone) left the period empty, and KeePassXC took that as one second after the import. Back to 30 seconds.
+- Bitwarden's Steam Guard codes (`steam://…`) arrive from the import as proper five-character Steam codes.
 
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.

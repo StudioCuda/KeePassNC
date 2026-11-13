@@ -367,6 +367,51 @@ async function main() {
         if (kdbxweb.XmlUtils.getDate(node).getUTCFullYear() !== 1) throw new Error('Jahr 1 falsch');
     });
 
+    // 8) TOTP formats with KeePassXC as the reference: it reads KeePass 2's TimeOtp-Secret-Base32 (with length, period and algorithm)
+    // itself; the other TimeOtp-* secrets, a "TOTP Seed" without settings and Bitwarden's steam:// go through the TOTP column of our
+    // CSV export, which KeePassXC's CSV import parses like an "otp" field. Same file, same moment: the codes must match.
+    await t('TOTP: KeePass 2 TimeOtp-* read like KeePassXC; the TOTP column of our CSV export gives KeePassXC the same codes', async () => {
+        const { parseOtpConfig, totp } = require('../../src/totp.js');
+        const { otpUri, toCsv, parseCsv } = require('../../src/core/csv.js');
+        const { toOtpUri } = require('../../src/core/util.js');
+        const RFC = '12345678901234567890', B32 = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+        const native: Record<string, Record<string, string>> = {
+            'KP2 Base32': { 'TimeOtp-Secret-Base32': B32, 'TimeOtp-Length': '8', 'TimeOtp-Period': '60', 'TimeOtp-Algorithm': 'HMAC-SHA-256' }
+        };
+        const viaCsv: Record<string, Record<string, string>> = {
+            'KP2 Text': { 'TimeOtp-Secret': RFC, 'TimeOtp-Algorithm': 'HMAC-SHA-512' },
+            'KP2 Hex': { 'TimeOtp-Secret-Hex': Buffer.from(RFC).toString('hex'), 'TimeOtp-Length': '7' },
+            'KP2 Base64': { 'TimeOtp-Secret-Base64': Buffer.from(RFC).toString('base64'), 'TimeOtp-Period': '45' },
+            'Seed only': { 'TOTP Seed': 'JBSWY3DPEHPK3PXP' },
+            'Seed 60': { 'TOTP Seed': 'JBSWY3DPEHPK3PXP', 'TOTP Settings': '60' },
+            'Steam': { otp: toOtpUri('steam://' + B32, 'Steam', 'anna') }
+        };
+        const file = path.join(TMP, 'totp-formats.kdbx');
+        const { db } = await makeDb({ version: 4, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2id });
+        const root = db.getDefaultGroup();
+        const add = (title: string, fields: Record<string, string>) => {
+            const e = db.createEntry(root); e.fields.set('Title', title);
+            for (const [k, v] of Object.entries(fields)) e.fields.set(k, /Secret|Seed|^otp$/.test(k) ? ProtectedValue.fromString(v) : v);
+            return e;
+        };
+        const get = (e: any) => (k: string) => { const v = e.fields.get(k); return v == null ? '' : typeof v === 'string' ? v : v.getText(); };
+        const ours = Object.fromEntries(Object.entries({ ...native, ...viaCsv }).map(([title, f]) => [title, add(title, f)]));
+        // the TOTP column as Vault.csvRows writes it, through CSV text and back
+        const csv = parseCsv(toCsv(Object.keys(viaCsv).map((title) => { const g = get(ours[title]); return [title, otpUri(title, g('otp'), g('TOTP Seed'), g('TOTP Settings'), g)]; })));
+        for (const [title, uri] of csv) add(`${title} (CSV)`, { otp: uri });
+        await save(db, file);
+        const codeAt = async (e: any, ms: number) => { const g = get(e); return (await totp(parseOtpConfig(g('otp'), g('TOTP Seed'), g('TOTP Settings'), g), ms)).code; };
+        for (const title of Object.keys(ours)) {
+            const t0 = Date.now();
+            const theirs = (xc(['show', '-t', file, title in native ? title : `${title} (CSV)`], file) as string).trim().split('\n').pop();
+            const t1 = Date.now();
+            // keepassxc-cli makes its code somewhere between t0 and t1, so one of the two must match
+            const mine = [await codeAt(ours[title], t0), await codeAt(ours[title], t1)];
+            if (!mine.includes(theirs)) throw new Error(`${title}: KeePassXC ${theirs}, KeePassNC ${mine.join('/')} (${csv.find((r: string[]) => r[0] === title)?.[1] ?? 'native'})`);
+        }
+        return `${Object.keys(ours).length} TOTP variants`;
+    });
+
     // Report
     const w = Math.max(...results.map(r => r.name.length));
     for (const r of results) console.log(`${r.ok ? 'OK  ' : r.known ? 'KNWN' : 'FAIL'}  ${r.name.padEnd(w)}  ${r.info}`);

@@ -1,6 +1,7 @@
 // Read and write CSV (RFC 4180: commas, quotes, line breaks inside fields) and map the columns of the usual
 // password managers to KeePass fields. Export uses the KeePassXC format, which KeePass, Bitwarden & co. can read.
 import { splitTags } from './util.js';
+import { parseOtpConfig, otpauthUri } from '../totp.js';
 
 /** Text -> rows of fields. Empty rows are dropped; so is a leading BOM. */
 export function parseCsv(text) {
@@ -106,13 +107,22 @@ export function mapRows([head = [], ...rows]) {
     return { entries, ignored, refs };
 }
 
-/** otpauth URI of an entry: the "otp" field, or built from the old "TOTP Seed"/"TOTP Settings" fields; otherwise ''. */
-export function otpUri(title, otp, seed, settings) {
-    if (otp) return otp;
-    if (!seed) return '';
-    const [period = '30', digits = '6'] = (settings || '').split(';');
-    const steam = digits.trim().toUpperCase() === 'S';
-    return `otpauth://totp/${encodeURIComponent(title || 'KeePass')}?secret=${seed.replace(/\s/g, '')}&period=${period.trim()}&digits=${steam ? 5 : digits.trim()}${steam ? '&encoder=steam' : ''}`;
+/**
+ * otpauth URI of an entry: the "otp" field, or built from the old "TOTP Seed"/"TOTP Settings" fields, or from KeePass 2's TimeOtp-*
+ * fields (timeOtp: get(name) -> field text); otherwise ''. An "otp" in another form (KeeOtp, a bare secret) becomes a URI too,
+ * the one form every importer understands.
+ */
+export function otpUri(title, otp, seed, settings, timeOtp) {
+    if (/^otpauth:\/\//i.test((otp || '').trim())) return otp;
+    if (!otp && seed?.trim()) {
+        // empty parts count as missing: KeePassXC reads "period=" as one second
+        const [period, digits] = (settings || '').split(';').map((s) => s.trim());
+        const steam = (digits || '').toUpperCase() === 'S';
+        return `otpauth://totp/${encodeURIComponent(title || 'KeePass')}?secret=${seed.replace(/\s/g, '')}&period=${period || '30'}&digits=${steam ? 5 : digits || '6'}${steam ? '&encoder=steam' : ''}`;
+    }
+    let cfg = null;
+    try { cfg = parseOtpConfig(otp, seed, settings, timeOtp); } catch { /* unreadable: "otp" goes out as it is, a broken TimeOtp-* not at all */ }
+    return cfg ? otpauthUri(cfg, title) : otp || '';
 }
 
 export const EXPORT_HEAD = ['Group', 'Title', 'Username', 'Password', 'URL', 'Notes', 'TOTP', 'Icon', 'Last Modified', 'Created'];
