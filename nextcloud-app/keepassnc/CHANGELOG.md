@@ -7,6 +7,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
 
+### Fixed
+- "Exclude from password health" now sticks in KeePassXC too: it only understands a lowercase `true`, and KeePassNC wrote `True`. Entries marked that way before are switched over the next time they're edited.
+
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
 

@@ -463,8 +463,10 @@ export class Vault {
         if (data.color !== undefined && data.color !== (entryColor(entry) || '')) entry.bgColor = data.color || undefined;
         if (data.excludeReports !== undefined && data.excludeReports !== excluded(entry)) { // both spellings, so KeePass 2 and KeePassXC see it
             entry.qualityCheck = data.excludeReports ? false : undefined;
-            if (data.excludeReports) (entry.customData ??= new Map()).set('KnownBad', { value: 'True' });
+            if (data.excludeReports) (entry.customData ??= new Map()).set('KnownBad', { value: 'true' });
             else entry.customData?.delete('KnownBad');
+        } else if (entry.customData?.get('KnownBad')?.value === 'True') {
+            entry.customData.set('KnownBad', { value: 'true' }); // written by KeePassNC up to 1.2.0; KeePassXC only reads lowercase
         }
         entry.times.update();
         this.dirty = true;
