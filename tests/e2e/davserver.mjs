@@ -5,7 +5,8 @@
 // The same store is also available under /remote.php/dav/files/<ncId>/ as in a Nextcloud, and PROPFIND on /remote.php/dav/ names the
 // account (current-user-principal). ncId may differ from the login name (login by email). cors: allow requests from other origins
 // (answer preflight with 204); off like Nextcloud itself, whose preflight gets 401 without CORS headers. Can be
-// toggled via the returned options object.
+// toggled via the returned options object. losePuts(name, n, status): the next n uploads of that file are written, but their answer
+// gets lost on the way back - the connection is cut, or with status a gateway's error such as 504 arrives instead.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -13,7 +14,8 @@ import crypto from 'node:crypto';
 
 export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-secret', port = 0, nc = null, ncId = user, cors = false }) {
     const log = [];
-    const options = { cors };
+    const options = { cors, lostPuts: {}, lostPutStatus: 0 };
+    const losing = () => Object.values(options.lostPuts).some((n) => n > 0);
     const ncFiles = `/remote.php/dav/files/${encodeURIComponent(ncId)}`;
     const etagOf = (buf) => `"${crypto.createHash('sha1').update(buf).digest('hex')}"`;
     const badEtag = (file) => path.basename(file).startsWith('badetag-'); // a proxy in front rewrites the ETag in the answer: our If-Match never matches
@@ -24,6 +26,9 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
     const server = http.createServer((req, res) => {
         const url = new URL(req.url, 'http://x');
         log.push(`${req.method} ${url.pathname}`);
+        // A browser sends a request again by itself when a connection it reused drops before any answer: the lost answer would turn
+        // into a 412. So while an answer is to get lost, no connection is kept for another request.
+        if (losing()) res.setHeader('Connection', 'close');
         if (options.cors && req.headers.origin) {
             res.setHeader('Access-Control-Allow-Origin', req.headers.origin);
             res.setHeader('Access-Control-Expose-Headers', 'ETag');
@@ -65,6 +70,13 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
                     if (req.headers['if-match'] && req.headers['if-match'] !== cur && !noEtag(file)) { res.writeHead(412).end(); return; }
                     const body = Buffer.concat(chunks);
                     fs.writeFileSync(file, body);
+                    const name = path.basename(file);
+                    if (options.lostPuts[name] > 0) {
+                        options.lostPuts[name]--;
+                        log.push(`LOST ${url.pathname}`);
+                        if (options.lostPutStatus) res.writeHead(options.lostPutStatus).end(); else req.socket.destroy();
+                        return;
+                    }
                     res.writeHead(exists ? 204 : 201, noEtag(file) ? {} : { ETag: etagOut(file, body) }).end();
                 });
                 return;
@@ -114,6 +126,7 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
     });
     return new Promise((resolve) => server.listen(port, '127.0.0.1', () => resolve({
         server, port: server.address().port, log, user, pass, options,
+        losePuts: (name, n = 1, status = 0) => { options.lostPuts[name] = n; options.lostPutStatus = status; server.closeIdleConnections?.(); },
         stop: () => new Promise((r) => { server.close(() => r()); server.closeAllConnections?.(); }) // simulates a server outage
     })));
 }

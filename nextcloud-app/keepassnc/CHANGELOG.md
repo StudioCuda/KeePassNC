@@ -7,6 +7,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
 
+### Fixed
+- Changing the master password or key file while the connection hiccups: when the server got the new file but its answer got lost, KeePassNC now checks with the server before it says "not changed", instead of leaving you with a password the file no longer opens with.
+- A password change that only made it into the offline copy survives a reload. If the file on the server changed meanwhile, KeePassNC asks once for the previous password to merge both, instead of blaming another device and quietly undoing your change.
+- A save whose answer got lost on the way back is recognized on the next sync, so it no longer gets merged with itself and leaves a conflict backup behind.
+
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
 
