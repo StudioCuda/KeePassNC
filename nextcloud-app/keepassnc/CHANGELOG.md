@@ -6,6 +6,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
+- Locking now overwrites the key file and the password hashes of the open database with zeros, right after the last save is through, and the key derivation tidies up its scratch copies too. JavaScript can't promise a spotless memory, but less lingers there now.
 
 ### Fixed
 - Databases with a raw key file of exactly 32 bytes: after another device's changes came in, a merge, the unlock screen's check or a new master password, the next save could encrypt the file with a key nobody can derive, so it no longer opened. If that happened to one of yours, the `.bak` copy next to it or an earlier Nextcloud file version still opens.

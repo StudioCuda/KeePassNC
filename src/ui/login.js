@@ -26,6 +26,8 @@ export function showLogin(message) {
     stopDetailTimers();
     clearBitsCache(); // keyed by the plain passwords of the database that is closing
     document.body.classList.remove('readonly');
+    // Dropped for good: the key file bytes and credential hashes are overwritten once its last save or sync is over (Vault.wipe)
+    state.vault?.wipe();
     state.vault = null; state.softLocked = false; state.selEntry = null; state.editing = null; state.query = ''; clearMarks();
     document.body.classList.remove('in-vault');
     const NC = ctx.NC;
