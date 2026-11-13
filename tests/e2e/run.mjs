@@ -1161,6 +1161,124 @@ async function main() {
         await p.context().close();
     });
 
+    // A save with changes of our own doesn't keep the editor shut: it may open while the upload is still on its way. The test holds that
+    // upload back until the editor is open and typed into, then lets it run into the conflict with the "other device".
+    const editDuringMerge = async (file, otherDevice) => {
+        const f = path.join(davRoot, file);
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        let release; const held = new Promise((res) => { release = res; });
+        await p.route(`**/dav/${file}`, async (r) => { if (r.request().method() === 'PUT') await held; return r.continue(); });
+        await login(p, file); await rows(p).first().waitFor();
+        await p.click('#new-btn'); await p.fill('#e-title', 'Lokal-neu'); await p.click('#apply-btn'); // the vault is dirty
+        await p.waitForTimeout(1100);
+        otherDevice(f);
+        await p.click('#save-btn');
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-pass', 'pw-tippt-weiter'); await p.fill('#e-notes', 'Notiz im Entwurf');
+        release();
+        await waitStatus(p, /zusammengef/);
+        expect(await p.locator('#e-pass').count() === 1, 'Editor nach dem Zusammenfuehren zu');
+        expect(await p.inputValue('#e-pass') === 'pw-tippt-weiter' && await p.inputValue('#e-notes') === 'Notiz im Entwurf', 'Eingabe im Editor ging beim Zusammenfuehren verloren: ' + await p.inputValue('#e-pass'));
+        return { p, f };
+    };
+
+    await step('Zusammenfuehren bei offenem Editor (das Speichern lief schon): die getippte Eingabe bleibt stehen und kommt auf den Server, die fremde Aenderung auch', async () => {
+        const { p, f } = await editDuringMerge('editkeep.kdbx', (f) => xc(['edit', '-q', f, 'Web/Mail', '--url', 'https://anderswo.example'], null));
+        expect(!(await p.locator('#e-gone').isVisible()), 'Hinweis "geloescht" bei einem Eintrag, den es noch gibt');
+        await p.click('#apply-btn');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        const k = xc(['show', '-s', f, 'Bank/Konto'], null);
+        expect(k.includes('pw-tippt-weiter') && k.includes('Notiz im Entwurf'), 'Eingabe fehlt auf dem Server: ' + k);
+        expect(xc(['show', f, 'Web/Mail']).includes('https://anderswo.example') && /Lokal-neu/.test(xc(['ls', '-R', f])), 'Aenderung des anderen Geraets oder die eigene fehlt');
+        await p.context().close();
+    });
+
+    await step('Eintrag waehrend des Bearbeitens anderswo endgueltig geloescht: Hinweis im Editor, die Eingabe bleibt, Uebernehmen legt ihn samt Anhang neu an statt ins Leere zu schreiben', async () => {
+        const { p, f } = await editDuringMerge('editgone.kdbx', (f) => {
+            xc(['rm', '-q', f, 'Bank/Konto'], null); // into the recycle bin first, from there for good (a tombstone in the file)
+            const binned = xc(['ls', '-R', '-f', f]).split('\n').find((l) => /\/Konto$/.test(l));
+            xc(['rm', '-q', f, binned], null);
+        });
+        await p.locator('#e-gone').waitFor();
+        await p.click('#apply-btn');
+        await waitStatus(p, /neuer Eintrag/);
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        const k = xc(['show', '-s', f, 'Bank/Konto'], null);
+        expect(k.includes('pw-tippt-weiter') && k.includes('Notiz im Entwurf'), 'Eintrag nicht neu angelegt: ' + k);
+        const att = path.join(tmp, 'editgone-anhang.txt');
+        xc(['attachment-export', '-q', f, 'Bank/Konto', 'anhang.txt', att], null);
+        expect(fs.readFileSync(att, 'utf8') === 'anhang-inhalt\n', 'Anhang fehlt am neu angelegten Eintrag');
+        await p.context().close();
+    });
+
+    await step('Sperren von Hand mit getippter, nicht uebernommener Eingabe im Editor: Rueckfrage, "Weiter bearbeiten" behaelt alles; ohne Aenderung sperrt es wie bisher sofort', async () => {
+        const p = await newPage();
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-pass', 'pw-nicht-weg');
+        await p.click('#lock-btn');
+        await p.locator('#confirm-cancel').waitFor();
+        expect(/nicht übernommen/.test(await p.locator('.modal').innerText()), 'Rueckfrage nennt den Editor nicht: ' + await p.locator('.modal').innerText());
+        await p.click('#confirm-cancel');
+        expect(await p.locator('#login-form').count() === 0 && await p.inputValue('#e-pass') === 'pw-nicht-weg', 'Weiter bearbeiten: Editor und Eingabe muessen bleiben');
+        await p.keyboard.press('Control+l');
+        await p.click('#confirm-ok');
+        await p.locator('#login-form').waitFor();
+        expect(!/pw-nicht-weg|Konto/.test(await p.content()), 'Nach dem Sperren stehen noch Daten im DOM');
+        // typed and taken back again: nothing differs, the lock doesn't ask
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn');
+        const user = await p.inputValue('#e-user');
+        await p.fill('#e-user', 'nur-kurz'); await p.fill('#e-user', user);
+        await p.click('#lock-btn');
+        await p.locator('#login-form').waitFor();
+        expect(await p.locator('#confirm-ok').count() === 0, 'Rueckfrage, obwohl im Editor nichts geaendert ist');
+        await p.context().close();
+    });
+
+    await step('Auto-Sperre mit getippter Eingabe im Editor (sonst nichts ungespeichert): Sperrbildschirm statt Anmeldung, der Entwurf steht nicht im DOM; nach dem Entsperren ist der Editor mit der Eingabe wieder da', async () => {
+        const f = path.join(davRoot, 'draftlock.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage('?autolock=5');
+        await login(p, 'draftlock.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-pass', 'pw-entwurf-gesperrt'); await p.fill('#e-title', 'Konto-Entwurf');
+        await p.click('#e-show'); // the password shows as text: it has to leave the page all the same
+        await p.locator('#softlock-form').waitFor({ timeout: 20000 });
+        expect(!/pw-entwurf-gesperrt|Konto/.test(await p.content()), 'Auf dem Sperrbildschirm stehen noch Daten im DOM');
+        expect(await p.evaluate(() => [...document.querySelectorAll('input, textarea')].every((x) => !/pw-entwurf/.test(x.value))), 'Entwurf steckt noch in einem Eingabefeld');
+        expect(await p.locator('#softlock-editing').isVisible(), 'Hinweis auf den Entwurf fehlt');
+        await p.waitForTimeout(7000); // the soft lock doesn't turn into the real one: that would throw the draft away
+        expect(await p.locator('#softlock-form').count() === 1 && await p.locator('#login-form').count() === 0, 'Soft-Lock kippt in die echte Sperre');
+        await p.fill('#sl-master', PW); await p.click('#sl-unlock');
+        await p.locator('#e-pass').waitFor();
+        // one look, then Apply and Ctrl+S right away: the 5-second idle lock is running again (if it comes first, it saves on its own)
+        const back = await p.evaluate(() => [document.querySelector('#e-pass').value, document.querySelector('#e-title').value, !!document.querySelector('#confirm-ok')]);
+        expect(back[0] === 'pw-entwurf-gesperrt' && back[1] === 'Konto-Entwurf', 'Entwurf nach dem Entsperren weg: ' + back.slice(0, 2));
+        expect(!back[2], 'Speichern-Angebot, obwohl im Tresor nichts ungespeichert ist');
+        await p.click('#apply-btn'); await p.keyboard.press('Control+s');
+        const saved = () => /Konto-Entwurf/.test(xc(['ls', '-R', f]));
+        for (let i = 0; i < 20 && !saved(); i++) await new Promise((r) => setTimeout(r, 500));
+        expect(saved() && xc(['show', '-s', f, 'Bank/Konto-Entwurf'], null).includes('pw-entwurf-gesperrt'), 'Entwurf kam nicht auf dem Server an');
+        await p.context().close();
+    });
+
+    await step('Sperren von Hand, die Rueckfrage zum Editor bleibt unbeantwortet: die Auto-Sperre schliesst sie und sperrt weich, statt den Tresor offen stehen zu lassen; der Entwurf bleibt', async () => {
+        const p = await newPage('?autolock=5');
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'weggegangen');
+        await p.click('#lock-btn'); await p.locator('#confirm-ok').waitFor();
+        await p.locator('#softlock-form').waitFor({ timeout: 20000 });
+        expect(await p.locator('.modal').count() === 0 && !/weggegangen/.test(await p.content()), 'Rueckfrage oder Entwurf noch auf dem Bildschirm');
+        await p.fill('#sl-master', PW); await p.click('#sl-unlock');
+        await p.locator('#e-user').waitFor();
+        expect(await p.locator('#e-user').evaluate((x) => x.value) === 'weggegangen', 'Entwurf nach dem Entsperren weg');
+        await p.context().close();
+    });
+
     await step('Datenschutz/Sicherheit: keine externen Anfragen, keine JS-Fehler, CSP gesetzt, Server sah nie Klartext', async () => {
         expect(problems.external.length === 0, 'Externe Anfragen: ' + problems.external.join(', '));
         expect(problems.pageErrors.length === 0, 'Seitenfehler: ' + problems.pageErrors.join(' | '));

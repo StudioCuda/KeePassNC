@@ -7,6 +7,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
 
+### Fixed
+- Locking with an entry still open in the editor no longer throws away what you typed, like that fresh password on its way to a website. Locking by hand asks first ("Keep editing" is right there), and the auto-lock keeps the draft in memory and brings the editor back once you unlock. Walking away from that question doesn't leave the vault open either: the auto-lock closes it and locks.
+- The editor keeps what you typed when the view redraws underneath it: after Undo, a language switch or a merge with another device's changes. If that other device deleted the entry for good, "Apply" brings your version back as a new entry instead of quietly saving it into thin air.
+
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
 

@@ -1,12 +1,14 @@
 // Soft lock: the auto-lock found changes it couldn't save, and locking for real would throw them away. The view is gone
-// (list, detail, timers, dialogs), the database stays in memory until the master password comes back. No key derivation needed:
-// the answer comes from comparing with the credentials the session already holds.
+// (list, detail, timers, dialogs), the database stays in memory until the master password comes back, and so does a draft from the
+// entry editor (as plain values, see editor.js parkEditor). No key derivation needed: the answer comes from comparing with the
+// credentials the session already holds.
 import { t } from '../i18n.js';
 import { ctx } from './ctx.js';
 import { h, icon, iconBtn, closeAllDialogs, confirmDialog } from './dom.js';
 import { filePicker } from './file-picker.js';
 import { loginShell } from './login.js';
 import { stopDetailTimers } from './detail.js';
+import { parkEditor } from './editor.js';
 import { confirmDiscard, doSave, refreshDirtyIndicator } from './session.js';
 
 const { state } = ctx;
@@ -17,7 +19,8 @@ export function showSoftLock(message) {
     const v = state.vault;
     closeAllDialogs();
     stopDetailTimers();
-    state.editing = null; state.selEntry = null; state.query = '';
+    parkEditor(); // typed into the editor: kept for after unlocking, the form itself goes with the view
+    state.selEntry = null; state.query = '';
     document.body.classList.remove('in-vault');
     const pwInput = h('input', { id: 'sl-master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off', placeholder: t('login.master'), 'aria-label': t('login.master') });
     const showPw = iconBtn('eye', t('show'), () => { const on = pwInput.type === 'password'; pwInput.type = on ? 'text' : 'password'; showPw.setAttribute('aria-pressed', String(on)); showPw.replaceChildren(icon(on ? 'eyeOff' : 'eye')); }, { type: 'button', 'aria-pressed': 'false' });
@@ -52,6 +55,7 @@ export function showSoftLock(message) {
         h('div', { class: 'login-top' }, h('h2', { text: t('softlock.title') })),
         lastMessage ? h('p', { class: 'muted', text: lastMessage }) : null,
         h('p', { class: 'softlock-note', id: 'softlock-note', text: t('softlock.note') }),
+        state.editing ? h('p', { class: 'muted', id: 'softlock-editing', text: t('softlock.editing') }) : null,
         form);
     ctx.app.replaceChildren(loginShell(card));
     (v.hasPassword ? pwInput : discard).focus();
@@ -62,7 +66,8 @@ async function unlock() {
     state.lastActivity = Date.now(); state.hiddenSince = 0;
     ctx.ui.showMain();
     refreshDirtyIndicator();
-    if (!state.vault?.dirty) return;
+    // The editor came back with its draft: saving waits until it is applied (doSave refuses while it is open), the Save button shows it
+    if (!state.vault?.dirty || state.editing) return;
     // The changes are still only here: offer to put them somewhere safe right away (download for a local file, upload for WebDAV)
     if (await confirmDialog({ title: t('softlock.save.title'), message: t('softlock.save.msg'), confirmLabel: t('softlock.save.now'), cancelLabel: t('softlock.later') })) doSave();
 }

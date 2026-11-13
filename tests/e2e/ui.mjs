@@ -160,8 +160,12 @@ async function main() {
         await pick(page, 'Posteo');
         await page.click('#entry-more'); await page.click('#del-btn');
         expect(await count(page, 'nav-all') === total, 'nach Loeschen');
+        // Undo redraws the whole view: an editor opened meanwhile keeps what was typed into it
+        await page.click('#new-btn'); await page.fill('#e-title', 'Entwurf beim Rueckgaengig');
         await page.locator('.toast-action', { hasText: 'Rückgängig' }).click();
         expect(await count(page, 'nav-all') === total + 1, 'Rueckgaengig stellt wieder her');
+        expect(await page.inputValue('#e-title') === 'Entwurf beim Rueckgaengig', 'Eingabe im Editor ging beim Rueckgaengig verloren: ' + await page.inputValue('#e-title'));
+        await page.click('#cancel-btn');
         // Posteo stays in the recycle bin; Etsy is deleted and restored
         await pick(page, 'Posteo'); await page.click('#entry-more'); await page.click('#del-btn');
         await pick(page, 'Etsy'); await page.click('#entry-more'); await page.click('#del-btn');
@@ -724,7 +728,8 @@ async function main() {
         expect(!es.some((e) => e.title === 'Otto'), 'Otto sollte endgueltig weg sein: ' + es.filter((e) => e.title === 'Otto').map((e) => e.path));
     });
 
-    await step('Sprache und Theme: Englisch/Dunkel in den Einstellungen, bleibt nach dem Sperren (Anmeldeseite) erhalten', async () => {
+    await step('Sprache und Theme: Englisch/Dunkel in den Einstellungen, bleibt nach dem Sperren (Anmeldeseite) erhalten; ein offener Editor behaelt dabei seine Eingabe', async () => {
+        await page.click('#new-btn'); await page.fill('#e-title', 'Entwurf beim Sprachwechsel'); // the language switch builds the whole page anew
         await page.click('#settings-btn');
         const version = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version;
         expect(await page.locator('#app-version').innerText() === 'KeePassNC ' + version, 'Version in den Einstellungen');
@@ -734,6 +739,8 @@ async function main() {
         expect(await page.locator('html').getAttribute('data-theme') === 'dark', 'Theme');
         await page.click('#settings-close');
         expect(/Save/.test(await page.locator('#save-btn').innerText()) && await page.locator('html').getAttribute('lang') === 'en', 'Englisch');
+        expect(await page.inputValue('#e-title') === 'Entwurf beim Sprachwechsel' && await page.locator('#edit-form h2').innerText() === 'New entry', 'Editor nach dem Sprachwechsel: ' + await page.inputValue('#e-title'));
+        await page.click('#cancel-btn');
         await page.click('#reports-btn');
         expect(/Database/.test(await page.locator('.modal .modal-title').innerText()) && await page.locator('#rep-tab-info').innerText() === 'Settings', 'Dialog "Database" mit Tab "Settings"');
         await page.keyboard.press('Escape');
