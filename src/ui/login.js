@@ -5,7 +5,7 @@ import { cacheGet } from '../cache.js';
 import { loadSettings, saveSettings } from '../settings.js';
 import { nextcloudAuth, warmNextcloudAuth, davUrlFor, normalizeUserPath, fetchPepper } from '../nextcloud.js';
 import { t, fmtDate, errText } from '../i18n.js';
-import { ctx, params, pref, setStatus, kfStore, kfFileId, clearMarks } from './ctx.js';
+import { ctx, params, pref, setStatus, kfStore, kfFileId, clearMarks, clearClipboard } from './ctx.js';
 import { KeyfileStoreError, isWeakerThan } from '../keyfile-store.js';
 import { h, icon, iconBtn, toast, closeAllDialogs } from './dom.js';
 import { filePicker } from './file-picker.js';
@@ -25,6 +25,7 @@ export function showLogin(message) {
     closeAllDialogs();
     stopDetailTimers();
     clearBitsCache(); // keyed by the plain passwords of the database that is closing
+    clearClipboard(); // a copied password doesn't outlive the session either (nothing copied: nothing happens)
     document.body.classList.remove('readonly');
     state.vault = null; state.softLocked = false; state.selEntry = null; state.editing = null; state.query = ''; clearMarks();
     document.body.classList.remove('in-vault');

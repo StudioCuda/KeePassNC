@@ -5,6 +5,7 @@ import { keyfileBackend } from '../cache.js';
 import { t } from '../i18n.js';
 import { ncThemeFrom, themeVars, THEME_VARS } from '../theme.js';
 import { $, toast } from './dom.js';
+import { clipboardGuard } from './clipboard.js';
 
 export const kfStore = createKeyfileStore(keyfileBackend);
 /** ID of a remembered key file for a locally chosen file (in Nextcloud additionally separated per user). */
@@ -70,33 +71,29 @@ export function setStatus(msg, kind = 'info') {
     if (kind === 'error' || kind === 'warn') toast(msg, { kind, timeout: kind === 'error' ? 8000 : 6000 });
 }
 
-let clipboardTimer = null;
-/**
- * Should the clipboard be emptied? Not if the user copied something else meanwhile. Looking costs a permission prompt in most
- * browsers, so it only happens where the permission is granted already; without it (or when reading fails) we clear, as before.
- */
-async function clearable(text) {
-    try {
-        if ((await navigator.permissions.query({ name: 'clipboard-read' })).state !== 'granted') return true;
-        const now = await navigator.clipboard.readText();
-        return now === '' || now === text;
-    } catch {
-        return true;
+// The clipboard clears again after the set time, or when the browser lets it (clipboard.js); the status line tells when that waits
+const CLIP_NOTES = { pending: ['clipboard.pending', 'info'], failed: ['clipboard.failed', 'error'], cleared: ['clipboard.cleared', 'info'], kept: ['clipboard.kept', 'info'] };
+const clipboard = clipboardGuard({
+    clipboard: navigator.clipboard, permissions: navigator.permissions, activation: navigator.userActivation, win: window, doc: document,
+    onState: (state, what) => {
+        const [key, kind] = CLIP_NOTES[state];
+        setStatus(t(key, { what }), kind);
+        if (kind === 'info' && !$('#status')) toast(t(key, { what })); // locked: no status line, a notice instead
     }
-}
+});
 export async function copy(text, label) {
     try {
-        await navigator.clipboard.writeText(text);
+        await clipboard.copy(text, label, ctx.settings.clipboard * 1000);
         setStatus(t('copied', { what: label, s: ctx.settings.clipboard }));
         toast(t('copied.short', { what: label }), { timeout: 1800 });
-        clearTimeout(clipboardTimer);
-        clipboardTimer = setTimeout(async () => { if (await clearable(text)) navigator.clipboard.writeText('').catch(() => {}); }, ctx.settings.clipboard * 1000);
         return true;
     } catch {
         setStatus(t('copy.failed'), 'error');
         return false;
     }
 }
+/** Locking: what was copied leaves the clipboard now, or as soon as the browser lets the page. */
+export const clearClipboard = () => clipboard.clear();
 
 export function download(name, data, type = 'application/octet-stream') {
     const a = document.createElement('a');
