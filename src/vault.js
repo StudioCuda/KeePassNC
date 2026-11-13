@@ -618,9 +618,23 @@ export class Vault {
 
     removeEntry(entry) {
         this._writable();
-        if (this.isInRecycleBin(entry)) this.db.move(entry, null); // delete permanently
-        else this.db.remove(entry);
+        this._discard(entry);
         this.dirty = true;
+    }
+
+    /**
+     * Into the recycle bin (created on first use), or for good when it is off or the item is in it already: the same decision
+     * deletesForever makes for the page. Not kdbxweb's remove(): that reads a missing <RecycleBinEnabled> as "off" (KeePass 2 and
+     * this page read it as "on") and a missing <RecycleBinUUID> as "no bin", and deleted for good while the page said "in the recycle bin".
+     */
+    _discard(item) {
+        if (this.deletesForever(item)) { this.db.move(item, null); return; }
+        this.db.createRecycleBin(); // also writes the missing setting as an explicit "on"
+        const rb = this.recycleBin;
+        // KeePass 2 lets any group be the recycle bin. One inside this group would end up inside itself, cut off from the tree, and vanish
+        // on saving with everything in it: it moves up to the root first and stays the recycle bin, with what it holds.
+        for (let g = rb.parentGroup; g; g = g.parentGroup) if (g === item) { this.db.move(rb, this.root); break; }
+        this.db.move(item, rb);
     }
 
     /**
@@ -683,12 +697,12 @@ export class Vault {
         }
         this.dirty = true;
     }
-    /** Recycle bin is active -> group moves into it; otherwise permanent. */
+    /** Recycle bin is active -> group moves into it (a bin inside the group stays, see _discard); otherwise permanent. */
     removeGroup(group) {
         this._writable();
         if (group === this.root) throw new VaultError('Die Wurzelgruppe kann nicht geloescht werden.', 'e.root.delete');
         if (group === this.recycleBin) throw new VaultError('Der Papierkorb kann nicht geloescht werden - nur leeren.', 'e.bin.delete');
-        if (this.isInRecycleBin(group)) this.db.move(group, null); else this.db.remove(group);
+        this._discard(group);
         this.dirty = true;
     }
     canMoveGroup(group, target) {

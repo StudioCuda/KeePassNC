@@ -507,9 +507,10 @@ export class KdbxMeta {
             XmlUtils.addChildNode(node, XmlNames.Elem.DbKeyChangeForce),
             this.keyChangeForce
         );
+        // A missing setting means "on" in KeePass 2; written as an empty element, KeePassXC would read "off"
         XmlUtils.setBoolean(
             XmlUtils.addChildNode(node, XmlNames.Elem.RecycleBinEnabled),
-            this.recycleBinEnabled
+            this.recycleBinEnabled ?? true
         );
         XmlUtils.setUuid(
             XmlUtils.addChildNode(node, XmlNames.Elem.RecycleBinUuid),

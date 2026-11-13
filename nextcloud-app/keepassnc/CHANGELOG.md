@@ -7,6 +7,12 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
 
+### Fixed
+- Deleting a group that holds the recycle bin (KeePass 2 lets you pick any group for it) no longer makes the group, its entries and the bin vanish on the next save. The bin moves up to the top level and keeps everything, the group goes into it.
+- Files without a recycle bin setting: deleting really moves to the bin now, as the message says, and Undo brings it back. Before, it was gone for good. Saving such a file now writes the setting down as "on"; before, KeePassXC read what KeePassNC saved as "off".
+- Dragging something that's already in the recycle bin onto the bin leaves it alone instead of deleting it for good without asking.
+- Editing an entry in the recycle bin keeps it there instead of quietly moving it to the top group. Pick another group in the editor to move it out.
+
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
 

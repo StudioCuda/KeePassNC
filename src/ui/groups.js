@@ -4,7 +4,7 @@ import { t, errText } from '../i18n.js';
 import { ctx, setStatus, clearMarks } from './ctx.js';
 import { h, append, icon, iconBtn, popupMenu, modal, promptDialog, confirmDialog, toast } from './dom.js';
 import { allRealEntries, isWeak, groupIcon } from './common.js';
-import { hasTotp, isPasskey, entryExpiry, daysUntil, fieldOf, splitTags } from '../core/util.js';
+import { hasTotp, isPasskey, entryExpiry, daysUntil, fieldOf, splitTags, groupPath } from '../core/util.js';
 import { changed, refreshDirtyIndicator } from './session.js';
 import { iconSelOf, iconPreview, pickIcon, commitIconSel } from './icon-picker.js';
 import { openReports } from './reports.js';
@@ -34,10 +34,14 @@ export function setFilter(f, { refresh = true } = {}) {
     if (refresh) ctx.ui.refresh();
 }
 
-/** <select> with all groups (indented); exclude: hide a group along with its descendants. */
-export function groupSelect({ value, exclude, includeRoot = true, id }) {
+/**
+ * <select> with all groups (indented) except the recycle bin; exclude: hide a group along with its descendants. keep: value may lie in
+ * the recycle bin (an entry there being edited) and then leads the list, so applying leaves the entry there unless another group is picked.
+ */
+export function groupSelect({ value, exclude, includeRoot = true, id, keep = false }) {
     const v = state.vault;
     const sel = h('select', { id });
+    if (keep && value && (value === v.recycleBin || v.isInRecycleBin(value))) sel.append(h('option', { value: value.uuid.id, text: groupPath(value), selected: true }));
     for (const { group, depth } of v.allGroups()) {
         if (group === v.recycleBin || v.isInRecycleBin(group)) continue;
         if (group === v.root && !includeRoot) continue;
@@ -89,7 +93,7 @@ export function moveGroupDialog(g) {
 export async function deleteGroup(g) {
     const v = state.vault;
     const inBin = v.deletesForever(g);
-    const n = [...g.allEntries()].length;
+    const n = [...g.allEntries()].filter((e) => inBin || !v.isInRecycleBin(e)).length; // a recycle bin inside the group stays as it is (Vault.removeGroup)
     const ok = await confirmDialog({ title: inBin ? t('delete.forever') : t('group.delete'), message: inBin ? t('group.delete.forever.msg', { name: g.name, n }) : t('group.delete.msg', { name: g.name, n }), confirmLabel: inBin ? t('delete.forever') : t('delete'), cancelLabel: t('cancel'), danger: true });
     if (!ok) return;
     try { v.removeGroup(g); } catch (e) { if (e instanceof VaultError) { setStatus(errText(e), 'error'); return; } throw e; }
@@ -244,9 +248,18 @@ export function renderSidebar(host) {
         h('button', { type: 'button', class: 'tree-label', id: 'nav-bin', onclick: () => setFilter({ type: 'bin' }) }, icon('trash'), h('span', { class: 'grow', text: t('nav.bin') }), h('span', { class: 'count', text: String(binCount) })),
         rb ? iconBtn('more', t('more'), (e) => { e.stopPropagation(); groupMenu(e.currentTarget, rb); }, { class: 'row-more' }) : null));
     if (rb && bin) {
-        bin.firstChild.addEventListener('dragover', (e) => { if (dragging) { e.preventDefault(); bin.firstChild.classList.add('drop'); } });
+        // What is in the bin already stays where it is (dropping it there again used to delete it for good, without asking)
+        const takes = () => dragging && (dragging.kind === 'entry' ? dragging.items.some((x) => !v.isInRecycleBin(x)) : dragging.item !== rb && !v.isInRecycleBin(dragging.item));
+        bin.firstChild.addEventListener('dragover', (e) => { if (takes()) { e.preventDefault(); bin.firstChild.classList.add('drop'); } });
         bin.firstChild.addEventListener('dragleave', () => bin.firstChild.classList.remove('drop'));
-        bin.firstChild.addEventListener('drop', (e) => { e.preventDefault(); bin.firstChild.classList.remove('drop'); if (!dragging) return; if (dragging.kind === 'entry') { for (const x of dragging.items) v.removeEntry(x); clearMarks(); } else v.removeGroup(dragging.item); dragging = null; changed(); });
+        bin.firstChild.addEventListener('drop', (e) => {
+            bin.firstChild.classList.remove('drop');
+            if (!takes()) return;
+            e.preventDefault();
+            if (dragging.kind === 'entry') { for (const x of dragging.items) if (!v.isInRecycleBin(x)) v.removeEntry(x); clearMarks(); } else v.removeGroup(dragging.item);
+            dragging = null;
+            changed();
+        });
     }
 
     const tools = h('div', { class: 'nav-section nav-tools' }, h('div', { class: 'nav-head' }, h('span', { text: t('tools') })),

@@ -623,6 +623,38 @@ async function main() {
         await noChip('weg');
     });
 
+    await step('Papierkorb: was dort liegt, auf den Papierkorb ziehen aendert nichts; Bearbeiten laesst den Eintrag dort, ausser man waehlt eine Gruppe', async () => {
+        const binCount = () => count(page, 'nav-bin');
+        const binRow = page.locator('.tree-row.bin');
+        const wrapOf = (title) => page.locator('.entry-wrap', { has: page.locator('.title', { hasText: new RegExp(`^${title}$`) }) });
+        await page.click('#nav-bin');
+        const n0 = await binCount();
+        // from the bin view onto the bin, alone and ticked: stays (used to be deleted for good, without asking and without Undo)
+        await wrapOf('Posteo').dragTo(binRow);
+        await page.click('#sel-start'); await rowOf('Posteo').click();
+        await wrapOf('Posteo').dragTo(binRow);
+        await page.click('#sel-done');
+        expect(await page.locator('#confirm-ok').count() === 0, 'keine Rueckfrage');
+        // an entry from a group still goes into the bin; once that shows, the drops above are surely through
+        await group('Shopping');
+        await wrapOf('Etsy').dragTo(binRow);
+        await page.waitForFunction((n) => document.querySelector('#nav-bin .count')?.textContent === String(n), n0 + 1);
+        await page.click('#nav-bin');
+        expect(await rowOf('Posteo').count() === 1 && await rowOf('Etsy').count() === 1, 'Posteo und Etsy liegen im Papierkorb');
+        // editing an entry in the bin: the group field shows where it is, and it stays there
+        await rowOf('Posteo').click(); await page.click('#edit-btn');
+        expect(await page.locator('#e-group option:checked').innerText() === 'Recycle Bin', 'Gruppenfeld zeigt den Papierkorb: ' + await page.locator('#e-group option:checked').innerText());
+        await page.fill('#e-notes', 'Im Papierkorb bearbeitet'); await page.click('#apply-btn');
+        await page.waitForFunction(() => /Im Papierkorb bearbeitet/.test(document.querySelector('#detail')?.textContent || ''));
+        expect(await page.locator('#detail .crumbs').innerText() === 'Recycle Bin' && await binCount() === n0 + 1, 'Posteo bleibt im Papierkorb: ' + await page.locator('#detail .crumbs').innerText());
+        // picking a group moves it out
+        await page.click('#nav-bin'); await rowOf('Etsy').click(); await page.click('#edit-btn');
+        await page.selectOption('#e-group', await page.locator('#e-group option', { hasText: /^\s*Shopping$/ }).getAttribute('value'));
+        await page.click('#apply-btn');
+        await page.waitForFunction((n) => document.querySelector('#nav-bin .count')?.textContent === String(n), n0);
+        expect(/Shopping$/.test(await page.locator('#detail .crumbs').innerText()), 'Etsy zurueck in Shopping: ' + await page.locator('#detail .crumbs').innerText());
+    });
+
     await step('Speichern (Strg+S) -> KeePassXC liest die Datei; alle UI-Aenderungen sind angekommen, nichts anderes ging verloren', async () => {
         await page.keyboard.press('Control+s');
         await waitStatus(page, /^Gespeichert\./, 60000);
