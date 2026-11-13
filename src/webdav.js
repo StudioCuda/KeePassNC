@@ -200,7 +200,8 @@ export class DavFile {
 
     /**
      * Cleans up old backups: keeps the newest `keep` of each kind (normal / conflict).
-     * Only touches files that exactly match the pattern "<filename>.[conflict-]YYYYMMDD-HHMMSS[-N].bak", whoever made them.
+     * Only touches files that exactly match the pattern "<filename>.[conflict-]YYYYMMDD-HHMMSS[-N].bak", whoever made them; never a
+     * folder of that name (DELETE on a folder takes everything in it along).
      * keep <= 0 means: delete nothing. Returns the names of the deleted files.
      */
     async pruneBackups(keep) {
@@ -270,7 +271,8 @@ export class DavFile {
         const { dir, base, files } = await this._listDir();
         const re = new RegExp('^' + base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\.(conflict-)?(\\d{8}-\\d{6})(?:-(\\d+))?\\.bak$');
         const groups = { normal: [], conflict: [] };
-        for (const { name } of files) {
+        for (const { name, dir: isDir } of files) {
+            if (isDir) continue;
             const m = re.exec(name);
             if (m) groups[m[1] ? 'conflict' : 'normal'].push({ name, stamp: m[2], seq: Number(m[3] || 1) });
         }
