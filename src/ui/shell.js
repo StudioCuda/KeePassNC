@@ -8,7 +8,7 @@ import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolv
 import { renderSidebar, newGroup, setFilter, startEntryDrag, emptyBin, tagMenu } from './groups.js';
 import { renderDetail, deleteEntry, stopDetailTimers } from './detail.js';
 import { pruneMarks, markClick, selectAll, selectionBar, deleteEntries } from './selection.js';
-import { renderEditor, startEdit, cancelEdit } from './editor.js';
+import { renderEditor, startEdit, leaveEdit, leaveEditor, editorChanged } from './editor.js';
 import { openGenerator } from './generator-dialog.js';
 import { openReports } from './reports.js';
 import { openMerge } from './merge-dialog.js';
@@ -92,9 +92,9 @@ ctx.ui.renderSidebar = () => renderSidebar($('#groups'));
 ctx.ui.renderList = () => renderList();
 ctx.ui.syncMarks = () => syncMarks();
 
-export function selectEntry(e) {
+export async function selectEntry(e) {
+    if (state.editing && !(await leaveEditor())) return; // from the command palette or a report, while an entry is being edited
     const v = state.vault;
-    state.editing = null;
     clearMarks();
     state.query = ''; const s = $('#search'); if (s) s.value = '';
     state.filter = v.isInRecycleBin(e) ? { type: 'bin' } : { type: 'group', group: e.parentGroup };
@@ -151,7 +151,13 @@ export function renderList(entries = visibleEntries()) {
         const user = resolvedField(e, 'UserName'), dom = domainOf(resolvedUrl(e));
         const marked = state.marked.has(e);
         const main = h('button', { type: 'button', class: 'entry' + (state.selEntry === e ? ' active' : '') + (marked ? ' marked' : ''), role: 'option', 'aria-selected': (state.selecting ? marked : state.selEntry === e) ? 'true' : 'false', 'data-testid': 'entry-row',
-            onclick: (ev) => { if (markClick(ev, listed, e)) { syncMarks(); return; } state.selEntry = e; state.editing = null; state.view = 'detail'; for (const x of host.querySelectorAll('.entry.active')) { x.classList.remove('active'); x.setAttribute('aria-selected', 'false'); } main.classList.add('active'); main.setAttribute('aria-selected', 'true'); stopDetailTimers(); renderDetail($('#detail')); applyView(); },
+            onclick: async (ev) => {
+                if (markClick(ev, listed, e)) { syncMarks(); return; }
+                if (state.editing && !(await leaveEditor())) return; // unapplied changes in the editor: "Keep editing" stays there
+                state.selEntry = e; state.view = 'detail';
+                if (!main.isConnected) { refresh(); return; } // the list was drawn anew while the question was open
+                for (const x of host.querySelectorAll('.entry.active')) { x.classList.remove('active'); x.setAttribute('aria-selected', 'false'); } main.classList.add('active'); main.setAttribute('aria-selected', 'true'); stopDetailTimers(); renderDetail($('#detail')); applyView();
+            },
             onkeydown: (ev) => listKeys(ev) },
             h('span', { class: 'sel-av' }, avatar(e), h('span', { class: 'sel-badge', 'aria-hidden': 'true' }, icon('check'))),
             h('span', { class: 'et' }, h('span', { class: 'title', text: fieldOf(e, 'Title') || t('entry.untitled') }), h('span', { class: 'sub', text: [user, dom].filter(Boolean).join(' · ') })),
@@ -232,12 +238,13 @@ export function installShortcuts() {
         else if (e.key === 'Delete' && state.marked.size && !typing && !state.editing) { e.preventDefault(); deleteEntries([...state.marked]); }
         else if (e.key === 'Delete' && state.selEntry && !typing && !state.editing) { e.preventDefault(); deleteEntry(state.selEntry); }
         else if (e.key === 'Escape' && state.selecting && !typing && !state.editing) { clearMarks(); syncMarks(); }
-        else if (e.key === 'Escape' && state.editing && !typing) cancelEdit();
+        else if (e.key === 'Escape' && state.editing && !typing) leaveEdit();
     });
 }
 
 ctx.ui.refresh = refresh;
 ctx.ui.renderEditor = renderEditor;
+ctx.ui.editorChanged = editorChanged; // session.js asks before locking
 ctx.ui.applyView = applyView;
 ctx.ui.selectEntry = selectEntry;
 ctx.ui.showMain = showMain;

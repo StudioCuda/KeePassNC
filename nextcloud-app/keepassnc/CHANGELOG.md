@@ -9,6 +9,15 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Password generator: a click on the password copies it in the entry editor too, like in the vault view and on the standalone page.
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
 
+### Fixed
+- Locking with an entry still open in the editor no longer throws away what you typed, like that fresh password on its way to a website. Locking by hand asks first ("Keep editing" is right there), and the auto-lock keeps the draft in memory and brings the editor back once you unlock. Walking away from that question doesn't leave the vault open either: the auto-lock closes it and locks.
+- The editor keeps what you typed when the view redraws underneath it: after Undo, a language switch or a merge with another device's changes. If that other device deleted the entry for good, "Apply" brings your version back as a new entry instead of quietly saving it into thin air.
+- Wandering off from an edit you haven't applied yet (another entry, "New", a search result, the command palette, `Esc` or the back arrow) asks first, with "Keep editing" right there. Closing the tab warns too, also when the draft is waiting behind the unlock screen.
+- "Apply" leaves field names alone: " PIN " no longer turns into "PIN" and overwrites the field of that name, and fields like "Title " or "otp " (with a trailing space) no longer vanish. A name you type that's already taken gets a clear "no" instead of quietly replacing the other field.
+- A quick double click on "Apply" with an attachment makes one entry, not two.
+- Entries marked as expiring without an expiry date (KeePass files can hold that) apply without an error; the date stays empty until you pick one.
+- "Apply" without a change no longer adds a history version to entries with Windows line breaks in their notes (KeePass 2).
+
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
 
