@@ -252,6 +252,8 @@ class PageController extends Controller {
 		$csp->addAllowedImageDomain("'self'");
 		$csp->addAllowedImageDomain('data:');
 		$csp->addAllowedConnectDomain("'self'");
+		// The page never submits a form (dialogs handle submit themselves), so nothing may: like form-action 'none' on the standalone page.
+		$csp->addAllowedFormActionDomain("'none'");
 		// No addAllowedFrameAncestorDomain(): EmptyContentSecurityPolicy then sets frame-ancestors 'none'. The page is never embedded;
 		// so other apps on the same Nextcloud origin can't frame it invisibly (clickjacking, covert snooping).
 		return $csp;
