@@ -37,7 +37,7 @@ export function showSoftLock(message) {
             const file = keyInput.files[0];
             const keyfile = v.hasKeyfile && file ? await file.arrayBuffer() : null;
             let ok = false;
-            try { ok = await v.matchesCredentials(pwInput.value, keyfile); } catch { /* unreadable key file: counts as wrong */ }
+            try { ok = await v.matchesCredentials(pwInput.value, keyfile); } catch { /* unreadable key file: counts as wrong */ } finally { if (keyfile) new Uint8Array(keyfile).fill(0); }
             if (!ok) { err.textContent = t('softlock.wrong'); pwInput.select(); return; }
             pwInput.value = '';
             unlock();
