@@ -9,8 +9,9 @@ import { fmtDate } from '../i18n.js';
 
 const { state } = ctx;
 let autoSaveTimer = null, syncing = false, pulls = 0; // pulls: running saves that may pull (overlapping Ctrl+S)
-// The server version no longer opens with this session's credentials: ask for the new ones (credentials-dialog.js)
-const REMOTE_CREDS = new Set(['e.merge.pw', 'e.pull.pw']);
+// The server version no longer opens with this session's credentials: ask for the new ones (credentials-dialog.js), or for the
+// previous ones when the change was made here and never reached the server (e.merge.oldpw)
+const REMOTE_CREDS = new Set(['e.merge.pw', 'e.pull.pw', 'e.merge.oldpw']);
 
 /** Call after every change to the vault: refresh the view, show the save state, schedule auto-save if needed. */
 export function changed() {
@@ -172,7 +173,7 @@ export async function doSave({ auto = false } = {}) {
         state.lastSyncFailed = isOffline(e);
         if (e?.key === 'e.dav.readonly') refused(); // the server says no: keep the changes, stop trying
         else setStatus(t('save.failed', { msg: errText(e) }), 'error');
-        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
+        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.({ previous: e.key === 'e.merge.oldpw' });
     } finally {
         if (mayPull) pulls--;
         refreshDirtyIndicator();
@@ -203,7 +204,7 @@ export async function syncNow({ announce = false } = {}) {
         state.lastSyncFailed = isOffline(e);
         if (e?.key === 'e.dav.readonly') refused();
         else if (announce || !isOffline(e)) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
-        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
+        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.({ previous: e.key === 'e.merge.oldpw' });
     } finally {
         syncing = false;
         $('#sync-state')?.classList.remove('busy');

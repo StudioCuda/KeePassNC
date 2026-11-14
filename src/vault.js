@@ -175,15 +175,17 @@ function loadError(e) {
 export class Vault {
     /**
      * @param {{buf: ArrayBuffer, password: string, keyfile?: Uint8Array|ArrayBuffer, dav?: import('./webdav.js').DavFile, etag?: string|null,
-     *   cache?: {key: string, name: string}, unsynced?: boolean, remoteBuf?: ArrayBuffer, fromCache?: boolean}} o
+     *   cache?: {key: string, name: string}, unsynced?: boolean, remoteBuf?: ArrayBuffer, fromCache?: boolean, newCreds?: boolean}} o
      * cache: key of the local offline copy; unsynced: buf holds local changes the server doesn't have yet (etag = base version);
-     * remoteBuf: current server version (for the backup copy); fromCache: buf came from the cache (don't write it back there).
+     * remoteBuf: current server version (for the backup copy); fromCache: buf came from the cache (don't write it back there);
+     * newCreds: with unsynced, buf uses credentials changed on this device that never reached the server (the offline copy's record says so).
+     * The server version still opens with the previous ones, which nobody stored: merging with it asks for them (e.merge.oldpw).
      */
-    static async open({ buf, password, keyfile, dav, etag, cache, unsynced, remoteBuf, fromCache }) {
+    static async open({ buf, password, keyfile, dav, etag, cache, unsynced, remoteBuf, fromCache, newCreds }) {
         const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile : toArrayBuffer(keyfile)) : undefined;
         const { db, pw } = await loadWith(buf, password, kf);
         const v = new Vault(db, pw, kf, dav, etag ?? null, remoteBuf || buf, cache);
-        if (unsynced) { v.unsynced = true; v._pending = buf; }
+        if (unsynced) { v.unsynced = true; v._pending = buf; if (newCreds) v._base = null; }
         else if (cache && !fromCache) await v._cacheWrite(buf, false);
         return v;
     }
@@ -216,7 +218,8 @@ export class Vault {
         this.db = db;
         this._pw = pw;
         this._kf = kf;
-        this._base = { pw, kf }; // credentials of the last known server version (differ after changeCredentials until the upload)
+        this._base = { pw, kf }; // credentials of the last known server version (differ after changeCredentials until the upload; null: unknown, see open)
+        this._unconfirmed = null; // an upload whose answer never came, {bytes, pw, kf, checked}: it may have arrived all the same (see _put)
         this.dav = dav || null;
         this.etag = etag;
         this._remoteBytes = remoteBytes;
@@ -252,11 +255,14 @@ export class Vault {
         return run;
     }
 
-    /** Writes the offline copy; returns true if it was stored safely. */
+    /**
+     * Writes the offline copy; returns true if it was stored safely. newCreds marks local changes whose credentials the server version
+     * (etag) doesn't have yet: after a reload nobody knows the old ones anymore, and that must not look like a change on another device.
+     */
     async _cacheWrite(bytes, modified) {
         if (!this.cache) return false;
         try {
-            await cachePut(this.cache.key, { bytes, etag: this.etag, modified, name: this.cache.name, syncDate: Date.now() });
+            await cachePut(this.cache.key, { bytes, etag: this.etag, modified, newCreds: modified && !this._baseIsOwn(), name: this.cache.name, syncDate: Date.now() });
             return true;
         } catch (e) {
             console.warn('Could not write the offline copy', e);
@@ -268,9 +274,18 @@ export class Vault {
         return `KDBX ${this.db.header.versionMajor}.${this.db.header.versionMinor}`;
     }
 
-    /** For reading the server version (merging, pulling): its credentials, not necessarily our own. */
+    /** For reading the server version (pulling): its credentials, not necessarily our own (unknown ones, see open: ours, there are no others). */
     _baseCredentials() {
-        return new Credentials(this._base.pw, this._base.kf);
+        const b = this._base ?? { pw: this._pw, kf: this._kf };
+        return new Credentials(b.pw, b.kf);
+    }
+
+    /**
+     * Does the last known server version use our own credentials? Compared by identity: every change of credentials makes new objects,
+     * so a password typed again counts as different, which is fine for "was anything changed since the last upload".
+     */
+    _baseIsOwn() {
+        return !!this._base && this._base.pw === this._pw && this._base.kf === this._kf;
     }
 
     /** Does pw match this database's master password? Compares hashes only, no key derivation. Without a password: only "". */
@@ -301,7 +316,9 @@ export class Vault {
      * keyfile: undefined (stays), null (dropped) or the bytes of the new file. Until the first successful upload the
      * vault keeps reading the server with the old credentials (conflict with another device -> merging works).
      * If saving fails, the old credentials apply again; changes stay unsaved or are stored locally with the old
-     * credentials. Result like save().
+     * credentials. An upload whose answer got lost counts as whatever the server then shows (_put). If the server can't be asked
+     * either: kept locally like any offline save, with unconfirmed: true (it may have them already); without an offline copy the old
+     * credentials apply (e.cred.unconfirmed), and a later save recognizes the upload and puts them back. Result like save().
      */
     changeCredentials({ password, keyfile }) {
         this._writable();
@@ -315,13 +332,20 @@ export class Vault {
             const prev = { pw: this._pw, kf: this._kf, creds: this.db.credentials, keyChanged: this.db.meta.keyChanged };
             this._pw = pw; this._kf = kf; this.db.credentials = creds;
             this.db.meta.keyChanged = new Date();
+            const before = this._unconfirmed;
+            // went out, but neither its answer nor a look at the server says whether it arrived
+            const unanswered = () => !!this._unconfirmed && this._unconfirmed !== before && !this._unconfirmed.checked;
             try {
-                return await this._save();
+                const res = await this._save();
+                return res.offline && unanswered() ? { ...res, unconfirmed: true } : res;
             } catch (e) {
                 this._pw = prev.pw; this._kf = prev.kf; this.db.credentials = prev.creds; this.db.meta.keyChanged = prev.keyChanged;
                 if (this._pending) { // already stored locally with the new credentials: store again with the old ones, upload follows later
                     try { this._pending = await this.db.save(); await this._cacheWrite(this._pending, true); } catch { this.dirty = true; }
                 } else this.dirty = true;
+                // The new credentials may be on the server all the same. The old ones apply here, and the next save, meeting that upload
+                // there, puts them back (_push), so the file ends up where the message says.
+                if (unanswered()) throw new VaultError('Der Server hat das Hochladen nicht bestaetigt. Hier gelten weiter die alten Zugangsdaten: noch einmal speichern, sobald der Server antwortet, dann bekommt auch er sie zurueck, falls die neuen doch angekommen sind.', 'e.cred.unconfirmed');
                 throw e;
             }
         });
@@ -339,6 +363,7 @@ export class Vault {
             const remote = await this.dav.get();
             const { db: remoteDb, pw } = await loadWith(remote.buf, password, kf);
             this._pw = pw; this._kf = kf; this._base = { pw, kf };
+            this._unconfirmed = null; // the server holds a version from another device, none of our uploads
             this.db.credentials = new Credentials(pw, kf);
             if (this.dirty) return this._save();
             if (this.unsynced) return this._push();
@@ -347,6 +372,26 @@ export class Vault {
             this._remoteBytes = remote.buf;
             await this._cacheWrite(remote.buf, false);
             return { pulled: true };
+        });
+    }
+
+    /**
+     * The server version still opens with the credentials from before a change made here that never reached the server, and it changed
+     * meanwhile (e.merge.oldpw): read it once with those, merge, upload with our own (new) credentials, which stay. keyfile: the previous
+     * key file; missing: the current one, then none (a key file added here wasn't part of them). Wrong ones: e.badkey, nothing changed.
+     * Result like sync(); {} if there is nothing left to merge (uploaded in the meantime).
+     */
+    previousCredentials({ password, keyfile }) {
+        return this._exclusive(async () => {
+            if (!this.dirty && !this.unsynced) return {};
+            const remote = await this.dav.get();
+            const kfs = keyfile ? [keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)] : this._kf ? [this._kf, undefined] : [undefined];
+            let found;
+            for (const [n, kf] of kfs.entries()) {
+                try { found = { pw: (await loadWith(remote.buf, password, kf)).pw, kf }; break; } catch (e) { if (e?.key !== 'e.badkey' || n === kfs.length - 1) throw e; }
+            }
+            this._base = found;
+            return this._sync(); // server gone again meanwhile: kept locally ({offline: true}), the next sync merges with these
         });
     }
 
@@ -947,31 +992,38 @@ export class Vault {
                 // A server that sends no ETag (or a CORS setup that hides it) can't check If-Match. Then compare with what we last read,
                 // right before writing; a difference takes the usual conflict path (backup of the other version, merge, retry).
                 if (!this.etag && !(await this._serverUnchanged())) throw new ConflictError();
-                this.etag = await this.dav.put(out, this.etag);
-                this._remoteBytes = out;
-                this._base = { pw: this._pw, kf: this._kf };
-                this.unsynced = false;
-                this._pending = null;
-                await this._cacheWrite(out, false);
+                await this._uploaded(out, await this._put(out));
                 return { merged, noBackup: this.noBackup };
             } catch (e) {
                 if (!(e instanceof ConflictError)) throw e;
                 if (attempt >= 3) throw new VaultError('Die Datei wird gerade von einem anderen Geraet laufend geaendert - bitte spaeter erneut speichern. Deine Aenderungen sind lokal gesichert.', 'e.busy');
                 const remote = await this.dav.get();
+                // Our own upload is there already: its answer got lost on the way back, maybe before the page was reloaded. Nothing to merge.
+                if (sameBytes(remote.buf, out)) {
+                    await this._uploaded(out, remote.etag);
+                    return { merged, noBackup: this.noBackup };
+                }
+                // An earlier upload of ours that never got its answer, with changes made here since: the same database, only further along.
+                // It becomes the base (with the credentials it was written with), and this state goes on top of it without merging.
+                const sent = this._unconfirmed;
+                if (sent && sameBytes(remote.buf, sent.bytes)) {
+                    this._unconfirmed = null;
+                    this.etag = remote.etag;
+                    this._remoteBytes = remote.buf;
+                    this._base = { pw: sent.pw, kf: sent.kf };
+                    continue;
+                }
                 // The server still holds the very version our If-Match named, and said no anyway: nobody else is writing, the ETag itself
                 // doesn't survive the way to the server (a proxy rewriting it). Merging again changes nothing and only piles up conflict backups.
                 if (remote.etag && remote.etag === this.etag) {
                     this.mergeBlocked = 'etag';
                     throw new VaultError('Der Server lehnt das Speichern ab, obwohl niemand sonst die Datei geaendert hat (Versionskennung wird auf dem Weg veraendert). Deine Aenderungen bleiben in diesem Tab.', 'e.etag');
                 }
+                // Opened first: a version we can't read yet (e.merge.pw, e.merge.oldpw) stays untouched on the server anyway, and the retries
+                // until someone answers the question would each leave another copy of it behind, pushing out the older conflict copies
+                const { db: remoteDb, base } = await this._openServerVersion(remote.buf);
                 await this._backup(remote.buf, `conflict-${stamp()}`);
                 await this._prune();
-                const remoteDb = await Kdbx.load(remote.buf, this._baseCredentials()).catch((err) => {
-                    if (err instanceof KdbxError && err.code === Consts.ErrorCodes.InvalidKey) {
-                        throw new VaultError('Die Zugangsdaten wurden auf einem anderen Geraet geaendert. Die Aenderungen sind noch da: mit den neuen Zugangsdaten werden sie zusammengefuehrt.', 'e.merge.pw');
-                    }
-                    throw err;
-                });
                 const header = this._mergedHeader(remoteDb);
                 try {
                     this.db.merge(remoteDb);
@@ -986,10 +1038,67 @@ export class Vault {
                 this._pending = await this.db.save();
                 this.etag = remote.etag;
                 this._remoteBytes = remote.buf;
+                this._base = base;
                 await this._cacheWrite(this._pending, true);
                 merged = true;
             }
         }
+    }
+
+    /**
+     * PUT with If-Match, returns the new ETag. A network error or a 5xx doesn't say whether the file arrived: the answer can get lost
+     * on the way back (a dropped connection, a proxy that gave up waiting while the server finished). Such an upload is remembered, so
+     * that meeting it on the server later counts as our own version, not as one from another device (_push). After a change of
+     * credentials the server is asked right away: "changed" or "not changed" (changeCredentials) must not be a guess, and a wrong
+     * "not changed" leaves the file on the server with credentials the user was told didn't take.
+     */
+    async _put(out) {
+        try {
+            return await this.dav.put(out, this.etag);
+        } catch (e) {
+            if (!isOffline(e)) throw e;
+            const sent = { bytes: out, pw: this._pw, kf: this._kf, checked: false };
+            this._unconfirmed = sent;
+            if (this._baseIsOwn()) throw e;
+            let remote;
+            try { remote = await this.dav.get(); } catch { throw e; }
+            if (sameBytes(remote.buf, out)) return remote.etag;
+            // The server shows something else: the upload didn't arrive. It stays remembered all the same, a gateway may have given up
+            // on a server that is still writing it.
+            sent.checked = true;
+            throw e;
+        }
+    }
+
+    /** out is the server version now (etag): it is the new base, with our credentials, and the offline copy is in sync again. */
+    async _uploaded(out, etag) {
+        this.etag = etag;
+        this._remoteBytes = out;
+        this._base = { pw: this._pw, kf: this._kf };
+        this._unconfirmed = null;
+        this.unsynced = false;
+        this._pending = null;
+        await this._cacheWrite(out, false);
+    }
+
+    /**
+     * Opens a server version for merging, with the credentials of the last known server version. If they don't fit and ours differ
+     * (changed here, upload not confirmed), with ours: that upload may have arrived after all and been changed on another device since.
+     * Returns {db, base} (base: the credentials that fit). Neither: e.merge.pw (changed on another device), or e.merge.oldpw when the
+     * server version's credentials aren't known here (changed here, never uploaded, page reloaded since: see open's newCreds).
+     */
+    async _openServerVersion(buf) {
+        const own = { pw: this._pw, kf: this._kf };
+        const tries = !this._base || this._baseIsOwn() ? [own] : [this._base, own];
+        for (const c of tries) {
+            try {
+                return { db: await Kdbx.load(buf, new Credentials(c.pw, c.kf)), base: c };
+            } catch (err) {
+                if (!(err instanceof KdbxError && err.code === Consts.ErrorCodes.InvalidKey)) throw err;
+            }
+        }
+        if (!this._base) throw new VaultError('Die Zugangsdaten wurden hier geaendert, bevor der Server sie bekam, und die Datei dort hat sich seitdem geaendert. Sie oeffnet noch mit den vorherigen: einmal eingeben, dann wird zusammengefuehrt.', 'e.merge.oldpw');
+        throw new VaultError('Die Zugangsdaten wurden auf einem anderen Geraet geaendert. Die Aenderungen sind noch da: mit den neuen Zugangsdaten werden sie zusammengefuehrt.', 'e.merge.pw');
     }
 
     /**
@@ -1032,6 +1141,7 @@ export class Vault {
             throw e;
         }
         this.db = remoteDb; // no local changes: the server version is authoritative
+        this._unconfirmed = null; // a newer version than any upload of ours
         this.etag = remote.etag;
         this._remoteBytes = remote.buf;
         await this._cacheWrite(remote.buf, false);
