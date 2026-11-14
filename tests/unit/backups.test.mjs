@@ -62,3 +62,23 @@ test('Zwei Sicherungen in derselben Sekunde: die zweite geht nicht verloren, Auf
         assert.deepEqual(await dav.pruneBackups(2), [`daily.kdbx.${stamp}.bak`]);
     } finally { await srv.stop(); }
 });
+
+test('Backup clean-up never deletes a folder that happens to have a backup name (WebDAV deletes folders with their contents)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kpnc-bak-'));
+    const srv = await startServer({ webRoot: dir, davRoot: dir });
+    try {
+        const mk = (n) => fs.writeFileSync(path.join(dir, n), 'x');
+        mk('daily.kdbx');
+        for (const s of ['20260101-100000', '20260102-100000', '20260103-100000']) mk(`daily.kdbx.${s}.bak`);
+        for (const d of ['daily.kdbx.20250101-100000.bak', 'daily.kdbx.conflict-20250101-110000.bak']) {
+            fs.mkdirSync(path.join(dir, d));
+            fs.writeFileSync(path.join(dir, d, 'important.txt'), 'keep me');
+        }
+        const dav = new DavFile({ url: `http://127.0.0.1:${srv.port}/dav/daily.kdbx`, user: srv.user, pass: srv.pass });
+        assert.deepEqual((await dav.pruneBackups(1)).sort(), ['daily.kdbx.20260101-100000.bak', 'daily.kdbx.20260102-100000.bak']);
+        assert.deepEqual(await dav.deleteBackups(), ['daily.kdbx.20260103-100000.bak']);
+        for (const d of ['daily.kdbx.20250101-100000.bak', 'daily.kdbx.conflict-20250101-110000.bak']) {
+            assert.equal(fs.readFileSync(path.join(dir, d, 'important.txt'), 'utf8'), 'keep me', d);
+        }
+    } finally { await srv.stop(); }
+});

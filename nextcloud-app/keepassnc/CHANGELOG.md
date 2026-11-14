@@ -9,6 +9,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Password generator: a click on the password copies it in the entry editor too, like in the vault view and on the standalone page.
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
 
+### Fixed
+- Cleaning up backup copies only ever deletes files. A *folder* that happened to be named like a backup (`Passwords.kdbx.20260101-120000.bak/`) was deleted along with everything in it.
+
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
 
