@@ -1,0 +1,66 @@
+diff --git a/vendor/kdbxweb/lib/crypto/hmac-block-transform.ts b/vendor/kdbxweb/lib/crypto/hmac-block-transform.ts
+index 1ce106e..82e7825 100644
+--- a/vendor/kdbxweb/lib/crypto/hmac-block-transform.ts
++++ b/vendor/kdbxweb/lib/crypto/hmac-block-transform.ts
+@@ -44,32 +44,40 @@ export function decrypt(data: ArrayBuffer, key: ArrayBuffer): Promise<ArrayBuffe
+             blockHash: ArrayBuffer,
+             totalLength = 0;
+ 
++        // The stream ends with an empty block whose HMAC (it covers the block index) authenticates the end. Upstream never checked
++        // it, so a file cut at a block boundary passed as long as any empty block followed. Every block is checked, the empty one
++        // too, and a stream that runs out before it (cut at a block boundary or inside a block) is corrupt. Bytes after it are
++        // never read, so they stay ignored as before, like KeePass 2 and KeePassXC do.
+         const next = (): Promise<ArrayBuffer> => {
++            if (stm.byteLength - stm.pos < 32 + 4) {
++                throw new KdbxError(ErrorCodes.FileCorrupt, 'hash block stream cut off');
++            }
+             blockHash = stm.readBytes(32);
+             blockLength = stm.getUint32(true);
+-            if (blockLength > 0) {
+-                totalLength += blockLength;
+-                const blockData = stm.readBytes(blockLength);
+-                return getBlockHmac(key, blockIndex, blockLength, blockData).then(
+-                    (calculatedBlockHash) => {
+-                        if (!arrayBufferEquals(calculatedBlockHash, blockHash)) {
+-                            throw new KdbxError(ErrorCodes.FileCorrupt, 'invalid hash block');
+-                        } else {
+-                            buffers.push(blockData);
+-                            blockIndex++;
+-                            return next();
+-                        }
++            if (blockLength > stm.byteLength - stm.pos) {
++                throw new KdbxError(ErrorCodes.FileCorrupt, 'hash block cut off');
++            }
++            const blockData = stm.readBytes(blockLength);
++            return getBlockHmac(key, blockIndex, blockLength, blockData).then(
++                (calculatedBlockHash) => {
++                    if (!arrayBufferEquals(calculatedBlockHash, blockHash)) {
++                        throw new KdbxError(ErrorCodes.FileCorrupt, 'invalid hash block');
++                    }
++                    if (blockLength > 0) {
++                        totalLength += blockLength;
++                        buffers.push(blockData);
++                        blockIndex++;
++                        return next();
+                     }
+-                );
+-            } else {
+-                const ret = new Uint8Array(totalLength);
+-                let offset = 0;
+-                for (let i = 0; i < buffers.length; i++) {
+-                    ret.set(new Uint8Array(buffers[i]), offset);
+-                    offset += buffers[i].byteLength;
++                    const ret = new Uint8Array(totalLength);
++                    let offset = 0;
++                    for (let i = 0; i < buffers.length; i++) {
++                        ret.set(new Uint8Array(buffers[i]), offset);
++                        offset += buffers[i].byteLength;
++                    }
++                    return ret.buffer;
+                 }
+-                return Promise.resolve(ret.buffer);
+-            }
++            );
+         };
+         return next();
+     });
