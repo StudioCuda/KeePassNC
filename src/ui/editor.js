@@ -1,6 +1,7 @@
 // Create/edit an entry. Fields that aren't shown (passkeys, browser data, Auto-Type ...) stay unchanged in the vault (see Vault.applyEntry).
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
 import { isSystemField, entryExpiry, entryColor, ENTRY_COLORS, splitTags, toOtpUri } from '../core/util.js';
+import { otpUri } from '../core/csv.js';
 import { excluded, reusedBy } from '../core/audit.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
@@ -29,6 +30,9 @@ export function renderEditor(host) {
     const { entry, group } = state.editing;
     const v = state.vault;
     const val = (k) => (entry ? fieldText(entry.fields.get(k)) : '');
+    // The TOTP box shows the one the entry has, also from "TOTP Seed" or KeePass 2's TimeOtp-* (as an otpauth URI). Left as it is,
+    // those fields stay untouched; a new TOTP goes into "otp" and replaces them (Vault.applyEntry).
+    const otpShown = val('otp') || (entry ? otpUri(val('Title'), '', val('TOTP Seed'), val('TOTP Settings'), val) : '');
     const i = {
         Title: h('input', { id: 'e-title', value: val('Title'), 'data-testid': 'e-title', autocomplete: 'off' }),
         UserName: h('input', { id: 'e-user', value: entry ? val('UserName') : v.db.meta.defaultUser || '', autocomplete: 'off', spellcheck: 'false' }),
@@ -36,7 +40,7 @@ export function renderEditor(host) {
         URL: h('input', { id: 'e-url', value: val('URL'), inputmode: 'url', autocomplete: 'off', spellcheck: 'false' }),
         Notes: h('textarea', { id: 'e-notes', rows: 6 }),
         tags: h('input', { id: 'e-tags', value: (entry?.tags || []).join(', '), autocomplete: 'off', list: 'tag-suggestions' }),
-        otp: h('input', { id: 'e-otp', value: val('otp'), placeholder: 'otpauth://totp/…  /  Base32', autocomplete: 'off', spellcheck: 'false', class: 'mono' }),
+        otp: h('input', { id: 'e-otp', value: otpShown, placeholder: 'otpauth://totp/…  /  Base32', autocomplete: 'off', spellcheck: 'false', class: 'mono' }),
         expires: h('input', { id: 'e-expires', type: 'checkbox', checked: !!entry?.times.expires }),
         expiry: h('input', { id: 'e-expiry', type: 'date', 'aria-label': t('expires') }),
         excludeReports: h('input', { id: 'e-noreport', type: 'checkbox', checked: !!entry && excluded(entry) })
@@ -194,7 +198,7 @@ export function renderEditor(host) {
             color: colorBox.querySelector(':checked')?.value ?? ''
         };
         if (i.expires.checked && entry?.times.expires && i.expiry.value === dateStr(entry.times.expiryTime)) data.expiryTime = entry.times.expiryTime; // leave the time of day unchanged
-        if (i.otp.value.trim() !== val('otp')) {
+        if (i.otp.value.trim() !== otpShown.trim()) {
             data.otp = toOtpUri(i.otp.value, i.Title.value, i.UserName.value); // a bare secret is completed like KeePassXC does
         }
         const target = selectedGroup(groupSel) || group;

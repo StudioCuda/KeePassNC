@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readImport, ImportError } from '../../src/core/import.js';
+import { toOtpUri } from '../../src/core/util.js';
+import { parseOtpConfig, totp } from '../../src/totp.js';
 
 const NIL = '00000000-0000-0000-0000-000000000000';
 const b64 = (s) => Buffer.from(s).toString('base64');
@@ -78,6 +80,21 @@ test('Bitwarden (JSON): Ordner mit / sind Unterordner, weitere Adressen und Feld
     assert.deepEqual(ident.custom, [{ name: 'firstName', value: 'Anna', protect: false }, { name: 'ssn', value: '123', protect: true }], 'leere Werte fallen weg');
     assert.deepEqual([empty.title, empty.user, empty.password], ['Leer', '', '']);
     assert.throws(() => readImport(JSON.stringify({ encrypted: true, items: [] })), (e) => e.key === 'import.encrypted');
+});
+
+test('Bitwarden (JSON and CSV): a Steam Guard secret (steam://...) arrives as a Steam TOTP with 5 characters', async () => {
+    // RFC 4226 key "12345678901234567890" in Base32; at t=59 its Steam code is PV9M4 (see totp.test.mjs)
+    const SECRET = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+    const json = readImport(JSON.stringify({ encrypted: false, folders: [], items: [{ type: 1, name: 'Steam', login: { username: 'anna', password: 'pw', totp: `steam://${SECRET}` } }] })).entries[0];
+    const csv = readImport(`folder,favorite,type,name,notes,fields,reprompt,login_uri,login_username,login_password,login_totp\n,,login,Steam,,,0,,anna,pw,steam://${SECRET}`).entries[0];
+    for (const e of [json, csv]) {
+        // Vault.importEntries stores toOtpUri(totp, title, user) in the "otp" field
+        const uri = toOtpUri(e.totp, e.title, e.user);
+        assert.equal(uri, `otpauth://totp/Steam:anna?secret=${SECRET}&period=30&digits=5&issuer=Steam&encoder=steam`);
+        const cfg = parseOtpConfig(uri);
+        assert.equal(cfg.steam, true);
+        assert.equal((await totp(cfg, 59000)).code, 'PV9M4');
+    }
 });
 
 test('JSON: {REF:...} aus fremden Dateien wird zu Text und gezaehlt (je Eintrag einmal)', () => {

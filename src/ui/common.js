@@ -3,7 +3,7 @@ import { cachedBits as bitsOf, strengthLabel } from '../core/entropy.js';
 import { parseQuery, matches } from '../core/search.js';
 import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolvePlaceholders, openableUrl } from '../core/util.js';
 import { excluded } from '../core/audit.js';
-import { t } from '../i18n.js';
+import { t, errText } from '../i18n.js';
 import { fieldText } from '../vault.js';
 import { parseOtpConfig } from '../totp.js';
 import { ctx } from './ctx.js';
@@ -113,4 +113,6 @@ export function expiryBadge(e) {
 }
 
 /** TOTP settings of an entry (null without any); throws when they cannot be read. List and detail view share it. */
-export const otpConfigOf = (e) => parseOtpConfig(fieldText(e.fields.get('otp')), fieldText(e.fields.get('TOTP Seed')), fieldText(e.fields.get('TOTP Settings')));
+export const otpConfigOf = (e) => { const get = (k) => fieldText(e.fields.get(k)); return parseOtpConfig(get('otp'), get('TOTP Seed'), get('TOTP Settings'), get); };
+/** Why there is no code, for the detail view and the quick button: the OtpError's text, or a general one (e.g. WebCrypto refusing). */
+export const otpProblem = (err) => errText(err?.key ? err : { key: 'e.otp.format' });

@@ -67,6 +67,35 @@ test('toOtpUri: a full URI stays, a bare secret is completed like KeePassXC does
     assert.equal(toOtpUri('  ', 'A', ''), '');
 });
 
+test('otpUri: missing or partial "TOTP Settings" fall back to 30 s and 6 digits instead of an empty period', () => {
+    // KeePassXC reads "period=" as one second, so the codes were wrong after a re-import
+    assert.equal(otpUri('A', '', 'JBSWY3DP', ''), 'otpauth://totp/A?secret=JBSWY3DP&period=30&digits=6');
+    assert.equal(otpUri('A', '', 'JBSWY3DP', undefined), 'otpauth://totp/A?secret=JBSWY3DP&period=30&digits=6');
+    assert.equal(otpUri('A', '', 'JBSWY3DP', '60'), 'otpauth://totp/A?secret=JBSWY3DP&period=60&digits=6');
+    assert.equal(otpUri('A', '', 'JBSWY3DP', ';8'), 'otpauth://totp/A?secret=JBSWY3DP&period=30&digits=8');
+    assert.equal(otpUri('A', '', 'JBSWY3DP', ' ; '), 'otpauth://totp/A?secret=JBSWY3DP&period=30&digits=6');
+    assert.equal(otpUri('A', '', 'JBSWY3DP', '30;'), 'otpauth://totp/A?secret=JBSWY3DP&period=30&digits=6');
+});
+
+test('otpUri: KeePass 2 TimeOtp-*, KeeOtp and a bare secret in "otp" become an otpauth URI, so other apps get the same codes', () => {
+    const f = (o) => (k) => o[k] ?? '';
+    assert.equal(otpUri('Mein Konto', '', '', '', f({ 'TimeOtp-Secret-Hex': '3132333435363738393031323334353637383930', 'TimeOtp-Length': '8', 'TimeOtp-Period': '60', 'TimeOtp-Algorithm': 'HMAC-SHA-256' })),
+        'otpauth://totp/Mein%20Konto?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&period=60&digits=8&algorithm=SHA256');
+    assert.equal(otpUri('', '', '', '', f({ 'TimeOtp-Secret': '12345678901234567890' })), 'otpauth://totp/KeePass?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&period=30&digits=6');
+    assert.equal(otpUri('K', 'key=JBSWY3DPEHPK3PXP&size=8', '', ''), 'otpauth://totp/K?secret=JBSWY3DPEHPK3PXP&period=30&digits=8');
+    assert.equal(otpUri('B', 'JBSW Y3DP EHPK 3PXP', '', ''), 'otpauth://totp/B?secret=JBSWY3DPEHPK3PXP&period=30&digits=6');
+    assert.equal(otpUri('A', 'otpauth://totp/A?secret=X', '', '', f({ 'TimeOtp-Secret': 'x' })), 'otpauth://totp/A?secret=X', '"otp" first');
+    assert.equal(otpUri('A', '', 'JBSWY3DP', '30;6', f({ 'TimeOtp-Secret': 'x' })), 'otpauth://totp/A?secret=JBSWY3DP&period=30&digits=6', 'then the old fields');
+    assert.equal(otpUri('A', '', '', '', f({ 'TimeOtp-Secret-Hex': 'xyz' })), '', 'a broken secret exports no TOTP');
+    assert.equal(otpUri('A', 'hello world!', '', ''), 'hello world!', 'an unreadable "otp" goes out as it is');
+});
+
+test('toOtpUri: Bitwarden\'s steam://SECRET becomes a Steam Guard URI the way KeePassXC writes it (encoder=steam, 5 characters)', () => {
+    assert.equal(toOtpUri('steam://jbsw y3dp ehpk 3pxp', 'Steam', 'anna'), 'otpauth://totp/Steam:anna?secret=JBSWY3DPEHPK3PXP&period=30&digits=5&issuer=Steam&encoder=steam');
+    assert.equal(toOtpUri(' STEAM://JBSWY3DPEHPK3PXP ', '', ''), 'otpauth://totp/KeePassNC?secret=JBSWY3DPEHPK3PXP&period=30&digits=5&issuer=KeePassNC&encoder=steam');
+    assert.equal(toOtpUri(' key=JBSWY3DPEHPK3PXP&step=60 ', 'A', 'u'), 'key=JBSWY3DPEHPK3PXP&step=60', 'the KeeOtp form is no bare secret');
+});
+
 test('toCsv entschaerft Formeln, wenn gewuenscht', () => {
     // The default stays byte for byte what it was (round trip with our own import, same as KeePassXC)
     assert.equal(toCsv([['=1+1']]), '"=1+1"\r\n');

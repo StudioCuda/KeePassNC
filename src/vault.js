@@ -5,7 +5,7 @@ import { argon2 } from './argon2.js';
 import { ConflictError, DavError, isOffline } from './webdav.js';
 import { cachePut } from './cache.js';
 import { excluded } from './core/audit.js';
-import { editTags, entryColor, groupPath, isOutOfMemory, isPasskeyField, isSystemField, resolvePlaceholders, toOtpUri, uuidHex, valueText } from './core/util.js';
+import { editTags, entryColor, groupPath, isOtpField, isOutOfMemory, isPasskeyField, isSystemField, resolvePlaceholders, toOtpUri, uuidHex, valueText } from './core/util.js';
 import { EXPORT_HEAD, otpUri } from './core/csv.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
@@ -450,8 +450,10 @@ export class Vault {
         }
         for (const k of [...entry.fields.keys()]) if (!STANDARD_FIELDS.includes(k) && !isSystemField(k) && !wanted.has(k)) entry.fields.delete(k);
         if (data.otp !== undefined) {
+            // A TOTP set (or emptied) in the editor is the entry's only one: KeePassXC reads "TOTP Settings" before "otp" and KeePass 2
+            // only its TimeOtp-*, so old fields left next to it would keep making codes from the old secret there. The history keeps them.
             if (data.otp) entry.fields.set('otp', ProtectedValue.fromString(data.otp));
-            else for (const k of ['otp', 'TOTP Seed', 'TOTP Settings']) entry.fields.delete(k);
+            for (const k of [...entry.fields.keys()]) if (isOtpField(k) && !(k === 'otp' && data.otp)) entry.fields.delete(k);
         }
         if (data.expires !== undefined) {
             entry.times.expires = !!data.expires;
@@ -497,7 +499,7 @@ export class Vault {
         const existing = [...entry.fields].filter(([k]) => !STANDARD_FIELDS.includes(k) && !isSystemField(k));
         if (custom.length !== existing.length) return true;
         for (const c of custom) { const o = entry.fields.get(c.name.trim()); if (o === undefined || valueText(o) !== (c.value ?? '') || isProtected(o) !== !!c.protect) return true; }
-        if (data.otp !== undefined) { const cur = valueText(entry.fields.get('otp')); if ((data.otp || '') !== cur && !(data.otp === '' && !entry.fields.has('otp') && !entry.fields.has('TOTP Seed'))) return true; }
+        if (data.otp !== undefined && ((data.otp || '') !== valueText(entry.fields.get('otp')) || [...entry.fields.keys()].some((k) => k !== 'otp' && isOtpField(k)))) return true;
         if (data.expires !== undefined) {
             if (!!data.expires !== !!entry.times.expires) return true;
             if (data.expires && (data.expiryTime?.getTime() ?? 0) !== (entry.times.expiryTime?.getTime() ?? 0)) return true;
@@ -736,7 +738,7 @@ export class Vault {
         const time = (d) => (d ? d.toISOString().replace(/\.\d{3}Z$/, 'Z') : '');
         return [EXPORT_HEAD, ...all.map((e) => [[this.root.name, groupPath(e.parentGroup)].filter(Boolean).join('/'),
             val(e, 'Title'), val(e, 'UserName'), val(e, 'Password'), val(e, 'URL'), val(e, 'Notes'),
-            otpUri(val(e, 'Title'), val(e, 'otp'), val(e, 'TOTP Seed'), val(e, 'TOTP Settings')), String(e.icon ?? 0), time(e.times.lastModTime), time(e.times.creationTime)])];
+            otpUri(val(e, 'Title'), val(e, 'otp'), val(e, 'TOTP Seed'), val(e, 'TOTP Settings'), (k) => val(e, k)), String(e.icon ?? 0), time(e.times.lastModTime), time(e.times.creationTime)])];
     }
 
     emptyRecycleBin() {

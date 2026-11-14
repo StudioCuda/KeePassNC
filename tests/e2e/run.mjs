@@ -249,6 +249,74 @@ async function main() {
         return `Steam ${a}`;
     });
 
+    await step('KeePass 2 TOTP (TimeOtp-*): code like KeePassXC, "otp" goes first; broken settings say so once and the quick button copies nothing; an edit keeps the fields, a new TOTP replaces them', async () => {
+        const fk = path.join(davRoot, 'kp2totp.kdbx');
+        execFileSync('python3', ['-I', '-c', [
+            'from pykeepass import create_database',
+            `kp = create_database(${JSON.stringify(fk)}, password=${JSON.stringify(PW)})`,
+            'def add(title, fields, otp=None):',
+            "    e = kp.add_entry(kp.root_group, title, 'anna', 'x')",
+            "    for k, v in fields.items(): e.set_custom_property(k, v, protect=k.startswith('TimeOtp-Secret'))",
+            '    if otp: e.otp = otp',
+            // KeePassXC 2.7 reads TimeOtp-Secret-Base32 (with length, period and algorithm) itself, so it is the reference here
+            "add('KeePass 2', {'TimeOtp-Secret-Base32': 'JBSWY3DPEHPK3PXP', 'TimeOtp-Length': '8', 'TimeOtp-Period': '45', 'TimeOtp-Algorithm': 'HMAC-SHA-256'})",
+            "add('Beide Felder', {'TimeOtp-Secret-Base32': 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'}, 'otpauth://totp/x?secret=JBSWY3DPEHPK3PXP')",
+            "add('Kaputt Hex', {'TimeOtp-Secret-Hex': 'xyz'})",
+            "add('Kaputt MD5', {}, 'otpauth://totp/x?secret=JBSWY3DPEHPK3PXP&algorithm=MD5')",
+            'kp.save()'].join('\n')]);
+        const p = await newPage();
+        const errorsBefore = problems.pageErrors.length;
+        await p.evaluate(() => { window.kpRejections = 0; addEventListener('unhandledrejection', () => { window.kpRejections++; }); });
+        await login(p, 'kp2totp.kdbx'); await rows(p).first().waitFor();
+        expect(await p.locator('#nav-totp .count').innerText() === '4', 'Filter "Mit TOTP": ' + await p.locator('#nav-totp .count').innerText());
+        expect(await rows(p).locator('.badges .mini[title=TOTP]').count() === 4, 'TOTP-Badge an allen vier');
+        const row = (title) => rows(p).filter({ hasText: title });
+        const sameAsKeePassXC = async (title, re) => {
+            await row(title).click();
+            await p.waitForFunction(() => /^\d+$/.test(document.querySelector('[data-testid=totp-code]')?.textContent || ''));
+            let ok = false, a, b;
+            for (let i = 0; i < 3 && !ok; i++) { // up to 3 tries because of the window boundary
+                a = (await p.locator('[data-testid=totp-code]').innerText()).trim();
+                b = xc(['show', '-t', fk, title]).trim().split('\n').pop();
+                ok = a === b;
+                if (!ok) await p.waitForTimeout(1200);
+            }
+            expect(re.test(a), `${title}: ${a}`);
+            expect(ok, `${title}: App ${a} vs. KeePassXC ${b}`);
+            return a;
+        };
+        const kp2 = await sameAsKeePassXC('KeePass 2', /^\d{8}$/);
+        await sameAsKeePassXC('Beide Felder', /^\d{6}$/);
+        for (const [title, why] of [['Kaputt Hex', /Hex-Zeichen/], ['Kaputt MD5', /Algorithmus: MD5/]]) {
+            await row(title).click();
+            await p.locator('[data-testid=totp-invalid]').waitFor();
+            expect(await p.locator('[data-testid=totp-code]').count() === 0, `${title}: Code trotz kaputter Einstellungen`);
+            const shown = await p.locator('[data-testid=totp-invalid]').innerText();
+            expect(/^Kein Code möglich\. /.test(shown) && why.test(shown), `${title}: ${shown}`);
+            await p.locator('.entry-wrap', { has: row(title) }).locator('.row-actions button').last().click({ force: true });
+            await waitStatus(p, new RegExp('^Kein TOTP-Code zum Kopieren\\. .*' + why.source));
+        }
+        await p.waitForTimeout(2500); // a few ticks of the code timer
+        expect(await p.evaluate(() => window.kpRejections) === 0, 'unbehandelte Promise-Ablehnungen: ' + await p.evaluate(() => window.kpRejections));
+        expect(problems.pageErrors.length === errorsBefore, 'Seitenfehler: ' + problems.pageErrors.slice(errorsBefore).join(' | '));
+        // The editor shows the TOTP; an edit elsewhere leaves TimeOtp-* as they are
+        await row('KeePass 2').click(); await p.click('#edit-btn');
+        expect(await p.inputValue('#e-otp') === 'otpauth://totp/KeePass%202?secret=JBSWY3DPEHPK3PXP&period=45&digits=8&algorithm=SHA256', 'Editor: ' + await p.inputValue('#e-otp'));
+        await p.fill('#e-notes', 'nur die Notiz'); await p.click('#apply-btn');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        let all = xc(['show', '-s', '--all', fk, 'KeePass 2']);
+        expect(/nur die Notiz/.test(all) && /^TimeOtp-Secret-Base32: JBSWY3DPEHPK3PXP$/m.test(all) && /^TimeOtp-Period: 45$/m.test(all) && !/^otp:/m.test(all), 'nach dem Bearbeiten:\n' + all);
+        expect(/^\d{8}$/.test(xc(['show', '-t', fk, 'KeePass 2']).trim().split('\n').pop()), 'KeePassXC sieht das TOTP nicht mehr');
+        // A new TOTP goes into "otp" and the KeePass 2 fields go (they stay in the history)
+        await p.click('#edit-btn'); await p.fill('#e-otp', 'GEZD GNBV GY3T QOJQ GEZD GNBV GY3T QOJQ'); await p.click('#apply-btn');
+        await p.waitForFunction(() => /^\d{6}$/.test(document.querySelector('[data-testid=totp-code]')?.textContent || '')); // applied: the new code is up
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        all = xc(['show', '-s', '--all', fk, 'KeePass 2']);
+        expect(!/^TimeOtp-/m.test(all) && /^otp: otpauth:\/\/totp\/KeePass%202:anna\?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&period=30&digits=6&issuer=KeePass%202$/m.test(all), 'nach dem neuen TOTP:\n' + all);
+        await p.context().close();
+        return `KeePass 2 ${kp2}`;
+    });
+
     await step('Passkey: Duplizieren kopiert ihn nicht mit; "Passkey entfernen" entfernt ihn, alter Stand bleibt im Verlauf (Pruefung mit pykeepass)', async () => {
         const fpk = path.join(davRoot, 'passkey.kdbx');
         const py = (lines) => execFileSync('python3', ['-I', '-c', lines.join('\n')]).toString();

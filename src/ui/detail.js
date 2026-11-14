@@ -2,10 +2,10 @@
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
 import { totp } from '../totp.js';
 import { entryExpiry, domainOf, openableUrl, isSystemField, isPasskey, groupPath, fieldOf, previewKind, previewOf } from '../core/util.js';
-import { t, fmtDate, errText } from '../i18n.js';
+import { t, fmtDate } from '../i18n.js';
 import { ctx, copy, download, setStatus, pref } from './ctx.js';
 import { h, icon, iconBtn, modal, toast, confirmDialog, popupMenu } from './dom.js';
-import { avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl, otpConfigOf } from './common.js';
+import { avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl, otpConfigOf, otpProblem } from './common.js';
 import { colorizedPassword, strengthBar } from './pwview.js';
 import { changed } from './session.js';
 import { setFilter, groupSelect, selectedGroup } from './groups.js';
@@ -30,8 +30,9 @@ function flashDone(btn) {
     clearTimeout(btn.doneTimer);
     btn.doneTimer = setTimeout(() => { btn.replaceChildren(icon('copy')); btn.classList.remove('done'); }, 1400);
 }
+/** text: the value, or a function that makes it at the moment of the click; null from it means "nothing to copy" (it said why). */
 const copyBtn = (text, label, extra = {}) => {
-    const btn = iconBtn('copy', t('copy') + ': ' + label, async () => { if (await copy(typeof text === 'function' ? await text() : text, label)) flashDone(btn); }, extra);
+    const btn = iconBtn('copy', t('copy') + ': ' + label, async () => { const v = typeof text === 'function' ? await text() : text; if (v !== null && await copy(v, label)) flashDone(btn); }, extra);
     return btn;
 };
 
@@ -85,8 +86,9 @@ export function renderDetail(host) {
     }
 
     // TOTP
+    const otpInvalid = (err) => field('TOTP', h('span', { class: 'error', 'data-testid': 'totp-invalid', text: t('totp.invalid', { reason: otpProblem(err) }) }));
     let otpCfg = null;
-    try { otpCfg = otpConfigOf(e); } catch (err) { main.push(field('TOTP', h('span', { class: 'error', text: errText(err) }))); }
+    try { otpCfg = otpConfigOf(e); } catch (err) { main.push(otpInvalid(err)); }
     if (otpCfg) {
         const codeEl = h('span', { class: 'totp', 'data-testid': 'totp-code', text: '------' });
         const NSs = 'http://www.w3.org/2000/svg';
@@ -96,15 +98,25 @@ export function renderDetail(host) {
         bg.setAttribute('class', 'ring-bg'); fg.setAttribute('class', 'ring-fg'); fg.setAttribute('stroke-dasharray', '94.25'); fg.setAttribute('stroke-linecap', 'round');
         ring.append(bg, fg);
         const remEl = h('span', { class: 'ring-num' });
+        let failed = false;
         const tick = async () => {
-            const r = await totp(otpCfg);
+            let r;
+            try { r = await totp(otpCfg); } catch (err) {
+                // settings that read fine but make no code (WebCrypto says no): say so once instead of "------" and an error every second
+                clearInterval(timer); if (totpTimer === timer) totpTimer = null;
+                if (!failed) { failed = true; box.replaceWith(otpInvalid(err)); }
+                return;
+            }
+            if (failed) return;
             codeEl.textContent = r.code;
             remEl.textContent = String(r.remaining);
             fg.setAttribute('stroke-dashoffset', String(94.25 * (1 - r.remaining / (otpCfg.period || 30))));
             ring.classList.toggle('low', r.remaining <= 5);
         };
-        tick(); totpTimer = setInterval(tick, 1000);
-        main.push(field('TOTP', h('div', { class: 'totp-box' }, codeEl, h('span', { class: 'ring-wrap' }, ring, remEl)), [copyBtn(async () => (await totp(otpCfg)).code, 'TOTP', { 'data-testid': 'totp-copy' })], 'totp'));
+        const codeNow = async () => { try { return (await totp(otpCfg)).code; } catch (err) { setStatus(t('totp.nocopy', { reason: otpProblem(err) }), 'error'); return null; } };
+        const box = field('TOTP', h('div', { class: 'totp-box' }, codeEl, h('span', { class: 'ring-wrap' }, ring, remEl)), [copyBtn(codeNow, 'TOTP', { 'data-testid': 'totp-copy' })], 'totp');
+        main.push(box);
+        const timer = setInterval(tick, 1000); totpTimer = timer; tick();
     }
     cards.push(h('section', { class: 'card' }, ...main));
 

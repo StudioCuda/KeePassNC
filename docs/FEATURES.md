@@ -23,6 +23,7 @@ The short tour is in the [README](../README.md). This is the long version, for w
 ## Passwords and codes
 
 - **Two-factor codes:** TOTP codes sit right next to the password, Steam Guard included. Setting one up? Pick a screenshot of the QR code, no typing needed.
+- **Wherever your app put the TOTP:** KeePassXC's `otp` field (an `otpauth://` link, the KeeOtp plugin's `key=…` or just the secret), the older `TOTP Seed` and `TOTP Settings`, or KeePass 2's own `TimeOtp-*` fields with the secret as text, hex, Base32 or Base64. If an entry has more than one, `otp` wins, then `TOTP Seed`, then `TimeOtp-*`. Editing the entry leaves them as they are; a TOTP you change in KeePassNC goes into `otp` and the older fields go (the entry's history keeps them), so KeePassXC and KeePass 2 don't keep making codes from the old secret. Settings that can't make a code say so instead of showing one.
 - **Passkeys:** passkeys saved by KeePassXC are shown and kept intact.
 - **Generator:** passphrases (English or German), classic passwords, and simple ones you can type with a TV remote.
 - **Health report:** finds weak, reused and expired passwords.
