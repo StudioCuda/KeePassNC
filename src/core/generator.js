@@ -52,14 +52,45 @@ export function generatePassword(opts = {}) {
     const len = Math.max(o.length, o.everyGroup ? nonEmpty.length : 1);
     const out = o.everyGroup ? nonEmpty.map((g) => g[randomInt(g.length)]) : [];
     while (out.length < len) out.push(pool[randomInt(pool.length)]);
-    return { password: shuffle(out).join(''), bits: len * Math.log2(pool.length) };
+    return { password: shuffle(out).join(''), bits: o.everyGroup ? everyGroupBits(nonEmpty.map((g) => g.length), pool.length, len) : len * Math.log2(pool.length) };
+}
+
+/**
+ * Bits of a password with "every group": the Shannon entropy of what generatePassword draws, not length × log2(pool). Each group first
+ * gets one character of its own, the rest comes from the whole pool, then everything is shuffled. So the passwords aren't all equally
+ * likely: for disjoint groups of sizes g_1..g_k (pool N, length L) a password with c_i characters from group i has the probability
+ * ∏c_i · (L-k)!/L! · ∏(1/g_i) · N^-(L-k), and the average of -log2 of that is
+ *   Σ log2 g_i + (L-k)·log2 N + log2(L!/(L-k)!) - Σ E[log2(1 + X_i)],  X_i ~ Binomial(L-k, g_i/N).
+ * Groups that overlap (own characters that are also in a chosen class) only get Σ log2 g_i + (L-k)·log2 N, a safe lower bound.
+ * tests/unit/generator-bits.test.mjs checks this against counting every outcome of small cases.
+ */
+export function everyGroupBits(sizes, pool, len) {
+    const rest = len - sizes.length;
+    let bits = rest * Math.log2(pool) + sizes.reduce((a, g) => a + Math.log2(g), 0);
+    if (sizes.reduce((a, g) => a + g, 0) !== pool) return bits;
+    for (let i = 0; i < sizes.length; i++) bits += Math.log2(len - i);
+    for (const g of sizes) bits -= expectedLog2OnePlusBinomial(rest, g / pool);
+    return bits;
+}
+
+/** E[log2(1 + X)] for X ~ Binomial(n, p), summed in log space so long passwords don't underflow. */
+function expectedLog2OnePlusBinomial(n, p) {
+    if (p >= 1) return Math.log2(1 + n);
+    const lp = Math.log(p), lq = Math.log1p(-p);
+    let logChoose = 0, sum = 0;
+    for (let x = 0; x <= n; x++) {
+        if (x > 0) logChoose += Math.log(n - x + 1) - Math.log(x);
+        sum += Math.exp(logChoose + x * lp + (n - x) * lq) * Math.log2(1 + x);
+    }
+    return sum;
 }
 
 // Separators for passphrase and simple mode, the first one is the default. Space, period, comma and @ are on the first keyboard
 // page on Fire TV.
 export const SEPARATORS = [' ', '.', '-', ',', '_', '@', '!'];
 export const DEFAULT_PASSPHRASE_OPTIONS = { words: 6, separator: ' ', casing: 'lower', list: 'en', digit: false };
-/** list: 'en' (EFF Large Wordlist) or 'de' (dys2p de-7776); both have 7776 words, so about 12.9 bits per word. digit: one digit
+/** list: 'en' (EFF Large Wordlist, 7772 words: its four with a hyphen are left out, "-" is a separator here) or 'de' (dys2p
+ * de-7776, 7776 words); both about 12.9 bits per word. digit: one digit
  * 0-9 after a random word, for services that demand a number (the words contain no digits, so the bits are exact). */
 export function generatePassphrase(opts = {}) {
     const o = { ...DEFAULT_PASSPHRASE_OPTIONS, ...opts };

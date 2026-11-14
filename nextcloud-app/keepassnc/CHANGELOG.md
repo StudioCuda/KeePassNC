@@ -9,6 +9,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Password generator: a click on the password copies it in the entry editor too, like in the vault view and on the standalone page.
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
 
+### Fixed
+- Password generator: with "at least one of each group", the strength shown is now the exact entropy of what it draws. Short passwords were rated too high: four characters from four groups are about 20 bits, not 24.
+- The EFF word list has 7772 words (the four with a hyphen are left out), not 7776 as the tooltip said. The bits were already right.
+
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
 
