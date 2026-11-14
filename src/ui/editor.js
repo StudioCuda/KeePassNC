@@ -14,19 +14,67 @@ import { iconSelOf, iconPreview, pickIcon, commitIconSel } from './icon-picker.j
 import { readQr } from '../qr.js';
 
 const { state } = ctx;
+const firstGroup = () => state.vault.root.groups.find((x) => x !== state.vault.recycleBin) || state.vault.root;
 
+/**
+ * state.editing = {entry|null, group} plus, once the form is built: form, collect() (the form's values), relink(), base (the values it
+ * started with) and gone (the entry was deleted meanwhile). While the soft lock hides the view the form is gone and draft holds the values.
+ */
 export function startEdit(entry, group) {
     if (state.vault.readOnly) { setStatus(errText(state.vault.readOnlyError()), 'warn'); return; }
     if (isSwapping()) { setStatus(t('sync.busy'), 'warn'); return; } // a pull in flight would swap the database under the editor
-    const g = entry?.parentGroup || group || (state.filter.type === 'group' && state.filter.group !== state.vault.recycleBin ? state.filter.group : null) || state.vault.root.groups.find((x) => x !== state.vault.recycleBin) || state.vault.root;
+    const g = entry?.parentGroup || group || (state.filter.type === 'group' && state.filter.group !== state.vault.recycleBin ? state.filter.group : null) || firstGroup();
     state.editing = { entry, group: g };
     state.view = 'detail';
     ctx.ui.refresh();
 }
 export function cancelEdit() { state.editing = null; ctx.ui.refresh(); }
 
+/** Compares two sets of form values (collect()); attachments by name, a new icon by its picture. */
+const draftKey = (d) => JSON.stringify({ ...d, generated: undefined, att: [[...d.att.add.keys()], [...d.att.remove]], iconSel: [d.iconSel.icon, d.iconSel.custom, d.iconSel.add?.url ?? null] });
+
+/** Has anything been typed or picked in the editor that Apply hasn't stored yet? Locking asks for it (session.js doLock). */
+export function editorChanged() {
+    const ed = state.editing;
+    const now = ed && (ed.draft || ed.collect?.());
+    return !!now && draftKey(now) !== draftKey(ed.base);
+}
+
+/**
+ * The soft lock hides the view. What was typed stays in memory only, as plain values like the database itself, not as fields in the page;
+ * after unlocking the editor is built again from them. An editor without changes simply closes.
+ */
+export function parkEditor() {
+    const ed = state.editing;
+    if (!ed) return;
+    if (!editorChanged()) { state.editing = null; return; }
+    if (ed.form) ed.draft = ed.collect();
+    ed.form = ed.collect = ed.relink = null;
+}
+
+/**
+ * The entry and group the editor works on, looked up again by UUID: after the database was swapped or merged with the server's version
+ * they may be other objects now, or gone. An entry deleted for good (not just into the recycle bin) stays as it was, marked gone:
+ * Apply creates it again instead of writing into an object that is no longer part of the database.
+ */
+function relocate(ed) {
+    const v = state.vault;
+    if (ed.entry) {
+        let found = null;
+        for (const e of v.root.allEntries()) if (e.uuid.equals(ed.entry.uuid)) { found = e; break; }
+        if (found) ed.entry = found;
+        ed.gone = !found;
+    }
+    ed.group = (ed.group && v.db.getGroup(ed.group.uuid)) || firstGroup();
+}
+
 export function renderEditor(host) {
-    const { entry, group } = state.editing;
+    const ed = state.editing;
+    // A redraw (a change elsewhere, Undo, a merge with the server's version) keeps the form and whatever was typed into it
+    if (ed.form && host.contains(ed.form)) { ed.relink(); return; }
+    if (ed.form) ed.draft = ed.collect(); // the whole page was built anew (other language): the new form starts from what was typed
+    relocate(ed);
+    const { entry, group } = ed;
     const v = state.vault;
     const val = (k) => (entry ? fieldText(entry.fields.get(k)) : '');
     const i = {
@@ -62,7 +110,7 @@ export function renderEditor(host) {
         if (c) r.style.setProperty('--swatch', c); // CSSOM, no style attribute (CSP)
         return r;
     };
-    const colorBox = h('div', { class: 'swatches', id: 'e-color', role: 'radiogroup', 'aria-label': t('f.color') }, swatch(''), ...[...new Set([...ENTRY_COLORS, color].filter(Boolean))].map(swatch));
+    const colorBox = h('div', { class: 'swatches', id: 'e-color', role: 'radiogroup', 'aria-label': t('f.color') }, swatch(''), ...[...new Set([...ENTRY_COLORS, color, ed.draft?.color].filter(Boolean))].map(swatch));
     let generated = null; // {pw, bits} from the generator: exact strength as long as the field is unchanged
     const meter = h('div', { class: 'meter' }, strengthBar(i.Password.value));
     i.Password.addEventListener('input', () => meter.replaceChildren(strengthBar(i.Password.value, generated?.pw === i.Password.value ? generated.bits : undefined)));
@@ -72,7 +120,7 @@ export function renderEditor(host) {
     const SHOWN = 2; // names listed; a password that sits in hundreds of entries stays a short line ("A, B (+198)"), CSS keeps it to two lines
     const checkReuse = () => {
         if (!reuse.isConnected) return; // the editor was closed (or the vault locked) in the meantime
-        const names = i.excludeReports.checked ? [] : reusedBy(allRealEntries(), entry, i.Password.value).map((e) => fieldText(e.fields.get('Title')) || t('entry.untitled')).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+        const names = i.excludeReports.checked ? [] : reusedBy(allRealEntries(), ed.entry, i.Password.value).map((e) => fieldText(e.fields.get('Title')) || t('entry.untitled')).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
         const text = !names.length ? '' : t(names.length > SHOWN ? 'pw.reused.more' : 'pw.reused', { names: names.slice(0, SHOWN).join(', '), n: names.length - SHOWN });
         if (reuse.textContent !== text) reuse.textContent = text;
         reuse.hidden = !text;
@@ -122,13 +170,13 @@ export function renderEditor(host) {
     // Attachments: changes stay in this draft (files added, names removed) and only reach the entry with "Apply", like every other field
     const att = { add: new Map(), remove: new Set() };
     const attRows = h('div', { id: 'e-att-list' });
-    const attNames = () => new Set([...(entry?.binaries.keys() || [])].filter((n) => !att.remove.has(n)).concat([...att.add.keys()]));
+    const attNames = () => new Set([...(ed.entry?.binaries.keys() || [])].filter((n) => !att.remove.has(n)).concat([...att.add.keys()]));
     const renderAtt = () => {
         const row = (name, size, isNew, onRemove) => h('div', { class: 'att-row' + (isNew ? ' new' : ''), 'data-testid': 'e-att-row' }, icon('clip'), h('span', { class: 'grow', text: name }),
             isNew ? h('span', { class: 'badge', text: t('attachment.new') }) : null, h('span', { class: 'muted', text: sizeLabel(size) }),
             iconBtn('trash', t('attachment.remove'), onRemove, { type: 'button', 'data-testid': 'e-att-remove' }));
         const rows = [];
-        for (const [name, bin] of entry?.binaries || []) if (!att.remove.has(name)) rows.push(row(name, binData(bin)?.byteLength ?? 0, false, () => { att.remove.add(name); renderAtt(); }));
+        for (const [name, bin] of ed.entry?.binaries || []) if (!att.remove.has(name)) rows.push(row(name, binData(bin)?.byteLength ?? 0, false, () => { att.remove.add(name); renderAtt(); }));
         for (const [name, f] of att.add) rows.push(row(name, f.size, true, () => { att.add.delete(name); renderAtt(); }));
         attRows.replaceChildren(...(rows.length ? rows : [h('p', { class: 'hint', text: t('attachments.none') })]));
     };
@@ -156,6 +204,7 @@ export function renderEditor(host) {
     const allFields = new Set(); for (const e of allRealEntries()) for (const k of e.fields.keys()) if (!STANDARD_FIELDS.includes(k) && !isSystemField(k)) allFields.add(k);
     for (const k of [...allFields].sort()) fieldSugg.append(h('option', { value: k }));
 
+    const goneNote = h('p', { class: 'level-note warn', id: 'e-gone', role: 'status', hidden: !ed.gone, text: t('entry.gone') });
     const form = h('form', { class: 'editor', id: 'edit-form', novalidate: true },
         h('header', { class: 'detail-head' },
             iconBtn('chevronLeft', t('back'), cancelEdit, { class: 'back-btn', type: 'button' }),
@@ -163,7 +212,7 @@ export function renderEditor(host) {
             h('div', { class: 'dh-actions' },
                 h('button', { type: 'button', id: 'cancel-btn', onclick: cancelEdit, text: t('cancel') }),
                 h('button', { type: 'submit', class: 'primary', id: 'apply-btn' }, icon('check'), h('span', { text: t('apply') })))),
-        h('div', { class: 'detail-body' },
+        h('div', { class: 'detail-body' }, goneNote,
             h('section', { class: 'card stack' },
                 h('div', { class: 'title-row' }, iconBtnEl, h('label', { class: 'grow' }, h('span', { text: t('f.title') }), i.Title)),
                 h('div', { class: 'grid2' }, h('label', {}, h('span', { text: t('f.user') }), i.UserName), h('label', {}, h('span', { text: t('group') }), groupSel)),
@@ -179,31 +228,71 @@ export function renderEditor(host) {
                 h('div', {}, h('button', { type: 'button', class: 'btn small', id: 'add-custom', onclick: () => addCustom().querySelector('.c-name').focus() }, icon('plus'), t('field.add')), fieldSugg)),
             h('section', { class: 'card stack' }, h('div', { class: 'card-title' }, icon('clip'), h('span', { class: 'grow', text: t('attachments') })), attRows, dropZone, attInput)));
 
+    // Everything the form holds, as plain values: to tell whether anything changed, and to build the form again (soft lock, new language)
+    const collect = () => ({
+        Title: i.Title.value, UserName: i.UserName.value, Password: i.Password.value, URL: i.URL.value, Notes: i.Notes.value, tags: i.tags.value, otp: i.otp.value,
+        expires: i.expires.checked, expiry: i.expiry.value, excludeReports: i.excludeReports.checked, group: groupSel.value, color: colorBox.querySelector(':checked')?.value ?? '',
+        custom: [...customBox.querySelectorAll('.custom-row')].map((r) => ({ name: r.querySelector('.c-name').value, value: r.customValue(), protect: r.querySelector('.c-protect').checked })),
+        iconSel, att: { add: new Map(att.add), remove: new Set(att.remove) }, generated
+    });
+    const restore = (d) => {
+        for (const k of ['Title', 'UserName', 'Password', 'URL', 'Notes', 'tags', 'otp', 'expiry']) i[k].value = d[k];
+        i.expires.checked = d.expires; i.expiry.disabled = !d.expires; i.excludeReports.checked = d.excludeReports;
+        if ([...groupSel.options].some((o) => o.value === d.group)) groupSel.value = d.group; // a group deleted meanwhile: the entry's own stays chosen
+        for (const r of colorBox.querySelectorAll('input')) r.checked = r.value === d.color;
+        customBox.replaceChildren(); for (const c of d.custom) addCustom(c.name, c.value, c.protect);
+        iconSel = d.iconSel; att.add = new Map(d.att.add); att.remove = new Set(d.att.remove); generated = d.generated;
+        showIcon(); renderAtt(); i.Password.dispatchEvent(new Event('input')); // strength meter and the note on reused passwords
+    };
+    // After a redraw: the same form, but the entry and the groups as the database has them now
+    const relink = () => {
+        relocate(ed);
+        const keep = selectedGroup(groupSel) || ed.group;
+        const fresh = groupSelect({ value: keep });
+        const value = fresh.value;
+        groupSel.replaceChildren(...fresh.options); // groups added or deleted on the other device
+        groupSel.value = value;
+        renderAtt();
+        goneNote.hidden = !ed.gone;
+    };
+    ed.form = form; ed.collect = collect; ed.relink = relink;
+    ed.base ??= collect();
+    if (ed.draft) { restore(ed.draft); ed.draft = null; }
+
     form.addEventListener('submit', async (ev) => {
         ev.preventDefault();
+        relocate(ed); // a merge may have come in since the last redraw
+        goneNote.hidden = !ed.gone;
+        const old = ed.entry, entry = ed.gone ? null : old;
         const added = new Map();
-        try { for (const [name, f] of att.add) added.set(name, await v.makeBinary(await f.arrayBuffer())); } catch (err) { setStatus(errText(err), 'error'); return; }
-        const custom = [...customBox.querySelectorAll('.custom-row')].map((r) => ({ name: r.querySelector('.c-name').value, value: r.customValue(), protect: r.querySelector('.c-protect').checked }));
+        try {
+            // Deleted meanwhile: the entry comes back as a new one, with the attachments the editor still lists (stored again, the merge dropped them)
+            if (ed.gone) for (const [name, bin] of old.binaries) if (!att.remove.has(name)) added.set(name, await v.makeBinary(bin?.hash ? bin.value : bin));
+            for (const [name, f] of att.add) added.set(name, await v.makeBinary(await f.arrayBuffer()));
+        } catch (err) { setStatus(errText(err), 'error'); return; }
+        const d = collect();
         const data = {
-            Title: i.Title.value, UserName: i.UserName.value, Password: i.Password.value, URL: i.URL.value, Notes: i.Notes.value,
-            tags: splitTags(i.tags.value), custom,
-            expires: i.expires.checked, expiryTime: i.expires.checked && i.expiry.value ? new Date(i.expiry.value + 'T23:59:59') : null,
+            Title: d.Title, UserName: d.UserName, Password: d.Password, URL: d.URL, Notes: d.Notes,
+            tags: splitTags(d.tags), custom: d.custom,
+            expires: d.expires, expiryTime: d.expires && d.expiry ? new Date(d.expiry + 'T23:59:59') : null,
             ...commitIconSel(iconSel),
-            excludeReports: i.excludeReports.checked,
+            excludeReports: d.excludeReports,
             attachments: { remove: [...att.remove], add: added },
-            color: colorBox.querySelector(':checked')?.value ?? ''
+            color: d.color
         };
-        if (i.expires.checked && entry?.times.expires && i.expiry.value === dateStr(entry.times.expiryTime)) data.expiryTime = entry.times.expiryTime; // leave the time of day unchanged
-        if (i.otp.value.trim() !== val('otp')) {
-            data.otp = toOtpUri(i.otp.value, i.Title.value, i.UserName.value); // a bare secret is completed like KeePassXC does
+        if (d.expires && old?.times.expires && d.expiry === dateStr(old.times.expiryTime)) data.expiryTime = old.times.expiryTime; // leave the time of day unchanged
+        // Only a TOTP that was changed here is written: one that came in with a merge stays (and an entry created again needs its own)
+        if (ed.gone ? d.otp.trim() : d.otp.trim() !== ed.base.otp) {
+            data.otp = toOtpUri(d.otp, d.Title, d.UserName); // a bare secret is completed like KeePassXC does
         }
-        const target = selectedGroup(groupSel) || group;
+        const target = selectedGroup(groupSel) || ed.group;
         const saved = v.applyEntry(entry, entry ? entry.parentGroup : target, data);
         if (entry && target && target !== entry.parentGroup) v.moveEntry(entry, target);
+        const recreated = ed.gone;
         state.selEntry = saved;
         state.editing = null;
         changed();
-        setStatus(ctx.settings.autosync === 'change' && state.source.type === 'dav' ? t('applied.auto') : t('applied'));
+        setStatus(recreated ? t('applied.recreated') : ctx.settings.autosync === 'change' && state.source.type === 'dav' ? t('applied.auto') : t('applied'));
     });
     form.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) form.requestSubmit(); });
     host.replaceChildren(form);

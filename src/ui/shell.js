@@ -8,7 +8,7 @@ import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolv
 import { renderSidebar, newGroup, setFilter, startEntryDrag, emptyBin, tagMenu } from './groups.js';
 import { renderDetail, deleteEntry, stopDetailTimers } from './detail.js';
 import { pruneMarks, markClick, selectAll, selectionBar, deleteEntries } from './selection.js';
-import { renderEditor, startEdit, cancelEdit } from './editor.js';
+import { renderEditor, startEdit, cancelEdit, editorChanged } from './editor.js';
 import { openGenerator } from './generator-dialog.js';
 import { openReports } from './reports.js';
 import { openMerge } from './merge-dialog.js';
@@ -238,6 +238,7 @@ export function installShortcuts() {
 
 ctx.ui.refresh = refresh;
 ctx.ui.renderEditor = renderEditor;
+ctx.ui.editorChanged = editorChanged; // session.js asks before locking
 ctx.ui.applyView = applyView;
 ctx.ui.selectEntry = selectEntry;
 ctx.ui.showMain = showMain;
