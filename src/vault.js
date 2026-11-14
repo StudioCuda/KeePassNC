@@ -353,7 +353,8 @@ export class Vault {
     /**
      * Pulls in another copy of this database (e.g. a "(conflicted copy)" from the Nextcloud clients or a copy from the phone), like
      * "Merge database" in KeePassXC: per entry the newer version wins, the older one goes to the history; deletions
-     * come along. File header and credentials stay our own. creds missing: it is opened with our own credentials.
+     * come along, except for what the other side changed after the deletion. File header and credentials stay our own. creds missing:
+     * it is opened with our own credentials.
      * Returns {added, changed, removed} (entries). Errors: e.badkey, e.badfile, e.merge.other (different database).
      */
     async mergeFrom(buf, creds) {
@@ -832,7 +833,7 @@ export class Vault {
     }
     /**
      * Remove an icon from the file; whatever used it shows its standard icon again (also in the history). The deletion marker prevents
-     * it from coming back when merging with another version (like kdbxweb when cleaning up).
+     * it from coming back when merging with another version, unless that version changed the icon or something using it afterwards.
      */
     removeCustomIcon(id) {
         this._writable();
