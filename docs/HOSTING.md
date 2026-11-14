@@ -18,6 +18,7 @@ Both pages carry a CSP in a `<meta>` tag, but `frame-ancestors` only works as a 
 Header always set Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 Header always set Referrer-Policy "no-referrer"
 Header always set X-Content-Type-Options "nosniff"
+Header always set Strict-Transport-Security "max-age=63072000"
 ```
 
 ```apache
@@ -25,7 +26,10 @@ Header always set X-Content-Type-Options "nosniff"
 Header always set Content-Security-Policy "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 Header always set Referrer-Policy "no-referrer"
 Header always set X-Content-Type-Options "nosniff"
+Header always set Strict-Transport-Security "max-age=63072000"
 ```
+
+`Strict-Transport-Security` keeps browsers on HTTPS for two years after the first visit, so nobody on the way can catch a later plain `http://` request before the redirect. It's left without `includeSubDomains` on purpose, since that would cover every other site under the same domain too. Add it (and `preload`) only if all of them run on HTTPS.
 
 For `web/` on a different domain than your Nextcloud, WebDAV needs CORS, see `CONTRIBUTING.md`. More on the CSP in `SECURITY.md`.
 
