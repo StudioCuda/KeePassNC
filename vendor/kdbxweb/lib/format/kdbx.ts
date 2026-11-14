@@ -24,6 +24,8 @@ export interface MergeObjectMap {
     remoteEntries: Map<string, KdbxEntry>;
     remoteGroups: Map<string, KdbxGroup>;
     deleted: Map<string, Date>;
+    /** ids of the local objects that go where the remote side has them (see Kdbx.remotePlaces) */
+    remotePlace: Set<string>;
 }
 
 export class Kdbx {
@@ -413,9 +415,13 @@ export class Kdbx {
         }
 
         const objectMap = this.getObjectMap();
+        // tombstones of both sides, one per object; for the same object the later deletion counts (like KeePass 2)
         for (const rem of remote.deletedObjects) {
-            if (rem.uuid && rem.deletionTime && !objectMap.deleted.has(rem.uuid.id)) {
-                this.deletedObjects.push(rem);
+            if (!rem.uuid || !rem.deletionTime) {
+                continue;
+            }
+            const local = objectMap.deleted.get(rem.uuid.id);
+            if (!local || rem.deletionTime > local) {
                 objectMap.deleted.set(rem.uuid.id, rem.deletionTime);
             }
         }
@@ -428,11 +434,160 @@ export class Kdbx {
         const remoteObjectMap = remote.getObjectMap();
         objectMap.remoteEntries = remoteObjectMap.entries;
         objectMap.remoteGroups = remoteObjectMap.groups;
+        objectMap.remotePlace = Kdbx.remotePlaces(objectMap);
 
         this.meta.merge(remote.meta, objectMap);
         root.merge(objectMap);
+        this.applyDeletions(root, objectMap.deleted);
+        this.applyCustomIconDeletions(objectMap.deleted);
+        this.deletedObjects = this.deletedObjects
+            .filter((d) => !d.uuid || !d.deletionTime)
+            .concat([...objectMap.deleted].map(([id, time]) => Kdbx.tombstone(id, time)));
 
-        this.cleanup({ historyRules: true, customIcons: true, binaries: true });
+        // no custom icon cleanup here: an icon nobody uses right now may be a library icon, or used by the other side's history
+        this.cleanup({ historyRules: true, binaries: true });
+    }
+
+    /**
+     * Which local objects go where the remote side has them: those moved there later than here. Decided up front, against the move
+     * times from before the merge: entry.merge and group.merge take over the newer side's times as soon as they get to an object, and
+     * that can be before the group it left is merged, which then kept it as well (the same object in two groups, saved twice).
+     * Groups the two sides moved into each other would form a loop that nothing reaches from the root (gone with everything in it):
+     * then the group whose chosen place is the older one goes to its place on the other side, the same choice from either side.
+     */
+    private static remotePlaces(objectMap: MergeObjectMap): Set<string> {
+        const remotePlace = new Set<string>();
+        const compare = <T extends KdbxEntry | KdbxGroup>(local: Map<string, T>, remote: Map<string, T>) => {
+            for (const [id, item] of local) {
+                const remoteItem = remote.get(id);
+                if (remoteItem && remoteItem.locationChanged > item.locationChanged) {
+                    remotePlace.add(id);
+                }
+            }
+        };
+        compare(objectMap.entries, objectMap.remoteEntries);
+        compare(objectMap.groups, objectMap.remoteGroups);
+        const parentId = (id: string): string | undefined => {
+            const local = objectMap.groups.get(id);
+            return (local && !remotePlace.has(id) ? local : objectMap.remoteGroups.get(id))?.parentGroup?.uuid.id;
+        };
+        const placed = (id: string) =>
+            Math.max(objectMap.groups.get(id)?.locationChanged ?? 0, objectMap.remoteGroups.get(id)?.locationChanged ?? 0);
+        const flipped = new Set<string>();
+        for (let loop = Kdbx.findLoop(objectMap.groups.keys(), parentId); loop; loop = Kdbx.findLoop(objectMap.groups.keys(), parentId)) {
+            const both = loop.filter((id) => objectMap.groups.has(id) && objectMap.remoteGroups.has(id));
+            const candidates = both.filter((id) => !flipped.has(id));
+            if (!candidates.length) {
+                both.forEach((id) => remotePlace.delete(id)); // each flipped once already: back where this side has them, a tree
+                continue;
+            }
+            const oldest = candidates.reduce((x, y) => (placed(y) < placed(x) || (placed(y) === placed(x) && y < x) ? y : x));
+            if (!remotePlace.delete(oldest)) {
+                remotePlace.add(oldest);
+            }
+            flipped.add(oldest);
+        }
+        return remotePlace;
+    }
+
+    /** A loop in the group tree that parentId describes (its ids), or undefined if every group reaches the root. */
+    private static findLoop(ids: Iterable<string>, parentId: (id: string) => string | undefined): string[] | undefined {
+        const reachesRoot = new Set<string>();
+        for (const start of ids) {
+            const path: string[] = [];
+            let id: string | undefined = start;
+            while (id !== undefined && !reachesRoot.has(id) && !path.includes(id)) {
+                path.push(id);
+                id = parentId(id);
+            }
+            if (id !== undefined && !reachesRoot.has(id)) {
+                return path.slice(path.indexOf(id));
+            }
+            path.forEach((x) => reachesRoot.add(x));
+        }
+        return undefined;
+    }
+
+    /**
+     * Applies the merged tombstones to the merged tree, children first. Like KeePass 2, an item only goes if it wasn't changed after
+     * its deletion, and a group only once nothing is left in it; whatever stays loses its tombstone (removed from `deleted`), so the
+     * next merge doesn't delete it after all. Unlike KeePass 2, a move counts as a change too: restoring from the recycle bin only
+     * changes the location.
+     */
+    private applyDeletions(group: KdbxGroup, deleted: Map<string, Date>): void {
+        for (const subGroup of group.groups) {
+            this.applyDeletions(subGroup, deleted);
+        }
+        const stays = (item: KdbxEntry | KdbxGroup): boolean => {
+            const deletionTime = deleted.get(item.uuid.id);
+            if (!deletionTime) {
+                return true;
+            }
+            const notEmpty = item instanceof KdbxGroup && (item.entries.length > 0 || item.groups.length > 0);
+            if (
+                notEmpty ||
+                Kdbx.changedAfter(item.times.lastModTime, deletionTime) ||
+                Kdbx.changedAfter(item.times.locationChanged, deletionTime)
+            ) {
+                deleted.delete(item.uuid.id);
+                return true;
+            }
+            return false;
+        };
+        group.entries = group.entries.filter(stays);
+        group.groups = group.groups.filter(stays);
+    }
+
+    /**
+     * Tombstones of custom icons. Like KeePass 2, the icon goes unless it was changed after its deletion; it also stays if an entry or
+     * group using it was changed after the deletion (KDBX 4.0 has no icon times, and a newer use shouldn't lose its icon). An icon
+     * that stays loses its tombstone; anything still pointing to a deleted icon (history included) shows its standard icon again.
+     */
+    private applyCustomIconDeletions(deleted: Map<string, Date>): void {
+        const lastUse = new Map<string, Date>();
+        for (const item of this.getDefaultGroup().allGroupsAndEntries()) {
+            const id = item.customIcon?.id;
+            const time = item.times.lastModTime;
+            const known = id && lastUse.get(id);
+            if (id && time && (!known || time > known)) {
+                lastUse.set(id, time);
+            }
+        }
+        for (const [id, icon] of [...this.meta.customIcons]) {
+            const deletionTime = deleted.get(id);
+            if (!deletionTime) {
+                continue;
+            }
+            if (
+                Kdbx.changedAfter(icon.lastModified, deletionTime) ||
+                Kdbx.changedAfter(lastUse.get(id), deletionTime)
+            ) {
+                deleted.delete(id);
+            } else {
+                this.meta.customIcons.delete(id);
+            }
+        }
+        const gone = (item: KdbxEntry | KdbxGroup) =>
+            item.customIcon && deleted.has(item.customIcon.id) && !this.meta.customIcons.has(item.customIcon.id);
+        for (const item of this.getDefaultGroup().allGroupsAndEntries()) {
+            for (const state of item instanceof KdbxEntry ? [item, ...item.history] : [item]) {
+                if (gone(state)) {
+                    state.customIcon = undefined;
+                }
+            }
+        }
+    }
+
+    /** KDBX stores whole seconds: compare those, or the outcome would depend on whether a time comes from memory or from a file. */
+    private static changedAfter(time: Date | undefined, deletionTime: Date): boolean {
+        return !!time && Math.floor(time.getTime() / 1000) > Math.floor(deletionTime.getTime() / 1000);
+    }
+
+    private static tombstone(id: string, deletionTime: Date): KdbxDeletedObject {
+        const deletedObject = new KdbxDeletedObject();
+        deletedObject.uuid = new KdbxUuid(id);
+        deletedObject.deletionTime = deletionTime;
+        return deletedObject;
     }
 
     /**
@@ -517,7 +672,8 @@ export class Kdbx {
             groups: new Map<string, KdbxGroup>(),
             remoteEntries: new Map<string, KdbxEntry>(),
             remoteGroups: new Map<string, KdbxGroup>(),
-            deleted: new Map<string, Date>()
+            deleted: new Map<string, Date>(),
+            remotePlace: new Set<string>()
         };
         for (const item of this.getDefaultGroup().allGroupsAndEntries()) {
             if (objectMap.entries.has(item.uuid.id)) {
@@ -530,8 +686,10 @@ export class Kdbx {
             }
         }
         for (const deletedObject of this.deletedObjects) {
-            if (deletedObject.uuid && deletedObject.deletionTime) {
-                objectMap.deleted.set(deletedObject.uuid.id, deletedObject.deletionTime);
+            const { uuid, deletionTime } = deletedObject;
+            const known = uuid && objectMap.deleted.get(uuid.id);
+            if (uuid && deletionTime && (!known || deletionTime > known)) {
+                objectMap.deleted.set(uuid.id, deletionTime); // the same object twice: the later deletion counts
             }
         }
         return objectMap;

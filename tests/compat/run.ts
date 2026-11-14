@@ -294,6 +294,62 @@ async function main() {
         if (!s1.includes('bob-aus-A') || !s2.includes('aus-B.example')) throw new Error('Merge unvollstaendig:\n' + s1 + s2);
     });
 
+    // 6b) Merge against tombstones as KeePassXC writes them: an entry KeePassXC deleted for good survives if the kdbxweb copy
+    // changed it later, and stays deleted if the change came first. The stale tombstone is dropped, KeePassXC reads the result.
+    await t('Merge: in KeePassXC endgueltig geloescht, in der kdbxweb-Kopie spaeter geaendert -> bleibt; vorher geaendert -> weg', async () => {
+        const fa = path.join(TMP, 'del-A.kdbx'), fx = path.join(TMP, 'del-XC.kdbx');
+        const { db, cred } = await makeDb({ version: 4, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2id });
+        await populate(db); await save(db, fa); fs.copyFileSync(fa, fx);
+        const entry = (d: any, title: string) => [...d.getDefaultGroup().allEntries()].find((x: any) => x.fields.get('Title') === title);
+        const konto = entry(db, 'Konto'), mailId = entry(db, 'Mail').uuid.id, kontoId = konto.uuid.id;
+        konto.fields.set('UserName', 'bob-vorher'); konto.times.update(); await save(db, fa); // before KeePassXC deletes it
+        await new Promise(r => setTimeout(r, 1100));
+        for (const p of ['Web äöü/Mail', 'Recycle Bin/Mail', 'Web äöü/Unter–Gruppe/Konto', 'Recycle Bin/Konto']) xc(['rm', fx, p], fx); // bin, then for good
+        await new Promise(r => setTimeout(r, 1100));
+        const A = await Kdbx.load(ab(fs.readFileSync(fa)), cred), X = await Kdbx.load(ab(fs.readFileSync(fx)), cred);
+        if (!X.deletedObjects.some((d: any) => d.uuid.id === mailId) || !X.deletedObjects.some((d: any) => d.uuid.id === kontoId)) throw new Error('KeePassXC schrieb keine Loeschmarken');
+        const mail = entry(A, 'Mail'); mail.fields.set('URL', 'https://spaeter.example'); mail.times.update();
+        A.merge(X); await save(A, fa);
+        if (entry(A, 'Konto')) throw new Error('Konto (vor dem Loeschen geaendert) ist wieder da');
+        const ids = A.deletedObjects.map((d: any) => d.uuid.id);
+        if (ids.includes(mailId) || !ids.includes(kontoId)) throw new Error('Loeschmarken nach dem Merge: Mail ' + ids.includes(mailId) + ', Konto ' + ids.includes(kontoId));
+        const show = xc(['show', fa, 'Web äöü/Mail'], fa) as string;
+        if (!show.includes('spaeter.example')) throw new Error('KeePassXC sieht Mail nicht:\n' + show);
+        const ls = xc(['ls', '-R', fa], fa) as string;
+        if (ls.includes('Konto')) throw new Error('KeePassXC sieht Konto noch:\n' + ls);
+    });
+
+    // 6c) KeePassXC moves an entry into a group that comes earlier in the tree (keepassxc-cli mv also touches its modification time).
+    // Merged into the kdbxweb copy, the entry sits only in its new group; KeePassXC lists it exactly once, and so does a second merge.
+    await t('Merge: in KeePassXC in eine fruehere Gruppe verschoben (mv) -> nach dem Merge genau einmal, in der neuen Gruppe', async () => {
+        const fa = path.join(TMP, 'mv-A.kdbx'), fx = path.join(TMP, 'mv-XC.kdbx');
+        const { db, cred } = await makeDb({ version: 4, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2id });
+        await populate(db);
+        const umzug = db.createEntry(db.createGroup(db.getDefaultGroup(), 'Archiv')); // after "Web äöü"
+        umzug.fields.set('Title', 'Umzug'); umzug.fields.set('UserName', 'carol');
+        const id = umzug.uuid.id;
+        await save(db, fa); fs.copyFileSync(fa, fx);
+        await new Promise(r => setTimeout(r, 1100));
+        xc(['mv', fx, 'Archiv/Umzug', 'Web äöü'], fx);
+        const A = await Kdbx.load(ab(fs.readFileSync(fa)), cred), X = await Kdbx.load(ab(fs.readFileSync(fx)), cred);
+        const entry = (d: any) => [...d.getDefaultGroup().allEntries()].find((x: any) => x.uuid.id === id);
+        if (!(entry(X).times.locationChanged > entry(A).times.locationChanged)) throw new Error('KeePassXC hat die Verschiebezeit nicht gesetzt');
+        const touched = entry(X).times.lastModTime > entry(A).times.lastModTime;
+        const mail = [...A.getDefaultGroup().allEntries()].find((x: any) => x.fields.get('Title') === 'Mail');
+        mail.fields.set('URL', 'https://spaeter.example'); mail.times.update();
+        const places = (d: any) => [...d.getDefaultGroup().allGroups()].filter((g: any) => g.entries.some((e: any) => e.uuid.id === id)).map((g: any) => g.name).join(', ');
+        A.merge(X);
+        if (places(A) !== 'Web äöü') throw new Error('Umzug nach dem Merge in: ' + places(A));
+        await save(A, fa);
+        const listed = () => (xc(['ls', '-R', '-f', fa], fa) as string).split('\n').filter((l) => l.endsWith('Umzug'));
+        if (listed().join() !== 'Web äöü/Umzug') throw new Error('KeePassXC listet Umzug als: ' + listed().join(', '));
+        // the next merge with the moved copy changes nothing (a UUID twice would make kdbxweb refuse it)
+        const A2 = await Kdbx.load(ab(fs.readFileSync(fa)), cred);
+        A2.merge(await Kdbx.load(ab(fs.readFileSync(fx)), cred)); await save(A2, fa);
+        if (listed().join() !== 'Web äöü/Umzug') throw new Error('nach dem zweiten Merge: ' + listed().join(', '));
+        return touched ? 'mv setzt auch die Aenderungszeit' : 'mv setzt nur die Verschiebezeit';
+    });
+
     // 7) Known edge case: file without EnableSearching fields (e.g. from pykeepass)
     await t('Randfall: Gruppen ohne EnableSearching/EnableAutoType (pykeepass-Datei) -> KeePassXC liest Ergebnis', async () => {
         const src = path.join(TMP, 'py.kdbx');
