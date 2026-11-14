@@ -410,6 +410,7 @@ export default {
     'set.kf.revoke.failed': 'Ungültig machen fehlgeschlagen: {msg}',
     'set.kf.server': 'serverseitig gesichert',
     'lang.auto': 'Automatisch',
+    'list.badregex': 'Keine Treffer: „{re}“ ist kein gültiger regulärer Ausdruck.',
     'list.empty': 'Keine Einträge in dieser Ansicht.',
     'list.label': 'Einträge',
     'list.more': '{n} weitere anzeigen',
