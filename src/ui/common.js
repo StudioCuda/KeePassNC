@@ -6,7 +6,7 @@ import { excluded } from '../core/audit.js';
 import { t } from '../i18n.js';
 import { fieldText } from '../vault.js';
 import { parseOtpConfig } from '../totp.js';
-import { ctx } from './ctx.js';
+import { ctx, setStatus } from './ctx.js';
 import { h, icon, pathIcon } from './dom.js';
 import { KP_ICONS, GROUP_DEFAULT_ICON } from './kpicons.js';
 
@@ -55,6 +55,16 @@ export function allRealEntries() {
     const out = [];
     for (const e of v.root.allEntries()) if (!v.isInRecycleBin(e)) out.push(e);
     return out;
+}
+
+/**
+ * Are the entries and groups a dialog, an Undo or a drag kept all still there? A pull from another device replaces every object and may have
+ * deleted one (Vault.find). Before a batch: one gone changes none, and the status says why.
+ */
+export function stillThere(items) {
+    if (items.every((x) => ctx.state.vault.find(x))) return true;
+    setStatus(t('e.gone'), 'warn');
+    return false;
 }
 
 const sorters = {

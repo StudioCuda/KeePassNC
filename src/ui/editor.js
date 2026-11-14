@@ -9,7 +9,7 @@ import { changed, isSwapping, refreshDirtyIndicator } from './session.js';
 import { strengthBar, binData, sizeLabel } from './detail.js';
 import { groupSelect, selectedGroup } from './groups.js';
 import { openGenerator } from './generator-dialog.js';
-import { allRealEntries } from './common.js';
+import { allRealEntries, stillThere } from './common.js';
 import { iconSelOf, iconPreview, pickIcon, commitIconSel } from './icon-picker.js';
 import { readQr } from '../qr.js';
 
@@ -198,6 +198,7 @@ export function renderEditor(host) {
             data.otp = toOtpUri(i.otp.value, i.Title.value, i.UserName.value); // a bare secret is completed like KeePassXC does
         }
         const target = selectedGroup(groupSel) || group;
+        if (!stillThere([entry, target].filter(Boolean))) return; // no pull runs under the editor (isSwapping), but never apply halfway
         const saved = v.applyEntry(entry, entry ? entry.parentGroup : target, data);
         if (entry && target && target !== entry.parentGroup) v.moveEntry(entry, target);
         state.selEntry = saved;

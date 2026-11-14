@@ -94,6 +94,8 @@ ctx.ui.syncMarks = () => syncMarks();
 
 export function selectEntry(e) {
     const v = state.vault;
+    e = v.find(e); // from a list drawn before a pull (palette, report)
+    if (!e) { setStatus(t('e.gone'), 'warn'); return; }
     state.editing = null;
     clearMarks();
     state.query = ''; const s = $('#search'); if (s) s.value = '';

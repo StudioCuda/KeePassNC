@@ -9,6 +9,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Password generator: a click on the password copies it in the entry editor too, like in the vault view and on the standalone page.
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
 
+### Fixed
+- Deleting, moving or editing something while KeePassNC fetches another device's changes (it does that when you come back to the tab) no longer gets undone a moment later: the fetch steps aside, and the next save merges both.
+- A move or delete dialog, an Undo or a drag that was still open when those changes arrived now acts on the fresh copy. It used to slip in a second entry with the same ID, after which every merge with another device failed; if the entry was deleted over there, you now get a short note instead.
+- Merging another copy and importing a CSV wait for a running sync instead of racing it, so nothing they add goes missing.
+
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
 

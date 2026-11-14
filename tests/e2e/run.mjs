@@ -1041,6 +1041,60 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Eintrag loeschen, waehrend ein Abgleich die Fassung eines anderen Geraets noch entschluesselt: der Abgleich nimmt sie nicht, das Loeschen bleibt, das naechste Speichern fuehrt zusammen', async () => {
+        const f = path.join(davRoot, 'pull-delete.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'pull-delete.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.waitForTimeout(1100);
+        xc(['edit', '-q', f, 'Web/Mail', '--url', 'https://anderes.example'], null); // "other device"
+        // The pull's key derivation (Argon2 in a worker) waits until the deletion is done: a long Argon2 run, made reliable
+        await p.evaluate(() => {
+            const send = Worker.prototype.postMessage;
+            let open;
+            const gate = new Promise((r) => { open = r; });
+            window.kdfHold = { waiting: 0, release: () => { Worker.prototype.postMessage = send; open(); } };
+            Worker.prototype.postMessage = function (...args) { window.kdfHold.waiting++; gate.then(() => send.apply(this, args)); };
+        });
+        await p.keyboard.press('Control+s'); // no changes of our own: a sync, which pulls
+        await p.waitForFunction(() => window.kdfHold.waiting === 1, null, { timeout: 15000 });
+        await p.keyboard.press('Delete'); // the open entry goes to the recycle bin
+        await waitStatus(p, /^In den Papierkorb/);
+        await p.evaluate(() => window.kdfHold.release());
+        await p.keyboard.press('Control+s'); // queued behind the pull: merges with the other device's version
+        await waitStatus(p, /zusammengef/, 60000); // three key derivations in a row (pull, conflict, save), on the file the KDF step above strengthened
+        expect(await rows(p).filter({ hasText: 'Konto' }).count() === 0, 'Konto ist nach dem Abgleich wieder in der Liste');
+        const ls = (g) => xc(['ls', f, g]).split('\n').map((l) => l.trim());
+        expect(!ls('Bank').includes('Konto'), 'Konto liegt auf dem Server noch in Bank: ' + ls('Bank').join(', '));
+        expect(ls('Recycle Bin').includes('Konto'), 'Konto fehlt im Papierkorb auf dem Server: ' + ls('Recycle Bin').join(', '));
+        expect(xc(['show', f, 'Web/Mail']).includes('https://anderes.example'), 'Aenderung des anderen Geraets fehlt');
+        await p.context().close();
+    });
+
+    await step('Verschieben-Dialog bleibt offen, waehrend ein Abgleich die Datenbank tauscht: verschoben wird der Eintrag der neuen Fassung, kein zweiter mit derselben UUID', async () => {
+        const f = path.join(davRoot, 'pull-dialog.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await p.evaluate(() => localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: '5' }))); // syncs when the tab becomes visible again
+        await p.reload();
+        await login(p, 'pull-dialog.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#entry-more'); await p.locator('.menu-item', { hasText: 'Verschieben' }).click();
+        await p.locator('.modal select').waitFor();
+        await p.waitForTimeout(1100);
+        xc(['edit', '-q', f, 'Web/Mail', '--url', 'https://anderes.example'], null); // "other device"
+        await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); // back in the tab: a background sync, which pulls under the open dialog
+        await waitStatus(p, /^Änderungen von einem anderen/);
+        await p.locator('.modal select').selectOption({ label: 'Web' });
+        await p.click('.modal button[type=submit]');
+        await p.keyboard.press('Control+s'); await waitStatus(p, /^Gespeichert\./);
+        const ls = (g) => xc(['ls', f, g]).split('\n').map((l) => l.trim());
+        expect(ls('Web').includes('Konto') && !ls('Bank').includes('Konto'), `Konto in Web: ${ls('Web').join(', ')} / in Bank: ${ls('Bank').join(', ')}`);
+        expect(xc(['show', f, 'Web/Mail']).includes('https://anderes.example'), 'Aenderung des anderen Geraets fehlt');
+        await p.context().close();
+    });
+
     await step('Strg+S zweimal schnell ohne eigene Aenderungen: der Editor oeffnet sich auch nicht, wenn der erste Abgleich schon zu Ende ist und der zweite noch laeuft', async () => {
         const f = path.join(davRoot, 'doublesave.kdbx');
         fs.copyFileSync(f4, f);

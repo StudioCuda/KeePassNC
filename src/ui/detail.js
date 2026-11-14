@@ -5,7 +5,7 @@ import { entryExpiry, domainOf, openableUrl, isSystemField, isPasskey, groupPath
 import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, copy, download, setStatus, pref } from './ctx.js';
 import { h, icon, iconBtn, modal, toast, confirmDialog, popupMenu } from './dom.js';
-import { avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl, otpConfigOf } from './common.js';
+import { avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl, otpConfigOf, stillThere } from './common.js';
 import { colorizedPassword, strengthBar } from './pwview.js';
 import { changed } from './session.js';
 import { setFilter, groupSelect, selectedGroup } from './groups.js';
@@ -219,7 +219,7 @@ export function deleteEntry(e) {
     state.selEntry = null; state.view = 'list';
     changed();
     setStatus(t('deleted.bin'));
-    toast(t('deleted.bin'), { action: { label: t('undo'), run: () => { v.moveEntry(e, prev); state.selEntry = e; changed(); } }, timeout: 7000 });
+    toast(t('deleted.bin'), { action: { label: t('undo'), run: () => { v.moveEntry(e, prev); state.selEntry = v.find(e); changed(); } }, timeout: 7000 }); // after a pull: the current entry
 }
 /** Where an entry from the recycle bin goes back to: its old group, or the first one if that is gone. */
 export function restoreTarget(e) {
@@ -260,6 +260,6 @@ function duplicateDialog(e) {
 function moveEntryDialog(e) {
     const v = state.vault;
     const sel = groupSelect({ value: e.parentGroup });
-    const m = modal({ title: t('move'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (ev) => { ev.preventDefault(); v.moveEntry(e, selectedGroup(sel)); m.close(); changed(); } },
+    const m = modal({ title: t('move'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (ev) => { ev.preventDefault(); const g = selectedGroup(sel); if (!stillThere([e, g])) { m.close(); return; } v.moveEntry(e, g); m.close(); changed(); } },
         h('label', {}, h('span', { text: t('group') }), sel), h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), h('button', { type: 'submit', class: 'primary', text: t('move') }))) });
 }
