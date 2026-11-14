@@ -588,6 +588,7 @@ export default {
     'sync.ok': 'Synchron',
     'sync.pending': 'Lokal gesichert, Upload ausstehend',
     'sync.pulled': 'Änderungen von einem anderen Gerät übernommen.',
+    'sync.tabs': 'Änderungen aus einem anderen Tab mit dieser Datenbank übernommen.',
     'theme.auto': 'Automatisch (System)', 'theme.dark': 'Dunkel', 'theme.light': 'Hell', 'theme.nextcloud': 'Wie Nextcloud',
     'tools': 'Werkzeuge',
     'tag.delete': 'Tag entfernen',
