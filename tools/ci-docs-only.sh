@@ -13,10 +13,11 @@ is_doc() {
 }
 
 answer=false
-if [ -n "${1:-}" ] && [ -n "${2:-}" ] && files=$(git diff --name-only --no-renames "$1...$2") && [ -n "$files" ]; then
+if [ -n "${1:-}" ] && [ -n "${2:-}" ] && files=$(git diff --name-status --no-renames "$1...$2") && [ -n "$files" ]; then
   answer=true
-  while IFS= read -r f; do
-    if is_doc "$f"; then echo "doc:  $f" >&2; else echo "code: $f" >&2; answer=false; fi
+  while IFS=$'\t' read -r status f; do
+    # appinfo/info.xml lists screenshots from docs/screenshots/ (tests/unit/appinfo.test.mjs checks they exist): deleting one isn't text-only.
+    if is_doc "$f" && ! { [ "$status" = D ] && [[ "$f" == docs/screenshots/* ]]; }; then echo "doc:  $f" >&2; else echo "code: $f" >&2; answer=false; fi
   done <<< "$files"
 fi
 echo "docs_only=$answer"
