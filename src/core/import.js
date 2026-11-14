@@ -11,6 +11,17 @@ export class ImportError extends Error {
 
 export const FORMAT_NAMES = { 'passwords-json': 'Nextcloud Passwords (backup)', 'passman-json': 'Passman (JSON)', 'bitwarden-json': 'Bitwarden (JSON)' };
 
+/**
+ * Bytes of an import file -> text. UTF-8 when the bytes are valid UTF-8 (with or without BOM), UTF-16 with a BOM (Excel's
+ * "Unicode text"), anything else is Windows-1252: Excel's plain "CSV" in Western Europe, where umlauts and € would turn into �.
+ */
+export function decodeImport(buf) {
+    const b = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+    if (b[0] === 0xff && b[1] === 0xfe) return new TextDecoder('utf-16le').decode(b);
+    if (b[0] === 0xfe && b[1] === 0xff) return new TextDecoder('utf-16be').decode(b);
+    try { return new TextDecoder('utf-8', { fatal: true }).decode(b); } catch { return new TextDecoder('windows-1252').decode(b); }
+}
+
 /** Text of a field with {REF:…} broken up (see defangRefs); `count()` is the number of entries where that happened, like in the CSV import. */
 function sanitizer() {
     const seen = new Set();
@@ -60,7 +71,7 @@ function fromPasswords(d) {
             modified: date(p.edited)
         };
     });
-    return { format: 'passwords-json', entries, ignored: [], refs: s.count(), files: 0 };
+    return { format: 'passwords-json', entries, ignored: [], refs: s.count(), files: 0, partial: 0 };
 }
 
 /** Passman: Settings -> Export credentials -> JSON. Files come along as attachments (the export carries their data). */
@@ -86,13 +97,24 @@ function fromPassman(list) {
             attachments, created: date(p.created), modified: date(p.changed)
         };
     });
-    return { format: 'passman-json', entries, ignored: [], refs: s.count(), files };
+    return { format: 'passman-json', entries, ignored: [], refs: s.count(), files, partial: 0 };
 }
 
-/** Bitwarden: Tools -> Export vault -> .json. Logins, notes, cards and identities; a second web address becomes an extra field. */
+// Bitwarden's item types: 1 login, 2 secure note, 3 card, 4 identity, 5 SSH key
+const BITWARDEN_TYPES = new Set([1, 2, 3, 4, 5]);
+// OpenSSH's file names for a private key, by the key type in front of the public key (KeePassXC's SSH agent then just needs the attachment picked)
+const KEY_FILES = { 'ssh-ed25519': 'id_ed25519', 'ssh-rsa': 'id_rsa', 'ssh-dss': 'id_dsa', 'sk-ssh-ed25519@openssh.com': 'id_ed25519_sk', 'sk-ecdsa-sha2-nistp256@openssh.com': 'id_ecdsa_sk' };
+const keyFile = (pub) => { const kind = pub.trim().split(/\s+/)[0]; return KEY_FILES[kind] || (kind.startsWith('ecdsa-sha2-') ? 'id_ecdsa' : 'id_ssh'); };
+
+/**
+ * Bitwarden: Tools -> Export vault -> .json. Logins, notes, cards, identities and SSH keys; a second web address becomes an extra field.
+ * An SSH key's private half becomes a key file attachment (what KeePassXC's SSH agent and KeeAgent load), public key and fingerprint
+ * become fields. partial: items with something that can't come along (passkeys, a kind of item Bitwarden adds later).
+ */
 function fromBitwarden(d) {
     if (d.encrypted) throw new ImportError('import.encrypted');
     const s = sanitizer();
+    let partial = 0;
     const folder = folderPaths(d.folders || [], (f) => f.name, () => null, () => true);
     const path = (id) => folder(id).flatMap((x) => x.split('/')).map((x) => x.trim()).filter(Boolean); // "Work/Servers" is a subfolder
     const entries = (d.items || []).map((it, i) => {
@@ -104,17 +126,24 @@ function fromBitwarden(d) {
         for (const f of it.fields || []) if (f && text(f.name).trim()) add(s.clean(f.name, i).trim(), f.value, f.type === 1);
         for (const [k, v] of Object.entries(it.card || {})) add(k, v, k === 'number' || k === 'code');
         for (const [k, v] of Object.entries(it.identity || {})) add(k, v, k === 'ssn' || k === 'passportNumber' || k === 'licenseNumber');
+        const key = it.sshKey || {}, attachments = [];
+        add('SSH public key', key.publicKey);
+        add('SSH fingerprint', key.keyFingerprint);
+        const priv = text(key.privateKey);
+        if (priv.trim()) attachments.push({ name: keyFile(text(key.publicKey)), data: new TextEncoder().encode(priv.endsWith('\n') ? priv : priv + '\n') }); // ssh refuses a key without the last line break
+        if (('type' in it && !BITWARDEN_TYPES.has(it.type)) || login.fido2Credentials?.length) partial++;
         return {
             path: it.folderId ? path(it.folderId) : [], title: titleOrHost(s.clean(it.name, i).trim(), uris[0] || ''), user: s.clean(login.username, i), password: s.clean(login.password, i),
-            url: uris[0] || '', notes: s.clean(it.notes, i), totp: text(login.totp).trim(), tags: [], custom
+            url: uris[0] || '', notes: s.clean(it.notes, i), totp: text(login.totp).trim(), tags: [], custom, attachments
         };
     });
-    return { format: 'bitwarden-json', entries, ignored: [], refs: s.count(), files: (d.items || []).filter((it) => it?.attachments?.length).length };
+    return { format: 'bitwarden-json', entries, ignored: [], refs: s.count(), files: (d.items || []).filter((it) => it?.attachments?.length).length, partial };
 }
 
 /**
- * Text of an import file -> {entries, ignored, refs, files, format?}. files: entries whose attachments could not be taken along.
- * entries: [{path, title, user, password, url, notes, totp, tags, custom?: [{name, value, protect}], attachments?: [{name, data}], created?, modified?}]
+ * Text of an import file (see decodeImport) -> {entries, ignored, refs, files, partial, format?}. files: entries whose attachments
+ * could not be taken along; partial: entries that came along without everything (see fromBitwarden).
+ * entries: [{path, title, user, password, url, notes, totp, tags, custom?: [{name, value, protect}], attachments?: [{name, data: Uint8Array}], created?, modified?}]
  */
 export function readImport(raw) {
     const body = String(raw).replace(/^﻿/, '').trimStart();
@@ -126,5 +155,8 @@ export function readImport(raw) {
         if (Array.isArray(d) && (d.length === 0 || d.every((x) => x && typeof x === 'object' && 'label' in x && 'credential_id' in x))) return fromPassman(d);
         throw new ImportError('import.unknownjson');
     }
-    return { ...mapRows(parseCsv(body)), files: 0 };
+    const { known, ...found } = mapRows(parseCsv(body));
+    // Not one known column (another program's file, or a delimiter nobody uses): blank entries would help no one
+    if (!known && found.entries.length) throw new ImportError('import.unknowncsv');
+    return { ...found, files: 0, partial: 0 };
 }

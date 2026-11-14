@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readImport, ImportError } from '../../src/core/import.js';
+import { readImport, decodeImport, ImportError } from '../../src/core/import.js';
 
 const NIL = '00000000-0000-0000-0000-000000000000';
 const b64 = (s) => Buffer.from(s).toString('base64');
@@ -111,4 +111,92 @@ test('CSV: Passman (label, description, [Tags], "null" als E-Mail, leere Listen 
     assert.deepEqual([entries[0].title, entries[0].user, entries[0].notes, entries[0].tags], ['Facebook', 'zuck', 'Notiz', ['Social', 'Community']]);
     assert.deepEqual([entries[1].user, entries[1].tags], ['n@x.org', []]);
     assert.deepEqual(ignored, []);
+});
+
+// A KeePassXC export opened and saved again by a German Excel: semicolons, CRLF, quotes only where needed
+const EXCEL_DE = 'Group;Title;Username;Password;URL;Notes;TOTP;Icon;Last Modified;Created\r\n'
+    + 'Passwords/Bank;Sparkasse Köln;jürgen;"pa;ss""wört";https://sparkasse.de;"Zwei\nZeilen; mit Grüßen";;0;;\r\n'
+    + 'Passwords;Bäckerei Müller;anna;€uro,1;bäckerei.example;;;0;;\r\n';
+
+test('CSV: German Excel (semicolons, umlauts, quotes) imports like the comma original', () => {
+    const { entries, ignored } = readImport('﻿' + EXCEL_DE);
+    assert.equal(entries.length, 2);
+    const [a, b] = entries;
+    assert.deepEqual([a.path, a.title, a.user, a.password, a.url, a.notes], [['Bank'], 'Sparkasse Köln', 'jürgen', 'pa;ss"wört', 'https://sparkasse.de', 'Zwei\nZeilen; mit Grüßen']);
+    assert.deepEqual([b.path, b.title, b.user, b.password, b.url], [[], 'Bäckerei Müller', 'anna', '€uro,1', 'bäckerei.example']);
+    assert.deepEqual(ignored, ['Icon']);
+    const tab = readImport('name\turl\tusername\tpassword\tnote\nexample.org\thttps://example.org\talice\tpw;1,2\t"zwei\nZeilen"');
+    assert.deepEqual([tab.entries[0].title, tab.entries[0].user, tab.entries[0].password, tab.entries[0].notes], ['example.org', 'alice', 'pw;1,2', 'zwei\nZeilen'], 'a tab file (Chrome columns)');
+});
+
+test('CSV: a stray quote in a field keeps the rows after it apart', () => {
+    const { entries } = readImport('Title,Username,Password,URL\nGMX,bob,pass"word,https://gmx.net\nWeb,eve,pw2,https://web.de\n');
+    assert.deepEqual(entries.map((e) => [e.title, e.password, e.url]), [['GMX', 'pass"word', 'https://gmx.net'], ['Web', 'pw2', 'https://web.de']]);
+});
+
+test('CSV: a header without a single known column is reported instead of importing blank entries', () => {
+    const unknown = (csv) => assert.throws(() => readImport(csv), (e) => e instanceof ImportError && e.key === 'import.unknowncsv', JSON.stringify(csv));
+    unknown('Titel;Benutzername;Kennwort\nGMX;bob;pw\n');
+    unknown('Konto:Kennwort\nGMX:pw\n'); // a delimiter nobody uses: one column
+    unknown('just some text\nand more of it\n');
+    unknown('group,tags\nWeb,a\n'); // nothing that makes an entry
+    assert.deepEqual(readImport('Titel;Kennwort\n').entries, [], 'a header alone stays "no entries", not an error');
+    assert.equal(readImport('url\nhttps://a.example\n').entries[0].title, 'a.example', 'one known column is enough');
+});
+
+test('decodeImport: UTF-8 (with or without BOM), Windows-1252 from a plain Excel CSV, UTF-16 with BOM', () => {
+    const utf8 = Buffer.from('﻿' + EXCEL_DE, 'utf8');
+    assert.equal(decodeImport(utf8), EXCEL_DE, 'UTF-8 (Excel\'s "CSV UTF-8" starts with a BOM, which goes)');
+    assert.equal(decodeImport(Buffer.from(EXCEL_DE, 'utf8')), EXCEL_DE);
+    assert.equal(decodeImport(new Uint8Array(utf8).buffer), EXCEL_DE, 'an ArrayBuffer works as well');
+    // "CSV (Trennzeichen-getrennt)" of a German Excel is Windows-1252: ä = E4, € = 80
+    const ansi = Uint8Array.from('Title;Password\r\nBäckerei;€uro\r\n', (c) => (c === '€' ? 0x80 : c.charCodeAt(0)));
+    assert.equal(decodeImport(ansi), 'Title;Password\r\nBäckerei;€uro\r\n');
+    assert.deepEqual(readImport(decodeImport(ansi)).entries.map((e) => [e.title, e.password]), [['Bäckerei', '€uro']]);
+    // Excel's "Unicode text" is UTF-16 LE with tabs
+    const utf16 = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('Title\tPassword\r\nKöln\tpw\r\n', 'utf16le')]);
+    assert.deepEqual(readImport(decodeImport(utf16)).entries.map((e) => [e.title, e.password]), [['Köln', 'pw']]);
+    const be = Buffer.from('﻿Title\nX\n', 'utf16le').swap16();
+    assert.equal(decodeImport(be).replace(/^﻿/, ''), 'Title\nX\n', 'UTF-16 BE with BOM');
+});
+
+test('Bitwarden (JSON): notes, cards, identities, SSH keys; unknown kinds and passkeys are counted as incomplete', () => {
+    const priv = '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmU=\n-----END OPENSSH PRIVATE KEY-----';
+    const bw = JSON.stringify({
+        encrypted: false, folders: [],
+        items: [
+            { type: 2, name: 'Notiz', notes: 'Text', secureNote: { type: 0 } },
+            { type: 3, name: 'Karte', card: { cardholderName: 'Anna', brand: 'Visa', number: '4111', expMonth: '4', expYear: '2030', code: '123' } },
+            { type: 4, name: 'Ich', identity: { firstName: 'Anna', username: 'anna', ssn: '123', passportNumber: 'P1', licenseNumber: 'L1', email: null } },
+            { type: 5, name: 'GitHub', notes: 'Laptop', sshKey: { privateKey: priv, publicKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample anna@laptop', keyFingerprint: 'SHA256:abc' } },
+            { type: 5, name: 'Alt', sshKey: { privateKey: 'KEY\n', publicKey: 'ssh-rsa AAAAB3', keyFingerprint: '' } },
+            { type: 5, name: 'Leer', sshKey: { privateKey: '', publicKey: '', keyFingerprint: '' } },
+            { type: 99, name: 'Neue Art', notes: 'n', fields: [{ name: 'F', value: 'v', type: 0 }], somethingNew: { secret: 'x' } },
+            { type: 1, name: 'Mit Passkey', login: { username: 'u', password: 'p', fido2Credentials: [{ credentialId: 'c', keyValue: 'k', rpId: 'example.org' }] } },
+            { type: 1, name: 'Ohne Passkey', login: { username: 'u', password: 'p', fido2Credentials: [] } }
+        ]
+    });
+    const { entries, partial, files } = readImport(bw);
+    assert.equal(entries.length, 9);
+    const [note, card, ident, ssh, rsa, empty, unknown, passkey, plain] = entries;
+    assert.deepEqual([note.title, note.notes, note.custom], ['Notiz', 'Text', []], 'a secure note is its notes');
+    assert.deepEqual(card.custom.map((c) => [c.name, c.value, c.protect]), [['cardholderName', 'Anna', false], ['brand', 'Visa', false], ['number', '4111', true], ['expMonth', '4', false], ['expYear', '2030', false], ['code', '123', true]]);
+    assert.deepEqual(ident.custom.filter((c) => c.protect).map((c) => c.name), ['ssn', 'passportNumber', 'licenseNumber']);
+    assert.deepEqual([ssh.title, ssh.notes, ssh.password], ['GitHub', 'Laptop', ''], 'the private key is no password');
+    assert.deepEqual(ssh.custom, [{ name: 'SSH public key', value: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIExample anna@laptop', protect: false }, { name: 'SSH fingerprint', value: 'SHA256:abc', protect: false }]);
+    assert.equal(ssh.attachments.length, 1);
+    assert.deepEqual([ssh.attachments[0].name, Buffer.from(ssh.attachments[0].data).toString()], ['id_ed25519', priv + '\n'], 'the private key is a key file (OpenSSH wants the last line break)');
+    assert.deepEqual([rsa.attachments[0].name, Buffer.from(rsa.attachments[0].data).toString(), rsa.custom.map((c) => c.name)], ['id_rsa', 'KEY\n', ['SSH public key']]);
+    assert.deepEqual([empty.attachments, empty.custom], [[], []]);
+    assert.deepEqual([unknown.title, unknown.notes, unknown.custom], ['Neue Art', 'n', [{ name: 'F', value: 'v', protect: false }]], 'what every item has comes along');
+    assert.deepEqual([passkey.user, passkey.password, plain.user], ['u', 'p', 'u']);
+    assert.equal(partial, 2, 'the unknown kind and the passkey');
+    assert.equal(files, 0);
+    assert.equal(readImport(JSON.stringify({ encrypted: false, items: [{ type: 1, name: 'x', login: {} }] })).partial, 0);
+});
+
+test('readImport: CSV and the other JSON formats report nothing incomplete', () => {
+    assert.equal(readImport('Title\nx\n').partial, 0);
+    assert.equal(readImport('[]').partial, 0);
+    assert.equal(readImport(JSON.stringify({ encrypted: false, passwords: [] })).partial, 0);
 });
