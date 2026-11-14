@@ -45,8 +45,8 @@ The short tour is in the [README](../README.md). This is the long version, for w
 
 - **Shared files:** databases someone shared with you open fine. Read-only shares say so.
 - **Feels at home:** picks up your instance's color and your light or dark choice, and keeps the Nextcloud header with the app menu on top. Search, notifications and the contacts menu sit this one out, [here's why](../SECURITY.md#model-in-short). The color, not the background image: Nextcloud has no public way to hand that one over.
-- **Careful saving:** a backup copy is made before every save. If two devices change the file at once, both changes are kept. Got a "conflicted copy" from the Nextcloud desktop app anyway? Merge it back in from the "Database" dialog.
-- **Works offline:** turn on the encrypted offline copy and your passwords stay usable when the server or network is down. Changes sync back later.
+- **Careful saving:** a backup copy is made before every save. If two devices change the file at once, both changes are kept. Got a "conflicted copy" from the Nextcloud desktop app anyway? Merge it back in from the "Database" dialog. If the server can't take the file (full, locked, or the file was moved or deleted), a banner says why and your changes stay put: save a copy, or put the file back where it was. Closing the tab while changes aren't stored anywhere yet asks first.
+- **Works offline:** turn on the encrypted offline copy and your passwords stay usable when the server or network is down. Changes sync back later. A server that stops answering counts as down after a minute (big files on slow lines get longer).
 - **Phone or big screen:** three panes on a desktop, one on a phone. Light and dark, English, German and Chinese.
 
 ## Search syntax

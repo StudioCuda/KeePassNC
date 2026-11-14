@@ -1,6 +1,6 @@
 // Outage tests (standalone page): the WebDAV server really is stopped and restarted.
 // Checks: app starts without a server (service worker), opening from the offline copy, changing without a server, restart, upload,
-// merging after a foreign change in the meantime, pulling foreign changes, deleting the local data.
+// merging after a foreign change in the meantime, pulling foreign changes, a save the server never answers, a full server, deleting the local data.
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -146,6 +146,71 @@ async function main() {
         await p4.waitForFunction(() => /Server ist nicht erreichbar/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 15000 });
         await ctx4.close();
         await recover();
+    });
+
+    // Further pages in the same browser context (same offline copy), for the steps where the server misbehaves instead of being gone
+    const openPage = async (q = '') => {
+        const p = await ctx.newPage();
+        p.on('pageerror', (e) => { if (!knownFetchNoise(e.message)) pageErrors.push(String(e)); });
+        p.on('console', (m) => { if (m.type() === 'error' && m.text().startsWith('UNCAUGHT: ')) pageErrors.push(m.text()); });
+        await p.goto(url(q)); await p.locator('#login-form').waitFor();
+        await p.fill('#dav-url', `${base}/dav/vault4.kdbx`); await p.fill('#dav-user', 'tester'); await p.fill('#dav-pass', 'app-secret');
+        await p.fill('#master', PW); await p.click('#open-btn');
+        await p.locator('[data-testid=entry-row]').first().waitFor({ timeout: 30000 });
+        return p;
+    };
+    const statusOf = (p, re, t = 25000) => p.waitForFunction((s) => new RegExp(s).test(document.querySelector('#status')?.textContent || ''), re.source, { timeout: t });
+    const stateOf = (p, want, t = 25000) => p.waitForFunction((w) => document.querySelector('#sync-state')?.dataset.state === w, want, { timeout: t });
+    const editOn = async (p, title, user) => {
+        await p.locator('[data-testid=entry-row]', { hasText: title }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', user); await p.click('#apply-btn');
+    };
+    const puts = () => srv.log.filter((l) => l.startsWith('PUT /dav/vault4.kdbx')).length; // the file and its backup copies
+
+    await step('Speichern, auf das der Server nie antwortet: nach der Wartezeit "in der Offline-Kopie gesichert", Tab schliessen fragt nicht nach, die Offline-Kopie laedt spaeter hoch', async () => {
+        const p = await openPage('&davtimeout=2');
+        srv.options.fault = (m, rel) => (m === 'PUT' && rel === 'vault4.kdbx' ? 'hang' : undefined);
+        try {
+            await editOn(p, 'Mail', 'ohne-antwort'); // auto-save; its PUT never gets an answer
+            await statusOf(p, /Server nicht erreichbar - Änderungen sind in der lokalen Offline-Kopie/);
+            await stateOf(p, 'unsynced');
+            // The retries hang the same way, but the offline copy holds the change: closing the tab asks nothing and loses nothing
+            let asked = false;
+            p.on('dialog', (d) => { asked = true; d.dismiss().catch(() => {}); });
+            const closed = new Promise((r) => { p.once('close', r); setTimeout(r, 8000); });
+            await p.close({ runBeforeUnload: true });
+            await closed;
+            expect(!asked && p.isClosed(), 'Rueckfrage beim Schliessen, obwohl die Offline-Kopie die Aenderung hat');
+        } finally { srv.options.fault = null; }
+        const p2 = await openPage();
+        await stateOf(p2, 'synced', 30000);
+        expect(xc(['show', f4, 'Web/Mail']).includes('ohne-antwort'), 'Aenderung aus der Offline-Kopie nicht auf dem Server');
+        await p2.close();
+    });
+
+    await step('Server voll (507) mit Offline-Kopie: Fehlermeldung statt "offline gesichert", Banner mit "Kopie speichern", Wiederholungen ohne neue Meldung, nach dem Aufraeumen laedt die Wiederholung hoch', async () => {
+        const p = await openPage();
+        await p.evaluate(() => { // counts the error notices from here on
+            window.kpncErrors = 0;
+            new MutationObserver((ms) => { for (const m of ms) for (const n of m.addedNodes) if (n.classList?.contains('toast') && n.classList.contains('error')) window.kpncErrors++; }).observe(document.body, { childList: true, subtree: true });
+        });
+        srv.options.fault = (m, rel) => (m === 'PUT' && rel.startsWith('vault4.kdbx') ? 507 : undefined); // the backup copy too
+        try {
+            await editOn(p, 'Mail', 'kein-platz-offline');
+            await statusOf(p, /kein Platz mehr frei/);
+            expect(!/Offline-Kopie gesichert/.test(await p.locator('#status').innerText()), 'meldet "offline gesichert" bei vollem Server');
+            expect(await p.locator('#readonly-banner').isVisible() && await p.locator('#ro-copy').isVisible(), 'Banner mit "Kopie speichern" fehlt');
+            expect(await p.locator('#sync-state').getAttribute('data-state') === 'unsynced', 'Zustand ' + await p.locator('#sync-state').getAttribute('data-state'));
+            const sent = puts(), errors = await p.evaluate(() => window.kpncErrors);
+            await p.waitForTimeout(5000); // syncretry=2: two retries
+            expect(puts() > sent, 'keine Wiederholung: Platz kann wiederkommen');
+            expect(await p.evaluate(() => window.kpncErrors) === errors, 'jede Wiederholung meldet sich neu');
+        } finally { srv.options.fault = null; }
+        await statusOf(p, /Mit dem Server abgeglichen/);
+        await stateOf(p, 'synced');
+        expect(await p.locator('#readonly-banner').isHidden(), 'Banner bleibt nach dem Hochladen stehen');
+        expect(xc(['show', f4, 'Web/Mail']).includes('kein-platz-offline'), 'Aenderung nicht auf dem Server');
+        await p.close();
     });
 
     await step('"Lokale Daten loeschen" entfernt Offline-Kopie, App-Cache und Service Worker', async () => {

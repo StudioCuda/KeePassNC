@@ -49,6 +49,7 @@ export function showMain() {
         NC?.filesUrl && !NC.nav ? h('a', { href: NC.filesUrl, id: 'files-link', class: 'icon-btn hide-narrow', title: t('files'), 'aria-label': t('files') }, icon('folderOpen')) : null,
         iconBtn('lock', t('lock'), () => lock(t('locked')), { id: 'lock-btn' }));
     const banner = h('div', { class: 'ro-banner', id: 'readonly-banner', role: 'status', hidden: true }, icon('lock'), h('span', { id: 'ro-text' }),
+        h('button', { type: 'button', class: 'link', id: 'ro-recreate', text: t('blocked.recreate'), hidden: true, onclick: () => doSave({ recreate: true }) }),
         h('button', { type: 'button', class: 'link', id: 'ro-copy', text: t('ro.copy'), onclick: () => saveCopy() }));
     const shell = h('div', { class: 'shell', 'data-view': state.view, 'data-drawer': '0' }, bar, banner,
         h('main', { class: 'panes' }, // the workspace is the main landmark: on a phone only one of the panes is on screen at a time

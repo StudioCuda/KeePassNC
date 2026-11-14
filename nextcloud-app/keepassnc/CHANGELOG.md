@@ -4,10 +4,19 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- When the database vanished from the server (moved or deleted somewhere else), the banner offers "Put the file back": it saves the open database at its old place again and never overwrites a file that turned up there in the meantime.
+
 ### Changed
 - Strength meter: a password from the "Simple" generator is recognised by its shape and shows the same exact strength everywhere (editor, entry view, health report) instead of a much too high guess. Other passwords show a "≈" before the bits, since they are only estimated.
 - Password generator: a click on the password copies it in the entry editor too, like in the vault view and on the standalone page.
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
+
+### Fixed
+- A save the server never answers (a proxy swallowing it, a half-dead connection) gives up after a minute and goes the offline way, instead of holding up every later save until a reload. Big files on slow lines get extra time.
+- Closing the tab while a save is still on its way asks first, unless the offline copy already holds your changes.
+- A full server (HTTP 507) is an error that says so, instead of "saved offline" and a quiet retry every 30 seconds forever.
+- A full server, a locked file or a vanished one now gets the banner with "Save a copy", so your changes always have a way out.
 
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
