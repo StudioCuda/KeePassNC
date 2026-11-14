@@ -47,7 +47,7 @@ export function renderEditor(host) {
     i.expiry.value = exp ? dateStr(exp) : dateStr(new Date(Date.now() + 365 * 86400000));
     i.expiry.disabled = !i.expires.checked;
     i.expires.addEventListener('change', () => { i.expiry.disabled = !i.expires.checked; });
-    const groupSel = groupSelect({ value: group, id: 'e-group' });
+    const groupSel = groupSelect({ value: group, id: 'e-group', keep: !!entry }); // an entry in the recycle bin stays there unless another group is picked
     // TOTP from a QR code: pick a screenshot of the setup page, only otpauth:// is accepted
     const qrInput = h('input', { type: 'file', id: 'e-qr', accept: 'image/*', class: 'sr-only', onchange: async () => {
         const f = qrInput.files[0]; qrInput.value = '';
