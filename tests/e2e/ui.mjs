@@ -353,7 +353,12 @@ async function main() {
         }
         await page.keyboard.press('Escape');
         await pick(page, 'UI Ablauf-TOTP'); await page.click('#edit-btn'); await page.click('#gen-btn');
-        expect(await page.locator('#gen-preview.click-copy').count() === 0, 'In the editor dialog a click on the password does not copy');
+        expect(await page.locator('#gen-preview.click-copy').count() === 1, 'In the editor dialog a click on the password copies it too');
+        if (browserName === 'chromium') {
+            const shown = (await page.locator('#gen-preview').innerText()).trim();
+            await page.locator('#gen-preview').click(); await page.locator('#gen-preview.copied').waitFor();
+            expect(await page.evaluate(() => navigator.clipboard.readText()) === shown, 'Editor dialog: click copies the password');
+        }
         await page.click('#gen-tab-pw'); await page.click('#gen-use'); await page.click('#e-show');
         const v = await page.inputValue('#e-pass');
         expect(v !== 'Ui-Passwort-123!' && v.length >= 20, 'Editor uebernimmt Passwort');
