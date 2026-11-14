@@ -359,7 +359,16 @@ async function main() {
             await page.locator('#gen-preview').click(); await page.locator('#gen-preview.copied').waitFor();
             expect(await page.evaluate(() => navigator.clipboard.readText()) === shown, 'Editor dialog: click copies the password');
         }
-        await page.click('#gen-tab-pw'); await page.click('#gen-use'); await page.click('#e-show');
+        await page.click('#gen-tab-pw');
+        const genBits = (await page.locator('.gen .strength-label').innerText()).match(/· (\d+) bit/)?.[1];
+        await page.click('#gen-use'); await page.click('#e-show');
+        const meterText = () => page.locator('.meter .strength-label').first().innerText();
+        expect(genBits && (await meterText()).includes(`· ${genBits} bit`), `Editor shows the generator's exact bits (${genBits}): ${await meterText()}`);
+        await page.fill('#e-pass', 'Gotbupro 38 nigtalso');
+        expect((await meterText()).includes('· 70 bit'), 'Simple password typed by hand: exact, no ≈: ' + await meterText());
+        await page.fill('#e-pass', 'Tr0ub4dor&3xyz');
+        expect(/· ≈ \d+ bit/.test(await meterText()), 'Other passwords show an estimate with ≈: ' + await meterText());
+        await page.click('#gen-btn'); await page.click('#gen-tab-pw'); await page.click('#gen-use');
         const v = await page.inputValue('#e-pass');
         expect(v !== 'Ui-Passwort-123!' && v.length >= 20, 'Editor uebernimmt Passwort');
         await page.click('#cancel-btn');

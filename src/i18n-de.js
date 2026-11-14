@@ -564,6 +564,7 @@ export default {
     'show': 'Anzeigen',
     'sort': 'Sortierung',
     'sort.created': 'Erstellt', 'sort.group': 'Gruppe', 'sort.modified': 'Zuletzt geändert', 'sort.title': 'Titel', 'sort.username': 'Benutzername',
+    'strength.estimate': 'Geschätzt aus dem Text. Exakt kennt die Stärke nur der Generator.',
     'strength.bad': 'Sehr schwach', 'strength.excellent': 'Hervorragend', 'strength.good': 'Gut', 'strength.poor': 'Schwach', 'strength.weak': 'Mäßig',
     'softlock.title': 'Gesperrt',
     'softlock.note': 'Ungespeicherte Änderungen sind nur im Arbeitsspeicher – beim Schließen oder Neuladen dieses Tabs gehen sie verloren.',
