@@ -135,3 +135,17 @@ export function generateSimple(opts = {}) {
     if (o.capital) pw = pw[0].toUpperCase() + pw.slice(1);
     return { password: pw, bits: n * SIMPLE_BLOCK_BITS + SIMPLE_DIGITS_BITS };
 }
+
+// Does a text look like generateSimple's output? Then its strength is known exactly, whatever the character-based estimate says.
+// Every syllable has one consonant, one vowel and a coda of nothing, one consonant or a doubled one (see above); three of them make
+// a block; blocks are joined by one separator, the two digits follow the first block. The forbidden junctions are not checked:
+// a hand-made text that matches anyway is rated lower, which errs on the safe side.
+const simpleSyllable = (onset) => `[${onset}][${SYLLABLE.vowels}](?:${[...SYLLABLE.doubled].map((c) => c + c).join('|')}|[${SYLLABLE.consonants}])?`;
+const SIMPLE_BLOCK = `(?:${simpleSyllable(SYLLABLE.consonants)}){3}`;
+const SIMPLE_RE = new RegExp(`^${simpleSyllable(SYLLABLE.consonants + SYLLABLE.consonants.toUpperCase())}(?:${simpleSyllable(SYLLABLE.consonants)}){2}([${SEPARATORS.map((c) => '\\' + c).join('')}])[${SIMPLE_DIGITS}]{2}(?:\\1${SIMPLE_BLOCK})*$`);
+/** Exact bits of a password from the "Simple" generator, otherwise null. */
+export function simpleBits(pw) {
+    if (!pw || pw.length > 120) return null;
+    const m = SIMPLE_RE.exec(pw); // only the very first letter may be a capital
+    return m ? (pw.split(m[1]).length - 1) * SIMPLE_BLOCK_BITS + SIMPLE_DIGITS_BITS : null;
+}

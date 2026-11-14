@@ -564,6 +564,7 @@ export default {
     'show': '显示',
     'sort': '排序方式',
     'sort.created': '创建时间', 'sort.group': '分组', 'sort.modified': '最后修改', 'sort.title': '标题', 'sort.username': '用户名',
+    'strength.estimate': '根据文本估算。只有生成器知道确切的强度。',
     'strength.bad': '非常弱', 'strength.excellent': '很强', 'strength.good': '好', 'strength.poor': '弱', 'strength.weak': '一般',
     'softlock.title': '已锁定',
     'softlock.note': '未保存的改动只存在于内存中——关闭或刷新此标签页后将丢失。',

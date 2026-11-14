@@ -564,6 +564,7 @@ export default {
     'show': 'Show',
     'sort': 'Sort order',
     'sort.created': 'Created', 'sort.group': 'Group', 'sort.modified': 'Last modified', 'sort.title': 'Title', 'sort.username': 'Username',
+    'strength.estimate': 'Estimated from the text. Only the generator knows the exact strength.',
     'strength.bad': 'Very weak', 'strength.excellent': 'Excellent', 'strength.good': 'Good', 'strength.poor': 'Weak', 'strength.weak': 'Fair',
     'softlock.title': 'Locked',
     'softlock.note': 'Unsaved changes live only in memory – they are lost when you close or reload this tab.',
