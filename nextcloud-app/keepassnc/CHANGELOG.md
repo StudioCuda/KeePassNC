@@ -8,6 +8,10 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Strength meter: a password from the "Simple" generator is recognised by its shape and shows the same exact strength everywhere (editor, entry view, health report) instead of a much too high guess. Other passwords show a "≈" before the bits, since they are only estimated.
 - Password generator: a click on the password copies it in the entry editor too, like in the vault view and on the standalone page.
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
+- Locking the database also clears a password you just copied from the clipboard.
+
+### Fixed
+- Copied passwords really leave the clipboard again. Browsers don't let a page clear it while you're pasting in another tab (Firefox and Safari not even a few seconds after your last click), so the password used to stay put while the status line promised otherwise. Now the status line says it's still there, and your next click or key press in the tab clears it. Whatever you copied elsewhere in the meantime stays, wherever the browser lets KeePassNC tell.
 
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.

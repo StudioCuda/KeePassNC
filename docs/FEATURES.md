@@ -64,6 +64,13 @@ Example: `url:bank is:weak -tag:old`
 
 The page locks after the idle time you choose (and, if you like, when the tab has been hidden for a minute). With changes that can't be saved right then, the unlock screen takes over instead and keeps them in memory: unlock it with the master password (and key file) to carry on, and it offers to save. `SECURITY.md` says what that means for security.
 
+## Clipboard
+
+- Copied user names, passwords and codes leave the clipboard again after the time you pick in the settings, and when the database locks.
+- Browsers only let a page write the clipboard while you're using it: Chrome and Edge while the tab has the focus, Firefox and Safari within five seconds of a click or key press in it. So when the time runs out while you're pasting somewhere else (in Firefox and Safari, also when you just haven't touched the tab for a bit), the status line says the password is still on the clipboard, and your next click or key press in the tab clears it.
+- Copied something else in the meantime? It stays wherever KeePassNC can tell: a paste into KeePassNC shows what's on the clipboard (that's why a click into a text field, a right click or `Ctrl+V` doesn't clear yet), and Chrome and Edge look first if the site may read the clipboard (a site setting; KeePassNC never asks for it). Where it can't tell, it clears anyway: a password left behind is worse than copying something again.
+- Close the tab before that, and the password stays on the clipboard. A page can't do anything once it's gone.
+
 ## Keyboard shortcuts
 
 `Ctrl+K` palette, `Ctrl+F` search, `Ctrl+N` new entry, `Ctrl+S` save, `Ctrl+L` lock, `Ctrl+B` copy user name, `Ctrl+C` copy password, `Ctrl+Shift+U` open URL, `Del` delete.
