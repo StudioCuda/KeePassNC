@@ -505,6 +505,7 @@ export default {
     'nch.apps': 'Apps', 'nch.apps.current': 'App-Menü öffnen, aktuell in {app}', 'nch.apps.open': 'App-Menü öffnen', 'nch.home': 'Startseite', 'nch.more': 'Weitere Apps', 'nch.more.actions': 'Mehr', 'nch.actions': 'Aktionen', 'nch.offline': 'Nextcloud nicht erreichbar', 'nch.user': 'Benutzermenü',
     'notes': 'Notizen',
     'open.merging': '- lokale Änderungen werden abgeglichen …',
+    'open.gone': '{name} aus der Offline-Kopie geöffnet ({version}, Stand {date}): Die Datei ist nicht mehr auf dem Server, aber deine Änderungen, die nie dort ankamen, sind hier drin.',
     'open.offline': '{name} aus der Offline-Kopie geöffnet ({version}, Stand {date}) - Server nicht erreichbar.{extra}',
     'open.offline.unsynced': ' Lokale Änderungen werden später übertragen.',
     'open.ok': '{name} geöffnet ({version})',
