@@ -286,6 +286,43 @@ async function main() {
         await p.close();
     });
 
+    await step('Datei auf dem Server verschoben, waehrend die Offline-Kopie noch Aenderungen hat: Anmeldung oeffnet die Offline-Kopie mit Hinweis statt "nicht gefunden", nichts geht ohne Klick zum Server, "Datei wieder anlegen" legt sie zurueck', async () => {
+        const p = await openPage('&davtimeout=2');
+        srv.options.fault = (m, rel) => (m === 'PUT' && rel === 'vault4.kdbx' ? 'hang' : undefined);
+        try {
+            await editOn(p, 'Mail', 'nur-in-der-kopie');
+            await statusOf(p, /Server nicht erreichbar - Änderungen sind in der lokalen Offline-Kopie/);
+            await p.close();
+        } finally { srv.options.fault = null; }
+        const moved = path.join(davRoot, 'vault4-verschoben.kdbx');
+        fs.renameSync(f4, moved); // someone moves the file in the Files app
+        const movedBytes = fs.readFileSync(moved);
+        const p2 = await ctx.newPage();
+        p2.on('pageerror', (e) => { if (!knownFetchNoise(e.message)) pageErrors.push(String(e)); });
+        await p2.goto(url()); await p2.locator('#login-form').waitFor();
+        const from = srv.log.length;
+        await login('vault4.kdbx', PW, p2);
+        await p2.locator('[data-testid=entry-row]').first().waitFor({ timeout: 30000 });
+        await statusOf(p2, /Offline-Kopie geöffnet .*nicht mehr auf dem Server/);
+        expect(await p2.locator('#readonly-banner').isVisible(), 'Hinweis fehlt');
+        expect(/nicht mehr auf dem Server/.test(await p2.locator('#ro-text').innerText()), 'Hinweistext: ' + await p2.locator('#ro-text').innerText());
+        expect(await p2.locator('#ro-recreate').isVisible() && await p2.locator('#ro-copy').isVisible(), '"Datei wieder anlegen" und "Kopie speichern" fehlen');
+        await p2.locator('[data-testid=entry-row]', { hasText: 'Mail' }).click();
+        expect((await p2.locator('[data-testid=f-user]').innerText()).trim() === 'nur-in-der-kopie', 'die Aenderung aus der Offline-Kopie fehlt');
+        await p2.waitForTimeout(5000); // syncretry=2: background syncs would have had two goes by now
+        const writes = srv.log.slice(from).filter((l) => !/^(GET|PROPFIND|HEAD) /.test(l));
+        expect(writes.length === 0, 'ohne Klick zum Server geschickt: ' + writes.join(', '));
+        expect(!fs.existsSync(f4), 'die Datei wurde ohne Klick wieder angelegt');
+        await p2.click('#ro-recreate');
+        await statusOf(p2, /^Die Datei ist wieder auf dem Server/);
+        expect(await p2.locator('#readonly-banner').isHidden(), 'Hinweis bleibt nach dem Wiederanlegen');
+        await stateOf(p2, 'synced');
+        expect(xc(['show', f4, 'Web/Mail']).includes('nur-in-der-kopie'), 'Aenderung fehlt in der wieder angelegten Datei');
+        expect(Buffer.compare(movedBytes, fs.readFileSync(moved)) === 0, 'die verschobene Datei wurde angefasst');
+        fs.rmSync(moved);
+        await p2.close();
+    });
+
     await step('"Lokale Daten loeschen" entfernt Offline-Kopie, App-Cache und Service Worker', async () => {
         await page.goto(url()); await page.locator('#login-form').waitFor();
         await page.click('#login-settings'); await page.click('#wipe-btn'); await page.click('#wipe-btn');

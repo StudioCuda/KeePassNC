@@ -30,8 +30,10 @@ function hmacBlocks(file) {
 }
 
 const open = (file) => Vault.open({ buf: new Uint8Array(file).buffer, password: PW });
+// The page says "damaged or incomplete" (e.corrupt); underneath it is still kdbxweb's FileCorrupt, not some other failure
 const corrupt = (e) => {
-    assert.ok(e instanceof KdbxError && e.code === Consts.ErrorCodes.FileCorrupt, `expected FileCorrupt, got ${e?.name}: ${e?.key ?? ''} ${e?.message}`);
+    assert.ok(e instanceof VaultError && e.key === 'e.corrupt', `expected e.corrupt, got ${e?.name}: ${e?.key ?? ''} ${e?.message}`);
+    assert.ok(e.cause instanceof KdbxError && e.cause.code === Consts.ErrorCodes.FileCorrupt, `expected FileCorrupt underneath, got ${e.cause?.name}: ${e.cause?.message}`);
     return true;
 };
 
@@ -86,6 +88,17 @@ for (const cipher of ['aes', 'chacha20']) {
         assert.deepEqual(titles(await open(Buffer.concat([file, file.subarray(blocks[0].at, blocks[1].at)]))), plain, 'a whole block');
     });
 }
+
+test('a file cut off anywhere, even inside its header, says "damaged or incomplete" (not raw kdbxweb text, not "wrong password")', async () => {
+    const { vault } = await Vault.create({ name: 'db', password: PW, security: FAST });
+    vault.applyEntry(null, vault.root, { Title: 'a', Password: 'x' });
+    const file = Buffer.from(await vault.copyBytes());
+    for (const len of [1, 12, 100, 200, 400, file.length - 100, file.length - 1]) {
+        await assert.rejects(open(file.subarray(0, len)), (e) => e instanceof VaultError && e.key === 'e.corrupt', `cut at ${len} of ${file.length}`);
+    }
+    // an intact file with a wrong password still says so
+    await assert.rejects(Vault.open({ buf: new Uint8Array(file).buffer, password: 'nope' }), (e) => e?.key === 'e.badkey');
+});
 
 test('the files the app writes still open after saving again (the end block it writes is the one it checks)', async () => {
     const { vault, bytes } = await Vault.create({ name: 'db', password: PW, security: FAST });
