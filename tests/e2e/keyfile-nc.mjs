@@ -8,7 +8,7 @@ import http from 'node:http';
 import crypto from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { launchBrowser, waitOpened } from '../browser.mjs';
+import { launchBrowser, waitOpened, openTrace } from '../browser.mjs';
 import { createKeyfileStore, limits as kfLimits } from '../../src/keyfile-store.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -94,6 +94,7 @@ async function main() {
     const errors = [];
     const mkCtx = async (user) => {
         const c = await browser.newContext({ locale: 'de-DE' });
+        await c.addInitScript(openTrace);
         await c.addInitScript(() => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: 'off' })); } catch {} });
         await c.addCookies([{ name: 'sess', value: user, url: base }]);
         return c;

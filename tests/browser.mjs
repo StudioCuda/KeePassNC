@@ -44,9 +44,42 @@ function consoleTail(page) {
 }
 
 /**
+ * Init script for a browser context: notes the steps of opening a database (WebDAV download finished, key file read, Argon2
+ * worker started/answered/failed/ended) in window.__kpncTrace, so waitOpened can say which step never finished when the login
+ * hangs. It only watches: the app gets the same Worker, Blob and promises as without it. Paths and file names only, no contents.
+ */
+export const openTrace = () => {
+    // ms since the page started; resource timing arrives a little late, so it brings its own time
+    const log = (s, at = performance.now()) => { const l = (window.__kpncTrace ||= []); l.push(`${s} @${Math.round(at)}ms`); if (l.length > 16) l.shift(); };
+    try {
+        new PerformanceObserver((list) => { for (const e of list.getEntries()) if (/\/dav\//.test(e.name) && /fetch|xmlhttprequest/.test(e.initiatorType)) log(`fetch done ${new URL(e.name).pathname.split('/').pop()}`, e.responseEnd); }).observe({ type: 'resource' });
+    } catch { /* no resource timing: the other steps still show */ }
+    const read = Blob.prototype.arrayBuffer;
+    Blob.prototype.arrayBuffer = function () {
+        const name = this.name || 'blob', p = read.call(this);
+        if (this instanceof File) { log(`read ${name}`); p.then((b) => log(`read ${name} done ${b.byteLength} B`), (e) => log(`read ${name} failed ${e}`)); }
+        return p;
+    };
+    const Base = window.Worker; let n = 0;
+    if (!Base) return;
+    window.Worker = class extends Base {
+        constructor(url, opts) {
+            super(url, opts);
+            const id = `worker#${++n} ${String(url).split('/').pop().split('?')[0]}`;
+            log(`${id} new`);
+            this.addEventListener('message', (e) => log(`${id} message${e.data && typeof e.data === 'object' ? ` ok=${e.data.ok}` : ''}`));
+            this.addEventListener('messageerror', () => log(`${id} messageerror`));
+            this.addEventListener('error', (e) => log(`${id} error ${e.message || ''}`));
+            const end = this.terminate.bind(this);
+            this.terminate = () => { log(`${id} terminate`); end(); };
+        }
+    };
+};
+
+/**
  * Waits until the database is open (.shell). If that fails, the error says where the login stood: button text
- * ("Entschlüssele …" = still stuck in network/KDF), error message, status and the latest console messages. A timeout alone
- * doesn't tell whether the app hangs or failed silently.
+ * ("Entschlüssele …" = still stuck in network/KDF), error message, status, the steps of opening (with openTrace in the
+ * context) and the latest console messages. A timeout alone doesn't tell whether the app hangs or failed silently.
  */
 export async function waitOpened(page, timeout) {
     const tail = consoleTail(page);
@@ -56,9 +89,12 @@ export async function waitOpened(page, timeout) {
         const state = await page.evaluate(() => ({
             button: document.querySelector('#open-btn')?.textContent?.trim(),
             error: document.querySelector('#login-error')?.textContent?.trim(),
-            status: document.querySelector('#status')?.textContent?.trim()
+            status: document.querySelector('#status')?.textContent?.trim(),
+            trace: window.__kpncTrace
         })).catch((x) => ({ unreadable: String(x).split('\n')[0] }));
-        throw new Error([`${String(e.message).split('\n')[0]}`, `Anmeldung: ${JSON.stringify(state)}`, ...tail.map((t) => `Konsole ${t}`)].join('\n'));
+        const { trace, ...login } = state;
+        throw new Error([`${String(e.message).split('\n')[0]}`, `Anmeldung: ${JSON.stringify(login)}`,
+            ...(trace ? [`Ablauf: ${trace.join(' > ') || '(nichts)'}`] : []), ...tail.map((t) => `Konsole ${t}`)].join('\n'));
     }
 }
 
