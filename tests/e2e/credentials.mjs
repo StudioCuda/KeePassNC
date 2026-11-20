@@ -1,6 +1,7 @@
 // Test "change master password / key file" and databases with a key file only: checks in the dialog, result cross-checked with keepassxc-cli, conflict right after
 // the change (merging with the old credentials), new key file only after a check, remembered key file,
-// deleting backup copies, local file, and that a failed save leaves the old credentials in place.
+// deleting backup copies, local file, that a failed save leaves the old credentials in place, and that a lost answer to the upload
+// ends in the state the server has (asked right after, or recognized on the next save).
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,7 +21,7 @@ function mkDb(file, keyfile) {
     execFileSync('keepassxc-cli', ['add', '-q', ...(keyfile ? ['-k', keyfile] : []), '-u', 'alice', file, 'Mail'], { input: OLD + '\n' });
 }
 mkDb(dav('pw.kdbx')); mkDb(dav('kf.kdbx'), KEY_A); mkDb(path.join(tmp, 'local.kdbx'));
-mkDb(dav('remote.kdbx')); mkDb(dav('remote2.kdbx'));
+mkDb(dav('remote.kdbx')); mkDb(dav('remote2.kdbx')); mkDb(dav('lost.kdbx')); mkDb(dav('lost2.kdbx'));
 /** Like another device: set a new password and create an entry (KeePassXC). */
 const elsewhere = (file, from, to, title) => {
     execFileSync('keepassxc-cli', ['db-edit', '-q', '-p', file], { input: `${from}\n${to}\n${to}\n`, stdio: 'pipe' });
@@ -50,7 +51,8 @@ async function step(name, fn) {
 const expect = (c, m) => { if (!c) throw new Error(m); };
 
 async function main() {
-    const { stop, port } = await startServer({ webRoot: path.join(root, 'web'), davRoot });
+    const srv = await startServer({ webRoot: path.join(root, 'web'), davRoot });
+    const { stop, port } = srv;
     const base = `http://127.0.0.1:${port}`;
     const browser = await launchBrowser();
     const errors = [];
@@ -311,6 +313,41 @@ async function main() {
         const ls = xcLs(dav('remote2.kdbx'), N1);
         expect(ls?.includes('Extern') && ls.includes('Offline-Gruppe/'), 'zusammengefuehrt mit N1: ' + ls);
         await p7.context().close();
+    });
+
+    const conflicts = (name) => backups(name).filter((f) => f.includes('.conflict-'));
+    await step('Antwort aufs Hochladen geht verloren (Verbindung reisst ab): die App sieht auf dem Server nach, die Aenderung gilt; danach weder Konflikt noch Rueckfrage', async () => {
+        const p8 = await newPage();
+        await login(p8, 'lost.kdbx', OLD);
+        srv.losePuts('lost.kdbx');
+        await openCred(p8);
+        await fillCred(p8, { current: OLD, next: N1 }); await p8.click('#cred-apply');
+        await waitStatus(p8, /Zugangsdaten geändert und gespeichert/);
+        expect(srv.log.includes('LOST /dav/lost.kdbx'), 'die Antwort sollte verloren gehen: ' + srv.log.filter((l) => l.includes('lost.kdbx')).join(', '));
+        expect(xcLs(dav('lost.kdbx'), N1)?.includes('Mail') && !xcLs(dav('lost.kdbx'), OLD), 'Server soll mit N1 aufgehen');
+        await p8.click('#new-group-btn'); await p8.fill('#prompt-input', 'Danach'); await p8.keyboard.press('Enter');
+        await p8.click('#save-btn'); await waitStatus(p8, /^Gespeichert/);
+        expect(await p8.locator('#rcred-form').count() === 0, 'keine Frage nach Zugangsdaten "von einem anderen Geraet"');
+        expect(conflicts('lost.kdbx').length === 0, 'kein Konflikt mit sich selbst: ' + conflicts('lost.kdbx'));
+        expect(xcLs(dav('lost.kdbx'), N1)?.includes('Danach/'), 'gespeichert mit N1');
+        await p8.context().close();
+    });
+
+    await step('Gateway-Timeout (504) nach dem Speichern, Nachsehen unmoeglich: Meldung raet nicht, alte Zugangsdaten gelten, naechstes Speichern stellt den Server zurueck', async () => {
+        const p9 = await newPage();
+        await login(p9, 'lost2.kdbx', OLD);
+        srv.losePuts('lost2.kdbx', 1, 504);
+        await p9.route((u) => u.pathname === '/dav/lost2.kdbx', (r) => (r.request().method() === 'GET' ? r.fulfill({ status: 502 }) : r.continue()));
+        await openCred(p9);
+        await fillCred(p9, { current: OLD, next: N1 }); await credError(p9, /nicht geändert: Der Server hat das Hochladen nicht bestätigt/);
+        await closeCred(p9);
+        await p9.unrouteAll();
+        expect(xcLs(dav('lost2.kdbx'), N1), 'Testaufbau: das Hochladen ist angekommen');
+        await p9.click('#save-btn'); await waitStatus(p9, /^Gespeichert/);
+        expect(xcLs(dav('lost2.kdbx'), OLD)?.includes('Mail') && !xcLs(dav('lost2.kdbx'), N1), 'Server soll wieder mit dem alten Passwort aufgehen, wie gemeldet');
+        expect(await p9.locator('#rcred-form').count() === 0, 'keine Frage nach Zugangsdaten');
+        expect(conflicts('lost2.kdbx').length === 0, 'kein Konflikt mit sich selbst: ' + conflicts('lost2.kdbx'));
+        await p9.context().close();
     });
 
     await step('Keine JS-Fehler', async () => { expect(errors.length === 0, errors.join(' | ')); });

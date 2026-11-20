@@ -8,6 +8,9 @@ on:
   push:
     branches: [main]
   pull_request:
+# The jobs only read the repository; the token gets nothing else, also on pushes to main.
+permissions:
+  contents: read
 # A new push to a pull request cancels the run for the older commit. Runs on main always finish.
 concurrency:
   group: nextcloud-compat-${{ github.event.pull_request.number || github.ref }}
@@ -48,7 +51,7 @@ jobs:
       - uses: actions/setup-node@v7
         if: steps.changes.outputs.docs_only != 'true'
         with: { node-version: '${{ matrix.node || 22 }}' }
-      - uses: shivammathur/setup-php@v2
+      - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         if: steps.changes.outputs.docs_only != 'true'
         with: { php-version: '8.3', extensions: 'sqlite3, pdo_sqlite, gd, zip, curl, mbstring, xml, intl, bcmath, gmp' }
       # System-wide on purpose: the tests start python3 with -I, which ignores the per-user site-packages.
@@ -62,7 +65,7 @@ jobs:
           restore-keys: apt-${{ steps.os.outputs.id }}-e2e-
       - run: tools/ci-retry.sh 120 3 tools/ci-apt.sh keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
         if: steps.changes.outputs.docs_only != 'true'
-      - run: npm ci || npm install
+      - run: npm ci
         if: steps.changes.outputs.docs_only != 'true'
       - name: Playwright version
         id: pw
@@ -160,7 +163,7 @@ jobs:
           restore-keys: apt-${{ steps.os.outputs.id }}-browsers-${{ matrix.browser }}-
       - run: tools/ci-retry.sh 120 3 tools/ci-apt.sh keepassxc python3-pip && sudo pip install --break-system-packages pykeepass
         if: steps.changes.outputs.docs_only != 'true'
-      - run: npm ci || npm install
+      - run: npm ci
         if: steps.changes.outputs.docs_only != 'true'
       - name: Playwright version
         id: pw

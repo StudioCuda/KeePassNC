@@ -1,0 +1,34 @@
+diff --git a/vendor/kdbxweb/lib/format/kdbx-meta.ts b/vendor/kdbxweb/lib/format/kdbx-meta.ts
+index 6b4ce08..dfdb3ba 100644
+--- a/vendor/kdbxweb/lib/format/kdbx-meta.ts
++++ b/vendor/kdbxweb/lib/format/kdbx-meta.ts
+@@ -507,9 +507,10 @@ export class KdbxMeta {
+             XmlUtils.addChildNode(node, XmlNames.Elem.DbKeyChangeForce),
+             this.keyChangeForce
+         );
++        // A missing setting means "on" in KeePass 2; written as an empty element, KeePassXC would read "off"
+         XmlUtils.setBoolean(
+             XmlUtils.addChildNode(node, XmlNames.Elem.RecycleBinEnabled),
+-            this.recycleBinEnabled
++            this.recycleBinEnabled ?? true
+         );
+         XmlUtils.setUuid(
+             XmlUtils.addChildNode(node, XmlNames.Elem.RecycleBinUuid),
+diff --git a/vendor/kdbxweb/lib/format/kdbx.ts b/vendor/kdbxweb/lib/format/kdbx.ts
+index 729d803..b5eaa42 100644
+--- a/vendor/kdbxweb/lib/format/kdbx.ts
++++ b/vendor/kdbxweb/lib/format/kdbx.ts
+@@ -202,6 +202,13 @@ export class Kdbx {
+         toGroup: KdbxGroup | undefined | null,
+         atIndex?: number
+     ): void {
++        // A group moved into itself or one of its subgroups is cut off from the tree and vanishes on saving, with everything
++        // in it (remove() did that to a group holding the recycle bin)
++        for (let g = toGroup; g && object instanceof KdbxGroup; g = g.parentGroup) {
++            if (g === object) {
++                throw new KdbxError(ErrorCodes.InvalidArg, 'cannot move a group into itself');
++            }
++        }
+         const containerProp = object instanceof KdbxGroup ? 'groups' : 'entries';
+         const fromContainer = <T[]>object.parentGroup?.[containerProp];
+         const ix = fromContainer?.indexOf(object);

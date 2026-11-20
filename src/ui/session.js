@@ -9,8 +9,9 @@ import { fmtDate } from '../i18n.js';
 
 const { state } = ctx;
 let autoSaveTimer = null, syncing = false, pulls = 0; // pulls: running saves that may pull (overlapping Ctrl+S)
-// The server version no longer opens with this session's credentials: ask for the new ones (credentials-dialog.js)
-const REMOTE_CREDS = new Set(['e.merge.pw', 'e.pull.pw']);
+// The server version no longer opens with this session's credentials: ask for the new ones (credentials-dialog.js), or for the
+// previous ones when the change was made here and never reached the server (e.merge.oldpw)
+const REMOTE_CREDS = new Set(['e.merge.pw', 'e.pull.pw', 'e.merge.oldpw']);
 
 /** Call after every change to the vault: refresh the view, show the save state, schedule auto-save if needed. */
 export function changed() {
@@ -172,14 +173,15 @@ export async function doSave({ auto = false } = {}) {
             state.offlineMode = false;
         } else {
             state.offlineMode = false;
-            if (res.noBackup) setStatus(t('saved.nobackup'), 'warn'); else setStatus(t('saved'));
+            if (mayPull && v.dirty) { if (statusEl?.textContent === busyText) setStatus(t('sync.dirty')); } // changed here while it synced (the pull stood down): not saved yet, the next save merges it
+            else if (res.noBackup) setStatus(t('saved.nobackup'), 'warn'); else setStatus(t('saved'));
         }
     } catch (e) {
         if (!e?.key) console.error(e); // explained errors (with translation) show in the status, only unexpected ones go to the console
         state.lastSyncFailed = isOffline(e);
         if (e?.key === 'e.dav.readonly') refused(); // the server says no: keep the changes, stop trying
         else setStatus(t('save.failed', { msg: errText(e) }), 'error');
-        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
+        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.({ previous: e.key === 'e.merge.oldpw' });
     } finally {
         if (mayPull) pulls--;
         refreshDirtyIndicator();
@@ -204,14 +206,14 @@ export async function syncNow({ announce = false } = {}) {
             if (res.pulled) { redrawAfterSwap(); setStatus(t('sync.pulled')); }
             else if (res.merged) { redrawAfterSwap(); setStatus(t(res.noBackup ? 'saved.merged.nobackup' : 'sync.merged'), 'warn'); }
             else if (res.noBackup) setStatus(t('saved.nobackup'), 'warn');
-            else if (wasOffline || announce) setStatus(t('sync.done'));
+            else if ((wasOffline || announce) && !v.dirty) setStatus(t('sync.done')); // changed here meanwhile: not in sync, the next save merges it
         }
     } catch (e) {
         if (!e?.key) console.error(e); // explained errors (with translation) show in the status, only unexpected ones go to the console
         state.lastSyncFailed = isOffline(e);
         if (e?.key === 'e.dav.readonly') refused();
         else if (announce || !isOffline(e)) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
-        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
+        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.({ previous: e.key === 'e.merge.oldpw' });
     } finally {
         syncing = false;
         $('#sync-state')?.classList.remove('busy');
@@ -307,10 +309,11 @@ export function stopTimers() {
 }
 
 export function installGlobalListeners() {
-    // Every change goes through the Vault, which refuses it in a read-only session. Whatever button or shortcut tried it, say why nothing happened.
-    const readOnlyNote = (ev) => { const err = ev.reason ?? ev.error; if (err?.key === 'e.dav.readonly') { ev.preventDefault(); setStatus(errText(err), 'warn'); } };
-    addEventListener('unhandledrejection', readOnlyNote);
-    addEventListener('error', readOnlyNote);
+    // Every change goes through the Vault, which refuses it in a read-only session, and when an open dialog, an Undo or a drag still held an entry or
+    // group that a pull from another device has deleted meanwhile (e.gone). Whatever button or shortcut tried it, say why nothing happened.
+    const refusedNote = (ev) => { const err = ev.reason ?? ev.error; if (err?.key === 'e.dav.readonly' || err?.key === 'e.gone') { ev.preventDefault(); setStatus(errText(err), 'warn'); } };
+    addEventListener('unhandledrejection', refusedNote);
+    addEventListener('error', refusedNote);
     for (const ev of ['mousemove', 'keydown', 'click', 'touchstart']) addEventListener(ev, () => { state.lastActivity = Date.now(); }, { passive: true });
     addEventListener('beforeunload', (e) => { if (state.vault?.dirty) { e.preventDefault(); e.returnValue = ''; } });
     addEventListener('online', () => { if (state.vault?.unsynced || state.offlineMode) syncNow({ announce: true }); });
