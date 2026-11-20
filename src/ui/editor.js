@@ -1,6 +1,6 @@
 // Create/edit an entry. Fields that aren't shown (passkeys, browser data, Auto-Type ...) stay unchanged in the vault (see Vault.applyEntry).
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
-import { isSystemField, entryExpiry, entryColor, ENTRY_COLORS, splitTags, toOtpUri } from '../core/util.js';
+import { isSystemField, resolvePlaceholders, entryExpiry, entryColor, ENTRY_COLORS, splitTags, toOtpUri } from '../core/util.js';
 import { excluded, reusedBy } from '../core/audit.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
@@ -64,8 +64,16 @@ export function renderEditor(host) {
     };
     const colorBox = h('div', { class: 'swatches', id: 'e-color', role: 'radiogroup', 'aria-label': t('f.color') }, swatch(''), ...[...new Set([...ENTRY_COLORS, color].filter(Boolean))].map(swatch));
     let generated = null; // {pw, bits} from the generator: exact strength as long as the field is unchanged
-    const meter = h('div', { class: 'meter' }, strengthBar(i.Password.value));
-    i.Password.addEventListener('input', () => meter.replaceChildren(strengthBar(i.Password.value, generated?.pw === i.Password.value ? generated.bits : undefined)));
+    // A field reference ({REF:P@I:…}, a linked copy) is rated like the password it points to; one that can't be resolved gets no rating
+    const rated = () => {
+        const v = i.Password.value;
+        if (!v.includes('{')) return v;
+        const r = resolvePlaceholders(v, entry, allRealEntries());
+        return r.includes('{REF:') ? '' : r;
+    };
+    const meterBar = () => strengthBar(rated(), generated?.pw === i.Password.value ? generated.bits : undefined);
+    const meter = h('div', { class: 'meter' }, meterBar());
+    i.Password.addEventListener('input', () => meter.replaceChildren(meterBar()));
     // A quiet note when another entry has the same password (the health report's rule); a pause after typing keeps it from flickering
     const reuse = h('p', { class: 'hint reuse', id: 'e-reuse', role: 'status', hidden: true });
     let reuseTimer = null;

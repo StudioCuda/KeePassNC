@@ -184,6 +184,27 @@ async function main() {
         if (!back.equals(big)) throw new Error('8-MB-Anhang weicht ab'); return `${(fs.statSync(file).size / 1e6).toFixed(1)} MB Datei`;
     });
 
+    await t('Large attachment saved by KeePassXC: kdbxweb checks every HMAC block up to the end block and reads it byte-identically; without the end block it is corrupt', async () => {
+        const file = path.join(TMP, 'big-xc.kdbx'); const big = crypto.randomBytes(3 * 1024 * 1024);
+        const { db } = await makeDb({ version: 4, cipher: Consts.CipherId.Aes, kdf: Consts.KdfId.Argon2d });
+        await populate(db, big); await save(db, file);
+        await new Promise(r => setTimeout(r, 1100)); // see xc
+        xc(['edit', file, 'Web äöü/Mail', '--notes', 'von KeePassXC geändert'], file);
+        const d = fs.readFileSync(file);
+        let o = 12; for (;;) { const id = d[o]; o += 5 + d.readUInt32LE(o + 1); if (id === 0) break; } // header fields up to EndOfHeader
+        const blocks: number[] = []; // offsets of KeePassXC's HMAC blocks, after header hash and header HMAC
+        for (let at = o + 64; ; at += 36 + d.readUInt32LE(at + 32)) { blocks.push(at); if (d.readUInt32LE(at + 32) === 0) break; }
+        if (blocks.length < 4 || blocks.at(-1)! + 36 !== d.length) throw new Error(`expected 3+ data blocks and the end block at the end: ${blocks} of ${d.length}`);
+        const back = await Kdbx.load(ab(d), new Credentials(ProtectedValue.fromString(PW)));
+        const k = [...back.getDefaultGroup().allEntries()].find((x: any) => x.fields.get('Title') === 'Konto');
+        const v = k.binaries.get('gross.bin').value;
+        if (!Buffer.from(v instanceof ArrayBuffer ? v : v.getBinary()).equals(big)) throw new Error('3 MB attachment differs after KeePassXC saved it');
+        let code = '';
+        try { await Kdbx.load(ab(d.subarray(0, blocks.at(-1))), new Credentials(ProtectedValue.fromString(PW))); } catch (e: any) { code = e.code || e.name; }
+        if (code !== Consts.ErrorCodes.FileCorrupt) throw new Error(`cut before the end block: "${code || 'no error'}" instead of FileCorrupt`);
+        return `${blocks.length - 1} data blocks`;
+    });
+
     // 4) KDBX 4.1 features (group tags, PreviousParentGroup)
     await t('KDBX 4.1: Gruppen-Tags + PreviousParentGroup, KeePassXC liest und kdbxweb liest zurueck', async () => {
         const file = path.join(TMP, 'k41.kdbx');
