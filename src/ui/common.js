@@ -3,10 +3,10 @@ import { cachedBits as bitsOf, strengthLabel } from '../core/entropy.js';
 import { parseQuery, matches } from '../core/search.js';
 import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolvePlaceholders, openableUrl } from '../core/util.js';
 import { excluded } from '../core/audit.js';
-import { t } from '../i18n.js';
+import { t, errText } from '../i18n.js';
 import { fieldText } from '../vault.js';
 import { parseOtpConfig } from '../totp.js';
-import { ctx } from './ctx.js';
+import { ctx, setStatus } from './ctx.js';
 import { h, icon, pathIcon } from './dom.js';
 import { KP_ICONS, GROUP_DEFAULT_ICON } from './kpicons.js';
 
@@ -55,6 +55,16 @@ export function allRealEntries() {
     const out = [];
     for (const e of v.root.allEntries()) if (!v.isInRecycleBin(e)) out.push(e);
     return out;
+}
+
+/**
+ * Are the entries and groups a dialog, an Undo or a drag kept all still there? A pull from another device replaces every object and may have
+ * deleted one (Vault.find). Before a batch: one gone changes none, and the status says why.
+ */
+export function stillThere(items) {
+    if (items.every((x) => ctx.state.vault.find(x))) return true;
+    setStatus(t('e.gone'), 'warn');
+    return false;
 }
 
 const sorters = {
@@ -113,4 +123,6 @@ export function expiryBadge(e) {
 }
 
 /** TOTP settings of an entry (null without any); throws when they cannot be read. List and detail view share it. */
-export const otpConfigOf = (e) => parseOtpConfig(fieldText(e.fields.get('otp')), fieldText(e.fields.get('TOTP Seed')), fieldText(e.fields.get('TOTP Settings')));
+export const otpConfigOf = (e) => { const get = (k) => fieldText(e.fields.get(k)); return parseOtpConfig(get('otp'), get('TOTP Seed'), get('TOTP Settings'), get); };
+/** Why there is no code, for the detail view and the quick button: the OtpError's text, or a general one (e.g. WebCrypto refusing). */
+export const otpProblem = (err) => errText(err?.key ? err : { key: 'e.otp.format' });

@@ -48,18 +48,19 @@ test('wipe() overwrites the vault\'s own copy of the key file, never the buffer 
     assert.deepEqual(new Uint8Array(mine), kf);
 });
 
-test('a merge from another copy that is still opening when the vault is wiped leaves the database alone', async () => {
+test('a merge from another copy that is still opening waits its turn: wipe() lets it finish, then nothing writes', async () => {
     const dav = new MemoryDav(), kf = await keyfile();
     const vault = await keyVault(dav, kf);
     const other = await reopen(dav, kf);
     other.applyEntry(null, other.root, { Title: 'copy' });
     const copy = await other.copyBytes(), seen = dav.log.length;
-    const merging = vault.mergeFrom(copy, { password: PW, keyfile: kf.slice() }); // runs outside the save queue
-    await vault.wipe(); // nothing queued: done long before the copy has gone through its key derivation
-    await assert.rejects(merging, isWiped);
-    assert.equal(vault.dirty, false);
-    assert.deepEqual(titles(vault), ['saved']);
-    assert.deepEqual(dav.log.slice(seen), []);
+    const merging = vault.mergeFrom(copy, { password: PW, keyfile: kf.slice() }); // queued like a save (_exclusive)
+    const wiping = vault.wipe();
+    await merging; // the merge ran with the credentials intact
+    await wiping;
+    assert.deepEqual(titles(vault), ['copy', 'saved']);
+    await assert.rejects(vault.save(), isWiped);
+    assert.deepEqual(dav.log.slice(seen), [], 'merging alone uploads nothing, and the wiped vault never does');
 });
 
 test('wipe() copes with a database without key file and with being called twice', async () => {
@@ -82,7 +83,7 @@ test('after wipe() nothing writes: saving, syncing and changing credentials refu
         save: () => vault.save(), autoSave: () => vault.save({ auto: true }), sync: () => vault.sync(), backgroundSync: () => vault.sync({ background: true }),
         changeCredentials: () => vault.changeCredentials({ password: 'new' }), adoptCredentials: () => vault.adoptCredentials({ password: PW, keyfile: kf.slice() }),
         copyBytes: () => vault.copyBytes(), deleteBackups: () => vault.deleteBackups(), mergeFrom: () => vault.mergeFrom(before.buffer.slice(0)),
-        _save: () => vault._save(), _push: () => vault._push(), _sync: () => vault._sync()
+        _save: () => vault._save() // _push and _sync only run inside _exclusive, which refuses
     };
     for (const [name, call] of Object.entries(calls)) await assert.rejects(Promise.resolve().then(call), isWiped, name);
     assert.throws(() => vault.applyEntry(null, vault.root, { Title: 'later' }), isWiped);

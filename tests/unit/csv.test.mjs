@@ -67,6 +67,35 @@ test('toOtpUri: a full URI stays, a bare secret is completed like KeePassXC does
     assert.equal(toOtpUri('  ', 'A', ''), '');
 });
 
+test('otpUri: missing or partial "TOTP Settings" fall back to 30 s and 6 digits instead of an empty period', () => {
+    // KeePassXC reads "period=" as one second, so the codes were wrong after a re-import
+    assert.equal(otpUri('A', '', 'JBSWY3DP', ''), 'otpauth://totp/A?secret=JBSWY3DP&period=30&digits=6');
+    assert.equal(otpUri('A', '', 'JBSWY3DP', undefined), 'otpauth://totp/A?secret=JBSWY3DP&period=30&digits=6');
+    assert.equal(otpUri('A', '', 'JBSWY3DP', '60'), 'otpauth://totp/A?secret=JBSWY3DP&period=60&digits=6');
+    assert.equal(otpUri('A', '', 'JBSWY3DP', ';8'), 'otpauth://totp/A?secret=JBSWY3DP&period=30&digits=8');
+    assert.equal(otpUri('A', '', 'JBSWY3DP', ' ; '), 'otpauth://totp/A?secret=JBSWY3DP&period=30&digits=6');
+    assert.equal(otpUri('A', '', 'JBSWY3DP', '30;'), 'otpauth://totp/A?secret=JBSWY3DP&period=30&digits=6');
+});
+
+test('otpUri: KeePass 2 TimeOtp-*, KeeOtp and a bare secret in "otp" become an otpauth URI, so other apps get the same codes', () => {
+    const f = (o) => (k) => o[k] ?? '';
+    assert.equal(otpUri('Mein Konto', '', '', '', f({ 'TimeOtp-Secret-Hex': '3132333435363738393031323334353637383930', 'TimeOtp-Length': '8', 'TimeOtp-Period': '60', 'TimeOtp-Algorithm': 'HMAC-SHA-256' })),
+        'otpauth://totp/Mein%20Konto?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&period=60&digits=8&algorithm=SHA256');
+    assert.equal(otpUri('', '', '', '', f({ 'TimeOtp-Secret': '12345678901234567890' })), 'otpauth://totp/KeePass?secret=GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ&period=30&digits=6');
+    assert.equal(otpUri('K', 'key=JBSWY3DPEHPK3PXP&size=8', '', ''), 'otpauth://totp/K?secret=JBSWY3DPEHPK3PXP&period=30&digits=8');
+    assert.equal(otpUri('B', 'JBSW Y3DP EHPK 3PXP', '', ''), 'otpauth://totp/B?secret=JBSWY3DPEHPK3PXP&period=30&digits=6');
+    assert.equal(otpUri('A', 'otpauth://totp/A?secret=X', '', '', f({ 'TimeOtp-Secret': 'x' })), 'otpauth://totp/A?secret=X', '"otp" first');
+    assert.equal(otpUri('A', '', 'JBSWY3DP', '30;6', f({ 'TimeOtp-Secret': 'x' })), 'otpauth://totp/A?secret=JBSWY3DP&period=30&digits=6', 'then the old fields');
+    assert.equal(otpUri('A', '', '', '', f({ 'TimeOtp-Secret-Hex': 'xyz' })), '', 'a broken secret exports no TOTP');
+    assert.equal(otpUri('A', 'hello world!', '', ''), 'hello world!', 'an unreadable "otp" goes out as it is');
+});
+
+test('toOtpUri: Bitwarden\'s steam://SECRET becomes a Steam Guard URI the way KeePassXC writes it (encoder=steam, 5 characters)', () => {
+    assert.equal(toOtpUri('steam://jbsw y3dp ehpk 3pxp', 'Steam', 'anna'), 'otpauth://totp/Steam:anna?secret=JBSWY3DPEHPK3PXP&period=30&digits=5&issuer=Steam&encoder=steam');
+    assert.equal(toOtpUri(' STEAM://JBSWY3DPEHPK3PXP ', '', ''), 'otpauth://totp/KeePassNC?secret=JBSWY3DPEHPK3PXP&period=30&digits=5&issuer=KeePassNC&encoder=steam');
+    assert.equal(toOtpUri(' key=JBSWY3DPEHPK3PXP&step=60 ', 'A', 'u'), 'key=JBSWY3DPEHPK3PXP&step=60', 'the KeeOtp form is no bare secret');
+});
+
 test('toCsv entschaerft Formeln, wenn gewuenscht', () => {
     // The default stays byte for byte what it was (round trip with our own import, same as KeePassXC)
     assert.equal(toCsv([['=1+1']]), '"=1+1"\r\n');
@@ -74,4 +103,40 @@ test('toCsv entschaerft Formeln, wenn gewuenscht', () => {
     assert.equal(out, '"\'=cmd|\' /c calc\'!A1","\'+49 30 1234","-1","\'@SUM(A1)","\'\tx","\'\rx","ok",""\r\n');
     assert.equal(toCsv([['-1']], { neutralize: true, keepNumbers: false }), '"\'-1"\r\n');
     assert.equal(toCsv([['-1,5', '-1a']], { neutralize: true }), '"-1,5","\'-1a"\r\n');
+});
+
+test('parseCsv: the delimiter comes from the header line (comma, semicolon, tab, pipe), outside quotes only', () => {
+    // German Excel ("CSV UTF-8"): BOM, semicolons, CRLF, quotes only where needed, line breaks inside a cell are LF
+    const excel = '﻿Group;Title;Username;Password;URL;Notes\r\nPasswords/Bank;Sparkasse Köln;jürgen;"pa;ss""wört";https://sparkasse.de;"Zwei\nZeilen, mit Komma"\r\nPasswords;Müller & Söhne;anna;€uro,1;;Grüße\r\n';
+    assert.deepEqual(parseCsv(excel), [['Group', 'Title', 'Username', 'Password', 'URL', 'Notes'],
+        ['Passwords/Bank', 'Sparkasse Köln', 'jürgen', 'pa;ss"wört', 'https://sparkasse.de', 'Zwei\nZeilen, mit Komma'], ['Passwords', 'Müller & Söhne', 'anna', '€uro,1', '', 'Grüße']]);
+    assert.deepEqual(parseCsv('Title\tUsername\tPassword\nGMX\tbob\tpw,1;2\n"Tab\tin quotes"\t"x"\t'), [['Title', 'Username', 'Password'], ['GMX', 'bob', 'pw,1;2'], ['Tab\tin quotes', 'x', '']]);
+    assert.deepEqual(parseCsv('Title|Password\nA|p,w;1'), [['Title', 'Password'], ['A', 'p,w;1']]);
+    assert.deepEqual(parseCsv('"Title;a;b","Notes"\nA;B,C'), [['Title;a;b', 'Notes'], ['A;B', 'C']], 'semicolons inside quotes do not count');
+    assert.deepEqual(parseCsv('"Title,a,b";"Notes"\nA,B;C'), [['Title,a,b', 'Notes'], ['A,B', 'C']], 'commas inside quotes do not count');
+    assert.deepEqual(parseCsv('\r\n\r\nTitle;Password\nA;b'), [['Title', 'Password'], ['A', 'b']], 'leading empty lines are skipped before looking');
+    assert.deepEqual(parseCsv('Title,Notes\nA,"x;y;z"\nB,1;2;3'), [['Title', 'Notes'], ['A', 'x;y;z'], ['B', '1;2;3']], 'only the header decides, semicolons in the data do not');
+});
+
+test('parseCsv: a tie goes to the comma, a header without any delimiter is one comma column', () => {
+    assert.deepEqual(parseCsv('a,b;c\n1,2;3'), [['a', 'b;c'], ['1', '2;3']]);
+    assert.deepEqual(parseCsv('a;b\tc|d,e\n1;2\t3|4,5'), [['a;b\tc|d', 'e'], ['1;2\t3|4', '5']]);
+    assert.deepEqual(parseCsv('url\nhttps://a.example/?x=1,2'), [['url'], ['https://a.example/?x=1', '2']]);
+    assert.deepEqual(parseCsv(''), []);
+});
+
+test('parseCsv: a quote inside an unquoted field is a plain character and swallows nothing (like Excel and LibreOffice)', () => {
+    const rows = parseCsv('Title,Username,Password,URL\nGMX,bob,pass"word,https://gmx.net\nWeb,eve,pw2,https://web.de\nDisk,carol,5" floppy,\nEnd,dave,pw"","x"');
+    assert.deepEqual(rows, [['Title', 'Username', 'Password', 'URL'], ['GMX', 'bob', 'pass"word', 'https://gmx.net'], ['Web', 'eve', 'pw2', 'https://web.de'], ['Disk', 'carol', '5" floppy', ''], ['End', 'dave', 'pw""', 'x']]);
+    assert.deepEqual(parseCsv('a;b\nx"y;"q;""r"""\n1;2'), [['a', 'b'], ['x"y', 'q;"r"'], ['1', '2']], 'the same with semicolons');
+});
+
+test('parseCsv: a quote that opens a field but never closes is a plain character, the rows after it stay rows', () => {
+    assert.deepEqual(parseCsv('Title,Password\nA,"pw\nB,pw2\n'), [['Title', 'Password'], ['A', '"pw'], ['B', 'pw2']]);
+    assert.deepEqual(parseCsv('Title,Password\nA,"'), [['Title', 'Password'], ['A', '"']]);
+});
+
+test('parseCsv: comma files read exactly as before (quotes after spaces, text after a closing quote, a lone CR)', () => {
+    assert.deepEqual(parseCsv('a, "b, c" ,d\n"x"y,z'), [['a', ' b, c ', 'd'], ['xy', 'z']]);
+    assert.deepEqual(parseCsv('"a"\r"b"\r\n"c""d"'), [['a'], ['b'], ['c"d']]);
 });

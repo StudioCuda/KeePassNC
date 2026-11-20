@@ -184,6 +184,27 @@ async function main() {
         if (!back.equals(big)) throw new Error('8-MB-Anhang weicht ab'); return `${(fs.statSync(file).size / 1e6).toFixed(1)} MB Datei`;
     });
 
+    await t('Large attachment saved by KeePassXC: kdbxweb checks every HMAC block up to the end block and reads it byte-identically; without the end block it is corrupt', async () => {
+        const file = path.join(TMP, 'big-xc.kdbx'); const big = crypto.randomBytes(3 * 1024 * 1024);
+        const { db } = await makeDb({ version: 4, cipher: Consts.CipherId.Aes, kdf: Consts.KdfId.Argon2d });
+        await populate(db, big); await save(db, file);
+        await new Promise(r => setTimeout(r, 1100)); // see xc
+        xc(['edit', file, 'Web äöü/Mail', '--notes', 'von KeePassXC geändert'], file);
+        const d = fs.readFileSync(file);
+        let o = 12; for (;;) { const id = d[o]; o += 5 + d.readUInt32LE(o + 1); if (id === 0) break; } // header fields up to EndOfHeader
+        const blocks: number[] = []; // offsets of KeePassXC's HMAC blocks, after header hash and header HMAC
+        for (let at = o + 64; ; at += 36 + d.readUInt32LE(at + 32)) { blocks.push(at); if (d.readUInt32LE(at + 32) === 0) break; }
+        if (blocks.length < 4 || blocks.at(-1)! + 36 !== d.length) throw new Error(`expected 3+ data blocks and the end block at the end: ${blocks} of ${d.length}`);
+        const back = await Kdbx.load(ab(d), new Credentials(ProtectedValue.fromString(PW)));
+        const k = [...back.getDefaultGroup().allEntries()].find((x: any) => x.fields.get('Title') === 'Konto');
+        const v = k.binaries.get('gross.bin').value;
+        if (!Buffer.from(v instanceof ArrayBuffer ? v : v.getBinary()).equals(big)) throw new Error('3 MB attachment differs after KeePassXC saved it');
+        let code = '';
+        try { await Kdbx.load(ab(d.subarray(0, blocks.at(-1))), new Credentials(ProtectedValue.fromString(PW))); } catch (e: any) { code = e.code || e.name; }
+        if (code !== Consts.ErrorCodes.FileCorrupt) throw new Error(`cut before the end block: "${code || 'no error'}" instead of FileCorrupt`);
+        return `${blocks.length - 1} data blocks`;
+    });
+
     // 4) KDBX 4.1 features (group tags, PreviousParentGroup)
     await t('KDBX 4.1: Gruppen-Tags + PreviousParentGroup, KeePassXC liest und kdbxweb liest zurueck', async () => {
         const file = path.join(TMP, 'k41.kdbx');
@@ -294,6 +315,62 @@ async function main() {
         if (!s1.includes('bob-aus-A') || !s2.includes('aus-B.example')) throw new Error('Merge unvollstaendig:\n' + s1 + s2);
     });
 
+    // 6b) Merge against tombstones as KeePassXC writes them: an entry KeePassXC deleted for good survives if the kdbxweb copy
+    // changed it later, and stays deleted if the change came first. The stale tombstone is dropped, KeePassXC reads the result.
+    await t('Merge: in KeePassXC endgueltig geloescht, in der kdbxweb-Kopie spaeter geaendert -> bleibt; vorher geaendert -> weg', async () => {
+        const fa = path.join(TMP, 'del-A.kdbx'), fx = path.join(TMP, 'del-XC.kdbx');
+        const { db, cred } = await makeDb({ version: 4, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2id });
+        await populate(db); await save(db, fa); fs.copyFileSync(fa, fx);
+        const entry = (d: any, title: string) => [...d.getDefaultGroup().allEntries()].find((x: any) => x.fields.get('Title') === title);
+        const konto = entry(db, 'Konto'), mailId = entry(db, 'Mail').uuid.id, kontoId = konto.uuid.id;
+        konto.fields.set('UserName', 'bob-vorher'); konto.times.update(); await save(db, fa); // before KeePassXC deletes it
+        await new Promise(r => setTimeout(r, 1100));
+        for (const p of ['Web äöü/Mail', 'Recycle Bin/Mail', 'Web äöü/Unter–Gruppe/Konto', 'Recycle Bin/Konto']) xc(['rm', fx, p], fx); // bin, then for good
+        await new Promise(r => setTimeout(r, 1100));
+        const A = await Kdbx.load(ab(fs.readFileSync(fa)), cred), X = await Kdbx.load(ab(fs.readFileSync(fx)), cred);
+        if (!X.deletedObjects.some((d: any) => d.uuid.id === mailId) || !X.deletedObjects.some((d: any) => d.uuid.id === kontoId)) throw new Error('KeePassXC schrieb keine Loeschmarken');
+        const mail = entry(A, 'Mail'); mail.fields.set('URL', 'https://spaeter.example'); mail.times.update();
+        A.merge(X); await save(A, fa);
+        if (entry(A, 'Konto')) throw new Error('Konto (vor dem Loeschen geaendert) ist wieder da');
+        const ids = A.deletedObjects.map((d: any) => d.uuid.id);
+        if (ids.includes(mailId) || !ids.includes(kontoId)) throw new Error('Loeschmarken nach dem Merge: Mail ' + ids.includes(mailId) + ', Konto ' + ids.includes(kontoId));
+        const show = xc(['show', fa, 'Web äöü/Mail'], fa) as string;
+        if (!show.includes('spaeter.example')) throw new Error('KeePassXC sieht Mail nicht:\n' + show);
+        const ls = xc(['ls', '-R', fa], fa) as string;
+        if (ls.includes('Konto')) throw new Error('KeePassXC sieht Konto noch:\n' + ls);
+    });
+
+    // 6c) KeePassXC moves an entry into a group that comes earlier in the tree (keepassxc-cli mv also touches its modification time).
+    // Merged into the kdbxweb copy, the entry sits only in its new group; KeePassXC lists it exactly once, and so does a second merge.
+    await t('Merge: in KeePassXC in eine fruehere Gruppe verschoben (mv) -> nach dem Merge genau einmal, in der neuen Gruppe', async () => {
+        const fa = path.join(TMP, 'mv-A.kdbx'), fx = path.join(TMP, 'mv-XC.kdbx');
+        const { db, cred } = await makeDb({ version: 4, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2id });
+        await populate(db);
+        const umzug = db.createEntry(db.createGroup(db.getDefaultGroup(), 'Archiv')); // after "Web äöü"
+        umzug.fields.set('Title', 'Umzug'); umzug.fields.set('UserName', 'carol');
+        const id = umzug.uuid.id;
+        await save(db, fa); fs.copyFileSync(fa, fx);
+        await new Promise(r => setTimeout(r, 1100));
+        xc(['mv', fx, 'Archiv/Umzug', 'Web äöü'], fx);
+        const A = await Kdbx.load(ab(fs.readFileSync(fa)), cred), X = await Kdbx.load(ab(fs.readFileSync(fx)), cred);
+        const entry = (d: any) => [...d.getDefaultGroup().allEntries()].find((x: any) => x.uuid.id === id);
+        if (!(entry(X).times.locationChanged > entry(A).times.locationChanged)) throw new Error('KeePassXC hat die Verschiebezeit nicht gesetzt');
+        const touched = entry(X).times.lastModTime > entry(A).times.lastModTime;
+        const mail = [...A.getDefaultGroup().allEntries()].find((x: any) => x.fields.get('Title') === 'Mail');
+        mail.fields.set('URL', 'https://spaeter.example'); mail.times.update();
+        const places = (d: any) => [...d.getDefaultGroup().allGroups()].filter((g: any) => g.entries.some((e: any) => e.uuid.id === id)).map((g: any) => g.name).join(', ');
+        A.merge(X);
+        if (places(A) !== 'Web äöü') throw new Error('Umzug nach dem Merge in: ' + places(A));
+        await save(A, fa);
+        const listed = () => (xc(['ls', '-R', '-f', fa], fa) as string).split('\n').filter((l) => l.endsWith('Umzug'));
+        if (listed().join() !== 'Web äöü/Umzug') throw new Error('KeePassXC listet Umzug als: ' + listed().join(', '));
+        // the next merge with the moved copy changes nothing (a UUID twice would make kdbxweb refuse it)
+        const A2 = await Kdbx.load(ab(fs.readFileSync(fa)), cred);
+        A2.merge(await Kdbx.load(ab(fs.readFileSync(fx)), cred)); await save(A2, fa);
+        if (listed().join() !== 'Web äöü/Umzug') throw new Error('nach dem zweiten Merge: ' + listed().join(', '));
+        return touched ? 'mv setzt auch die Aenderungszeit' : 'mv setzt nur die Verschiebezeit';
+    });
+
     // 7) Known edge case: file without EnableSearching fields (e.g. from pykeepass)
     await t('Randfall: Gruppen ohne EnableSearching/EnableAutoType (pykeepass-Datei) -> KeePassXC liest Ergebnis', async () => {
         const src = path.join(TMP, 'py.kdbx');
@@ -365,6 +442,51 @@ async function main() {
         }
         node.textContent = Buffer.from([0, 0, 0, 0, 0, 0, 0, 0]).toString('base64');
         if (kdbxweb.XmlUtils.getDate(node).getUTCFullYear() !== 1) throw new Error('Jahr 1 falsch');
+    });
+
+    // 8) TOTP formats with KeePassXC as the reference: it reads KeePass 2's TimeOtp-Secret-Base32 (with length, period and algorithm)
+    // itself; the other TimeOtp-* secrets, a "TOTP Seed" without settings and Bitwarden's steam:// go through the TOTP column of our
+    // CSV export, which KeePassXC's CSV import parses like an "otp" field. Same file, same moment: the codes must match.
+    await t('TOTP: KeePass 2 TimeOtp-* read like KeePassXC; the TOTP column of our CSV export gives KeePassXC the same codes', async () => {
+        const { parseOtpConfig, totp } = require('../../src/totp.js');
+        const { otpUri, toCsv, parseCsv } = require('../../src/core/csv.js');
+        const { toOtpUri } = require('../../src/core/util.js');
+        const RFC = '12345678901234567890', B32 = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+        const native: Record<string, Record<string, string>> = {
+            'KP2 Base32': { 'TimeOtp-Secret-Base32': B32, 'TimeOtp-Length': '8', 'TimeOtp-Period': '60', 'TimeOtp-Algorithm': 'HMAC-SHA-256' }
+        };
+        const viaCsv: Record<string, Record<string, string>> = {
+            'KP2 Text': { 'TimeOtp-Secret': RFC, 'TimeOtp-Algorithm': 'HMAC-SHA-512' },
+            'KP2 Hex': { 'TimeOtp-Secret-Hex': Buffer.from(RFC).toString('hex'), 'TimeOtp-Length': '7' },
+            'KP2 Base64': { 'TimeOtp-Secret-Base64': Buffer.from(RFC).toString('base64'), 'TimeOtp-Period': '45' },
+            'Seed only': { 'TOTP Seed': 'JBSWY3DPEHPK3PXP' },
+            'Seed 60': { 'TOTP Seed': 'JBSWY3DPEHPK3PXP', 'TOTP Settings': '60' },
+            'Steam': { otp: toOtpUri('steam://' + B32, 'Steam', 'anna') }
+        };
+        const file = path.join(TMP, 'totp-formats.kdbx');
+        const { db } = await makeDb({ version: 4, cipher: Consts.CipherId.ChaCha20, kdf: Consts.KdfId.Argon2id });
+        const root = db.getDefaultGroup();
+        const add = (title: string, fields: Record<string, string>) => {
+            const e = db.createEntry(root); e.fields.set('Title', title);
+            for (const [k, v] of Object.entries(fields)) e.fields.set(k, /Secret|Seed|^otp$/.test(k) ? ProtectedValue.fromString(v) : v);
+            return e;
+        };
+        const get = (e: any) => (k: string) => { const v = e.fields.get(k); return v == null ? '' : typeof v === 'string' ? v : v.getText(); };
+        const ours = Object.fromEntries(Object.entries({ ...native, ...viaCsv }).map(([title, f]) => [title, add(title, f)]));
+        // the TOTP column as Vault.csvRows writes it, through CSV text and back
+        const csv = parseCsv(toCsv(Object.keys(viaCsv).map((title) => { const g = get(ours[title]); return [title, otpUri(title, g('otp'), g('TOTP Seed'), g('TOTP Settings'), g)]; })));
+        for (const [title, uri] of csv) add(`${title} (CSV)`, { otp: uri });
+        await save(db, file);
+        const codeAt = async (e: any, ms: number) => { const g = get(e); return (await totp(parseOtpConfig(g('otp'), g('TOTP Seed'), g('TOTP Settings'), g), ms)).code; };
+        for (const title of Object.keys(ours)) {
+            const t0 = Date.now();
+            const theirs = (xc(['show', '-t', file, title in native ? title : `${title} (CSV)`], file) as string).trim().split('\n').pop();
+            const t1 = Date.now();
+            // keepassxc-cli makes its code somewhere between t0 and t1, so one of the two must match
+            const mine = [await codeAt(ours[title], t0), await codeAt(ours[title], t1)];
+            if (!mine.includes(theirs)) throw new Error(`${title}: KeePassXC ${theirs}, KeePassNC ${mine.join('/')} (${csv.find((r: string[]) => r[0] === title)?.[1] ?? 'native'})`);
+        }
+        return `${Object.keys(ours).length} TOTP variants`;
     });
 
     // Report

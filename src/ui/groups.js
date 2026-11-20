@@ -3,8 +3,8 @@ import { VaultError } from '../vault.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus, clearMarks } from './ctx.js';
 import { h, append, icon, iconBtn, popupMenu, modal, promptDialog, confirmDialog, toast } from './dom.js';
-import { allRealEntries, isWeak, groupIcon } from './common.js';
-import { hasTotp, isPasskey, entryExpiry, daysUntil, fieldOf, splitTags } from '../core/util.js';
+import { allRealEntries, isWeak, groupIcon, stillThere } from './common.js';
+import { hasTotp, isPasskey, entryExpiry, daysUntil, fieldOf, splitTags, groupPath } from '../core/util.js';
 import { changed, refreshDirtyIndicator } from './session.js';
 import { iconSelOf, iconPreview, pickIcon, commitIconSel } from './icon-picker.js';
 import { openReports } from './reports.js';
@@ -34,10 +34,14 @@ export function setFilter(f, { refresh = true } = {}) {
     if (refresh) ctx.ui.refresh();
 }
 
-/** <select> with all groups (indented); exclude: hide a group along with its descendants. */
-export function groupSelect({ value, exclude, includeRoot = true, id }) {
+/**
+ * <select> with all groups (indented) except the recycle bin; exclude: hide a group along with its descendants. keep: value may lie in
+ * the recycle bin (an entry there being edited) and then leads the list, so applying leaves the entry there unless another group is picked.
+ */
+export function groupSelect({ value, exclude, includeRoot = true, id, keep = false }) {
     const v = state.vault;
     const sel = h('select', { id });
+    if (keep && value && (value === v.recycleBin || v.isInRecycleBin(value))) sel.append(h('option', { value: value.uuid.id, text: groupPath(value), selected: true }));
     for (const { group, depth } of v.allGroups()) {
         if (group === v.recycleBin || v.isInRecycleBin(group)) continue;
         if (group === v.root && !includeRoot) continue;
@@ -72,7 +76,7 @@ export async function editGroup(g) {
     } }, iconPreview(iconSel, 'group'));
     // Like "Apply icon to ..." in KeePassXC
     const scope = h('select', { id: 'g-icon-scope' }, ['self', 'groups', 'entries', 'all'].map((k) => h('option', { value: k, text: t('icon.scope.' + k) })));
-    const m = modal({ title: t('group.edit'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); v.updateGroup(g, { name: name.value, notes: notes.value, ...commitIconSel(iconSel), iconScope: scope.value }); m.close(); changed(); } },
+    const m = modal({ title: t('group.edit'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); if (!stillThere([g])) { m.close(); return; } v.updateGroup(g, { name: name.value, notes: notes.value, ...commitIconSel(iconSel), iconScope: scope.value }); m.close(); changed(); } },
         h('div', { class: 'title-row' }, iconEl, h('label', { class: 'grow' }, h('span', { text: t('group.name') }), name)),
         h('label', {}, h('span', { text: t('icon.scope') }), scope),
         h('label', {}, h('span', { text: t('notes') }), notes),
@@ -82,18 +86,18 @@ export async function editGroup(g) {
 export function moveGroupDialog(g) {
     const v = state.vault;
     const sel = groupSelect({ value: g.parentGroup, exclude: g });
-    const m = modal({ title: t('group.move'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); const target = v.allGroups().map((x) => x.group).find((x) => x.uuid.id === sel.value); if (v.moveGroup(g, target)) { m.close(); changed(); } else toast(t('group.move.invalid'), { kind: 'warn' }); } },
+    const m = modal({ title: t('group.move'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); const target = v.allGroups().map((x) => x.group).find((x) => x.uuid.id === sel.value); if (!stillThere([g, target])) { m.close(); return; } if (v.moveGroup(g, target)) { m.close(); changed(); } else toast(t('group.move.invalid'), { kind: 'warn' }); } },
         h('label', {}, h('span', { text: t('group.move.to') }), sel), h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), h('button', { type: 'submit', class: 'primary', text: t('move') }))) });
 }
 
 export async function deleteGroup(g) {
     const v = state.vault;
     const inBin = v.deletesForever(g);
-    const n = [...g.allEntries()].length;
+    const n = [...g.allEntries()].filter((e) => inBin || !v.isInRecycleBin(e)).length; // a recycle bin inside the group stays as it is (Vault.removeGroup)
     const ok = await confirmDialog({ title: inBin ? t('delete.forever') : t('group.delete'), message: inBin ? t('group.delete.forever.msg', { name: g.name, n }) : t('group.delete.msg', { name: g.name, n }), confirmLabel: inBin ? t('delete.forever') : t('delete'), cancelLabel: t('cancel'), danger: true });
     if (!ok) return;
     try { v.removeGroup(g); } catch (e) { if (e instanceof VaultError) { setStatus(errText(e), 'error'); return; } throw e; }
-    if (state.filter.group === g) state.filter = { type: 'all' };
+    if (state.filter.group?.uuid.equals(g.uuid)) state.filter = { type: 'all' }; // g may be from before a pull, the filter isn't
     state.selEntry = null;
     changed();
 }
@@ -219,6 +223,7 @@ export function renderSidebar(host) {
             e.preventDefault();
             if (dragging.kind === 'entry') {
                 const n = dragging.items.length;
+                if (!stillThere(dragging.items)) { dragging = null; return; } // a pull came in during the drag
                 for (const x of dragging.items) v.moveEntry(x, g);
                 toast(t(n > 1 ? 'sel.moved' : 'entry.moved', { group: g.name, n }), { timeout: 2000 });
                 clearMarks();
@@ -244,9 +249,24 @@ export function renderSidebar(host) {
         h('button', { type: 'button', class: 'tree-label', id: 'nav-bin', onclick: () => setFilter({ type: 'bin' }) }, icon('trash'), h('span', { class: 'grow', text: t('nav.bin') }), h('span', { class: 'count', text: String(binCount) })),
         rb ? iconBtn('more', t('more'), (e) => { e.stopPropagation(); groupMenu(e.currentTarget, rb); }, { class: 'row-more' }) : null));
     if (rb && bin) {
-        bin.firstChild.addEventListener('dragover', (e) => { if (dragging) { e.preventDefault(); bin.firstChild.classList.add('drop'); } });
+        // What is in the bin already stays where it is (dropping it there again used to delete it for good, without asking)
+        // Looked at as the database has them now (a drag may have started before a pull swapped it, see Vault.find)
+        const live = (x) => v.find(x) ?? x;
+        const takes = () => dragging && (dragging.kind === 'entry' ? dragging.items.some((x) => !v.isInRecycleBin(live(x))) : live(dragging.item) !== rb && !v.isInRecycleBin(live(dragging.item)));
+        bin.firstChild.addEventListener('dragover', (e) => { if (takes()) { e.preventDefault(); bin.firstChild.classList.add('drop'); } });
         bin.firstChild.addEventListener('dragleave', () => bin.firstChild.classList.remove('drop'));
-        bin.firstChild.addEventListener('drop', (e) => { e.preventDefault(); bin.firstChild.classList.remove('drop'); if (!dragging) return; if (dragging.kind === 'entry') { for (const x of dragging.items) v.removeEntry(x); clearMarks(); } else v.removeGroup(dragging.item); dragging = null; changed(); });
+        bin.firstChild.addEventListener('drop', (e) => {
+            bin.firstChild.classList.remove('drop');
+            if (!takes()) return;
+            e.preventDefault();
+            if (dragging.kind === 'entry') {
+                if (!stillThere(dragging.items)) { dragging = null; return; } // deleted on another device meanwhile: none of them changes
+                for (const x of dragging.items) if (!v.isInRecycleBin(live(x))) v.removeEntry(x);
+                clearMarks();
+            } else v.removeGroup(dragging.item);
+            dragging = null;
+            changed();
+        });
     }
 
     const tools = h('div', { class: 'nav-section nav-tools' }, h('div', { class: 'nav-head' }, h('span', { text: t('tools') })),
