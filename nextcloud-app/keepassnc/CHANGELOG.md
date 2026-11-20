@@ -10,6 +10,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - When the database vanished from the server (moved or deleted somewhere else), the banner offers "Put the file back": it saves the open database at its old place again and never overwrites a file that turned up there in the meantime.
 
 ### Fixed
+- Notes and fields with Windows line breaks (CR LF, as pykeepass or Windows scripts write them) keep them when KeePassNC saves. Before, the first save quietly turned them into plain LF in every entry of the file.
 - Databases with a raw key file of exactly 32 bytes: after another device's changes came in, a merge, the unlock screen's check or a new master password, the next save could encrypt the file with a key nobody can derive, so it no longer opened. If that happened to one of yours, the `.bak` copy next to it or an earlier Nextcloud file version still opens.
 - A KDBX 4 file that got cut off (an upload that never finished, say) is now reported as corrupt, instead of slipping past the integrity check and showing up as a wrong password.
 - Databases that still use the old Argon2 version 1.0 say so, with a hint how KeePassXC updates them, instead of claiming your password is wrong.
