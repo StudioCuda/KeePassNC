@@ -333,7 +333,7 @@ async function main() {
         // KeePassXC reads KnownBad but doesn't output it in the XML export: hence pykeepass as a second opinion
         const knownBad = () => execFileSync('python3', ['-I', '-c', ['from pykeepass import PyKeePass', `kp = PyKeePass(${JSON.stringify(f4)}, password=${JSON.stringify(PW)})`,
             "cd = kp.find_entries(title='Neu E2E', first=True)._element.find('CustomData')",
-            "print(any(i.findtext('Key') == 'KnownBad' and i.findtext('Value') == 'True' for i in ([] if cd is None else cd)))"].join('\n')]).toString().trim() === 'True';
+            "print(any(i.findtext('Key') == 'KnownBad' and i.findtext('Value') == 'true' for i in ([] if cd is None else cd)))"].join('\n')]).toString().trim() === 'True'; // KeePassXC compares with lowercase "true"
         expect(await weakRows() === 1, '"pw-neu" sollte als schwach gelten');
         const toggle = async (on) => {
             await page.fill('#search', ''); await page.locator('[data-testid=entry-row]', { hasText: 'Neu E2E' }).click();
