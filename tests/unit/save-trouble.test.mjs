@@ -99,7 +99,7 @@ test('A file deleted on the server: saving says so instead of "check the path", 
     const v = await newDb(dav, { entries: ['A'] });
     add(v, 'B');
     dav.files.delete('/db.kdbx');
-    await assert.rejects(v.save(), (e) => e.key === 'e.gone');
+    await assert.rejects(v.save(), (e) => e.key === 'e.dav.gone');
     assert.equal(v.writeBlocked, 'gone');
     assert.equal(v.dirty, true);
     assert.equal(v.unsaved, true);
@@ -124,7 +124,7 @@ test('Putting the file back never overwrites: if another device put one there in
     const other = await openDb(dav);
     add(v, 'B');
     dav.files.delete('/db.kdbx');
-    await assert.rejects(v.save(), (e) => e.key === 'e.gone');
+    await assert.rejects(v.save(), (e) => e.key === 'e.dav.gone');
     add(other, 'X');
     dav.write('/db.kdbx', await other.copyBytes()); // restored from the trash on another device, with a change of its own
     const res = await v.recreate();
@@ -138,7 +138,7 @@ test('Putting the file back when its folder is gone, too: that is what the messa
     const v = await newDb(dav, { entries: ['A'] });
     add(v, 'B');
     dav.files.delete('/db.kdbx');
-    await assert.rejects(v.save(), (e) => e.key === 'e.gone');
+    await assert.rejects(v.save(), (e) => e.key === 'e.dav.gone');
     v.dav.create = async () => { throw new DavError(409, 'no folder', 'e.dav.nofolder'); }; // as DavFile.create answers then
     await assert.rejects(v.recreate(), (e) => e.key === 'e.dav.nofolder');
     assert.equal(v.writeBlocked, 'gone');
@@ -149,7 +149,7 @@ test('A file that is gone while nothing changed here: the sync says so, backgrou
     const dav = new MemoryDav();
     const v = await newDb(dav, { entries: ['A'] });
     dav.files.delete('/db.kdbx');
-    await assert.rejects(v.sync(), (e) => e.key === 'e.gone');
+    await assert.rejects(v.sync(), (e) => e.key === 'e.dav.gone');
     assert.equal(v.writeBlocked, 'gone');
     assert.equal(v.unsaved, false, 'nothing changed here');
     assert.deepEqual(await v.sync({ background: true }), { skipped: true });
@@ -160,7 +160,7 @@ test('Gone while the version sits only in the offline copy counts as unsaved: op
     const v = withOfflineCopy(await newDb(dav, { entries: ['A'] }));
     add(v, 'B');
     dav.files.delete('/db.kdbx');
-    await assert.rejects(v.save(), (e) => e.key === 'e.gone');
+    await assert.rejects(v.save(), (e) => e.key === 'e.dav.gone');
     assert.equal(v.dirty, false);
     assert.equal(v.unsynced, true);
     assert.equal(v.unsaved, true);

@@ -3,14 +3,15 @@ import { isOffline } from '../webdav.js';
 import { ARGON2_WORKER_URL } from '../argon2.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus, download, SW_CACHE, SYNC_RETRY_MS, LOCK_WAIT_MS, params } from './ctx.js';
-import { $, confirmDialog } from './dom.js';
+import { $, confirmDialog, toast } from './dom.js';
 import { setNcHeaderOffline } from './ncheader.js';
 import { fmtDate } from '../i18n.js';
 
 const { state } = ctx;
 let autoSaveTimer = null, syncing = false, pulls = 0; // pulls: running saves that may pull (overlapping Ctrl+S)
-// The server version no longer opens with this session's credentials: ask for the new ones (credentials-dialog.js)
-const REMOTE_CREDS = new Set(['e.merge.pw', 'e.pull.pw']);
+// The server version no longer opens with this session's credentials: ask for the new ones (credentials-dialog.js), or for the
+// previous ones when the change was made here and never reached the server (e.merge.oldpw)
+const REMOTE_CREDS = new Set(['e.merge.pw', 'e.pull.pw', 'e.merge.oldpw']);
 // Banner text per Vault.writeBlocked
 const BLOCKED_TEXT = { full: 'blocked.full', locked: 'blocked.locked', gone: 'blocked.gone' };
 
@@ -127,6 +128,12 @@ function redrawAfterSwap() {
     ctx.ui.refresh?.();
 }
 
+/** The database took in changes another tab with the same file had stored in the offline copy (Vault._absorb): show them, say where they came from. */
+function tabsMerged() {
+    redrawAfterSwap();
+    toast(t('sync.tabs'));
+}
+
 /** Is a sync running that may replace the database (pull)? Then no editor may open: it would keep the old entry and group objects. */
 export const isSwapping = () => syncing || pulls > 0;
 
@@ -156,6 +163,7 @@ export async function doSave({ auto = false, recreate = false } = {}) {
             return;
         }
         state.lastSyncFailed = !!res.offline;
+        if (res.tabMerged) tabsMerged();
         if (state.source.type === 'file') {
             download(state.source.name, res.bytes);
             setStatus(t('saved.download', { name: state.source.name }));
@@ -175,14 +183,15 @@ export async function doSave({ auto = false, recreate = false } = {}) {
             setStatus(t('blocked.recreated'));
         } else {
             state.offlineMode = false;
-            if (res.noBackup) setStatus(t('saved.nobackup'), 'warn'); else setStatus(t('saved'));
+            if (mayPull && v.dirty) { if (statusEl?.textContent === busyText) setStatus(t('sync.dirty')); } // changed here while it synced (the pull stood down): not saved yet, the next save merges it
+            else if (res.noBackup) setStatus(t('saved.nobackup'), 'warn'); else setStatus(t('saved'));
         }
     } catch (e) {
         if (!e?.key) console.error(e); // explained errors (with translation) show in the status, only unexpected ones go to the console
         state.lastSyncFailed = isOffline(e);
         if (e?.key === 'e.dav.readonly') refused(); // the server says no: keep the changes, stop trying
         else setStatus(t('save.failed', { msg: errText(e) }), 'error');
-        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
+        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.({ previous: e.key === 'e.merge.oldpw' });
     } finally {
         if (mayPull) pulls--;
         refreshDirtyIndicator();
@@ -200,6 +209,7 @@ export async function syncNow({ announce = false } = {}) {
     try {
         const res = await (v.dirty ? v.save() : v.sync({ background: !announce }));
         state.lastSyncFailed = !!res.offline;
+        if (res.tabMerged) tabsMerged();
         if (res.offline) {
             if (announce) setStatus(t('sync.failed.offline'), 'warn');
         } else {
@@ -208,14 +218,14 @@ export async function syncNow({ announce = false } = {}) {
             if (res.pulled) { redrawAfterSwap(); setStatus(t('sync.pulled')); }
             else if (res.merged) { redrawAfterSwap(); setStatus(t(res.noBackup ? 'saved.merged.nobackup' : 'sync.merged'), 'warn'); }
             else if (res.noBackup) setStatus(t('saved.nobackup'), 'warn');
-            else if (wasOffline || announce || known) setStatus(t('sync.done'));
+            else if ((wasOffline || announce || known) && !v.dirty) setStatus(t('sync.done')); // changed here meanwhile: not in sync, the next save merges it
         }
     } catch (e) {
         if (!e?.key) console.error(e); // explained errors (with translation) show in the status, only unexpected ones go to the console
         state.lastSyncFailed = isOffline(e);
         if (e?.key === 'e.dav.readonly') refused();
         else if (announce || !(isOffline(e) || (known && v.writeBlocked === known))) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
-        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
+        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.({ previous: e.key === 'e.merge.oldpw' });
     } finally {
         syncing = false;
         $('#sync-state')?.classList.remove('busy');
@@ -312,10 +322,11 @@ export function stopTimers() {
 }
 
 export function installGlobalListeners() {
-    // Every change goes through the Vault, which refuses it in a read-only session. Whatever button or shortcut tried it, say why nothing happened.
-    const readOnlyNote = (ev) => { const err = ev.reason ?? ev.error; if (err?.key === 'e.dav.readonly') { ev.preventDefault(); setStatus(errText(err), 'warn'); } };
-    addEventListener('unhandledrejection', readOnlyNote);
-    addEventListener('error', readOnlyNote);
+    // Every change goes through the Vault, which refuses it in a read-only session, and when an open dialog, an Undo or a drag still held an entry or
+    // group that a pull from another device has deleted meanwhile (e.gone). Whatever button or shortcut tried it, say why nothing happened.
+    const refusedNote = (ev) => { const err = ev.reason ?? ev.error; if (err?.key === 'e.dav.readonly' || err?.key === 'e.gone') { ev.preventDefault(); setStatus(errText(err), 'warn'); } };
+    addEventListener('unhandledrejection', refusedNote);
+    addEventListener('error', refusedNote);
     for (const ev of ['mousemove', 'keydown', 'click', 'touchstart']) addEventListener(ev, () => { state.lastActivity = Date.now(); }, { passive: true });
     // Not only dirty: a save still on its way without an offline copy holds the only version, and so does the offline copy of a file gone from the server (Vault.unsaved)
     addEventListener('beforeunload', (e) => { if (state.vault?.unsaved) { e.preventDefault(); e.returnValue = ''; } });
