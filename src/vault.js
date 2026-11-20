@@ -10,7 +10,10 @@ import { EXPORT_HEAD, otpUri } from './core/csv.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
 
-kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type) => {
+kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type, version) => {
+    // hash-wasm only computes Argon2 1.3 (0x13); kdbxweb also lets 1.0 (0x10) through, which KeePass 2 and KeePassXC still read and
+    // keep. Computed as 1.3, such a file gets a different key and looked like a wrong password, so say what it really is.
+    if (version !== 0x13) throw new VaultError('Diese Datenbank nutzt Argon2 in der alten Version 1.0, die KeePassNC nicht berechnen kann.', 'e.kdf.argon2v10');
     let out;
     try {
         out = await argon2({
@@ -80,7 +83,7 @@ export async function createKeyfile() {
  * counts as the same. An unreadable file (XML with a wrong checksum) throws.
  */
 export async function sameKeyfile(a, b) {
-    const hash = async (x) => { const c = new Credentials(null, x); await c.ready; return c.keyFileHash.getBinary(); };
+    const hash = async (x) => { const c = credentials(null, x); await c.ready; return c.keyFileHash.getBinary(); };
     const [x, y] = await Promise.all([hash(a), hash(b)]);
     try { return sameBytes(x, y); } finally { x.fill(0); y.fill(0); }
 }
@@ -91,6 +94,8 @@ export const STANDARD_FIELDS = ['Title', 'UserName', 'Password', 'URL', 'Notes']
 export class VaultError extends Error {
     constructor(message, key, vars) { super(message); this.name = 'VaultError'; this.key = key; this.vars = vars; }
 }
+/** An entry or group the page still held was deleted on another device in the meantime (see Vault.find). */
+const goneError = () => new VaultError('Dieser Eintrag oder diese Gruppe wurde inzwischen auf einem anderen Geraet geloescht. Hier wurde nichts geaendert.', 'e.gone');
 
 export const fieldText = valueText;
 
@@ -114,6 +119,14 @@ const sameBytes = (a, b) => {
     return d === 0;
 };
 const toArrayBuffer = (u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+/**
+ * kdbxweb's Credentials, always with a copy of the key file of its own. A key file of exactly 32 bytes is the key itself, and
+ * kdbxweb masks the very buffer it gets for it (ProtectedValue.fromBinary: "the contents will be destroyed") and keeps it as
+ * keyFileHash. Handed the vault's bytes (_kf, _base.kf), the database's credentials and the vault shared one buffer, and the next
+ * Credentials from it (a pull, a merge, the soft-lock check, a new password) masked it again: the following save encrypted the file
+ * with a key nobody can derive.
+ */
+const credentials = (pw, kf) => new Credentials(pw, kf ? (kf instanceof ArrayBuffer ? kf.slice(0) : toArrayBuffer(kf)) : kf);
 const stamp = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '-');
 
 export function generatePassword(length = 24) {
@@ -145,7 +158,7 @@ async function loadWith(buf, password, kf) {
     try {
         for (const [n, pw] of tries.entries()) {
             try {
-                return { db: await Kdbx.load(buf, new Credentials(pw, kf)), pw };
+                return { db: await Kdbx.load(buf, credentials(pw, kf)), pw };
             } catch (e) {
                 if (!(e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) || n === tries.length - 1) throw e;
             }
@@ -170,6 +183,24 @@ function loadError(e) {
         return new VaultError('Das ist keine gueltige KDBX-Datei (oder eine nicht unterstuetzte Version).', 'e.badfile');
     }
     return e;
+}
+
+/**
+ * Safety net after kdbxweb's merge (_push, mergeFrom): an entry or group also listed in a group other than its own parentGroup (the
+ * same object in two places, as the merge used to leave an entry the other device had moved) comes out of that group before anything
+ * is saved, so the file never holds its UUID twice. A listing only goes while the object stays listed where it belongs, so nothing
+ * gets lost. The merge itself puts every object in exactly one group; tests/unit/merge-moves.test.mjs checks it without this net.
+ */
+function dropStaleListings(root) {
+    const groups = new Set(root.allGroups());
+    const elsewhere = (x, group, kind) => x.parentGroup !== group && groups.has(x.parentGroup) && x.parentGroup[kind].includes(x);
+    for (const group of groups) {
+        for (const kind of ['groups', 'entries']) {
+            const seen = new Set();
+            const keep = group[kind].filter((x) => !seen.has(x) && seen.add(x) && !elsewhere(x, group, kind));
+            if (keep.length < group[kind].length) group[kind] = keep;
+        }
+    }
 }
 
 export class Vault {
@@ -200,7 +231,7 @@ export class Vault {
         const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
         const pw = password ? ProtectedValue.fromString(password) : null;
         if (!pw && !kf) throw new VaultError('Ohne Passwort und Schluesseldatei liesse sich die Datenbank von jedem oeffnen.', 'e.cred.empty');
-        const creds = new Credentials(pw, kf);
+        const creds = credentials(pw, kf);
         try { await creds.ready; } catch { throw new VaultError('Diese Schluesseldatei ist unlesbar.', 'e.keyfile.bad'); }
         const db = Kdbx.create(creds, name);
         const v = new Vault(db, pw, kf, dav, null, null, cache);
@@ -277,7 +308,7 @@ export class Vault {
     /** For reading the server version (pulling): its credentials, not necessarily our own (unknown ones, see open: ours, there are no others). */
     _baseCredentials() {
         const b = this._base ?? { pw: this._pw, kf: this._kf };
-        return new Credentials(b.pw, b.kf);
+        return credentials(b.pw, b.kf);
     }
 
     /**
@@ -326,7 +357,7 @@ export class Vault {
             const pw = password === undefined ? this._pw : ProtectedValue.fromString(password);
             const kf = keyfile === undefined ? this._kf : keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
             if (!pw && !kf) throw new VaultError('Ohne Passwort und Schluesseldatei liesse sich die Datenbank von jedem oeffnen.', 'e.cred.empty');
-            const creds = new Credentials(pw, kf);
+            const creds = credentials(pw, kf);
             // report an unreadable key file (e.g. XML with a wrong checksum) now, not only on save
             try { await creds.ready; } catch { throw new VaultError('Diese Schluesseldatei ist unlesbar.', 'e.keyfile.bad'); }
             const prev = { pw: this._pw, kf: this._kf, creds: this.db.credentials, keyChanged: this.db.meta.keyChanged };
@@ -364,7 +395,7 @@ export class Vault {
             const { db: remoteDb, pw } = await loadWith(remote.buf, password, kf);
             this._pw = pw; this._kf = kf; this._base = { pw, kf };
             this._unconfirmed = null; // the server holds a version from another device, none of our uploads
-            this.db.credentials = new Credentials(pw, kf);
+            this.db.credentials = credentials(pw, kf);
             if (this.dirty) return this._save();
             if (this.unsynced) return this._push();
             this.db = remoteDb; // nothing local: the server version wins (like _pull)
@@ -398,15 +429,21 @@ export class Vault {
     /**
      * Pulls in another copy of this database (e.g. a "(conflicted copy)" from the Nextcloud clients or a copy from the phone), like
      * "Merge database" in KeePassXC: per entry the newer version wins, the older one goes to the history; deletions
-     * come along. File header and credentials stay our own. creds missing: it is opened with our own credentials.
+     * come along, except for what the other side changed after the deletion. File header and credentials stay our own. creds missing:
+     * it is opened with our own credentials.
      * Returns {added, changed, removed} (entries). Errors: e.badkey, e.badfile, e.merge.other (different database).
+     * Queued like a save: a pull finishing during the key derivation would swap the database under the merge.
      */
-    async mergeFrom(buf, creds) {
+    mergeFrom(buf, creds) {
         this._writable();
+        return this._exclusive(() => this._mergeFrom(buf, creds));
+    }
+
+    async _mergeFrom(buf, creds) {
         let other;
         try {
             other = creds ? (await loadWith(buf, creds.password, creds.keyfile ? toArrayBuffer(creds.keyfile) : undefined)).db
-                : await Kdbx.load(buf, new Credentials(this._pw, this._kf));
+                : await Kdbx.load(buf, credentials(this._pw, this._kf));
         } catch (e) { throw loadError(e); }
         const snapshot = (items) => new Map([...items].map((x) => [x.uuid.id, `${x.times.lastModTime?.getTime()}|${x.parentGroup?.uuid.id}`]));
         const diff = (before, after) => ({
@@ -418,6 +455,7 @@ export class Vault {
         const { keyChanged, settingsChanged } = this.db.meta; // credentials and file header stay our own, so do their timestamps
         try {
             this.db.merge(other);
+            dropStaleListings(this.root);
             Object.assign(this.db.meta, { keyChanged, settingsChanged });
         } catch (e) {
             if (e instanceof KdbxError && e.code === Consts.ErrorCodes.MergeError) throw new VaultError('Das ist eine andere Datenbank, keine Kopie dieser.', 'e.merge.other');
@@ -449,6 +487,49 @@ export class Vault {
         return false;
     }
 
+    /**
+     * The current database's object for an entry or group the page held on to, or null if it is gone. A pull replaces the whole database
+     * with the server's version, so whatever an open dialog, an Undo or a drag kept from before belongs to the old tree: it is looked up
+     * again by UUID. The usual case is cheap: every parent up to the root still lists it. The parent pointer alone doesn't prove that,
+     * a merge takes an entry deleted on another device out of its group without clearing it.
+     */
+    find(item) {
+        if (!item) return null;
+        for (let x = item; ; x = x.parentGroup) {
+            const p = x.parentGroup;
+            if (!p) { if (x === this.root) return item; break; }
+            if (!(x instanceof kdbxweb.KdbxGroup ? p.groups : p.entries).includes(x)) break;
+        }
+        if (item instanceof kdbxweb.KdbxGroup) return this.db.getGroup(item.uuid) ?? null;
+        for (const e of this.root.allEntries()) if (e.uuid.equals(item.uuid)) return e;
+        return null;
+    }
+
+    /**
+     * find() for a change. Moving or editing an object of the old tree would put it next to its twin in the new one (the same UUID twice,
+     * which no later merge accepts) or change something that is never saved. Gone: VaultError e.gone, before anything changed.
+     */
+    _current(item) {
+        if (!item) return item;
+        const live = this.find(item);
+        if (!live) throw goneError();
+        return live;
+    }
+
+    /**
+     * Entry and history index from before a pull: the other device may have added or removed versions, so the version is found by its time.
+     * The file keeps whole seconds only; none or several versions in that second: e.gone rather than the wrong one.
+     */
+    _currentVersion(entry, index) {
+        const live = this._current(entry);
+        if (live === entry) return { entry, index };
+        const sec = (h) => Math.floor((h?.times.lastModTime?.getTime() ?? NaN) / 1000);
+        const at = sec(entry.history[index]);
+        const hits = live.history.flatMap((h, i) => (sec(h) === at ? [i] : []));
+        if (hits.length !== 1) throw goneError();
+        return { entry: live, index: hits[0] };
+    }
+
     /** All entries except the recycle bin, optionally filtered. */
     search(query) {
         const q = (query || '').trim().toLowerCase();
@@ -469,14 +550,17 @@ export class Vault {
      *   icon?: number, customIcon?: string|null, excludeReports?: boolean, color?: string, attachments?: {remove: string[], add: Map<name, binary from makeBinary>}}
      *   (icon: see _setIcon; color: "#rrggbb" or ""; attachments: removals first, then additions, so a name can be replaced)
      * Everything the editor doesn't show stays unchanged (passkey fields, browser data, colors, auto-type ...). Without an actual change
-     * no history entry is created (like in KeePassXC).
+     * no history entry is created (like in KeePassXC). entry and group may come from before a pull (see find).
      */
     applyEntry(entry, group, data) {
         this._writable();
         const isNew = !entry;
-        if (isNew) entry = this.db.createEntry(group);
-        else if (!this.entryDiffers(entry, data)) return entry;
-        else this._pushHistory(entry);
+        if (isNew) entry = this.db.createEntry(this._current(group));
+        else {
+            entry = this._current(entry);
+            if (!this.entryDiffers(entry, data)) return entry;
+            this._pushHistory(entry);
+        }
         const set = (k, v) => entry.fields.set(k, v);
         set('Title', data.Title ?? '');
         set('UserName', data.UserName ?? '');
@@ -503,13 +587,19 @@ export class Vault {
             if (data.expires) entry.times.expiryTime = data.expiryTime || new Date(Date.now() + 365 * 86400000);
         }
         for (const name of data.attachments?.remove || []) entry.binaries.delete(name);
-        for (const [name, bin] of data.attachments?.add || []) entry.binaries.set(name, bin);
+        for (const [name, bin] of data.attachments?.add || []) {
+            // made before a pull swapped the database (or before a merge tidied up its pool): saving drops a binary its pool doesn't know
+            if (bin?.hash && !this.db.binaries.getValueByHash(bin.hash)) this.db.binaries.addWithHash(bin);
+            entry.binaries.set(name, bin);
+        }
         this._setIcon(entry, data);
         if (data.color !== undefined && data.color !== (entryColor(entry) || '')) entry.bgColor = data.color || undefined;
         if (data.excludeReports !== undefined && data.excludeReports !== excluded(entry)) { // both spellings, so KeePass 2 and KeePassXC see it
             entry.qualityCheck = data.excludeReports ? false : undefined;
-            if (data.excludeReports) (entry.customData ??= new Map()).set('KnownBad', { value: 'True' });
+            if (data.excludeReports) (entry.customData ??= new Map()).set('KnownBad', { value: 'true' });
             else entry.customData?.delete('KnownBad');
+        } else if (entry.customData?.get('KnownBad')?.value === 'True') {
+            entry.customData.set('KnownBad', { value: 'true' }); // written by KeePassNC up to 1.2.0; KeePassXC only reads lowercase
         }
         entry.times.update();
         this.dirty = true;
@@ -519,8 +609,13 @@ export class Vault {
     /** Adds and/or removes tags on several entries. Every entry that really changes gets a history entry, like an edit. Returns how many changed. */
     editTags(entries, { add = [], remove = [] }) {
         this._writable();
+        // the current objects (see find), all of them first: one that is gone changes none. One walk through the tree, a tag can sit on thousands
+        const byId = new Map();
+        for (const e of this.root.allEntries()) byId.set(e.uuid.id, e);
+        const live = [...entries].map((e) => byId.get(e.uuid.id));
+        if (live.includes(undefined)) throw goneError();
         let n = 0;
-        for (const e of entries) {
+        for (const e of live) {
             const next = editTags(e.tags, { add, remove });
             if (next.join('\n') === editTags(e.tags).join('\n')) continue;
             this._pushHistory(e);
@@ -625,7 +720,7 @@ export class Vault {
     get binEnabled() { return this.db.meta.recycleBinEnabled !== false; }
 
     /** Deleting is permanent here: the item is already in the recycle bin, or the database has none. */
-    deletesForever(item) { return !this.binEnabled || this.isInRecycleBin(item); }
+    deletesForever(item) { return !this.binEnabled || this.isInRecycleBin(this.find(item) ?? item); }
 
     generalSettings() {
         const m = this.db.meta;
@@ -663,9 +758,24 @@ export class Vault {
 
     removeEntry(entry) {
         this._writable();
-        if (this.isInRecycleBin(entry)) this.db.move(entry, null); // delete permanently
-        else this.db.remove(entry);
+        entry = this._current(entry);
+        this._discard(entry);
         this.dirty = true;
+    }
+
+    /**
+     * Into the recycle bin (created on first use), or for good when it is off or the item is in it already: the same decision
+     * deletesForever makes for the page. Not kdbxweb's remove(): that reads a missing <RecycleBinEnabled> as "off" (KeePass 2 and
+     * this page read it as "on") and a missing <RecycleBinUUID> as "no bin", and deleted for good while the page said "in the recycle bin".
+     */
+    _discard(item) {
+        if (this.deletesForever(item)) { this.db.move(item, null); return; }
+        this.db.createRecycleBin(); // also writes the missing setting as an explicit "on"
+        const rb = this.recycleBin;
+        // KeePass 2 lets any group be the recycle bin. One inside this group would end up inside itself, cut off from the tree, and vanish
+        // on saving with everything in it: it moves up to the root first and stays the recycle bin, with what it holds.
+        for (let g = rb.parentGroup; g; g = g.parentGroup) if (g === item) { this.db.move(rb, this.root); break; }
+        this.db.move(item, rb);
     }
 
     /**
@@ -675,6 +785,7 @@ export class Vault {
      */
     duplicateEntry(entry, suffix = ' - Kopie', { linked = false } = {}) {
         this._writable();
+        entry = this._current(entry);
         const copy = this.db.createEntry(entry.parentGroup);
         copy.copyFrom(entry);
         for (const k of [...copy.fields.keys()]) if (isPasskeyField(k)) copy.fields.delete(k);
@@ -696,6 +807,8 @@ export class Vault {
 
     moveEntry(entry, group) {
         this._writable();
+        if (!group) throw goneError(); // a dialog's target group was deleted meanwhile (selectedGroup finds nothing): moving to nowhere deletes for good
+        entry = this._current(entry); group = this._current(group);
         if (entry.parentGroup === group) return;
         this.db.move(entry, group);
         this.dirty = true;
@@ -708,13 +821,14 @@ export class Vault {
         walk(this.root, 0);
         return out;
     }
-    createGroup(parent, name) { this._writable(); const g = this.db.createGroup(parent, name.trim() || 'Neue Gruppe'); this.dirty = true; return g; }
+    createGroup(parent, name) { this._writable(); const g = this.db.createGroup(this._current(parent), name.trim() || 'Neue Gruppe'); this.dirty = true; return g; }
     /**
      * icon/customIcon: icon as with applyEntry. iconScope exists like in KeePassXC: 'groups' (all subgroups), 'entries' (entries
      * directly in the group) or 'all' (everything below) get the same icon, without a history entry.
      */
     updateGroup(group, { name, notes, icon, customIcon, iconScope }) {
         this._writable();
+        group = this._current(group);
         if (name !== undefined) group.name = name.trim() || group.name;
         if (notes !== undefined) group.notes = notes;
         this._setIcon(group, { icon, customIcon });
@@ -728,21 +842,24 @@ export class Vault {
         }
         this.dirty = true;
     }
-    /** Recycle bin is active -> group moves into it; otherwise permanent. */
+    /** Recycle bin is active -> group moves into it (a bin inside the group stays, see _discard); otherwise permanent. */
     removeGroup(group) {
         this._writable();
+        group = this._current(group);
         if (group === this.root) throw new VaultError('Die Wurzelgruppe kann nicht geloescht werden.', 'e.root.delete');
         if (group === this.recycleBin) throw new VaultError('Der Papierkorb kann nicht geloescht werden - nur leeren.', 'e.bin.delete');
-        if (this.isInRecycleBin(group)) this.db.move(group, null); else this.db.remove(group);
+        this._discard(group);
         this.dirty = true;
     }
     canMoveGroup(group, target) {
-        if (group === this.root || !target || group === target || group.parentGroup === target) return false;
+        group = this.find(group); target = this.find(target); // a drag that started before a pull
+        if (!group || group === this.root || !target || group === target || group.parentGroup === target) return false;
         for (let g = target; g; g = g.parentGroup) if (g === group) return false; // not into itself/descendants
         return true;
     }
     moveGroup(group, target) {
         this._writable();
+        group = this._current(group); target = this._current(target);
         if (!this.canMoveGroup(group, target)) return false;
         this.db.move(group, target);
         this.dirty = true;
@@ -752,9 +869,14 @@ export class Vault {
     /**
      * Creates entries from an import (core/import.js readImport) in a new group `name` under the root, subfolders as
      * subgroups. This keeps the import together and lets you get rid of it again with one click. Returns the new group.
+     * Queued like a save: attachments are awaited one by one, and a pull in between would swap the database under the half-done import.
      */
-    async importEntries(entries, name) {
+    importEntries(entries, name) {
         this._writable();
+        return this._exclusive(() => this._importEntries(entries, name));
+    }
+
+    async _importEntries(entries, name) {
         const top = this.db.createGroup(this.root, name);
         const sub = (parent, part) => parent.groups.find((g) => g.name === part) || this.db.createGroup(parent, part);
         const free = (n, taken) => { let k = 2, out = n; while (taken(out)) out = `${n} (${k++})`; return out; }; // "name", "name (2)", ...
@@ -766,7 +888,7 @@ export class Vault {
             e.tags = r.tags;
             // extra fields (never over a standard or system field) and attachments, when the source has them (see core/import.js)
             for (const c of r.custom || []) e.fields.set(free(c.name, (n) => STANDARD_FIELDS.includes(n) || isSystemField(n) || e.fields.has(n)), c.protect ? ProtectedValue.fromString(c.value) : c.value);
-            for (const a of r.attachments || []) e.binaries.set(free(a.name, (n) => e.binaries.has(n)), await this.makeBinary(a.data.buffer));
+            for (const a of r.attachments || []) e.binaries.set(free(a.name, (n) => e.binaries.has(n)), await this.makeBinary(toArrayBuffer(a.data))); // exactly its bytes, even as a view into a bigger buffer
             if (r.created) e.times.creationTime = r.created;
             if (r.modified) e.times.lastModTime = r.modified;
         }
@@ -799,6 +921,7 @@ export class Vault {
     /** Restores an earlier version; the current version itself becomes a history entry. */
     restoreHistory(entry, index) {
         this._writable();
+        ({ entry, index } = this._currentVersion(entry, index));
         const old = entry.history[index];
         if (!old) return;
         const created = entry.times.creationTime, keep = entry.history, uuid = entry.uuid, parent = entry.parentGroup, prev = entry.previousParentGroup, loc = entry.times.locationChanged, usage = entry.times.usageCount;
@@ -810,8 +933,8 @@ export class Vault {
         entry.times.update();
         this.dirty = true;
     }
-    deleteHistory(entry, index) { this._writable(); entry.removeHistory(index, 1); entry.times.update(); this.dirty = true; }
-    clearHistory(entry) { this._writable(); entry.removeHistory(0, entry.history.length); this.dirty = true; }
+    deleteHistory(entry, index) { this._writable(); ({ entry, index } = this._currentVersion(entry, index)); entry.removeHistory(index, 1); entry.times.update(); this.dirty = true; }
+    clearHistory(entry) { this._writable(); entry = this._current(entry); entry.removeHistory(0, entry.history.length); this.dirty = true; }
 
     // ---------------------------------------------------------------- Attachments
     /** Stores file contents in the database for applyEntry's `attachments.add` (nothing is attached until the entry is applied). */
@@ -819,6 +942,7 @@ export class Vault {
     /** Remove the passkey from the entry; the previous version stays in the history (recoverable until the history is cleared). */
     removePasskey(entry) {
         this._writable();
+        entry = this._current(entry);
         const keys = [...entry.fields.keys()].filter(isPasskeyField);
         if (!keys.length) return false;
         this._pushHistory(entry);
@@ -877,7 +1001,7 @@ export class Vault {
     }
     /**
      * Remove an icon from the file; whatever used it shows its standard icon again (also in the history). The deletion marker prevents
-     * it from coming back when merging with another version (like kdbxweb when cleaning up).
+     * it from coming back when merging with another version, unless that version changed the icon or something using it afterwards.
      */
     removeCustomIcon(id) {
         this._writable();
@@ -1031,9 +1155,10 @@ export class Vault {
                     if (!(err instanceof KdbxError && err.code === Consts.ErrorCodes.MergeError)) throw err;
                     // Retrying changes nothing (every attempt would leave another conflict backup behind): background sync and auto-save stand down until the user saves again
                     this.mergeBlocked = true;
-                    if (/^duplicate/.test(err.message)) throw new VaultError('Ein Eintrag oder eine Gruppe kommt doppelt vor (lokal oder auf dem Server), das laesst sich nicht zusammenfuehren.', 'e.merge.dup');
+                    if (/\bduplicate:/.test(err.message)) throw new VaultError('Ein Eintrag oder eine Gruppe kommt doppelt vor (lokal oder auf dem Server), das laesst sich nicht zusammenfuehren.', 'e.merge.dup');
                     throw new VaultError('Die Datei auf dem Server ist eine andere Datenbank (ersetzt oder neu angelegt). Deine Aenderungen bleiben hier, zusammenfuehren geht nicht.', 'e.merge.server');
                 }
+                dropStaleListings(this.root);
                 if (header !== this.db.header) { this.db.header = header; this.db.meta.headerHash = undefined; }
                 this._pending = await this.db.save();
                 this.etag = remote.etag;
@@ -1092,7 +1217,7 @@ export class Vault {
         const tries = !this._base || this._baseIsOwn() ? [own] : [this._base, own];
         for (const c of tries) {
             try {
-                return { db: await Kdbx.load(buf, new Credentials(c.pw, c.kf)), base: c };
+                return { db: await Kdbx.load(buf, credentials(c.pw, c.kf)), base: c };
             } catch (err) {
                 if (!(err instanceof KdbxError && err.code === Consts.ErrorCodes.InvalidKey)) throw err;
             }
@@ -1124,11 +1249,17 @@ export class Vault {
         return !!this._remoteBytes && sameBytes(remote.buf, this._remoteBytes);
     }
 
+    /**
+     * The server version replaces ours, as long as nothing changed here. Nothing in the page waits for a pull, so every await (the download,
+     * then the key derivation: seconds with Argon2) is a chance for a change, and that change lives only in this.db: then the pull stands
+     * down and the next save merges the two as usual.
+     */
     async _pull() {
+        const changedHere = () => this.dirty || this.unsynced;
         const etag = await this.dav.head();
         if (etag && etag === this.etag) return { pulled: false };
         const remote = await this.dav.get();
-        if (this.dirty || this.unsynced) return { pulled: false }; // changed locally in the meantime: merge on the next save
+        if (changedHere()) return { pulled: false };
         if (remote.etag && remote.etag === this.etag) return { pulled: false };
         if (!remote.etag && this._remoteBytes && sameBytes(remote.buf, this._remoteBytes)) return { pulled: false }; // no ETag to compare: same bytes, nothing new
         let remoteDb;
@@ -1140,6 +1271,7 @@ export class Vault {
             }
             throw e;
         }
+        if (changedHere()) return { pulled: false }; // changed during the key derivation
         this.db = remoteDb; // no local changes: the server version is authoritative
         this._unconfirmed = null; // a newer version than any upload of ours
         this.etag = remote.etag;
