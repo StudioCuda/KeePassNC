@@ -149,6 +149,24 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Argon2 version 1.0 (KeePassXC opens it, hash-wasm only computes 1.3) -> clear message instead of "wrong password"', async () => {
+        // A genuine 1.0 file: pykeepass derives the key with the version from the header (argon2-cffi knows both)
+        const f = path.join(davRoot, 'argon10.kdbx');
+        fs.copyFileSync(f4, f);
+        execFileSync('python3', ['-I', '-c', ['from pykeepass import PyKeePass', `kp = PyKeePass(${JSON.stringify(f)}, password=${JSON.stringify(PW)})`,
+            'kp.kdbx.header.value.dynamic_header.kdf_parameters.data.dict.V.value = 0x10', 'kp.save()'].join('\n')], { stdio: 'pipe' });
+        const d = fs.readFileSync(f), tag = Buffer.from([0x04, 1, 0, 0, 0, 0x56, 4, 0, 0, 0]); // VariantDictionary: UInt32, name "V", 4-byte value
+        expect(d.indexOf(tag) > 0 && d.readUInt32LE(d.indexOf(tag) + tag.length) === 0x10, 'setup: the Argon2 version in the header is not 1.0');
+        expect(xc(['show', f, 'Web/Mail']).includes('alice'), 'KeePassXC does not open the 1.0 file');
+        const p = await newPage();
+        await login(p, 'argon10.kdbx');
+        await p.waitForFunction(() => /Version 1\.0/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 30000 });
+        const msg = await p.locator('#login-error').innerText();
+        expect(/KeePassXC/.test(msg) && !/Falsches Master-Passwort|Fehler:/.test(msg), 'message: ' + msg);
+        expect(await rows(p).count() === 0 && await p.locator('#login-form').count() === 1 && await p.locator('#open-btn').isEnabled(), 'nothing may open');
+        await p.context().close();
+    });
+
     await step('Argon2 rechnet in einem Web Worker, der danach beendet wird; ohne Worker-Datei rechnet die Seite selbst', async () => {
         const p = await newPage();
         const workers = [];

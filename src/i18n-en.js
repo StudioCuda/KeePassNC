@@ -164,6 +164,7 @@ export default {
     'e.dav.nocreate': 'You can’t create files here (for example a share without “Create”).',
     'e.dav.nodav': 'No Nextcloud answers at this address - check the address.',
     'e.dav.nofolder': 'That folder doesn’t exist. Please check the path.',
+    'e.kdf.argon2v10': 'This database derives its key with Argon2 in the old version 1.0. KeePassNC can only compute the current version 1.3, so it can’t open the file yet. To update it, open it in KeePassXC, switch on the advanced settings under Database Settings → Encryption, change any value there and save. After that it opens here too.',
     'e.kdf.rounds': 'This file asks for more than a billion rounds of AES key derivation. That is far beyond any real setting and would freeze the tab, so it is not opened.',
     'e.keyfile.bad': 'This key file can’t be read (damaged, or not a key file format KeePass knows).',
     'e.bin.delete': 'The recycle bin cannot be deleted - only emptied.',

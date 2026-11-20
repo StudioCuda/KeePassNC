@@ -164,6 +164,7 @@ export default {
     'e.dav.nocreate': 'Hier darfst du keine Dateien anlegen (zum Beispiel eine Freigabe ohne „Erstellen“).',
     'e.dav.nodav': 'Unter dieser Adresse antwortet keine Nextcloud - Adresse prüfen.',
     'e.dav.nofolder': 'Diesen Ordner gibt es nicht. Bitte den Pfad prüfen.',
+    'e.kdf.argon2v10': 'Diese Datenbank leitet ihren Schlüssel mit Argon2 in der alten Version 1.0 ab. KeePassNC kann nur die aktuelle Version 1.3 berechnen und die Datei deshalb noch nicht öffnen. Zum Aktualisieren öffne sie in KeePassXC, schalte unter Datenbank-Einstellungen → Verschlüsselung die erweiterten Einstellungen ein, ändere dort einen beliebigen Wert und speichere. Danach öffnet sie sich auch hier.',
     'e.kdf.rounds': 'Diese Datei verlangt mehr als eine Milliarde Durchläufe der AES-Schlüsselableitung. Das liegt weit über jeder echten Einstellung und würde den Tab einfrieren, deshalb wird sie nicht geöffnet.',
     'e.keyfile.bad': 'Diese Schlüsseldatei ist unlesbar (beschädigt oder kein Schlüsseldatei-Format, das KeePass kennt).',
     'e.bin.delete': 'Der Papierkorb kann nicht gelöscht werden - nur leeren.',

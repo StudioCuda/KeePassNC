@@ -10,7 +10,10 @@ import { EXPORT_HEAD, otpUri } from './core/csv.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
 
-kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type) => {
+kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type, version) => {
+    // hash-wasm only computes Argon2 1.3 (0x13); kdbxweb also lets 1.0 (0x10) through, which KeePass 2 and KeePassXC still read and
+    // keep. Computed as 1.3, such a file gets a different key and looked like a wrong password, so say what it really is.
+    if (version !== 0x13) throw new VaultError('Diese Datenbank nutzt Argon2 in der alten Version 1.0, die KeePassNC nicht berechnen kann.', 'e.kdf.argon2v10');
     let out;
     try {
         out = await argon2({
