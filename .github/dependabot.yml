@@ -1,5 +1,5 @@
-# Keeps the GitHub Actions in .github/workflows current (the cache actions were still on Node 20, for example).
-# One pull request per week at most; its checks are the full test run, as for any change outside the docs.
+# Keeps the GitHub Actions in .github/workflows and the npm packages current (the cache actions were still on Node 20, for example).
+# At most one grouped pull request per ecosystem and week; its checks are the full test run, as for any change outside the docs.
 version: 2
 updates:
   - package-ecosystem: github-actions
@@ -11,3 +11,14 @@ updates:
         patterns: ["*"]
     commit-message:
       prefix: "CI"
+  # npm, for the same reason: @nextcloud/files bundles DOMPurify into js/files-action.js, so a dev dependency still ships.
+  # Minor and patch updates come as one weekly pull request; a major update gets its own.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm:
+        update-types: ["minor", "patch"]
+    commit-message:
+      prefix: "Dependencies"

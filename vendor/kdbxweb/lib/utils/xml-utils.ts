@@ -27,23 +27,10 @@ function createDOMParser() {
         return new global.DOMParser();
     }
 
-    const parserArg = {
-        errorHandler: {
-            warning: (e: Error) => {
-                throw e;
-            },
-            error: (e: Error) => {
-                throw e;
-            },
-            fatalError: (e: Error) => {
-                throw e;
-            }
-        }
-    };
-
     /* eslint-disable @typescript-eslint/no-var-requires,@typescript-eslint/no-unsafe-assignment,@typescript-eslint/no-unsafe-call */
-    const { DOMParser } = require('@xmldom/xmldom');
-    return <typeof global.DOMParser>new DOMParser(parserArg);
+    // xmldom 0.9 dropped the errorHandler object; onWarningStopParsing stops at a warning, an error or a fatal error, as before
+    const { DOMParser, onWarningStopParsing } = require('@xmldom/xmldom');
+    return <typeof global.DOMParser>new DOMParser({ onError: onWarningStopParsing });
     /* eslint-enable */
 }
 

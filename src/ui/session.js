@@ -3,14 +3,17 @@ import { isOffline } from '../webdav.js';
 import { ARGON2_WORKER_URL } from '../argon2.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus, download, SW_CACHE, SYNC_RETRY_MS, LOCK_WAIT_MS, params } from './ctx.js';
-import { $, confirmDialog } from './dom.js';
+import { $, confirmDialog, closeAllDialogs, toast } from './dom.js';
 import { setNcHeaderOffline } from './ncheader.js';
 import { fmtDate } from '../i18n.js';
 
 const { state } = ctx;
 let autoSaveTimer = null, syncing = false, pulls = 0; // pulls: running saves that may pull (overlapping Ctrl+S)
-// The server version no longer opens with this session's credentials: ask for the new ones (credentials-dialog.js)
-const REMOTE_CREDS = new Set(['e.merge.pw', 'e.pull.pw']);
+// The server version no longer opens with this session's credentials: ask for the new ones (credentials-dialog.js), or for the
+// previous ones when the change was made here and never reached the server (e.merge.oldpw)
+const REMOTE_CREDS = new Set(['e.merge.pw', 'e.pull.pw', 'e.merge.oldpw']);
+// Banner text per Vault.writeBlocked
+const BLOCKED_TEXT = { full: 'blocked.full', locked: 'blocked.locked', gone: 'blocked.gone' };
 
 /** Call after every change to the vault: refresh the view, show the save state, schedule auto-save if needed. */
 export function changed() {
@@ -40,21 +43,25 @@ export function refreshDirtyIndicator() {
 }
 
 /**
- * Banner (never goes away on its own) and the dimmed actions: a share that only allows reading, a server that refused to save, or a
- * server file that can't be merged with our changes. "Save a copy" is there whenever changes exist that live only in this tab.
+ * Banner (never goes away on its own) and the dimmed actions: a share that only allows reading, a server that refused to save, a
+ * server file that can't be merged with our changes, or one that can't take them at all (no space left, locked, moved or deleted).
+ * "Save a copy" is there whenever changes exist that aren't on the server. A file that is gone gets the banner even without
+ * changes: this tab may hold the only open copy, and "Put the file back" writes it to the old place again.
  */
 export function refreshReadOnly() {
     const v = state.vault;
     const ro = !!v?.readOnly;
     const pending = !!v && (v.dirty || v.unsynced);
     const blocked = !ro && !!v?.mergeBlocked && pending;
+    const why = !ro && !blocked && (pending || v?.writeBlocked === 'gone') ? v?.writeBlocked : null;
     document.body.classList.toggle('readonly', ro);
     const banner = $('#readonly-banner');
     if (!banner) return;
-    banner.hidden = !(ro || blocked);
+    banner.hidden = !(ro || blocked || why);
     if (banner.hidden) return;
-    $('#ro-text', banner).textContent = t(blocked ? (v.mergeBlocked === 'etag' ? 'merge.banner.etag' : 'merge.banner') : pending ? 'ro.banner.dirty' : 'ro.banner');
-    $('#ro-copy', banner).hidden = !pending;
+    $('#ro-text', banner).textContent = t(why ? (why === 'gone' && !pending ? 'blocked.gone.clean' : BLOCKED_TEXT[why]) : blocked ? (v.mergeBlocked === 'etag' ? 'merge.banner.etag' : 'merge.banner') : pending ? 'ro.banner.dirty' : 'ro.banner');
+    $('#ro-copy', banner).hidden = !pending && !why;
+    $('#ro-recreate', banner).hidden = why !== 'gone';
 }
 
 /** From now on the session only reads. Changes made so far stay in memory (and can be saved as a copy). */
@@ -104,6 +111,7 @@ export function refreshSyncState() {
 
 export function rebind() {
     // After the database was swapped (changes from other devices), selection references point to old objects: re-resolve them via UUID.
+    // An open editor does the same for its entry and group on the redraw that follows, and keeps what was typed (editor.js relocate).
     const v = state.vault;
     const f = state.filter;
     if (f.group) { const g = v.db.getGroup(f.group.uuid); if (g) f.group = g; else state.filter = { type: 'all' }; }
@@ -121,13 +129,20 @@ function redrawAfterSwap() {
     ctx.ui.refresh?.();
 }
 
+/** The database took in changes another tab with the same file had stored in the offline copy (Vault._absorb): show them, say where they came from. */
+function tabsMerged() {
+    redrawAfterSwap();
+    toast(t('sync.tabs'));
+}
+
 /** Is a sync running that may replace the database (pull)? Then no editor may open: it would keep the old entry and group objects. */
 export const isSwapping = () => syncing || pulls > 0;
 
-export async function doSave({ auto = false } = {}) {
+/** recreate: the server file is gone, put it back at the same address (Vault.recreate) instead of saving the usual way. */
+export async function doSave({ auto = false, recreate = false } = {}) {
     const v = state.vault;
     if (!v) return;
-    if (auto && v.mergeBlocked) return; // the server file can't be merged: only an explicit save tries again
+    if (auto && v.waitsForUser) return; // the server file can't be merged, or is gone: only an explicit save tries again
     // Read-only: nothing goes to the server, Ctrl+S / the button hand out a copy instead (not on its own in the auto-lock)
     if (v.readOnly && (v.dirty || v.unsynced)) { if (!auto) await saveCopy(); return; }
     // Ctrl+S and the palette don't look at the button state. A local file has nothing to hand out without changes (no empty
@@ -140,15 +155,16 @@ export async function doSave({ auto = false } = {}) {
     const before = statusEl && [statusEl.textContent, statusEl.dataset.kind];
     const busyText = auto ? t('saving.auto') : t('saving');
     setStatus(busyText);
-    const mayPull = !v.dirty; // without changes of our own, sync() may pull and swap the database
+    const mayPull = !v.dirty && !recreate; // without changes of our own, sync() may pull and swap the database
     if (mayPull) pulls++;
     try {
-        const res = await (v.dirty ? v.save({ auto }) : v.sync({ background: auto }));
+        const res = await (recreate ? v.recreate() : v.dirty ? v.save({ auto }) : v.sync({ background: auto }));
         if (res.skipped) { // queued behind a save that failed to merge: nothing happened, the status stays as it was
             if (before && statusEl.textContent === busyText) { statusEl.textContent = before[0]; statusEl.dataset.kind = before[1]; } // not over the outcome of that save
             return;
         }
         state.lastSyncFailed = !!res.offline;
+        if (res.tabMerged) tabsMerged();
         if (state.source.type === 'file') {
             download(state.source.name, res.bytes);
             setStatus(t('saved.download', { name: state.source.name }));
@@ -163,16 +179,20 @@ export async function doSave({ auto = false } = {}) {
             redrawAfterSwap();
             setStatus(t(res.noBackup ? 'saved.merged.nobackup' : 'saved.merged'), 'warn');
             state.offlineMode = false;
+        } else if (res.recreated) {
+            state.offlineMode = false;
+            setStatus(t('blocked.recreated'));
         } else {
             state.offlineMode = false;
-            if (res.noBackup) setStatus(t('saved.nobackup'), 'warn'); else setStatus(t('saved'));
+            if (mayPull && v.dirty) { if (statusEl?.textContent === busyText) setStatus(t('sync.dirty')); } // changed here while it synced (the pull stood down): not saved yet, the next save merges it
+            else if (res.noBackup) setStatus(t('saved.nobackup'), 'warn'); else setStatus(t('saved'));
         }
     } catch (e) {
         if (!e?.key) console.error(e); // explained errors (with translation) show in the status, only unexpected ones go to the console
         state.lastSyncFailed = isOffline(e);
         if (e?.key === 'e.dav.readonly') refused(); // the server says no: keep the changes, stop trying
         else setStatus(t('save.failed', { msg: errText(e) }), 'error');
-        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
+        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.({ previous: e.key === 'e.merge.oldpw' });
     } finally {
         if (mayPull) pulls--;
         refreshDirtyIndicator();
@@ -182,12 +202,15 @@ export async function doSave({ auto = false } = {}) {
 /** Background sync (interval, reconnect, tab visible): pushes local changes up or pulls changes from others. */
 export async function syncNow({ announce = false } = {}) {
     const v = state.vault;
-    if (!v || state.source?.type !== 'dav' || syncing || state.editing || state.softLocked || (v.mergeBlocked && !announce) || (v.readOnly && (v.dirty || v.unsynced))) return;
+    if (!v || state.source?.type !== 'dav' || syncing || state.editing || state.softLocked || (v.waitsForUser && !announce) || (v.readOnly && (v.dirty || v.unsynced))) return;
     syncing = true;
+    // No space left or a locked file: the banner already says so, a background retry that meets the same answer adds no toast every 30 s
+    const known = v.writeBlocked;
     $('#sync-state')?.classList.add('busy');
     try {
         const res = await (v.dirty ? v.save() : v.sync({ background: !announce }));
         state.lastSyncFailed = !!res.offline;
+        if (res.tabMerged) tabsMerged();
         if (res.offline) {
             if (announce) setStatus(t('sync.failed.offline'), 'warn');
         } else {
@@ -196,14 +219,14 @@ export async function syncNow({ announce = false } = {}) {
             if (res.pulled) { redrawAfterSwap(); setStatus(t('sync.pulled')); }
             else if (res.merged) { redrawAfterSwap(); setStatus(t(res.noBackup ? 'saved.merged.nobackup' : 'sync.merged'), 'warn'); }
             else if (res.noBackup) setStatus(t('saved.nobackup'), 'warn');
-            else if (wasOffline || announce) setStatus(t('sync.done'));
+            else if ((wasOffline || announce || known) && !v.dirty) setStatus(t('sync.done')); // changed here meanwhile: not in sync, the next save merges it
         }
     } catch (e) {
         if (!e?.key) console.error(e); // explained errors (with translation) show in the status, only unexpected ones go to the console
         state.lastSyncFailed = isOffline(e);
         if (e?.key === 'e.dav.readonly') refused();
-        else if (announce || !isOffline(e)) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
-        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.();
+        else if (announce || !(isOffline(e) || (known && v.writeBlocked === known))) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
+        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.({ previous: e.key === 'e.merge.oldpw' });
     } finally {
         syncing = false;
         $('#sync-state')?.classList.remove('busy');
@@ -216,7 +239,18 @@ export function confirmDiscard() {
     return confirmDialog({ title: t('lock'), message: t('lock.unsaved'), confirmLabel: t('lock.anyway'), cancelLabel: t('cancel'), danger: true });
 }
 
+/** Typed into the entry editor and not applied: "Lock and throw it away?" Cancel keeps editing. */
+function confirmEditorDiscard() {
+    return confirmDialog({ title: t('lock'), message: t('lock.editing'), confirmLabel: t('lock.editing.discard'), cancelLabel: t('lock.editing.keep'), danger: true });
+}
+
 let locking = null;
+let lockAsks = false; // a lock by hand waits for the answer to one of the questions above
+
+async function ask(question) {
+    lockAsks = true;
+    try { return await question(); } finally { lockAsks = false; }
+}
 
 /** Did the saves and syncs started so far end within ms? */
 async function settledWithin(vault, ms) {
@@ -232,6 +266,9 @@ export function lock(message) {
 
 async function doLock(message) {
     const auto = state.autoLockRequest === true;
+    // Typed into the editor and not applied (a new password, say, still to be pasted into a website): by hand we ask first. The auto-lock
+    // can't ask: it takes the soft lock further down, which keeps the draft in memory and brings the editor back after unlocking.
+    if (!auto && ctx.ui.editorChanged?.() && !(await ask(confirmEditorDiscard))) return;
     // A save or sync in flight has already cleared the dirty flag: wait for its outcome, it decides what is still unsaved.
     // A request that never answers must not keep the entries on screen: after LOCK_WAIT_MS we treat the changes as unsaved.
     const stuck = state.vault ? !(await settledWithin(state.vault, LOCK_WAIT_MS)) : false;
@@ -239,14 +276,15 @@ async function doLock(message) {
     if (v && (v.dirty || v.unsynced || stuck) && state.source.type === 'dav') {
         // WebDAV: save first. Locally saved (offline) versions may stay, unlocking transfers them later.
         if (v.dirty && !stuck) await doSave({ auto: true });
-        if (stuck || state.vault?.dirty) {
+        if (stuck || state.vault?.unsaved) {
             if (auto) { softLock(message); return; }
-            if (!(await confirmDiscard())) return;
+            if (!(await ask(confirmDiscard))) return;
         }
     } else if (v?.dirty || stuck) {
         if (auto) { softLock(message); return; }
-        if (!(await confirmDiscard())) return;
+        if (!(await ask(confirmDiscard))) return;
     }
+    if (auto && ctx.ui.editorChanged?.()) { softLock(message); return; } // nothing else unsaved, but locking for real would throw the draft away
     clearTimeout(autoSaveTimer);
     ctx.ui.showLogin(message ?? t('locked'));
 }
@@ -265,18 +303,23 @@ function softLock(message) {
 /**
  * A save that was still running when the soft lock came up may end well after all: then nothing is unsaved anymore, the note
  * on the lock screen is wrong, and the entries would stay decrypted for no reason. Once the last save or sync is over and
- * nothing is dirty or unsynced, the soft lock becomes the real one.
+ * nothing would be lost (Vault.unsaved), the soft lock becomes the real one. That includes a save that ran out of time
+ * (webdav.js timeouts) but left its version in the offline copy: like doLock, the next unlock uploads it. Not with a draft from the
+ * editor kept in it: that is still unsaved.
  */
 async function lockOnceSaved(v, message) {
     let chain;
     do { chain = v.settled(); await chain; } while (chain !== v.settled()); // a save queued meanwhile counts, too
-    if (!state.softLocked || state.vault !== v || v.dirty || v.unsynced) return;
+    if (!state.softLocked || state.vault !== v || v.unsaved || state.editing) return;
     clearTimeout(autoSaveTimer);
     ctx.ui.showLogin(message ?? t('locked'));
 }
 
 /** The idle timer and the hidden tab lock without asking: with changes that can't be saved that means the soft lock (doLock). */
 function autoLock(message) {
+    // A lock by hand still waiting for an answer must not keep the vault open: nobody is there to answer. Closing the question counts
+    // as "no"; a second later the idle timer asks again and this time locks without asking (whatever is unsaved goes into the soft lock).
+    if (lockAsks) { closeAllDialogs(); return; }
     state.autoLockRequest = true;
     lock(message).finally(() => { state.autoLockRequest = false; });
 }
@@ -299,12 +342,15 @@ export function stopTimers() {
 }
 
 export function installGlobalListeners() {
-    // Every change goes through the Vault, which refuses it in a read-only session. Whatever button or shortcut tried it, say why nothing happened.
-    const readOnlyNote = (ev) => { const err = ev.reason ?? ev.error; if (err?.key === 'e.dav.readonly') { ev.preventDefault(); setStatus(errText(err), 'warn'); } };
-    addEventListener('unhandledrejection', readOnlyNote);
-    addEventListener('error', readOnlyNote);
+    // Every change goes through the Vault, which refuses it in a read-only session, and when an open dialog, an Undo or a drag still held an entry or
+    // group that a pull from another device has deleted meanwhile (e.gone). Whatever button or shortcut tried it, say why nothing happened.
+    const refusedNote = (ev) => { const err = ev.reason ?? ev.error; if (err?.key === 'e.dav.readonly' || err?.key === 'e.gone') { ev.preventDefault(); setStatus(errText(err), 'warn'); } };
+    addEventListener('unhandledrejection', refusedNote);
+    addEventListener('error', refusedNote);
     for (const ev of ['mousemove', 'keydown', 'click', 'touchstart']) addEventListener(ev, () => { state.lastActivity = Date.now(); }, { passive: true });
-    addEventListener('beforeunload', (e) => { if (state.vault?.dirty) { e.preventDefault(); e.returnValue = ''; } });
+    // Closing the tab asks with unsaved changes (Vault.unsaved: also a save still on its way without an offline copy, or the offline copy of a
+    // file gone from the server), and with changes in the entry editor not applied yet (open, or waiting in the soft lock)
+    addEventListener('beforeunload', (e) => { if (state.vault?.unsaved || ctx.ui.editorChanged?.()) { e.preventDefault(); e.returnValue = ''; } });
     addEventListener('online', () => { if (state.vault?.unsynced || state.offlineMode) syncNow({ announce: true }); });
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) { state.hiddenSince = Date.now(); return; }

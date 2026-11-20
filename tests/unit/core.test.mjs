@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { parseQuery, matches } from '../../src/core/search.js';
-import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SYLLABLES, SYLLABLE_SHAPES, SIMPLE_DIGITS, SEPARATORS, migratePasswordOptions, SIMPLE_BLOCK_BITS, badJunction, randomInt } from '../../src/core/generator.js';
+import { generatePassword, generatePassphrase, generateSimple, CLASSES, LOOKALIKE, SYLLABLE, SYLLABLES, SYLLABLE_SHAPES, SIMPLE_DIGITS, SEPARATORS, migratePasswordOptions, SIMPLE_BLOCK_BITS, simpleBits, badJunction, randomInt } from '../../src/core/generator.js';
 import { estimateBits, strengthLabel, cachedBits, clearBitsCache, bitsCacheSize } from '../../src/core/entropy.js';
 import { auditEntries, passwordSince, reusedBy } from '../../src/core/audit.js';
 import { WORDS } from '../../src/core/wordlist-eff.js';
@@ -156,6 +156,19 @@ test('Simpel: Silben, Ziffern, Silben (+ weitere Silbenbloecke), Trennzeichen fe
     const seen = new Set();
     for (let i = 0; i < 400; i++) for (const c of generateSimple().password.replace(/[a-zA-Z ]/g, '')) seen.add(c);
     assert.equal(seen.size, SIMPLE_DIGITS.length);
+});
+test('Simpel: die Erkennung findet jedes erzeugte Passwort wieder, mit genau den Bits des Generators', () => {
+    for (const separator of SEPARATORS) for (const blocks of [1, 2, 3, 8]) for (const capital of [true, false]) {
+        for (let i = 0; i < 200; i++) {
+            const { password, bits } = generateSimple({ blocks, separator, capital });
+            assert.ok(Math.abs(simpleBits(password) - bits) < 1e-9, password);
+            assert.equal(estimateBits(password), simpleBits(password), 'die Schaetzung uebernimmt den exakten Wert');
+        }
+    }
+    // Everything else stays with the estimate: other shapes, wrong digits, mixed separators, extra characters, too long
+    for (const p of ['', 'Gotbupro', 'Gotbupro 18 nigtalso', 'Gotbupro 38 nigtal', 'Gotbupro_38 nigtalso', 'Gotbupro 38 nigtalso ', 'gotbupro 38 nigtalsO', 'GOTBUPRO 38 NIGTALSO',
+        'Gotbupcro 38 nigtalso', 'correct horse battery staple', 'Tr0ub4dor&3', 'Gotbupro 38' + ' nigtalso'.repeat(20)]) assert.equal(simpleBits(p), null, p);
+    assert.ok(Math.abs(simpleBits('Gotbupro 38 nigtalso') - (2 * SIMPLE_BLOCK_BITS + 2 * Math.log2(8))) < 1e-9, 'der Fall aus dem Editor: 70 bit');
 });
 test('Staerke-Schaetzung: Reihenfolge sinnvoll', () => {
     const b = (p) => estimateBits(p);

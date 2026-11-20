@@ -111,7 +111,7 @@ let toastHost;
 export function toast(message, { kind = 'info', action, timeout = 4500 } = {}) {
     if (!toastHost) { toastHost = h('div', { class: 'toasts', 'aria-live': 'polite' }); document.body.append(toastHost); }
     const el = h('div', { class: `toast ${kind}`, role: 'status' }, h('span', { text: message }));
-    if (action) el.append(h('button', { type: 'button', class: 'toast-action', text: action.label, onclick: () => { action.run(); el.remove(); } }));
+    if (action) el.append(h('button', { type: 'button', class: 'toast-action', text: action.label, onclick: () => { el.remove(); action.run(); } })); // gone even if the action is refused
     toastHost.append(el);
     if (timeout) setTimeout(() => el.remove(), timeout);
     return el;

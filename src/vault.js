@@ -2,15 +2,18 @@
 // All the cryptography happens here in the browser; the server only ever sees the encrypted file.
 import * as kdbxweb from '../vendor/kdbxweb/lib/index';
 import { argon2 } from './argon2.js';
-import { ConflictError, DavError, isOffline } from './webdav.js';
-import { cachePut } from './cache.js';
+import { ConflictError, DavError, isOffline, writeProblem } from './webdav.js';
+import { cachePutUnless } from './cache.js';
 import { excluded } from './core/audit.js';
 import { editTags, entryColor, groupPath, isOtpField, isOutOfMemory, isPasskeyField, isSystemField, resolvePlaceholders, toOtpUri, uuidHex, valueText } from './core/util.js';
 import { EXPORT_HEAD, otpUri } from './core/csv.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
 
-kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type) => {
+kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type, version) => {
+    // hash-wasm only computes Argon2 1.3 (0x13); kdbxweb also lets 1.0 (0x10) through, which KeePass 2 and KeePassXC still read and
+    // keep. Computed as 1.3, such a file gets a different key and looked like a wrong password, so say what it really is.
+    if (version !== 0x13) throw new VaultError('Diese Datenbank nutzt Argon2 in der alten Version 1.0, die KeePassNC nicht berechnen kann.', 'e.kdf.argon2v10');
     let out;
     try {
         out = await argon2({
@@ -80,7 +83,7 @@ export async function createKeyfile() {
  * counts as the same. An unreadable file (XML with a wrong checksum) throws.
  */
 export async function sameKeyfile(a, b) {
-    const hash = async (x) => { const c = new Credentials(null, x); await c.ready; return c.keyFileHash.getBinary(); };
+    const hash = async (x) => { const c = credentials(null, x); await c.ready; return c.keyFileHash.getBinary(); };
     const [x, y] = await Promise.all([hash(a), hash(b)]);
     try { return sameBytes(x, y); } finally { x.fill(0); y.fill(0); }
 }
@@ -91,8 +94,30 @@ export const STANDARD_FIELDS = ['Title', 'UserName', 'Password', 'URL', 'Notes']
 export class VaultError extends Error {
     constructor(message, key, vars) { super(message); this.name = 'VaultError'; this.key = key; this.vars = vars; }
 }
+/** An entry or group the page still held was deleted on another device in the meantime (see Vault.find). */
+const goneError = () => new VaultError('Dieser Eintrag oder diese Gruppe wurde inzwischen auf einem anderen Geraet geloescht. Hier wurde nichts geaendert.', 'e.gone');
 
 export const fieldText = valueText;
+
+/** Line endings don't count: a form field only hands back \n, an entry from KeePass 2 may hold \r\n (or a lone \r). */
+function sameText(stored, given) {
+    const a = valueText(stored), b = given ?? '';
+    return a === b || a.replace(/\r\n?/g, '\n') === b.replace(/\r\n?/g, '\n');
+}
+
+/**
+ * Custom field names count exactly as given: KeePass allows spaces around them, so " PIN " and "PIN" are two fields. A name given
+ * twice, or the name of a field the entry has anyway (Title ... Notes, TOTP, passkey, KeePassHttp), would replace that field: refused.
+ */
+export function checkFieldNames(custom) {
+    const seen = new Set();
+    for (const { name } of custom || []) {
+        if (!name) continue;
+        if (STANDARD_FIELDS.includes(name) || isSystemField(name)) throw new VaultError(`Den Feldnamen "${name}" hat der Eintrag schon fuer eines seiner eigenen Felder.`, 'e.field.reserved', { name });
+        if (seen.has(name)) throw new VaultError(`Zwei Felder heissen "${name}".`, 'e.field.dup', { name });
+        seen.add(name);
+    }
+}
 
 export function isProtected(v) {
     return v instanceof ProtectedValue;
@@ -114,6 +139,15 @@ const sameBytes = (a, b) => {
     return d === 0;
 };
 const toArrayBuffer = (u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+const newRev = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
+/**
+ * kdbxweb's Credentials, always with a copy of the key file of its own. A key file of exactly 32 bytes is the key itself, and
+ * kdbxweb masks the very buffer it gets for it (ProtectedValue.fromBinary: "the contents will be destroyed") and keeps it as
+ * keyFileHash. Handed the vault's bytes (_kf, _base.kf), the database's credentials and the vault shared one buffer, and the next
+ * Credentials from it (a pull, a merge, the soft-lock check, a new password) masked it again: the following save encrypted the file
+ * with a key nobody can derive.
+ */
+const credentials = (pw, kf) => new Credentials(pw, kf ? (kf instanceof ArrayBuffer ? kf.slice(0) : toArrayBuffer(kf)) : kf);
 const stamp = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '-');
 
 export function generatePassword(length = 24) {
@@ -145,7 +179,7 @@ async function loadWith(buf, password, kf) {
     try {
         for (const [n, pw] of tries.entries()) {
             try {
-                return { db: await Kdbx.load(buf, new Credentials(pw, kf)), pw };
+                return { db: await Kdbx.load(buf, credentials(pw, kf)), pw };
             } catch (e) {
                 if (!(e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) || n === tries.length - 1) throw e;
             }
@@ -172,19 +206,42 @@ function loadError(e) {
     return e;
 }
 
+/**
+ * Safety net after kdbxweb's merge (_push, mergeFrom): an entry or group also listed in a group other than its own parentGroup (the
+ * same object in two places, as the merge used to leave an entry the other device had moved) comes out of that group before anything
+ * is saved, so the file never holds its UUID twice. A listing only goes while the object stays listed where it belongs, so nothing
+ * gets lost. The merge itself puts every object in exactly one group; tests/unit/merge-moves.test.mjs checks it without this net.
+ */
+function dropStaleListings(root) {
+    const groups = new Set(root.allGroups());
+    const elsewhere = (x, group, kind) => x.parentGroup !== group && groups.has(x.parentGroup) && x.parentGroup[kind].includes(x);
+    for (const group of groups) {
+        for (const kind of ['groups', 'entries']) {
+            const seen = new Set();
+            const keep = group[kind].filter((x) => !seen.has(x) && seen.add(x) && !elsewhere(x, group, kind));
+            if (keep.length < group[kind].length) group[kind] = keep;
+        }
+    }
+}
+
 export class Vault {
     /**
      * @param {{buf: ArrayBuffer, password: string, keyfile?: Uint8Array|ArrayBuffer, dav?: import('./webdav.js').DavFile, etag?: string|null,
-     *   cache?: {key: string, name: string}, unsynced?: boolean, remoteBuf?: ArrayBuffer, fromCache?: boolean}} o
+     *   cache?: {key: string, name: string}, unsynced?: boolean, remoteBuf?: ArrayBuffer, fromCache?: boolean, newCreds?: boolean, cacheRev?: string}} o
      * cache: key of the local offline copy; unsynced: buf holds local changes the server doesn't have yet (etag = base version);
-     * remoteBuf: current server version (for the backup copy); fromCache: buf came from the cache (don't write it back there).
+     * remoteBuf: current server version (for the backup copy); fromCache: buf came from the cache (don't write it back there);
+     * newCreds: with unsynced, buf uses credentials changed on this device that never reached the server (the offline copy's record says so).
+     * The server version still opens with the previous ones, which nobody stored: merging with it asks for them (e.merge.oldpw).
+     * cacheRev: rev of the offline copy as the caller read it (see _cacheWrite).
      */
-    static async open({ buf, password, keyfile, dav, etag, cache, unsynced, remoteBuf, fromCache }) {
+    static async open({ buf, password, keyfile, dav, etag, cache, unsynced, remoteBuf, fromCache, newCreds, cacheRev }) {
         const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile : toArrayBuffer(keyfile)) : undefined;
         const { db, pw } = await loadWith(buf, password, kf);
         const v = new Vault(db, pw, kf, dav, etag ?? null, remoteBuf || buf, cache);
-        if (unsynced) { v.unsynced = true; v._pending = buf; }
-        else if (cache && !fromCache) await v._cacheWrite(buf, false);
+        v._cacheRev = cacheRev;
+        v._remoteFromCache = !!fromCache && !remoteBuf; // opened offline: _remoteBytes is the offline copy, not what the server holds (see _push)
+        if (unsynced) { v.unsynced = true; v._pending = buf; if (newCreds) v._base = null; }
+        else if (cache && !fromCache) await v._cacheWrite(buf, false); // unsynced changes another tab stored there meanwhile stay, our next save merges them
         return v;
     }
 
@@ -198,7 +255,7 @@ export class Vault {
         const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
         const pw = password ? ProtectedValue.fromString(password) : null;
         if (!pw && !kf) throw new VaultError('Ohne Passwort und Schluesseldatei liesse sich die Datenbank von jedem oeffnen.', 'e.cred.empty');
-        const creds = new Credentials(pw, kf);
+        const creds = credentials(pw, kf);
         try { await creds.ready; } catch { throw new VaultError('Diese Schluesseldatei ist unlesbar.', 'e.keyfile.bad'); }
         const db = Kdbx.create(creds, name);
         const v = new Vault(db, pw, kf, dav, null, null, cache);
@@ -208,7 +265,7 @@ export class Vault {
         v._remoteBytes = bytes;
         v._backedUp = true; // nobody needs a backup copy of the empty database
         if (dav) v.etag = await dav.create(bytes);
-        await v._cacheWrite(bytes, false);
+        await v._cacheWrite(bytes, false, { force: true }); // a new file: whatever was stored under its name belongs to one that is gone
         return { vault: v, bytes };
     }
 
@@ -216,7 +273,8 @@ export class Vault {
         this.db = db;
         this._pw = pw;
         this._kf = kf;
-        this._base = { pw, kf }; // credentials of the last known server version (differ after changeCredentials until the upload)
+        this._base = { pw, kf }; // credentials of the last known server version (differ after changeCredentials until the upload; null: unknown, see open)
+        this._unconfirmed = null; // an upload whose answer never came, {bytes, pw, kf, checked}: it may have arrived all the same (see _put)
         this.dav = dav || null;
         this.etag = etag;
         this._remoteBytes = remoteBytes;
@@ -225,11 +283,30 @@ export class Vault {
         this.dirty = false; // changes in memory only (not serialized yet)
         this.readOnly = false; // share without write permission (or a 403 on saving): every change is turned away, see _writable
         this.mergeBlocked = false; // the last upload failed because the server file can't be merged, or 'etag' if the server refuses our If-Match for nothing (see _push)
+        this.writeBlocked = null; // why the last save or sync was turned down: 'full', 'locked' or 'gone' (writeProblem in webdav.js), for the banner
         this.cache = cache || null;
+        this._cacheRev = undefined; // rev of the offline copy as this vault last wrote or read it (another one: written by another tab)
+        this._remoteFromCache = false;
+        this._stuckRev = null; // rev of another tab's version in the offline copy that _absorb couldn't merge
         this.unsynced = false; // saved locally (offline copy), the server doesn't have this version yet
         this._pending = null;
+        this._unstored = false; // a save is under way whose version is neither on the server nor in the offline copy yet (see unsaved)
         this._chain = Promise.resolve();
     }
+
+    /**
+     * Would closing the tab lose changes? Not only when dirty: while a save serializes and uploads, dirty is already false, and without
+     * an offline copy that version lives nowhere else until the server has it. A version the offline copy holds is safe, it is uploaded
+     * when the file is opened next, except while the file is gone from the server: opening goes through the server, which has nothing.
+     */
+    get unsaved() { return this.dirty || this._unstored || (this.unsynced && this.writeBlocked === 'gone'); }
+
+    /**
+     * Retrying in the background changes nothing: the server file can't be merged (every attempt would leave a conflict backup behind),
+     * or it is gone (saving never creates it by itself, see recreate). Auto-save and background syncs stand down until the user saves.
+     * No space left and a locked file may pass by themselves, so those keep being retried.
+     */
+    get waitsForUser() { return !!this.mergeBlocked || this.writeBlocked === 'gone'; }
 
     /** Read-only session: changes are refused before they touch the database, so nothing looks saved or counts as dirty. */
     _writable() {
@@ -252,11 +329,21 @@ export class Vault {
         return run;
     }
 
-    /** Writes the offline copy; returns true if it was stored safely. */
-    async _cacheWrite(bytes, modified) {
+    /**
+     * Writes the offline copy; returns true if it was stored safely. Two tabs with the same database share it: if another tab stored
+     * changes there that the server doesn't have yet, nothing is written (the last tab to save would drop them, and they'd be gone once
+     * that tab is closed) and the result is {other: that entry}, to merge in with _absorb. force: write anyway.
+     * newCreds marks local changes whose credentials the server version (etag) doesn't have yet: after a reload nobody knows the old
+     * ones anymore, and that must not look like a change on another device.
+     */
+    async _cacheWrite(bytes, modified, { force = false } = {}) {
         if (!this.cache) return false;
+        const rev = newRev();
         try {
-            await cachePut(this.cache.key, { bytes, etag: this.etag, modified, name: this.cache.name, syncDate: Date.now() });
+            const rec = { bytes, etag: this.etag, modified, newCreds: modified && !this._baseIsOwn(), name: this.cache.name, syncDate: Date.now(), rev };
+            const other = await cachePutUnless(this.cache.key, rec, (cur) => !force && !!cur?.modified && cur.rev !== this._cacheRev);
+            if (other) return { other };
+            this._cacheRev = rev;
             return true;
         } catch (e) {
             console.warn('Could not write the offline copy', e);
@@ -264,13 +351,79 @@ export class Vault {
         }
     }
 
+    /**
+     * Merges what another tab stored in the offline copy (rec) into this database, like a version from the server: per entry the newer
+     * one wins. Returns false if it opens neither with our credentials nor with the server version's, or is another database: then it
+     * stays in the offline copy as it is (it may be the only place those changes live), and it isn't tried again on every save.
+     */
+    async _absorb(rec) {
+        if (this.readOnly || (rec.rev && rec.rev === this._stuckRev)) return false;
+        const own = { pw: this._pw, kf: this._kf };
+        let other = null;
+        for (const c of !this._base || this._baseIsOwn() ? [own] : [own, this._base]) { // _base null: the server's are unknown (see open)
+            try { other = await Kdbx.load(rec.bytes, credentials(c.pw, c.kf)); break; } catch { /* try the next ones */ }
+        }
+        try {
+            if (other) this._mergeIn(other);
+        } catch (e) {
+            if (!(e instanceof KdbxError && e.code === Consts.ErrorCodes.MergeError)) throw e;
+            other = null;
+        }
+        if (!other) {
+            console.warn('The offline copy holds changes from another tab that can\'t be merged here');
+            this._stuckRev = rec.rev;
+            return false;
+        }
+        this._cacheRev = rec.rev;
+        this.dirty = true;
+        return true;
+    }
+
+    /**
+     * Serializes the database into _pending and stores it as the offline copy with changes the server doesn't have yet. If another
+     * tab stored its own there in the meantime, they are merged in first and the database is serialized again. Returns {stored, tabMerged}.
+     */
+    async _stage() {
+        let tabMerged = false;
+        for (let attempt = 1; ; attempt++) {
+            this.dirty = false; // changes during serialization set the flag again
+            let out;
+            try { out = await this.db.save(); } catch (e) { this.dirty = true; throw e; }
+            const r = await this._cacheWrite(out, true);
+            if (typeof r === 'boolean' || attempt >= 3 || !(await this._absorb(r.other))) {
+                this._pending = out;
+                return { stored: r === true, tabMerged };
+            }
+            tabMerged = true;
+        }
+    }
+
+    /**
+     * Stores a version the server has (uploaded or pulled) as the offline copy. Changes another tab left there are merged in and
+     * uploaded right away, so they don't depend on that tab still being open. Returns {} or, after such a merge, the result of that save.
+     */
+    async _cacheSynced(bytes) {
+        const r = await this._cacheWrite(bytes, false);
+        if (!r?.other || !(await this._absorb(r.other))) return {};
+        return { ...(await this._save()), tabMerged: true };
+    }
+
     get versionLabel() {
         return `KDBX ${this.db.header.versionMajor}.${this.db.header.versionMinor}`;
     }
 
-    /** For reading the server version (merging, pulling): its credentials, not necessarily our own. */
+    /** For reading the server version (pulling): its credentials, not necessarily our own (unknown ones, see open: ours, there are no others). */
     _baseCredentials() {
-        return new Credentials(this._base.pw, this._base.kf);
+        const b = this._base ?? { pw: this._pw, kf: this._kf };
+        return credentials(b.pw, b.kf);
+    }
+
+    /**
+     * Does the last known server version use our own credentials? Compared by identity: every change of credentials makes new objects,
+     * so a password typed again counts as different, which is fine for "was anything changed since the last upload".
+     */
+    _baseIsOwn() {
+        return !!this._base && this._base.pw === this._pw && this._base.kf === this._kf;
     }
 
     /** Does pw match this database's master password? Compares hashes only, no key derivation. Without a password: only "". */
@@ -301,7 +454,9 @@ export class Vault {
      * keyfile: undefined (stays), null (dropped) or the bytes of the new file. Until the first successful upload the
      * vault keeps reading the server with the old credentials (conflict with another device -> merging works).
      * If saving fails, the old credentials apply again; changes stay unsaved or are stored locally with the old
-     * credentials. Result like save().
+     * credentials. An upload whose answer got lost counts as whatever the server then shows (_put). If the server can't be asked
+     * either: kept locally like any offline save, with unconfirmed: true (it may have them already); without an offline copy the old
+     * credentials apply (e.cred.unconfirmed), and a later save recognizes the upload and puts them back. Result like save().
      */
     changeCredentials({ password, keyfile }) {
         this._writable();
@@ -309,19 +464,26 @@ export class Vault {
             const pw = password === undefined ? this._pw : ProtectedValue.fromString(password);
             const kf = keyfile === undefined ? this._kf : keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
             if (!pw && !kf) throw new VaultError('Ohne Passwort und Schluesseldatei liesse sich die Datenbank von jedem oeffnen.', 'e.cred.empty');
-            const creds = new Credentials(pw, kf);
+            const creds = credentials(pw, kf);
             // report an unreadable key file (e.g. XML with a wrong checksum) now, not only on save
             try { await creds.ready; } catch { throw new VaultError('Diese Schluesseldatei ist unlesbar.', 'e.keyfile.bad'); }
             const prev = { pw: this._pw, kf: this._kf, creds: this.db.credentials, keyChanged: this.db.meta.keyChanged };
             this._pw = pw; this._kf = kf; this.db.credentials = creds;
             this.db.meta.keyChanged = new Date();
+            const before = this._unconfirmed;
+            // went out, but neither its answer nor a look at the server says whether it arrived
+            const unanswered = () => !!this._unconfirmed && this._unconfirmed !== before && !this._unconfirmed.checked;
             try {
-                return await this._save();
+                const res = await this._save();
+                return res.offline && unanswered() ? { ...res, unconfirmed: true } : res;
             } catch (e) {
                 this._pw = prev.pw; this._kf = prev.kf; this.db.credentials = prev.creds; this.db.meta.keyChanged = prev.keyChanged;
                 if (this._pending) { // already stored locally with the new credentials: store again with the old ones, upload follows later
-                    try { this._pending = await this.db.save(); await this._cacheWrite(this._pending, true); } catch { this.dirty = true; }
+                    try { await this._stage(); } catch { this.dirty = true; }
                 } else this.dirty = true;
+                // The new credentials may be on the server all the same. The old ones apply here, and the next save, meeting that upload
+                // there, puts them back (_push), so the file ends up where the message says.
+                if (unanswered()) throw new VaultError('Der Server hat das Hochladen nicht bestaetigt. Hier gelten weiter die alten Zugangsdaten: noch einmal speichern, sobald der Server antwortet, dann bekommt auch er sie zurueck, falls die neuen doch angekommen sind.', 'e.cred.unconfirmed');
                 throw e;
             }
         });
@@ -339,29 +501,55 @@ export class Vault {
             const remote = await this.dav.get();
             const { db: remoteDb, pw } = await loadWith(remote.buf, password, kf);
             this._pw = pw; this._kf = kf; this._base = { pw, kf };
-            this.db.credentials = new Credentials(pw, kf);
+            this._unconfirmed = null; // the server holds a version from another device, none of our uploads
+            this.db.credentials = credentials(pw, kf);
             if (this.dirty) return this._save();
             if (this.unsynced) return this._push();
             this.db = remoteDb; // nothing local: the server version wins (like _pull)
             this.etag = remote.etag;
             this._remoteBytes = remote.buf;
-            await this._cacheWrite(remote.buf, false);
-            return { pulled: true };
+            return { pulled: true, ...(await this._cacheSynced(remote.buf)) };
+        });
+    }
+
+    /**
+     * The server version still opens with the credentials from before a change made here that never reached the server, and it changed
+     * meanwhile (e.merge.oldpw): read it once with those, merge, upload with our own (new) credentials, which stay. keyfile: the previous
+     * key file; missing: the current one, then none (a key file added here wasn't part of them). Wrong ones: e.badkey, nothing changed.
+     * Result like sync(); {} if there is nothing left to merge (uploaded in the meantime).
+     */
+    previousCredentials({ password, keyfile }) {
+        return this._exclusive(async () => {
+            if (!this.dirty && !this.unsynced) return {};
+            const remote = await this.dav.get();
+            const kfs = keyfile ? [keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)] : this._kf ? [this._kf, undefined] : [undefined];
+            let found;
+            for (const [n, kf] of kfs.entries()) {
+                try { found = { pw: (await loadWith(remote.buf, password, kf)).pw, kf }; break; } catch (e) { if (e?.key !== 'e.badkey' || n === kfs.length - 1) throw e; }
+            }
+            this._base = found;
+            return this._sync(); // server gone again meanwhile: kept locally ({offline: true}), the next sync merges with these
         });
     }
 
     /**
      * Pulls in another copy of this database (e.g. a "(conflicted copy)" from the Nextcloud clients or a copy from the phone), like
      * "Merge database" in KeePassXC: per entry the newer version wins, the older one goes to the history; deletions
-     * come along. File header and credentials stay our own. creds missing: it is opened with our own credentials.
+     * come along, except for what the other side changed after the deletion. File header and credentials stay our own. creds missing:
+     * it is opened with our own credentials.
      * Returns {added, changed, removed} (entries). Errors: e.badkey, e.badfile, e.merge.other (different database).
+     * Queued like a save: a pull finishing during the key derivation would swap the database under the merge.
      */
-    async mergeFrom(buf, creds) {
+    mergeFrom(buf, creds) {
         this._writable();
+        return this._exclusive(() => this._mergeFrom(buf, creds));
+    }
+
+    async _mergeFrom(buf, creds) {
         let other;
         try {
             other = creds ? (await loadWith(buf, creds.password, creds.keyfile ? toArrayBuffer(creds.keyfile) : undefined)).db
-                : await Kdbx.load(buf, new Credentials(this._pw, this._kf));
+                : await Kdbx.load(buf, credentials(this._pw, this._kf));
         } catch (e) { throw loadError(e); }
         const snapshot = (items) => new Map([...items].map((x) => [x.uuid.id, `${x.times.lastModTime?.getTime()}|${x.parentGroup?.uuid.id}`]));
         const diff = (before, after) => ({
@@ -373,6 +561,7 @@ export class Vault {
         const { keyChanged, settingsChanged } = this.db.meta; // credentials and file header stay our own, so do their timestamps
         try {
             this.db.merge(other);
+            dropStaleListings(this.root);
             Object.assign(this.db.meta, { keyChanged, settingsChanged });
         } catch (e) {
             if (e instanceof KdbxError && e.code === Consts.ErrorCodes.MergeError) throw new VaultError('Das ist eine andere Datenbank, keine Kopie dieser.', 'e.merge.other');
@@ -404,6 +593,49 @@ export class Vault {
         return false;
     }
 
+    /**
+     * The current database's object for an entry or group the page held on to, or null if it is gone. A pull replaces the whole database
+     * with the server's version, so whatever an open dialog, an Undo or a drag kept from before belongs to the old tree: it is looked up
+     * again by UUID. The usual case is cheap: every parent up to the root still lists it. The parent pointer alone doesn't prove that,
+     * a merge takes an entry deleted on another device out of its group without clearing it.
+     */
+    find(item) {
+        if (!item) return null;
+        for (let x = item; ; x = x.parentGroup) {
+            const p = x.parentGroup;
+            if (!p) { if (x === this.root) return item; break; }
+            if (!(x instanceof kdbxweb.KdbxGroup ? p.groups : p.entries).includes(x)) break;
+        }
+        if (item instanceof kdbxweb.KdbxGroup) return this.db.getGroup(item.uuid) ?? null;
+        for (const e of this.root.allEntries()) if (e.uuid.equals(item.uuid)) return e;
+        return null;
+    }
+
+    /**
+     * find() for a change. Moving or editing an object of the old tree would put it next to its twin in the new one (the same UUID twice,
+     * which no later merge accepts) or change something that is never saved. Gone: VaultError e.gone, before anything changed.
+     */
+    _current(item) {
+        if (!item) return item;
+        const live = this.find(item);
+        if (!live) throw goneError();
+        return live;
+    }
+
+    /**
+     * Entry and history index from before a pull: the other device may have added or removed versions, so the version is found by its time.
+     * The file keeps whole seconds only; none or several versions in that second: e.gone rather than the wrong one.
+     */
+    _currentVersion(entry, index) {
+        const live = this._current(entry);
+        if (live === entry) return { entry, index };
+        const sec = (h) => Math.floor((h?.times.lastModTime?.getTime() ?? NaN) / 1000);
+        const at = sec(entry.history[index]);
+        const hits = live.history.flatMap((h, i) => (sec(h) === at ? [i] : []));
+        if (hits.length !== 1) throw goneError();
+        return { entry: live, index: hits[0] };
+    }
+
     /** All entries except the recycle bin, optionally filtered. */
     search(query) {
         const q = (query || '').trim().toLowerCase();
@@ -423,30 +655,35 @@ export class Vault {
      * data: {Title, UserName, Password, URL, Notes, tags: string[], custom: [{name, value, protect}], expires?: boolean, expiryTime?: Date|null, otp?: string,
      *   icon?: number, customIcon?: string|null, excludeReports?: boolean, color?: string, attachments?: {remove: string[], add: Map<name, binary from makeBinary>}}
      *   (icon: see _setIcon; color: "#rrggbb" or ""; attachments: removals first, then additions, so a name can be replaced)
-     * Everything the editor doesn't show stays unchanged (passkey fields, browser data, colors, auto-type ...). Without an actual change
-     * no history entry is created (like in KeePassXC).
+     * Everything the editor doesn't show stays unchanged (passkey fields, browser data, colors, auto-type ...), and so does every value
+     * that didn't change (line endings don't count, see sameText). Without an actual change no history entry is created (like in KeePassXC).
+     * Custom field names are used exactly as given; one that is taken is refused before anything changes (checkFieldNames).
+     * entry and group may come from before a pull (see find).
      */
     applyEntry(entry, group, data) {
         this._writable();
+        checkFieldNames(data.custom);
         const isNew = !entry;
-        if (isNew) entry = this.db.createEntry(group);
-        else if (!this.entryDiffers(entry, data)) return entry;
-        else this._pushHistory(entry);
-        const set = (k, v) => entry.fields.set(k, v);
+        if (isNew) entry = this.db.createEntry(this._current(group));
+        else {
+            entry = this._current(entry);
+            if (!this.entryDiffers(entry, data)) return entry;
+            this._pushHistory(entry);
+        }
+        const set = (k, v, protect) => { if (isNew || !entry.fields.has(k) || !sameText(entry.fields.get(k), v)) entry.fields.set(k, protect ? ProtectedValue.fromString(v) : v); };
         set('Title', data.Title ?? '');
         set('UserName', data.UserName ?? '');
-        set('Password', ProtectedValue.fromString(data.Password ?? ''));
+        set('Password', data.Password ?? '', true);
         set('URL', data.URL ?? '');
         set('Notes', data.Notes ?? '');
         entry.tags = [...new Set((data.tags || []).map((t) => t.trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
         const wanted = new Set();
         for (const c of data.custom || []) {
-            const name = (c.name || '').trim();
-            if (!name || STANDARD_FIELDS.includes(name) || isSystemField(name)) continue;
-            wanted.add(name);
-            const old = entry.fields.get(name);
-            const same = old !== undefined && valueText(old) === (c.value ?? '') && isProtected(old) === !!c.protect;
-            if (!same) entry.fields.set(name, c.protect ? ProtectedValue.fromString(c.value ?? '') : (c.value ?? ''));
+            if (!c.name) continue;
+            wanted.add(c.name);
+            const old = entry.fields.get(c.name);
+            const same = old !== undefined && sameText(old, c.value) && isProtected(old) === !!c.protect;
+            if (!same) entry.fields.set(c.name, c.protect ? ProtectedValue.fromString(c.value ?? '') : (c.value ?? ''));
         }
         for (const k of [...entry.fields.keys()]) if (!STANDARD_FIELDS.includes(k) && !isSystemField(k) && !wanted.has(k)) entry.fields.delete(k);
         if (data.otp !== undefined) {
@@ -460,13 +697,19 @@ export class Vault {
             if (data.expires) entry.times.expiryTime = data.expiryTime || new Date(Date.now() + 365 * 86400000);
         }
         for (const name of data.attachments?.remove || []) entry.binaries.delete(name);
-        for (const [name, bin] of data.attachments?.add || []) entry.binaries.set(name, bin);
+        for (const [name, bin] of data.attachments?.add || []) {
+            // made before a pull swapped the database (or before a merge tidied up its pool): saving drops a binary its pool doesn't know
+            if (bin?.hash && !this.db.binaries.getValueByHash(bin.hash)) this.db.binaries.addWithHash(bin);
+            entry.binaries.set(name, bin);
+        }
         this._setIcon(entry, data);
         if (data.color !== undefined && data.color !== (entryColor(entry) || '')) entry.bgColor = data.color || undefined;
         if (data.excludeReports !== undefined && data.excludeReports !== excluded(entry)) { // both spellings, so KeePass 2 and KeePassXC see it
             entry.qualityCheck = data.excludeReports ? false : undefined;
-            if (data.excludeReports) (entry.customData ??= new Map()).set('KnownBad', { value: 'True' });
+            if (data.excludeReports) (entry.customData ??= new Map()).set('KnownBad', { value: 'true' });
             else entry.customData?.delete('KnownBad');
+        } else if (entry.customData?.get('KnownBad')?.value === 'True') {
+            entry.customData.set('KnownBad', { value: 'true' }); // written by KeePassNC up to 1.2.0; KeePassXC only reads lowercase
         }
         entry.times.update();
         this.dirty = true;
@@ -476,8 +719,13 @@ export class Vault {
     /** Adds and/or removes tags on several entries. Every entry that really changes gets a history entry, like an edit. Returns how many changed. */
     editTags(entries, { add = [], remove = [] }) {
         this._writable();
+        // the current objects (see find), all of them first: one that is gone changes none. One walk through the tree, a tag can sit on thousands
+        const byId = new Map();
+        for (const e of this.root.allEntries()) byId.set(e.uuid.id, e);
+        const live = [...entries].map((e) => byId.get(e.uuid.id));
+        if (live.includes(undefined)) throw goneError();
         let n = 0;
-        for (const e of entries) {
+        for (const e of live) {
             const next = editTags(e.tags, { add, remove });
             if (next.join('\n') === editTags(e.tags).join('\n')) continue;
             this._pushHistory(e);
@@ -491,14 +739,14 @@ export class Vault {
 
     /** true if the form values differ from the stored entry. */
     entryDiffers(entry, data) {
-        const same = (k, v) => valueText(entry.fields.get(k)) === (v ?? '');
+        const same = (k, v) => sameText(entry.fields.get(k), v);
         if (!(same('Title', data.Title) && same('UserName', data.UserName) && same('Password', data.Password) && same('URL', data.URL) && same('Notes', data.Notes))) return true;
         const tags = [...new Set((data.tags || []).map((t) => t.trim()).filter(Boolean))].sort().join('\n');
         if (tags !== [...entry.tags].sort().join('\n')) return true;
-        const custom = (data.custom || []).filter((c) => (c.name || '').trim() && !STANDARD_FIELDS.includes(c.name.trim()) && !isSystemField(c.name.trim()));
+        const custom = (data.custom || []).filter((c) => c.name && !STANDARD_FIELDS.includes(c.name) && !isSystemField(c.name));
         const existing = [...entry.fields].filter(([k]) => !STANDARD_FIELDS.includes(k) && !isSystemField(k));
         if (custom.length !== existing.length) return true;
-        for (const c of custom) { const o = entry.fields.get(c.name.trim()); if (o === undefined || valueText(o) !== (c.value ?? '') || isProtected(o) !== !!c.protect) return true; }
+        for (const c of custom) { const o = entry.fields.get(c.name); if (o === undefined || !sameText(o, c.value) || isProtected(o) !== !!c.protect) return true; }
         if (data.otp !== undefined && ((data.otp || '') !== valueText(entry.fields.get('otp')) || [...entry.fields.keys()].some((k) => k !== 'otp' && isOtpField(k)))) return true;
         if (data.expires !== undefined) {
             if (!!data.expires !== !!entry.times.expires) return true;
@@ -582,7 +830,7 @@ export class Vault {
     get binEnabled() { return this.db.meta.recycleBinEnabled !== false; }
 
     /** Deleting is permanent here: the item is already in the recycle bin, or the database has none. */
-    deletesForever(item) { return !this.binEnabled || this.isInRecycleBin(item); }
+    deletesForever(item) { return !this.binEnabled || this.isInRecycleBin(this.find(item) ?? item); }
 
     generalSettings() {
         const m = this.db.meta;
@@ -620,9 +868,24 @@ export class Vault {
 
     removeEntry(entry) {
         this._writable();
-        if (this.isInRecycleBin(entry)) this.db.move(entry, null); // delete permanently
-        else this.db.remove(entry);
+        entry = this._current(entry);
+        this._discard(entry);
         this.dirty = true;
+    }
+
+    /**
+     * Into the recycle bin (created on first use), or for good when it is off or the item is in it already: the same decision
+     * deletesForever makes for the page. Not kdbxweb's remove(): that reads a missing <RecycleBinEnabled> as "off" (KeePass 2 and
+     * this page read it as "on") and a missing <RecycleBinUUID> as "no bin", and deleted for good while the page said "in the recycle bin".
+     */
+    _discard(item) {
+        if (this.deletesForever(item)) { this.db.move(item, null); return; }
+        this.db.createRecycleBin(); // also writes the missing setting as an explicit "on"
+        const rb = this.recycleBin;
+        // KeePass 2 lets any group be the recycle bin. One inside this group would end up inside itself, cut off from the tree, and vanish
+        // on saving with everything in it: it moves up to the root first and stays the recycle bin, with what it holds.
+        for (let g = rb.parentGroup; g; g = g.parentGroup) if (g === item) { this.db.move(rb, this.root); break; }
+        this.db.move(item, rb);
     }
 
     /**
@@ -632,6 +895,7 @@ export class Vault {
      */
     duplicateEntry(entry, suffix = ' - Kopie', { linked = false } = {}) {
         this._writable();
+        entry = this._current(entry);
         const copy = this.db.createEntry(entry.parentGroup);
         copy.copyFrom(entry);
         for (const k of [...copy.fields.keys()]) if (isPasskeyField(k)) copy.fields.delete(k);
@@ -653,6 +917,8 @@ export class Vault {
 
     moveEntry(entry, group) {
         this._writable();
+        if (!group) throw goneError(); // a dialog's target group was deleted meanwhile (selectedGroup finds nothing): moving to nowhere deletes for good
+        entry = this._current(entry); group = this._current(group);
         if (entry.parentGroup === group) return;
         this.db.move(entry, group);
         this.dirty = true;
@@ -665,13 +931,14 @@ export class Vault {
         walk(this.root, 0);
         return out;
     }
-    createGroup(parent, name) { this._writable(); const g = this.db.createGroup(parent, name.trim() || 'Neue Gruppe'); this.dirty = true; return g; }
+    createGroup(parent, name) { this._writable(); const g = this.db.createGroup(this._current(parent), name.trim() || 'Neue Gruppe'); this.dirty = true; return g; }
     /**
      * icon/customIcon: icon as with applyEntry. iconScope exists like in KeePassXC: 'groups' (all subgroups), 'entries' (entries
      * directly in the group) or 'all' (everything below) get the same icon, without a history entry.
      */
     updateGroup(group, { name, notes, icon, customIcon, iconScope }) {
         this._writable();
+        group = this._current(group);
         if (name !== undefined) group.name = name.trim() || group.name;
         if (notes !== undefined) group.notes = notes;
         this._setIcon(group, { icon, customIcon });
@@ -685,21 +952,24 @@ export class Vault {
         }
         this.dirty = true;
     }
-    /** Recycle bin is active -> group moves into it; otherwise permanent. */
+    /** Recycle bin is active -> group moves into it (a bin inside the group stays, see _discard); otherwise permanent. */
     removeGroup(group) {
         this._writable();
+        group = this._current(group);
         if (group === this.root) throw new VaultError('Die Wurzelgruppe kann nicht geloescht werden.', 'e.root.delete');
         if (group === this.recycleBin) throw new VaultError('Der Papierkorb kann nicht geloescht werden - nur leeren.', 'e.bin.delete');
-        if (this.isInRecycleBin(group)) this.db.move(group, null); else this.db.remove(group);
+        this._discard(group);
         this.dirty = true;
     }
     canMoveGroup(group, target) {
-        if (group === this.root || !target || group === target || group.parentGroup === target) return false;
+        group = this.find(group); target = this.find(target); // a drag that started before a pull
+        if (!group || group === this.root || !target || group === target || group.parentGroup === target) return false;
         for (let g = target; g; g = g.parentGroup) if (g === group) return false; // not into itself/descendants
         return true;
     }
     moveGroup(group, target) {
         this._writable();
+        group = this._current(group); target = this._current(target);
         if (!this.canMoveGroup(group, target)) return false;
         this.db.move(group, target);
         this.dirty = true;
@@ -709,9 +979,14 @@ export class Vault {
     /**
      * Creates entries from an import (core/import.js readImport) in a new group `name` under the root, subfolders as
      * subgroups. This keeps the import together and lets you get rid of it again with one click. Returns the new group.
+     * Queued like a save: attachments are awaited one by one, and a pull in between would swap the database under the half-done import.
      */
-    async importEntries(entries, name) {
+    importEntries(entries, name) {
         this._writable();
+        return this._exclusive(() => this._importEntries(entries, name));
+    }
+
+    async _importEntries(entries, name) {
         const top = this.db.createGroup(this.root, name);
         const sub = (parent, part) => parent.groups.find((g) => g.name === part) || this.db.createGroup(parent, part);
         const free = (n, taken) => { let k = 2, out = n; while (taken(out)) out = `${n} (${k++})`; return out; }; // "name", "name (2)", ...
@@ -723,7 +998,7 @@ export class Vault {
             e.tags = r.tags;
             // extra fields (never over a standard or system field) and attachments, when the source has them (see core/import.js)
             for (const c of r.custom || []) e.fields.set(free(c.name, (n) => STANDARD_FIELDS.includes(n) || isSystemField(n) || e.fields.has(n)), c.protect ? ProtectedValue.fromString(c.value) : c.value);
-            for (const a of r.attachments || []) e.binaries.set(free(a.name, (n) => e.binaries.has(n)), await this.makeBinary(a.data.buffer));
+            for (const a of r.attachments || []) e.binaries.set(free(a.name, (n) => e.binaries.has(n)), await this.makeBinary(toArrayBuffer(a.data))); // exactly its bytes, even as a view into a bigger buffer
             if (r.created) e.times.creationTime = r.created;
             if (r.modified) e.times.lastModTime = r.modified;
         }
@@ -756,6 +1031,7 @@ export class Vault {
     /** Restores an earlier version; the current version itself becomes a history entry. */
     restoreHistory(entry, index) {
         this._writable();
+        ({ entry, index } = this._currentVersion(entry, index));
         const old = entry.history[index];
         if (!old) return;
         const created = entry.times.creationTime, keep = entry.history, uuid = entry.uuid, parent = entry.parentGroup, prev = entry.previousParentGroup, loc = entry.times.locationChanged, usage = entry.times.usageCount;
@@ -767,8 +1043,8 @@ export class Vault {
         entry.times.update();
         this.dirty = true;
     }
-    deleteHistory(entry, index) { this._writable(); entry.removeHistory(index, 1); entry.times.update(); this.dirty = true; }
-    clearHistory(entry) { this._writable(); entry.removeHistory(0, entry.history.length); this.dirty = true; }
+    deleteHistory(entry, index) { this._writable(); ({ entry, index } = this._currentVersion(entry, index)); entry.removeHistory(index, 1); entry.times.update(); this.dirty = true; }
+    clearHistory(entry) { this._writable(); entry = this._current(entry); entry.removeHistory(0, entry.history.length); this.dirty = true; }
 
     // ---------------------------------------------------------------- Attachments
     /** Stores file contents in the database for applyEntry's `attachments.add` (nothing is attached until the entry is applied). */
@@ -776,6 +1052,7 @@ export class Vault {
     /** Remove the passkey from the entry; the previous version stays in the history (recoverable until the history is cleared). */
     removePasskey(entry) {
         this._writable();
+        entry = this._current(entry);
         const keys = [...entry.fields.keys()].filter(isPasskeyField);
         if (!keys.length) return false;
         this._pushHistory(entry);
@@ -834,7 +1111,7 @@ export class Vault {
     }
     /**
      * Remove an icon from the file; whatever used it shows its standard icon again (also in the history). The deletion marker prevents
-     * it from coming back when merging with another version (like kdbxweb when cleaning up).
+     * it from coming back when merging with another version, unless that version changed the icon or something using it afterwards.
      */
     removeCustomIcon(id) {
         this._writable();
@@ -878,31 +1155,62 @@ export class Vault {
      * If the server is unreachable and an offline copy exists, that's no error: {offline: true}, sync follows later.
      * @returns {Promise<{merged?: boolean, offline?: boolean, bytes?: ArrayBuffer}>}
      */
-    save({ auto = false } = {}) { return this._exclusive(() => (auto && this.mergeBlocked ? { skipped: true } : this._save())); }
+    save({ auto = false } = {}) { return this._exclusive(() => (auto && this.waitsForUser ? { skipped: true } : this._save())); }
 
     /**
      * Syncs with the server: upload unsynced versions, otherwise pull changes from other devices.
-     * background: a timer asked, not the user. A sync queued behind a save that then fails to merge must not try again (every attempt
-     * leaves a conflict backup behind), so this is checked here, once the save is over, and not only when the sync was asked for.
+     * background: a timer asked, not the user. A sync queued behind a save that then fails to merge (or finds the file gone) must not try
+     * again (see waitsForUser), so this is checked here, once the save is over, and not only when the sync was asked for.
      * save({ auto: true }) works the same way. Both answer { skipped: true } when they stood down.
      */
-    sync({ background = false } = {}) { return this._exclusive(() => (background && this.mergeBlocked ? { skipped: true } : this._sync())); }
+    sync({ background = false } = {}) { return this._exclusive(() => (background && this.waitsForUser ? { skipped: true } : this._sync())); }
 
-    async _save() {
+    /**
+     * The file is gone from the server (writeBlocked 'gone': moved or deleted there): put the current state back at the same address.
+     * Only on the user's word, a moved file would turn up twice. Never overwrites (DavFile.create): if something is there again by now,
+     * that's a conflict like any other (backup of the other version, merge). Result like save(), plus recreated: true.
+     */
+    recreate() {
         this._writable();
-        this.dirty = false; // changes during serialization set the flag again
-        let out;
-        try { out = await this.db.save(); } catch (e) { this.dirty = true; throw e; }
-        if (!this.dav) return { merged: false, bytes: out };
-        const stored = await this._cacheWrite(out, true);
-        this._pending = out;
-        this.unsynced = true;
+        return this._exclusive(() => this._save(async () => {
+            const out = this._pending;
+            let etag;
+            try {
+                etag = await this.dav.create(out);
+            } catch (e) {
+                if (e instanceof DavError && e.status === 412) return this._push();
+                throw e;
+            }
+            const after = await this._uploaded(out, etag);
+            return { ...after, merged: !!after.merged, recreated: true };
+        }));
+    }
+
+    /** send: how the serialized version (this._pending) gets to the server, _push unless recreate() asks otherwise. */
+    async _save(send = () => this._push()) {
+        this._writable();
+        if (!this.dav) {
+            this.dirty = false; // changes during serialization set the flag again
+            try { return { merged: false, bytes: await this.db.save() }; } catch (e) { this.dirty = true; throw e; }
+        }
+        this._unstored = true;
         try {
-            return await this._push();
-        } catch (e) {
-            if (!stored) { this.unsynced = false; this._pending = null; this.dirty = true; throw e; } // without a local copy nothing may count as "saved"
-            if (isOffline(e)) return { offline: true };
-            throw e;
+            const { stored, tabMerged } = await this._stage();
+            const tabs = tabMerged ? { tabMerged } : {}; // tabMerged: the database took in changes another tab had stored, the views must follow
+            this.unsynced = true;
+            this._unstored = !stored;
+            try {
+                const res = { ...(await send()), ...tabs };
+                this.writeBlocked = null;
+                return res;
+            } catch (e) {
+                const err = this._refused(e);
+                if (!stored) { this.unsynced = false; this._pending = null; this.dirty = true; throw err; } // without a local copy nothing may count as "saved"
+                if (isOffline(err)) return { offline: true, ...tabs };
+                throw err;
+            }
+        } finally {
+            this._unstored = false; // on the server, in the offline copy, or dirty again
         }
     }
 
@@ -910,11 +1218,25 @@ export class Vault {
         if (!this.dav) return {};
         if (this.dirty) return this._save();
         try {
-            return this.unsynced ? await this._push() : await this._pull();
+            const res = this.unsynced ? await this._push() : await this._pull();
+            this.writeBlocked = null;
+            return res;
         } catch (e) {
-            if (isOffline(e)) return { offline: true };
-            throw e;
+            const err = this._refused(e);
+            if (isOffline(err)) return { offline: true };
+            throw err;
         }
+    }
+
+    /**
+     * Remembers why the server turned the file down, for the banner (writeBlocked; null for any other failure, an outage included).
+     * A 404 or 409 here means the file or its folder was moved or deleted: say that, not "check the path" as when opening. Only putting
+     * the file back (recreate) learns that the folder is gone, too, and its own message says so.
+     */
+    _refused(e) {
+        this.writeBlocked = writeProblem(e);
+        if (this.writeBlocked !== 'gone' || e.key === 'e.dav.nofolder') return e;
+        return new VaultError('Die Datei ist nicht mehr auf dem Server, sie wurde verschoben oder geloescht.', 'e.dav.gone');
     }
 
     /**
@@ -938,60 +1260,139 @@ export class Vault {
     async _push() {
         this.mergeBlocked = false;
         if (!this._backedUp) {
-            await this._backup(this._remoteBytes, stamp());
+            // The backup protects the server's version. Opened offline, _remoteBytes is the offline copy (with unsynced changes it was never on the server): fetch the real one
+            await this._backup(this._remoteFromCache ? (await this.dav.get()).buf : this._remoteBytes, stamp());
             this._backedUp = true;
             await this._prune();
         }
-        let merged = false;
+        let merged = false, tabMerged = false;
         for (let attempt = 1; ; attempt++) {
             const out = this._pending;
             try {
                 // A server that sends no ETag (or a CORS setup that hides it) can't check If-Match. Then compare with what we last read,
                 // right before writing; a difference takes the usual conflict path (backup of the other version, merge, retry).
                 if (!this.etag && !(await this._serverUnchanged())) throw new ConflictError();
-                this.etag = await this.dav.put(out, this.etag);
-                this._remoteBytes = out;
-                this._base = { pw: this._pw, kf: this._kf };
-                this.unsynced = false;
-                this._pending = null;
-                await this._cacheWrite(out, false);
-                return { merged, noBackup: this.noBackup };
+                const after = await this._uploaded(out, await this._put(out));
+                return { ...after, merged: merged || !!after.merged, noBackup: this.noBackup, ...(tabMerged ? { tabMerged } : {}) };
             } catch (e) {
                 if (!(e instanceof ConflictError)) throw e;
                 if (attempt >= 3) throw new VaultError('Die Datei wird gerade von einem anderen Geraet laufend geaendert - bitte spaeter erneut speichern. Deine Aenderungen sind lokal gesichert.', 'e.busy');
                 const remote = await this.dav.get();
+                // Our own upload is there already: its answer got lost on the way back, maybe before the page was reloaded. Nothing to merge.
+                if (sameBytes(remote.buf, out)) {
+                    const after = await this._uploaded(out, remote.etag);
+                    return { ...after, merged: merged || !!after.merged, noBackup: this.noBackup, ...(tabMerged ? { tabMerged } : {}) };
+                }
+                // An earlier upload of ours that never got its answer, with changes made here since: the same database, only further along.
+                // It becomes the base (with the credentials it was written with), and this state goes on top of it without merging.
+                const sent = this._unconfirmed;
+                if (sent && sameBytes(remote.buf, sent.bytes)) {
+                    this._unconfirmed = null;
+                    this.etag = remote.etag;
+                    this._remoteBytes = remote.buf;
+                    this._base = { pw: sent.pw, kf: sent.kf };
+                    continue;
+                }
                 // The server still holds the very version our If-Match named, and said no anyway: nobody else is writing, the ETag itself
                 // doesn't survive the way to the server (a proxy rewriting it). Merging again changes nothing and only piles up conflict backups.
                 if (remote.etag && remote.etag === this.etag) {
                     this.mergeBlocked = 'etag';
                     throw new VaultError('Der Server lehnt das Speichern ab, obwohl niemand sonst die Datei geaendert hat (Versionskennung wird auf dem Weg veraendert). Deine Aenderungen bleiben in diesem Tab.', 'e.etag');
                 }
+                // Opened first: a version we can't read yet (e.merge.pw, e.merge.oldpw) stays untouched on the server anyway, and the retries
+                // until someone answers the question would each leave another copy of it behind, pushing out the older conflict copies
+                const { db: remoteDb, base } = await this._openServerVersion(remote.buf);
                 await this._backup(remote.buf, `conflict-${stamp()}`);
                 await this._prune();
-                const remoteDb = await Kdbx.load(remote.buf, this._baseCredentials()).catch((err) => {
-                    if (err instanceof KdbxError && err.code === Consts.ErrorCodes.InvalidKey) {
-                        throw new VaultError('Die Zugangsdaten wurden auf einem anderen Geraet geaendert. Die Aenderungen sind noch da: mit den neuen Zugangsdaten werden sie zusammengefuehrt.', 'e.merge.pw');
-                    }
-                    throw err;
-                });
-                const header = this._mergedHeader(remoteDb);
                 try {
-                    this.db.merge(remoteDb);
+                    this._mergeIn(remoteDb);
                 } catch (err) {
                     if (!(err instanceof KdbxError && err.code === Consts.ErrorCodes.MergeError)) throw err;
                     // Retrying changes nothing (every attempt would leave another conflict backup behind): background sync and auto-save stand down until the user saves again
                     this.mergeBlocked = true;
-                    if (/^duplicate/.test(err.message)) throw new VaultError('Ein Eintrag oder eine Gruppe kommt doppelt vor (lokal oder auf dem Server), das laesst sich nicht zusammenfuehren.', 'e.merge.dup');
+                    if (/\bduplicate:/.test(err.message)) throw new VaultError('Ein Eintrag oder eine Gruppe kommt doppelt vor (lokal oder auf dem Server), das laesst sich nicht zusammenfuehren.', 'e.merge.dup');
                     throw new VaultError('Die Datei auf dem Server ist eine andere Datenbank (ersetzt oder neu angelegt). Deine Aenderungen bleiben hier, zusammenfuehren geht nicht.', 'e.merge.server');
                 }
-                if (header !== this.db.header) { this.db.header = header; this.db.meta.headerHash = undefined; }
-                this._pending = await this.db.save();
+                // The offline copy names the server version the merge is based on now. Until it is written, _pending is the old version:
+                // if serializing fails, the old ETag (and the credentials it opens with) must stay, or the next upload would overwrite the
+                // server version without merging it
+                const prev = { etag: this.etag, remoteBytes: this._remoteBytes, base: this._base };
                 this.etag = remote.etag;
                 this._remoteBytes = remote.buf;
-                await this._cacheWrite(this._pending, true);
+                this._base = base;
+                try {
+                    if ((await this._stage()).tabMerged) tabMerged = true;
+                } catch (err) {
+                    this.etag = prev.etag; this._remoteBytes = prev.remoteBytes; this._base = prev.base;
+                    throw err;
+                }
                 merged = true;
             }
         }
+    }
+
+    /** Merges another version of this database into ours, with the file header _mergedHeader picks. A different database: KdbxError MergeError. */
+    _mergeIn(other) {
+        const header = this._mergedHeader(other);
+        this.db.merge(other);
+        dropStaleListings(this.root);
+        if (header !== this.db.header) { this.db.header = header; this.db.meta.headerHash = undefined; }
+    }
+
+    /**
+     * PUT with If-Match, returns the new ETag. A network error or a 5xx doesn't say whether the file arrived: the answer can get lost
+     * on the way back (a dropped connection, a proxy that gave up waiting while the server finished). Such an upload is remembered, so
+     * that meeting it on the server later counts as our own version, not as one from another device (_push). After a change of
+     * credentials the server is asked right away: "changed" or "not changed" (changeCredentials) must not be a guess, and a wrong
+     * "not changed" leaves the file on the server with credentials the user was told didn't take.
+     */
+    async _put(out) {
+        try {
+            return await this.dav.put(out, this.etag);
+        } catch (e) {
+            if (!isOffline(e)) throw e;
+            const sent = { bytes: out, pw: this._pw, kf: this._kf, checked: false };
+            this._unconfirmed = sent;
+            if (this._baseIsOwn()) throw e;
+            let remote;
+            try { remote = await this.dav.get(); } catch { throw e; }
+            if (sameBytes(remote.buf, out)) return remote.etag;
+            // The server shows something else: the upload didn't arrive. It stays remembered all the same, a gateway may have given up
+            // on a server that is still writing it.
+            sent.checked = true;
+            throw e;
+        }
+    }
+
+    /** out is the server version now (etag): it is the new base, with our credentials, and the offline copy is in sync again. */
+    async _uploaded(out, etag) {
+        this.etag = etag;
+        this._remoteBytes = out;
+        this._base = { pw: this._pw, kf: this._kf };
+        this._unconfirmed = null;
+        this.unsynced = false;
+        this._pending = null;
+        return this._cacheSynced(out); // changes another tab left in the offline copy come along and go up too
+    }
+
+    /**
+     * Opens a server version for merging, with the credentials of the last known server version. If they don't fit and ours differ
+     * (changed here, upload not confirmed), with ours: that upload may have arrived after all and been changed on another device since.
+     * Returns {db, base} (base: the credentials that fit). Neither: e.merge.pw (changed on another device), or e.merge.oldpw when the
+     * server version's credentials aren't known here (changed here, never uploaded, page reloaded since: see open's newCreds).
+     */
+    async _openServerVersion(buf) {
+        const own = { pw: this._pw, kf: this._kf };
+        const tries = !this._base || this._baseIsOwn() ? [own] : [this._base, own];
+        for (const c of tries) {
+            try {
+                return { db: await Kdbx.load(buf, credentials(c.pw, c.kf)), base: c };
+            } catch (err) {
+                if (!(err instanceof KdbxError && err.code === Consts.ErrorCodes.InvalidKey)) throw err;
+            }
+        }
+        if (!this._base) throw new VaultError('Die Zugangsdaten wurden hier geaendert, bevor der Server sie bekam, und die Datei dort hat sich seitdem geaendert. Sie oeffnet noch mit den vorherigen: einmal eingeben, dann wird zusammengefuehrt.', 'e.merge.oldpw');
+        throw new VaultError('Die Zugangsdaten wurden auf einem anderen Geraet geaendert. Die Aenderungen sind noch da: mit den neuen Zugangsdaten werden sie zusammengefuehrt.', 'e.merge.pw');
     }
 
     /**
@@ -1017,11 +1418,17 @@ export class Vault {
         return !!this._remoteBytes && sameBytes(remote.buf, this._remoteBytes);
     }
 
+    /**
+     * The server version replaces ours, as long as nothing changed here. Nothing in the page waits for a pull, so every await (the download,
+     * then the key derivation: seconds with Argon2) is a chance for a change, and that change lives only in this.db: then the pull stands
+     * down and the next save merges the two as usual.
+     */
     async _pull() {
+        const changedHere = () => this.dirty || this.unsynced;
         const etag = await this.dav.head();
         if (etag && etag === this.etag) return { pulled: false };
         const remote = await this.dav.get();
-        if (this.dirty || this.unsynced) return { pulled: false }; // changed locally in the meantime: merge on the next save
+        if (changedHere()) return { pulled: false };
         if (remote.etag && remote.etag === this.etag) return { pulled: false };
         if (!remote.etag && this._remoteBytes && sameBytes(remote.buf, this._remoteBytes)) return { pulled: false }; // no ETag to compare: same bytes, nothing new
         let remoteDb;
@@ -1033,10 +1440,11 @@ export class Vault {
             }
             throw e;
         }
+        if (changedHere()) return { pulled: false }; // changed during the key derivation
         this.db = remoteDb; // no local changes: the server version is authoritative
+        this._unconfirmed = null; // a newer version than any upload of ours
         this.etag = remote.etag;
         this._remoteBytes = remote.buf;
-        await this._cacheWrite(remote.buf, false);
-        return { pulled: true };
+        return { pulled: true, ...(await this._cacheSynced(remote.buf)) };
     }
 }

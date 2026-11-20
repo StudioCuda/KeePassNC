@@ -1,2 +1,1 @@
-{ "compilerOptions": { "module": "commonjs", "moduleResolution": "node", "target": "es2022", "esModuleInterop": true, "skipLibCheck": true, "strict": false, "types": ["node"] },
-  "ts-node": { "transpileOnly": true } }
+{ "compilerOptions": { "module": "commonjs", "moduleResolution": "node", "target": "es2022", "esModuleInterop": true, "skipLibCheck": true, "strict": false, "types": ["node"] } }

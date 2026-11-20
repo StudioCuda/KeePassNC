@@ -49,7 +49,7 @@ const expect = (cond, msg) => { if (!cond) throw new Error(msg); };
 
 async function main() {
     makeFixtures();
-    const { server, port, log } = await startServer({ webRoot: path.join(root, 'web'), davRoot });
+    const { server, port, log, options: srvOptions } = await startServer({ webRoot: path.join(root, 'web'), davRoot });
     const base = `http://127.0.0.1:${port}`;
     const browser = await launchBrowser();
     const problems = { external: [], pageErrors: [], consoleErrors: [] };
@@ -146,6 +146,24 @@ async function main() {
         await login(p, 'aes-absurd.kdbx');
         await p.waitForFunction(() => /Milliarde/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 15000 });
         expect(await p.locator('#confirm-ok').count() === 0 && await rows(p).count() === 0, 'Absurde Rundenzahl darf nicht zur Wahl stehen');
+        await p.context().close();
+    });
+
+    await step('Argon2 version 1.0 (KeePassXC opens it, hash-wasm only computes 1.3) -> clear message instead of "wrong password"', async () => {
+        // A genuine 1.0 file: pykeepass derives the key with the version from the header (argon2-cffi knows both)
+        const f = path.join(davRoot, 'argon10.kdbx');
+        fs.copyFileSync(f4, f);
+        execFileSync('python3', ['-I', '-c', ['from pykeepass import PyKeePass', `kp = PyKeePass(${JSON.stringify(f)}, password=${JSON.stringify(PW)})`,
+            'kp.kdbx.header.value.dynamic_header.kdf_parameters.data.dict.V.value = 0x10', 'kp.save()'].join('\n')], { stdio: 'pipe' });
+        const d = fs.readFileSync(f), tag = Buffer.from([0x04, 1, 0, 0, 0, 0x56, 4, 0, 0, 0]); // VariantDictionary: UInt32, name "V", 4-byte value
+        expect(d.indexOf(tag) > 0 && d.readUInt32LE(d.indexOf(tag) + tag.length) === 0x10, 'setup: the Argon2 version in the header is not 1.0');
+        expect(xc(['show', f, 'Web/Mail']).includes('alice'), 'KeePassXC does not open the 1.0 file');
+        const p = await newPage();
+        await login(p, 'argon10.kdbx');
+        await p.waitForFunction(() => /Version 1\.0/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 30000 });
+        const msg = await p.locator('#login-error').innerText();
+        expect(/KeePassXC/.test(msg) && !/Falsches Master-Passwort|Fehler:/.test(msg), 'message: ' + msg);
+        expect(await rows(p).count() === 0 && await p.locator('#login-form').count() === 1 && await p.locator('#open-btn').isEnabled(), 'nothing may open');
         await p.context().close();
     });
 
@@ -401,7 +419,7 @@ async function main() {
         // KeePassXC reads KnownBad but doesn't output it in the XML export: hence pykeepass as a second opinion
         const knownBad = () => execFileSync('python3', ['-I', '-c', ['from pykeepass import PyKeePass', `kp = PyKeePass(${JSON.stringify(f4)}, password=${JSON.stringify(PW)})`,
             "cd = kp.find_entries(title='Neu E2E', first=True)._element.find('CustomData')",
-            "print(any(i.findtext('Key') == 'KnownBad' and i.findtext('Value') == 'True' for i in ([] if cd is None else cd)))"].join('\n')]).toString().trim() === 'True';
+            "print(any(i.findtext('Key') == 'KnownBad' and i.findtext('Value') == 'true' for i in ([] if cd is None else cd)))"].join('\n')]).toString().trim() === 'True'; // KeePassXC compares with lowercase "true"
         expect(await weakRows() === 1, '"pw-neu" sollte als schwach gelten');
         const toggle = async (on) => {
             await page.fill('#search', ''); await page.locator('[data-testid=entry-row]', { hasText: 'Neu E2E' }).click();
@@ -631,7 +649,7 @@ async function main() {
         const fTf = path.join(davRoot, 'twofish.kdbx');
         fs.copyFileSync(path.join(davRoot, 'vault3.kdbx'), fTf);
         // The app no longer switches to Twofish, so kdbxweb re-encrypts the copy
-        execFileSync(process.execPath, ['-r', 'ts-node/register/transpile-only', '-e', [
+        execFileSync(process.execPath, ['-r', './tools/ts-register.cjs', '-e', [
             `const k = require('./vendor/kdbxweb/lib/index'), fs = require('fs'), f = ${JSON.stringify(fTf)};`,
             `k.Kdbx.load(new Uint8Array(fs.readFileSync(f)).buffer, new k.Credentials(k.ProtectedValue.fromString(${JSON.stringify(PW)})))`,
             '    .then((db) => { db.header.dataCipherUuid = new k.KdbxUuid(k.Consts.CipherId.Twofish); return db.save(); })',
@@ -868,6 +886,57 @@ async function main() {
         expect(plain.includes(`"=cmd|`) && plain.includes(`"-pw-x"`) && !plain.includes(`"'=cmd`), 'Standardexport darf nichts veraendern');
         expect(safe.includes(`"'=cmd|`) && safe.includes(`"'-pw-x"`) && !/(^|,)"[=+\-@]/m.test(safe), 'abgesicherter Export beginnt noch mit Formelzeichen');
         await p.context().close();
+    });
+
+    await step('CSV aus einem deutschen Excel (Semikolons, Windows-1252, Umlaute, Anfuehrungszeichen) kommt richtig an, KeePassXC sieht es; unbekannte Spalten werden gemeldet statt leer importiert', async () => {
+        const fSemi = path.join(davRoot, 'semikolon.kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fSemi);
+        // A KeePassXC export saved again by a German Excel as plain "CSV (Trennzeichen-getrennt)": Windows-1252 (€ = 0x80), semicolons,
+        // CRLF, quotes only where needed, LF inside a cell; the stray quote in 5"€uro must not swallow anything
+        const csv = 'Group;Title;Username;Password;URL;Notes;TOTP;Icon;Last Modified;Created\r\n'
+            + 'Passwords/Bank;Sparkasse Köln;jürgen;"pa;ss""wört";https://sparkasse.de;"Zwei\nZeilen; mit Grüßen";;0;;\r\n'
+            + 'Passwords;Bäckerei Müller;anna;5"€uro;https://baeckerei.example;;;0;;\r\n';
+        const ansi = Buffer.from(Array.from(csv, (c) => (c === '€' ? 0x80 : c.charCodeAt(0))));
+        const p = await newPage();
+        await login(p, 'semikolon.kdbx'); await rows(p).first().waitFor();
+        const openCsv = async () => { if (!await p.locator('#csv-btn').isVisible()) { await p.click('#reports-btn'); await p.click('#rep-tab-info'); } await p.click('#csv-btn'); await p.locator('#csv-file').waitFor({ state: 'attached' }); };
+        await openCsv();
+        await p.setInputFiles('#csv-file', { name: 'fremd.csv', mimeType: 'text/csv', buffer: Buffer.from('Titel;Benutzername;Kennwort\r\nGMX;bob;pw\r\n') });
+        await p.waitForFunction(() => /Spalten dieser CSV-Datei kennt KeePassNC nicht/.test(document.querySelector('#csv-summary')?.textContent || ''));
+        expect(await p.isDisabled('#csv-import'), 'eine Datei ohne bekannte Spalte laesst sich importieren');
+        await p.setInputFiles('#csv-file', { name: 'excel.csv', mimeType: 'text/csv', buffer: ansi });
+        await p.waitForFunction(() => /Gefundene Einträge: 2\. Nicht übernommen: Icon\./.test(document.querySelector('#csv-summary')?.textContent || ''));
+        await p.click('#csv-import');
+        expect(await rows(p).count() === 2, 'Liste zeigt nicht die neue Gruppe: ' + await rows(p).count());
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        await p.context().close();
+        const bank = xc(['show', '-s', fSemi, 'Import excel/Bank/Sparkasse Köln']);
+        expect(bank.includes('UserName: jürgen') && bank.includes('Password: pa;ss"wört') && bank.includes('URL: https://sparkasse.de') && bank.includes('Zwei\nZeilen; mit Grüßen'), 'Sparkasse in KeePassXC:\n' + bank);
+        const shop = xc(['show', '-s', fSemi, 'Import excel/Bäckerei Müller']);
+        expect(shop.includes('UserName: anna') && shop.includes('Password: 5"€uro') && shop.includes('URL: https://baeckerei.example'), 'Baeckerei in KeePassXC:\n' + shop);
+    });
+
+    await step('Bitwarden-JSON: SSH-Schluessel wird Schluesseldatei-Anhang plus Felder (KeePassXC sieht beides), ein Passkey wird als nicht vollstaendig gemeldet', async () => {
+        const fSsh = path.join(davRoot, 'ssh.kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fSsh);
+        const priv = '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\n-----END OPENSSH PRIVATE KEY-----';
+        const bitwarden = JSON.stringify({ encrypted: false, folders: [], items: [
+            { type: 5, folderId: null, name: 'Server-Schluessel', notes: 'Laptop', sshKey: { privateKey: priv, publicKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest anna@laptop', keyFingerprint: 'SHA256:Test' } },
+            { type: 1, folderId: null, name: 'Mit Passkey', login: { username: 'pk', password: 'pw-pk', fido2Credentials: [{ credentialId: 'c', rpId: 'example.org' }] } }] });
+        const p = await newPage();
+        await login(p, 'ssh.kdbx'); await rows(p).first().waitFor();
+        if (!await p.locator('#csv-btn').isVisible()) { await p.click('#reports-btn'); await p.click('#rep-tab-info'); }
+        await p.click('#csv-btn'); await p.locator('#csv-file').waitFor({ state: 'attached' });
+        await p.setInputFiles('#csv-file', { name: 'bw-ssh.json', mimeType: 'application/json', buffer: Buffer.from(bitwarden) });
+        await p.waitForFunction(() => /Bitwarden \(JSON\)\. Gefundene Einträge: 2\. Einträge, die nicht vollständig mitkommen: 1\./.test(document.querySelector('#csv-summary')?.textContent || ''));
+        await p.click('#csv-import');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        await p.context().close();
+        const att = path.join(tmp, 'id_ed25519'); xc(['attachment-export', fSsh, 'Import bw-ssh/Server-Schluessel', 'id_ed25519', att]);
+        expect(fs.readFileSync(att, 'utf8') === priv + '\n', 'Schluesseldatei kommt byte-genau (mit Zeilenende) an');
+        expect(xc(['show', '-s', '-a', 'SSH public key', fSsh, 'Import bw-ssh/Server-Schluessel']).trim() === 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest anna@laptop', 'Feld SSH public key');
+        expect(xc(['show', '-s', '-a', 'SSH fingerprint', fSsh, 'Import bw-ssh/Server-Schluessel']).trim() === 'SHA256:Test', 'Feld SSH fingerprint');
+        expect(xc(['show', '-s', fSsh, 'Import bw-ssh/Mit Passkey']).includes('Password: pw-pk'), 'der Login mit Passkey kommt ohne den Passkey mit');
     });
 
     await step('JSON-Import: Passwords-Backup (Ordner, Tags, Zusatzfelder), Passman (Anhang), Bitwarden (zweite Adresse, TOTP) -> KeePassXC sieht alles; Backup mit Passwort wird abgewiesen', async () => {
@@ -1109,6 +1178,60 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Eintrag loeschen, waehrend ein Abgleich die Fassung eines anderen Geraets noch entschluesselt: der Abgleich nimmt sie nicht, das Loeschen bleibt, das naechste Speichern fuehrt zusammen', async () => {
+        const f = path.join(davRoot, 'pull-delete.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'pull-delete.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.waitForTimeout(1100);
+        xc(['edit', '-q', f, 'Web/Mail', '--url', 'https://anderes.example'], null); // "other device"
+        // The pull's key derivation (Argon2 in a worker) waits until the deletion is done: a long Argon2 run, made reliable
+        await p.evaluate(() => {
+            const send = Worker.prototype.postMessage;
+            let open;
+            const gate = new Promise((r) => { open = r; });
+            window.kdfHold = { waiting: 0, release: () => { Worker.prototype.postMessage = send; open(); } };
+            Worker.prototype.postMessage = function (...args) { window.kdfHold.waiting++; gate.then(() => send.apply(this, args)); };
+        });
+        await p.keyboard.press('Control+s'); // no changes of our own: a sync, which pulls
+        await p.waitForFunction(() => window.kdfHold.waiting === 1, null, { timeout: 15000 });
+        await p.keyboard.press('Delete'); // the open entry goes to the recycle bin
+        await waitStatus(p, /^In den Papierkorb/);
+        await p.evaluate(() => window.kdfHold.release());
+        await p.keyboard.press('Control+s'); // queued behind the pull: merges with the other device's version
+        await waitStatus(p, /zusammengef/, 60000); // three key derivations in a row (pull, conflict, save), on the file the KDF step above strengthened
+        expect(await rows(p).filter({ hasText: 'Konto' }).count() === 0, 'Konto ist nach dem Abgleich wieder in der Liste');
+        const ls = (g) => xc(['ls', f, g]).split('\n').map((l) => l.trim());
+        expect(!ls('Bank').includes('Konto'), 'Konto liegt auf dem Server noch in Bank: ' + ls('Bank').join(', '));
+        expect(ls('Recycle Bin').includes('Konto'), 'Konto fehlt im Papierkorb auf dem Server: ' + ls('Recycle Bin').join(', '));
+        expect(xc(['show', f, 'Web/Mail']).includes('https://anderes.example'), 'Aenderung des anderen Geraets fehlt');
+        await p.context().close();
+    });
+
+    await step('Verschieben-Dialog bleibt offen, waehrend ein Abgleich die Datenbank tauscht: verschoben wird der Eintrag der neuen Fassung, kein zweiter mit derselben UUID', async () => {
+        const f = path.join(davRoot, 'pull-dialog.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await p.evaluate(() => localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: '5' }))); // syncs when the tab becomes visible again
+        await p.reload();
+        await login(p, 'pull-dialog.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#entry-more'); await p.locator('.menu-item', { hasText: 'Verschieben' }).click();
+        await p.locator('.modal select').waitFor();
+        await p.waitForTimeout(1100);
+        xc(['edit', '-q', f, 'Web/Mail', '--url', 'https://anderes.example'], null); // "other device"
+        await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); // back in the tab: a background sync, which pulls under the open dialog
+        await waitStatus(p, /^Änderungen von einem anderen/);
+        await p.locator('.modal select').selectOption({ label: 'Web' });
+        await p.click('.modal button[type=submit]');
+        await p.keyboard.press('Control+s'); await waitStatus(p, /^Gespeichert\./);
+        const ls = (g) => xc(['ls', f, g]).split('\n').map((l) => l.trim());
+        expect(ls('Web').includes('Konto') && !ls('Bank').includes('Konto'), `Konto in Web: ${ls('Web').join(', ')} / in Bank: ${ls('Bank').join(', ')}`);
+        expect(xc(['show', f, 'Web/Mail']).includes('https://anderes.example'), 'Aenderung des anderen Geraets fehlt');
+        await p.context().close();
+    });
+
     await step('Strg+S zweimal schnell ohne eigene Aenderungen: der Editor oeffnet sich auch nicht, wenn der erste Abgleich schon zu Ende ist und der zweite noch laeuft', async () => {
         const f = path.join(davRoot, 'doublesave.kdbx');
         fs.copyFileSync(f4, f);
@@ -1206,6 +1329,133 @@ async function main() {
         await p.context().close();
     });
 
+    // The test server misbehaves for one file at a time (davserver.mjs, options.fault); every step switches that off again when it ends.
+    const faulty = async (fault, fn) => { srvOptions.fault = fault; try { return await fn(); } finally { srvOptions.fault = null; } };
+    const editKonto = async (p, user) => {
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', user); await p.click('#apply-btn');
+    };
+    const bannerText = (p) => p.locator('#ro-text').textContent();
+    /** Closing the tab: true if the page asked first (it stays open then), false if it simply closed. */
+    async function leaveAsks(p) {
+        let onDialog, onClose;
+        const outcome = new Promise((resolve) => {
+            onDialog = (d) => { if (d.type() === 'beforeunload') { resolve(true); d.dismiss().catch(() => {}); } };
+            onClose = () => resolve(false);
+            p.on('dialog', onDialog); p.on('close', onClose);
+            setTimeout(() => resolve(null), 8000);
+        });
+        await p.close({ runBeforeUnload: true });
+        const asked = await outcome;
+        p.off('dialog', onDialog); p.off('close', onClose);
+        expect(asked !== null, 'Tab hat weder gefragt noch sich geschlossen');
+        return asked;
+    }
+
+    await step('Server voll (507) beim Speichern: klare Meldung, Banner mit "Kopie speichern" (der Download hat die Aenderung), nach dem Aufraeumen speichert er normal', async () => {
+        const f = path.join(davRoot, 'full.kdbx');
+        fs.copyFileSync(f4, f);
+        const before = fs.readFileSync(f);
+        const p = await newPage();
+        await login(p, 'full.kdbx'); await rows(p).first().waitFor();
+        await faulty((m, rel) => (m === 'PUT' && rel.startsWith('full.kdbx') ? 507 : undefined), async () => { // the backup copy too
+            await editKonto(p, 'kein-platz');
+            await p.click('#save-btn');
+            await waitStatus(p, /kein Platz mehr frei/);
+            expect(await p.locator('#readonly-banner').isVisible() && await p.locator('#ro-copy').isVisible(), 'Banner mit "Kopie speichern" fehlt');
+            expect(/Gib etwas Platz frei/.test(await bannerText(p)), 'Banner nennt den falschen Grund: ' + await bannerText(p));
+            expect(await p.locator('#ro-recreate').isHidden(), '"Datei wieder anlegen" passt nicht zu einem vollen Server');
+            expect(/Speichern \*/.test(await p.locator('#save-btn').innerText()), 'Aenderung muss als ungespeichert markiert bleiben');
+            const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#ro-copy')]);
+            const copy = path.join(tmp, 'full-copy.kdbx'); fs.copyFileSync(await dl.path(), copy);
+            expect(xc(['show', copy, 'Bank/Konto']).includes('kein-platz'), 'Kopie enthaelt die Aenderung nicht');
+            expect(Buffer.compare(before, fs.readFileSync(f)) === 0, 'Datei auf dem Server wurde veraendert');
+        });
+        await p.click('#save-btn'); // space again
+        await waitStatus(p, /^Gespeichert\./);
+        expect(await p.locator('#readonly-banner').isHidden(), 'Banner bleibt nach dem Speichern stehen');
+        expect(xc(['show', f, 'Bank/Konto']).includes('kein-platz'), 'Aenderung nicht auf dem Server');
+        await p.context().close();
+    });
+
+    await step('Datei auf dem Server gesperrt (423): eigene Meldung und Banner mit "Kopie speichern", nach dem Entsperren speichert sie normal', async () => {
+        const f = path.join(davRoot, 'locked.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'locked.kdbx'); await rows(p).first().waitFor();
+        await faulty((m, rel) => (m === 'PUT' && rel === 'locked.kdbx' ? 423 : undefined), async () => {
+            await editKonto(p, 'war-gesperrt');
+            await p.click('#save-btn');
+            await waitStatus(p, /gesperrt/);
+            expect(await p.locator('#readonly-banner').isVisible() && await p.locator('#ro-copy').isVisible(), 'Banner mit "Kopie speichern" fehlt');
+            expect(/gesperrt/.test(await bannerText(p)), 'Banner nennt den falschen Grund: ' + await bannerText(p));
+        });
+        await p.click('#save-btn');
+        await waitStatus(p, /^Gespeichert\./);
+        expect(await p.locator('#readonly-banner').isHidden(), 'Banner bleibt nach dem Speichern stehen');
+        expect(xc(['show', f, 'Bank/Konto']).includes('war-gesperrt'), 'Aenderung nicht auf dem Server');
+        await p.context().close();
+    });
+
+    await step('Datei auf dem Server geloescht: Speichern sagt das und legt sie nicht still neu an, Banner mit "Datei wieder anlegen" und "Kopie speichern"; Wieder-Anlegen bringt sie mit der Aenderung zurueck', async () => {
+        const f = path.join(davRoot, 'gone.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'gone.kdbx'); await rows(p).first().waitFor();
+        await editKonto(p, 'wieder-da');
+        fs.rmSync(f); // deleted (or moved away) on another device
+        await p.click('#save-btn');
+        await waitStatus(p, /nicht mehr auf dem Server/);
+        expect(!fs.existsSync(f), 'Speichern hat die geloeschte Datei von selbst neu angelegt');
+        expect(await p.locator('#readonly-banner').isVisible() && await p.locator('#ro-copy').isVisible() && await p.locator('#ro-recreate').isVisible(), 'Banner mit beiden Angeboten fehlt');
+        expect(/verschoben oder gelöscht/.test(await bannerText(p)), 'Banner nennt den falschen Grund: ' + await bannerText(p));
+        expect(await p.locator('#new-btn').evaluate((b) => getComputedStyle(b).opacity) === '1', 'Neu darf nicht abgedunkelt sein: das ist kein Lesemodus');
+        await p.click('#ro-recreate');
+        await waitStatus(p, /wieder auf dem Server/);
+        expect(xc(['show', f, 'Bank/Konto']).includes('wieder-da'), 'Aenderung fehlt in der wieder angelegten Datei');
+        expect(await p.locator('#readonly-banner').isHidden(), 'Banner bleibt stehen');
+        await editKonto(p, 'danach-normal'); // from here on it saves the usual way, against the new ETag
+        await p.click('#save-btn');
+        await waitStatus(p, /^Gespeichert\./);
+        expect(xc(['show', f, 'Bank/Konto']).includes('danach-normal'), 'zweite Aenderung nicht auf dem Server');
+        await p.context().close();
+    });
+
+    await step('Speichern, auf das der Server nie antwortet (ohne Offline-Kopie): nach der Wartezeit eine klare Meldung statt endlosem Warten, die Aenderung bleibt ungespeichert, das naechste Speichern klappt', async () => {
+        const f = path.join(davRoot, 'noanswer.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage('?davtimeout=2');
+        await login(p, 'noanswer.kdbx'); await rows(p).first().waitFor();
+        await faulty((m, rel) => (m === 'PUT' && rel === 'noanswer.kdbx' ? 'hang' : undefined), async () => {
+            await editKonto(p, 'ohne-antwort');
+            await p.click('#save-btn');
+            await waitStatus(p, /nicht rechtzeitig geantwortet/, 20000);
+            expect(/Speichern \*/.test(await p.locator('#save-btn').innerText()), 'Aenderung muss als ungespeichert markiert bleiben');
+        });
+        await p.click('#save-btn');
+        await waitStatus(p, /^Gespeichert\./);
+        expect(xc(['show', f, 'Bank/Konto']).includes('ohne-antwort'), 'Aenderung nicht auf dem Server');
+        await p.context().close();
+    });
+
+    await step('Tab schliessen (ohne Offline-Kopie): fragt bei ungespeicherten Aenderungen und auch noch, waehrend das Speichern laeuft; nicht mehr, sobald alles auf dem Server ist', async () => {
+        const f = path.join(davRoot, 'leave.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'leave.kdbx'); await rows(p).first().waitFor();
+        await editKonto(p, 'beim-gehen');
+        expect(await leaveAsks(p), 'keine Rueckfrage bei einer ungespeicherten Aenderung');
+        await faulty((m, rel) => (m === 'PUT' && rel === 'leave.kdbx' ? { delay: 4000 } : undefined), async () => {
+            await p.click('#save-btn');
+            await p.waitForTimeout(1000); // dirty is false by now, the PUT is on its way
+            expect(await leaveAsks(p), 'keine Rueckfrage, waehrend das Speichern noch laeuft');
+            await waitStatus(p, /^Gespeichert\./, 20000);
+        });
+        expect(xc(['show', f, 'Bank/Konto']).includes('beim-gehen'), 'Aenderung nicht auf dem Server');
+        expect(!(await leaveAsks(p)), 'Rueckfrage, obwohl alles gespeichert ist');
+        await p.context().close();
+    });
+
     await step('Strg+S bei offenem Editor und schmutzigem Tresor: Rueckfrage statt Merge, die getippte Eingabe bleibt; nach dem Uebernehmen wird zusammengefuehrt', async () => {
         const f = path.join(davRoot, 'editmerge.kdbx');
         fs.copyFileSync(f4, f);
@@ -1227,6 +1477,256 @@ async function main() {
         expect(xc(['show', '-s', f, 'Bank/Konto'], null).includes('pw-entwurf'), 'Eingabe fehlt nach dem Zusammenfuehren');
         expect(xc(['show', f, 'Web/Mail']).includes('erste-aenderung'), 'erste Aenderung fehlt nach dem Zusammenfuehren');
         await p.context().close();
+    });
+
+    // A save with changes of our own doesn't keep the editor shut: it may open while the upload is still on its way. The test holds that
+    // upload back until the editor is open and typed into, then lets it run into the conflict with the "other device".
+    const editDuringMerge = async (file, otherDevice) => {
+        const f = path.join(davRoot, file);
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        let release; const held = new Promise((res) => { release = res; });
+        await p.route(`**/dav/${file}`, async (r) => { if (r.request().method() === 'PUT') await held; return r.continue(); });
+        await login(p, file); await rows(p).first().waitFor();
+        await p.click('#new-btn'); await p.fill('#e-title', 'Lokal-neu'); await p.click('#apply-btn'); // the vault is dirty
+        await p.waitForTimeout(1100);
+        otherDevice(f);
+        await p.click('#save-btn');
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-pass', 'pw-tippt-weiter'); await p.fill('#e-notes', 'Notiz im Entwurf');
+        release();
+        await waitStatus(p, /zusammengef/);
+        expect(await p.locator('#e-pass').count() === 1, 'Editor nach dem Zusammenfuehren zu');
+        expect(await p.inputValue('#e-pass') === 'pw-tippt-weiter' && await p.inputValue('#e-notes') === 'Notiz im Entwurf', 'Eingabe im Editor ging beim Zusammenfuehren verloren: ' + await p.inputValue('#e-pass'));
+        return { p, f };
+    };
+
+    await step('Zusammenfuehren bei offenem Editor (das Speichern lief schon): die getippte Eingabe bleibt stehen und kommt auf den Server, die fremde Aenderung auch', async () => {
+        const { p, f } = await editDuringMerge('editkeep.kdbx', (f) => xc(['edit', '-q', f, 'Web/Mail', '--url', 'https://anderswo.example'], null));
+        expect(!(await p.locator('#e-gone').isVisible()), 'Hinweis "geloescht" bei einem Eintrag, den es noch gibt');
+        await p.click('#apply-btn');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        const k = xc(['show', '-s', f, 'Bank/Konto'], null);
+        expect(k.includes('pw-tippt-weiter') && k.includes('Notiz im Entwurf'), 'Eingabe fehlt auf dem Server: ' + k);
+        expect(xc(['show', f, 'Web/Mail']).includes('https://anderswo.example') && /Lokal-neu/.test(xc(['ls', '-R', f])), 'Aenderung des anderen Geraets oder die eigene fehlt');
+        await p.context().close();
+    });
+
+    await step('Eintrag waehrend des Bearbeitens anderswo endgueltig geloescht: Hinweis im Editor, die Eingabe bleibt, Uebernehmen legt ihn samt Anhang neu an statt ins Leere zu schreiben', async () => {
+        const { p, f } = await editDuringMerge('editgone.kdbx', (f) => {
+            xc(['rm', '-q', f, 'Bank/Konto'], null); // into the recycle bin first, from there for good (a tombstone in the file)
+            const binned = xc(['ls', '-R', '-f', f]).split('\n').find((l) => /\/Konto$/.test(l));
+            xc(['rm', '-q', f, binned], null);
+        });
+        await p.locator('#e-gone').waitFor();
+        await p.click('#apply-btn');
+        await waitStatus(p, /neuer Eintrag/);
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        const k = xc(['show', '-s', f, 'Bank/Konto'], null);
+        expect(k.includes('pw-tippt-weiter') && k.includes('Notiz im Entwurf'), 'Eintrag nicht neu angelegt: ' + k);
+        const att = path.join(tmp, 'editgone-anhang.txt');
+        xc(['attachment-export', '-q', f, 'Bank/Konto', 'anhang.txt', att], null);
+        expect(fs.readFileSync(att, 'utf8') === 'anhang-inhalt\n', 'Anhang fehlt am neu angelegten Eintrag');
+        await p.context().close();
+    });
+
+    await step('Sperren von Hand mit getippter, nicht uebernommener Eingabe im Editor: Rueckfrage, "Weiter bearbeiten" behaelt alles; ohne Aenderung sperrt es wie bisher sofort', async () => {
+        const p = await newPage();
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-pass', 'pw-nicht-weg');
+        await p.click('#lock-btn');
+        await p.locator('#confirm-cancel').waitFor();
+        expect(/nicht übernommen/.test(await p.locator('.modal').innerText()), 'Rueckfrage nennt den Editor nicht: ' + await p.locator('.modal').innerText());
+        await p.click('#confirm-cancel');
+        expect(await p.locator('#login-form').count() === 0 && await p.inputValue('#e-pass') === 'pw-nicht-weg', 'Weiter bearbeiten: Editor und Eingabe muessen bleiben');
+        await p.keyboard.press('Control+l');
+        await p.click('#confirm-ok');
+        await p.locator('#login-form').waitFor();
+        expect(!/pw-nicht-weg|Konto/.test(await p.content()), 'Nach dem Sperren stehen noch Daten im DOM');
+        // typed and taken back again: nothing differs, the lock doesn't ask
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn');
+        const user = await p.inputValue('#e-user');
+        await p.fill('#e-user', 'nur-kurz'); await p.fill('#e-user', user);
+        await p.click('#lock-btn');
+        await p.locator('#login-form').waitFor();
+        expect(await p.locator('#confirm-ok').count() === 0, 'Rueckfrage, obwohl im Editor nichts geaendert ist');
+        await p.context().close();
+    });
+
+    await step('Auto-Sperre mit getippter Eingabe im Editor (sonst nichts ungespeichert): Sperrbildschirm statt Anmeldung, der Entwurf steht nicht im DOM; nach dem Entsperren ist der Editor mit der Eingabe wieder da', async () => {
+        const f = path.join(davRoot, 'draftlock.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage('?autolock=5');
+        await login(p, 'draftlock.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-pass', 'pw-entwurf-gesperrt'); await p.fill('#e-title', 'Konto-Entwurf');
+        await p.click('#e-show'); // the password shows as text: it has to leave the page all the same
+        await p.locator('#softlock-form').waitFor({ timeout: 20000 });
+        expect(!/pw-entwurf-gesperrt|Konto/.test(await p.content()), 'Auf dem Sperrbildschirm stehen noch Daten im DOM');
+        expect(await p.evaluate(() => [...document.querySelectorAll('input, textarea')].every((x) => !/pw-entwurf/.test(x.value))), 'Entwurf steckt noch in einem Eingabefeld');
+        expect(await p.locator('#softlock-editing').isVisible(), 'Hinweis auf den Entwurf fehlt');
+        await p.waitForTimeout(7000); // the soft lock doesn't turn into the real one: that would throw the draft away
+        expect(await p.locator('#softlock-form').count() === 1 && await p.locator('#login-form').count() === 0, 'Soft-Lock kippt in die echte Sperre');
+        await p.fill('#sl-master', PW); await p.click('#sl-unlock');
+        await p.locator('#e-pass').waitFor();
+        // one look, then Apply and Ctrl+S right away: the 5-second idle lock is running again (if it comes first, it saves on its own)
+        const back = await p.evaluate(() => [document.querySelector('#e-pass').value, document.querySelector('#e-title').value, !!document.querySelector('#confirm-ok')]);
+        expect(back[0] === 'pw-entwurf-gesperrt' && back[1] === 'Konto-Entwurf', 'Entwurf nach dem Entsperren weg: ' + back.slice(0, 2));
+        expect(!back[2], 'Speichern-Angebot, obwohl im Tresor nichts ungespeichert ist');
+        await p.click('#apply-btn'); await p.keyboard.press('Control+s');
+        const saved = () => /Konto-Entwurf/.test(xc(['ls', '-R', f]));
+        for (let i = 0; i < 20 && !saved(); i++) await new Promise((r) => setTimeout(r, 500));
+        expect(saved() && xc(['show', '-s', f, 'Bank/Konto-Entwurf'], null).includes('pw-entwurf-gesperrt'), 'Entwurf kam nicht auf dem Server an');
+        await p.context().close();
+    });
+
+    await step('Sperren von Hand, die Rueckfrage zum Editor bleibt unbeantwortet: die Auto-Sperre schliesst sie und sperrt weich, statt den Tresor offen stehen zu lassen; der Entwurf bleibt', async () => {
+        const p = await newPage('?autolock=5');
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#edit-btn'); await p.fill('#e-user', 'weggegangen');
+        await p.click('#lock-btn'); await p.locator('#confirm-ok').waitFor();
+        await p.locator('#softlock-form').waitFor({ timeout: 20000 });
+        expect(await p.locator('.modal').count() === 0 && !/weggegangen/.test(await p.content()), 'Rueckfrage oder Entwurf noch auf dem Bildschirm');
+        await p.fill('#sl-master', PW); await p.click('#sl-unlock');
+        await p.locator('#e-user').waitFor();
+        expect(await p.locator('#e-user').evaluate((x) => x.value) === 'weggegangen', 'Entwurf nach dem Entsperren weg');
+        await p.context().close();
+    });
+
+    await step('Uebernehmen ohne Aenderung an einem KeePass-Eintrag mit " PIN " neben "PIN", "Title ", "otp ", Windows-Zeilenenden und Ablauf ohne Datum: kein Fehler, nichts geaendert; ein getippter Name, den es schon gibt, wird abgelehnt', async () => {
+        const f = path.join(davRoot, 'altlast.kdbx');
+        const py = (lines) => execFileSync('python3', ['-I', '-c', lines.join('\n')]).toString();
+        py(['from pykeepass import create_database',
+            `kp = create_database(${JSON.stringify(f)}, password=${JSON.stringify(PW)})`,
+            "e = kp.add_entry(kp.root_group, 'Altlast', 'anna', 'pw', notes='Zeile 1\\r\\nZeile 2')", // lxml writes the \r as &#13;: it reaches the browser
+            "for k, v in [('PIN', '1234'), (' PIN ', 'alt'), ('Title ', 'kein Titel'), ('otp ', 'kein TOTP')]: e.set_custom_property(k, v)",
+            'e.expires = True',
+            "t = e._element.find('Times/ExpiryTime'); t.getparent().remove(t)", // "expires", but no date (KeePass files can hold that)
+            'kp.save()']);
+        const p = await newPage();
+        await login(p, 'altlast.kdbx'); await rows(p).first().waitFor();
+        await rows(p).filter({ hasText: 'Altlast' }).click();
+        await p.click('#edit-btn');
+        const names = await p.locator('#e-custom .c-name').evaluateAll((xs) => xs.map((x) => x.value).sort());
+        expect(JSON.stringify(names) === JSON.stringify([' PIN ', 'PIN', 'Title ', 'otp ']), 'Zusatzfelder im Editor: ' + JSON.stringify(names));
+        expect(await p.locator('#e-expires').isChecked() && await p.inputValue('#e-expiry') === '', 'Ablauf ohne Datum: Haken an, Datum leer');
+        await p.click('#apply-btn');
+        await waitStatus(p, /^Übernommen/);
+        expect(await p.locator('#edit-form').count() === 0, 'Editor nach dem Uebernehmen noch offen');
+        expect(await p.locator('#save-btn').isDisabled(), 'Uebernehmen ohne Aenderung hat den Eintrag geaendert (Namen, Zeilenenden oder Ablauf)');
+        // typed names: trimmed, but never onto a field that is there already
+        await p.click('#edit-btn');
+        await p.click('#add-custom');
+        const newName = p.locator('#e-custom .c-name').last();
+        await newName.fill('PIN '); await p.locator('#e-custom .c-value').last().fill('neu');
+        await p.click('#apply-btn');
+        await waitStatus(p, /Zwei Felder heißen „PIN“/);
+        expect(await p.locator('#edit-form').count() === 1 && await newName.evaluate((x) => x === document.activeElement), 'Editor zu oder der doppelte Name hat nicht den Fokus');
+        await newName.fill('Title'); await p.click('#apply-btn');
+        await waitStatus(p, /„Title“ ist schon vergeben/);
+        await newName.fill(' PIN neu '); await p.fill('#e-user', 'anna-neu');
+        await p.click('#apply-btn'); await waitStatus(p, /^Übernommen/);
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert/);
+        const out = JSON.parse(py(['import json', 'from datetime import datetime, timezone', 'from pykeepass import PyKeePass', `kp = PyKeePass(${JSON.stringify(f)}, password=${JSON.stringify(PW)})`,
+            "e = kp.find_entries(title='Altlast', first=True)",
+            "print(json.dumps({'props': e.custom_properties, 'history': len(e.history), 'user': e.username, 'notes': e.notes, 'days': (e.expiry_time - datetime.now(timezone.utc)).days if e.expires and e.expiry_time else None}))"]));
+        const props = { PIN: '1234', ' PIN ': 'alt', 'Title ': 'kein Titel', 'otp ': 'kein TOTP', 'PIN neu': 'neu' };
+        expect(Object.keys(props).length === Object.keys(out.props).length && Object.entries(props).every(([k, v]) => out.props[k] === v), 'Zusatzfelder in der Datei: ' + JSON.stringify(out.props));
+        expect(out.history === 1 && out.user === 'anna-neu', `Verlauf ${out.history} (1 erwartet), Benutzer ${out.user}`);
+        expect(out.notes.replace(/\r/g, '') === 'Zeile 1\nZeile 2', 'Notiz: ' + JSON.stringify(out.notes));
+        expect(out.days >= 364 && out.days <= 365, 'Ablauf blieb an, mit einem Datum in einem Jahr: ' + out.days);
+        await p.context().close();
+    });
+
+    await step('Uebernehmen mit Anhang zweimal schnell hintereinander (Doppelklick, dazu Strg+Enter): ein neuer Eintrag, nicht zwei', async () => {
+        const f = path.join(davRoot, 'doppelt.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'doppelt.kdbx'); await rows(p).first().waitFor();
+        await p.click('#new-btn'); await p.fill('#e-title', 'Doppelklick');
+        await p.setInputFiles('#att-input', { name: 'beleg.txt', mimeType: 'text/plain', buffer: Buffer.from('beleg\n') });
+        // all in one go, while the first Apply still stores the attachment
+        await p.evaluate(() => { const b = document.querySelector('#apply-btn'); b.click(); b.click(); document.querySelector('#edit-form').requestSubmit(); });
+        await waitStatus(p, /^Übernommen/);
+        await p.waitForTimeout(500);
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert/);
+        const n = xc(['ls', '-R', '-f', f]).split('\n').filter((l) => /Doppelklick$/.test(l)).length;
+        expect(n === 1, `${n} Eintraege "Doppelklick" in der Datei`);
+        await p.context().close();
+    });
+
+    await step('Editor mit nicht uebernommener Eingabe verlassen (anderer Eintrag, "Neu", Befehlspalette, Suche + Enter, Escape): Rueckfrage, "Weiter bearbeiten" behaelt alles, "Verwerfen" geht weiter; eine Gruppe in der Seitenleiste laesst den Editor stehen', async () => {
+        const p = await newPage();
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        const row = (title) => p.locator('[data-testid=entry-row]', { hasText: title });
+        await row('Konto').click(); await p.click('#edit-btn'); await p.fill('#e-pass', 'pw-nicht-verlieren');
+        const keep = async (what) => {
+            await p.locator('#confirm-cancel').waitFor({ timeout: 5000 }).catch(() => { throw new Error(`${what}: keine Rueckfrage`); });
+            expect(/noch nicht übernommen/.test(await p.locator('.modal').innerText()), `${what}: Text der Rueckfrage`);
+            await p.click('#confirm-cancel');
+            expect(await p.locator('.modal').count() === 0 && await p.inputValue('#e-pass') === 'pw-nicht-verlieren', `${what}: Editor oder Eingabe weg`);
+        };
+        await row('Mail').click(); await keep('anderer Eintrag');
+        await p.click('#new-btn'); await keep('Neu');
+        await p.keyboard.press('Control+k'); await p.fill('#palette-input', 'Mail'); await p.keyboard.press('Enter'); await keep('Befehlspalette, Eintrag');
+        await p.keyboard.press('Control+k'); await p.fill('#palette-input', 'Neuer Eintrag'); await p.keyboard.press('Enter'); await keep('Befehlspalette, neuer Eintrag');
+        await p.fill('#search', 'Mail'); await p.keyboard.press('ArrowDown'); await p.keyboard.press('Enter'); await keep('Suche');
+        await p.fill('#search', '');
+        await p.locator('#gen-btn').focus(); await p.keyboard.press('Escape'); await keep('Escape');
+        // another group: the list changes, the editor stays with what was typed
+        await p.locator('.tree-row', { hasText: 'Web' }).first().locator('.tree-label').click();
+        await row('Mail').waitFor();
+        expect(await p.locator('.modal').count() === 0 && await p.inputValue('#e-pass') === 'pw-nicht-verlieren', 'Gruppe gewechselt: Editor oder Eingabe weg');
+        // Discard: on to the other entry, the typed password went nowhere
+        await row('Mail').click(); await p.click('#confirm-ok');
+        await p.waitForFunction(() => document.querySelector('[data-testid=f-title]')?.textContent === 'Mail');
+        expect(await p.locator('#edit-form').count() === 0 && !(await p.content()).includes('pw-nicht-verlieren'), 'Verwerfen: Editor oder Eingabe noch da');
+        // nothing changed: no question
+        await p.click('#edit-btn');
+        const user = await p.inputValue('#e-user');
+        await p.fill('#e-user', 'kurz'); await p.fill('#e-user', user);
+        await p.click('#new-btn');
+        await p.waitForFunction(() => document.querySelector('#edit-form h2')?.textContent === 'Neuer Eintrag');
+        expect(await p.locator('.modal').count() === 0, 'Rueckfrage ohne Aenderung');
+        await p.context().close();
+    });
+
+    await step('Tab schliessen mit nicht uebernommener Eingabe im Editor, offen oder im Sperrbildschirm geparkt: der Browser fragt nach (beforeunload); ohne Aenderung nicht', async () => {
+        // the dialog's type ("Stay on page" is chosen), or null if the page simply closed
+        const closeAsks = async (p) => {
+            const asked = new Promise((res) => { p.once('dialog', async (d) => { const type = d.type(); await d.dismiss(); res(type); }); p.once('close', () => res(null)); });
+            await p.close({ runBeforeUnload: true });
+            return Promise.race([asked, new Promise((res) => setTimeout(() => res('weder Dialog noch geschlossen'), 10000))]);
+        };
+        let p = await newPage();
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click(); await p.click('#edit-btn');
+        await p.click('#e-user'); // the page has been used (browsers only ask after that)
+        let ctx = p.context();
+        expect(await closeAsks(p) === null, 'Rueckfrage beim Schliessen, obwohl im Editor nichts geaendert ist');
+        await ctx.close();
+        p = await newPage();
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click(); await p.click('#edit-btn');
+        await p.fill('#e-pass', 'pw-tab-zu');
+        const asked = await closeAsks(p);
+        expect(asked === 'beforeunload', 'Keine Rueckfrage beim Schliessen mit Eingabe im Editor: ' + asked);
+        expect(await p.inputValue('#e-pass') === 'pw-tab-zu', 'Seite nach "Bleiben" ohne Eingabe');
+        await p.context().close();
+        // the draft waits in the soft lock (nothing else unsaved)
+        p = await newPage('?autolock=5');
+        await login(p, 'vault4.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click(); await p.click('#edit-btn');
+        await p.fill('#e-pass', 'pw-geparkt');
+        await p.locator('#softlock-form').waitFor({ timeout: 20000 });
+        ctx = p.context();
+        const parked = await closeAsks(p);
+        expect(parked === 'beforeunload', 'Keine Rueckfrage beim Schliessen mit geparktem Entwurf: ' + parked);
+        await ctx.close();
     });
 
     await step('Datenschutz/Sicherheit: keine externen Anfragen, keine JS-Fehler, CSP gesetzt, Server sah nie Klartext', async () => {
