@@ -3,7 +3,7 @@ import { isOffline } from '../webdav.js';
 import { ARGON2_WORKER_URL } from '../argon2.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus, download, SW_CACHE, SYNC_RETRY_MS, LOCK_WAIT_MS, params } from './ctx.js';
-import { $, confirmDialog, toast } from './dom.js';
+import { $, confirmDialog, closeAllDialogs, toast } from './dom.js';
 import { setNcHeaderOffline } from './ncheader.js';
 import { fmtDate } from '../i18n.js';
 
@@ -149,6 +149,7 @@ export function refreshSyncState() {
 
 export function rebind() {
     // After the database was swapped (changes from other devices), selection references point to old objects: re-resolve them via UUID.
+    // An open editor does the same for its entry and group on the redraw that follows, and keeps what was typed (editor.js relocate).
     const v = state.vault;
     const f = state.filter;
     if (f.group) { const g = v.db.getGroup(f.group.uuid); if (g) f.group = g; else state.filter = { type: 'all' }; }
@@ -276,7 +277,18 @@ export function confirmDiscard() {
     return confirmDialog({ title: t('lock'), message: t('lock.unsaved'), confirmLabel: t('lock.anyway'), cancelLabel: t('cancel'), danger: true });
 }
 
+/** Typed into the entry editor and not applied: "Lock and throw it away?" Cancel keeps editing. */
+function confirmEditorDiscard() {
+    return confirmDialog({ title: t('lock'), message: t('lock.editing'), confirmLabel: t('lock.editing.discard'), cancelLabel: t('lock.editing.keep'), danger: true });
+}
+
 let locking = null;
+let lockAsks = false; // a lock by hand waits for the answer to one of the questions above
+
+async function ask(question) {
+    lockAsks = true;
+    try { return await question(); } finally { lockAsks = false; }
+}
 
 /** Did the saves and syncs started so far end within ms? */
 async function settledWithin(vault, ms) {
@@ -292,6 +304,9 @@ export function lock(message) {
 
 async function doLock(message) {
     const auto = state.autoLockRequest === true;
+    // Typed into the editor and not applied (a new password, say, still to be pasted into a website): by hand we ask first. The auto-lock
+    // can't ask: it takes the soft lock further down, which keeps the draft in memory and brings the editor back after unlocking.
+    if (!auto && ctx.ui.editorChanged?.() && !(await ask(confirmEditorDiscard))) return;
     // A save or sync in flight has already cleared the dirty flag: wait for its outcome, it decides what is still unsaved.
     // A request that never answers must not keep the entries on screen: after LOCK_WAIT_MS we treat the changes as unsaved.
     const stuck = state.vault ? !(await settledWithin(state.vault, LOCK_WAIT_MS)) : false;
@@ -301,12 +316,13 @@ async function doLock(message) {
         if (v.dirty && !stuck) await doSave({ auto: true });
         if (stuck || state.vault?.unsaved) {
             if (auto) { softLock(message); return; }
-            if (!(await confirmDiscard())) return;
+            if (!(await ask(confirmDiscard))) return;
         }
     } else if (v?.dirty || stuck) {
         if (auto) { softLock(message); return; }
-        if (!(await confirmDiscard())) return;
+        if (!(await ask(confirmDiscard))) return;
     }
+    if (auto && ctx.ui.editorChanged?.()) { softLock(message); return; } // nothing else unsaved, but locking for real would throw the draft away
     clearTimeout(autoSaveTimer);
     ctx.ui.showLogin(message ?? t('locked'));
 }
@@ -326,18 +342,22 @@ function softLock(message) {
  * A save that was still running when the soft lock came up may end well after all: then nothing is unsaved anymore, the note
  * on the lock screen is wrong, and the entries would stay decrypted for no reason. Once the last save or sync is over and
  * nothing would be lost (Vault.unsaved), the soft lock becomes the real one. That includes a save that ran out of time
- * (webdav.js timeouts) but left its version in the offline copy: like doLock, the next unlock uploads it.
+ * (webdav.js timeouts) but left its version in the offline copy: like doLock, the next unlock uploads it. Not with a draft from the
+ * editor kept in it: that is still unsaved.
  */
 async function lockOnceSaved(v, message) {
     let chain;
     do { chain = v.settled(); await chain; } while (chain !== v.settled()); // a save queued meanwhile counts, too
-    if (!state.softLocked || state.vault !== v || v.unsaved) return;
+    if (!state.softLocked || state.vault !== v || v.unsaved || state.editing) return;
     clearTimeout(autoSaveTimer);
     ctx.ui.showLogin(message ?? t('locked'));
 }
 
 /** The idle timer and the hidden tab lock without asking: with changes that can't be saved that means the soft lock (doLock). */
 function autoLock(message) {
+    // A lock by hand still waiting for an answer must not keep the vault open: nobody is there to answer. Closing the question counts
+    // as "no"; a second later the idle timer asks again and this time locks without asking (whatever is unsaved goes into the soft lock).
+    if (lockAsks) { closeAllDialogs(); return; }
     state.autoLockRequest = true;
     lock(message).finally(() => { state.autoLockRequest = false; });
 }
