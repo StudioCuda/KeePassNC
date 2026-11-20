@@ -520,7 +520,7 @@ async function main() {
             // a click into the field waits for the paste, and the paste shows what is on the clipboard
             await page.click('#search'); await page.keyboard.press('Control+v');
             expect(await page.inputValue('#search') === 'anderswo kopiert', 'eingefuegt: ' + await page.inputValue('#search'));
-            await waitStatus(page, /^Zwischenablage bleibt/, 5000);
+            await waitStatus(page, /^Zwischenablage nicht geleert/, 5000);
             await page.fill('#search', ''); await page.click('#status'); // a click that would clear if the page didn't know better
             await page.waitForTimeout(500);
             expect(await clipText(tab.page) === 'anderswo kopiert', 'fremder Inhalt geleert: ' + await clipText(tab.page));
