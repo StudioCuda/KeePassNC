@@ -53,8 +53,19 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Closing the tab while a save is still on its way asks first, unless the offline copy already holds your changes.
 - A full server (HTTP 507) is an error that says so, instead of "saved offline" and a quiet retry every 30 seconds forever.
 - A full server, a locked file or a vanished one now gets the banner with "Save a copy", so your changes always have a way out.
+- What you type in the entry editor survives locking. Locking by hand with unapplied changes asks first; the auto-lock takes the unlock screen instead and gives you the editor back afterwards. A merge, Undo or a language switch keeps the open editor too, and if the entry was deleted on another device meanwhile, "Apply" brings your version back as a new entry.
+- Leaving the editor with unapplied changes (another entry, "New", a search hit, `Esc`) asks first, and closing the tab warns.
+- "Apply" keeps field names exactly as they are: `" PIN "` no longer overwrites `PIN`, and fields like `"Title "` no longer vanish. A name you type that's already taken gets a message instead.
+- A quick double click on "Apply" with an attachment no longer makes the entry twice, an expiry without a date no longer stops "Apply", and notes with Windows line breaks no longer get a new history version on every "Apply".
+- Entries with KeePass 2's own TOTP (the `TimeOtp-*` fields) wore the TOTP badge but never showed a code. Now they do: in the entry, behind the quick button and in the CSV export. Same for the KeeOtp plugin's format and a bare secret in the `otp` field.
+- TOTP settings that can't make a code (a broken secret, an unknown algorithm) say so in the entry instead of showing "------" forever, and the quick button tells you rather than copying nothing.
+- A TOTP algorithm spelled `SHA-256`, `HMAC-SHA-256` or `HmacSHA256` works now, not just `SHA256`.
+- The CSV export of an old-style TOTP without settings (`TOTP Seed` alone) left the period empty, and KeePassXC took that as one second after the import. Back to 30 seconds.
+- Bitwarden's Steam Guard codes (`steam://…`) arrive from the import as proper five-character Steam codes.
 
 ### Changed
+- Changing an entry's TOTP in KeePassNC now replaces the older TOTP fields too (`TOTP Seed`, KeePass 2's `TimeOtp-*`), so KeePassXC and KeePass 2 stop making codes from the old secret. The editor shows a TOTP from those fields as well, so you can see, change or remove it.
+- Locking now overwrites the key file and the password hashes of the open database with zeros, right after the last save is through, and the key derivation tidies up its scratch copies too. JavaScript can't promise a spotless memory, but less lingers there now.
 - Nextcloud page: the Content Security Policy also says `form-action 'none'`, like the standalone page, so not even an injected form could send anything anywhere.
 - Standalone pages: the shipped `.htaccess` files also send `Strict-Transport-Security`, so once a browser has been there it never tries plain `http://` again.
 - Strength meter: a password from the "Simple" generator is recognised by its shape and shows the same exact strength everywhere (editor, entry view, health report) instead of a much too high guess. Other passwords show a "≈" before the bits, since they are only estimated.
