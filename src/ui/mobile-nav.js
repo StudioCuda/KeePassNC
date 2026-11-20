@@ -22,13 +22,18 @@ function stepOut() {
     return true;
 }
 
+// history.back() is asynchronous: its popstate can arrive after the next swipe already went deeper again (WebKit takes tens of
+// milliseconds). That popstate is ours, not the Back key, so it must not step out; until it arrives, history.state is stale.
+let ownBack = false;
+
 /** Keeps one history entry while we are deeper than the list, so the Back key lands in the list. */
 function syncHistory() {
+    if (ownBack) return; // the popstate of our own back() re-syncs
     const mine = history.state?.kpncDeep === 1;
     try {
         if (deep() && !mine) history.pushState({ kpncDeep: 1 }, '');
-        else if (!deep() && mine) history.back();
-    } catch { /* no history here (sandboxed frame): the buttons still work */ }
+        else if (!deep() && mine) { ownBack = true; history.back(); }
+    } catch { ownBack = false; /* no history here (sandboxed frame): the buttons still work */ }
 }
 
 let installed = false;
@@ -42,6 +47,7 @@ export function installMobileNav() {
     installed = true;
 
     addEventListener('popstate', () => {
+        if (ownBack) { ownBack = false; syncHistory(); return; }
         if (!$('.shell') || !state.vault) return;
         if (state.editing && deep()) { history.pushState({ kpncDeep: 1 }, ''); return; } // Back never throws away an edit
         stepOut();

@@ -433,6 +433,21 @@ async function main() {
         if (opened) throw new Error('NFC-Variante oeffnet - unerwartet');
     });
 
+    await t('CR LF in Feldern (pykeepass, Windows-Skripte) bleibt beim Speichern erhalten; KeePassXC liest die Datei und zeigt beide Zeilen', async () => {
+        const { db, cred } = await makeDb({ version: 4, cipher: Consts.CipherId.Aes, kdf: Consts.KdfId.Aes });
+        const e = db.createEntry(db.getDefaultGroup());
+        e.fields.set('Title', 'CRLF'); e.fields.set('Notes', 'Zeile eins\r\nZeile zwei'); e.fields.set('Extra', 'a\r\nb');
+        e.fields.set('Unix', 'c\nd');
+        const file = path.join(TMP, 'crlf.kdbx'); await save(db, file);
+        const show = xc(['show', '-s', file, 'CRLF'], file) as string;
+        if (!/Zeile eins\r?\nZeile zwei/.test(show)) throw new Error('KeePassXC zeigt die Notiz nicht zweizeilig:\n' + show);
+        const back = await Kdbx.load(ab(fs.readFileSync(file)), cred);
+        const got = (k: string) => back.getDefaultGroup().entries[0].fields.get(k);
+        if (got('Notes') !== 'Zeile eins\r\nZeile zwei' || got('Extra') !== 'a\r\nb' || got('Unix') !== 'c\nd') {
+            throw new Error('nach dem Speichern: ' + JSON.stringify([got('Notes'), got('Extra'), got('Unix')]));
+        }
+    });
+
     await t('Zeitstempel "never" (alle Bits gesetzt, wie ihn manche Apps schreiben) wird gelesen statt "too large number"', async () => {
         const node = new (require('@xmldom/xmldom').DOMParser)().parseFromString('<ExpiryTime/>', 'application/xml').documentElement;
         for (const bytes of [new Uint8Array(8).fill(0xff), new Uint8Array([0, 0, 0, 0, 0, 0, 0x20, 0])]) {
