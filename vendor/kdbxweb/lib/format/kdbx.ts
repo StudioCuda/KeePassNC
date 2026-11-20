@@ -202,6 +202,13 @@ export class Kdbx {
         toGroup: KdbxGroup | undefined | null,
         atIndex?: number
     ): void {
+        // A group moved into itself or one of its subgroups is cut off from the tree and vanishes on saving, with everything
+        // in it (remove() did that to a group holding the recycle bin)
+        for (let g = toGroup; g && object instanceof KdbxGroup; g = g.parentGroup) {
+            if (g === object) {
+                throw new KdbxError(ErrorCodes.InvalidArg, 'cannot move a group into itself');
+            }
+        }
         const containerProp = object instanceof KdbxGroup ? 'groups' : 'entries';
         const fromContainer = <T[]>object.parentGroup?.[containerProp];
         const ix = fromContainer?.indexOf(object);
