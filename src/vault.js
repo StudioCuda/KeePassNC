@@ -185,6 +185,24 @@ function loadError(e) {
     return e;
 }
 
+/**
+ * Safety net after kdbxweb's merge (_push, mergeFrom): an entry or group also listed in a group other than its own parentGroup (the
+ * same object in two places, as the merge used to leave an entry the other device had moved) comes out of that group before anything
+ * is saved, so the file never holds its UUID twice. A listing only goes while the object stays listed where it belongs, so nothing
+ * gets lost. The merge itself puts every object in exactly one group; tests/unit/merge-moves.test.mjs checks it without this net.
+ */
+function dropStaleListings(root) {
+    const groups = new Set(root.allGroups());
+    const elsewhere = (x, group, kind) => x.parentGroup !== group && groups.has(x.parentGroup) && x.parentGroup[kind].includes(x);
+    for (const group of groups) {
+        for (const kind of ['groups', 'entries']) {
+            const seen = new Set();
+            const keep = group[kind].filter((x) => !seen.has(x) && seen.add(x) && !elsewhere(x, group, kind));
+            if (keep.length < group[kind].length) group[kind] = keep;
+        }
+    }
+}
+
 export class Vault {
     /**
      * @param {{buf: ArrayBuffer, password: string, keyfile?: Uint8Array|ArrayBuffer, dav?: import('./webdav.js').DavFile, etag?: string|null,
@@ -392,6 +410,7 @@ export class Vault {
         const { keyChanged, settingsChanged } = this.db.meta; // credentials and file header stay our own, so do their timestamps
         try {
             this.db.merge(other);
+            dropStaleListings(this.root);
             Object.assign(this.db.meta, { keyChanged, settingsChanged });
         } catch (e) {
             if (e instanceof KdbxError && e.code === Consts.ErrorCodes.MergeError) throw new VaultError('Das ist eine andere Datenbank, keine Kopie dieser.', 'e.merge.other');
@@ -695,9 +714,23 @@ export class Vault {
     removeEntry(entry) {
         this._writable();
         entry = this._current(entry);
-        if (this.isInRecycleBin(entry)) this.db.move(entry, null); // delete permanently
-        else this.db.remove(entry);
+        this._discard(entry);
         this.dirty = true;
+    }
+
+    /**
+     * Into the recycle bin (created on first use), or for good when it is off or the item is in it already: the same decision
+     * deletesForever makes for the page. Not kdbxweb's remove(): that reads a missing <RecycleBinEnabled> as "off" (KeePass 2 and
+     * this page read it as "on") and a missing <RecycleBinUUID> as "no bin", and deleted for good while the page said "in the recycle bin".
+     */
+    _discard(item) {
+        if (this.deletesForever(item)) { this.db.move(item, null); return; }
+        this.db.createRecycleBin(); // also writes the missing setting as an explicit "on"
+        const rb = this.recycleBin;
+        // KeePass 2 lets any group be the recycle bin. One inside this group would end up inside itself, cut off from the tree, and vanish
+        // on saving with everything in it: it moves up to the root first and stays the recycle bin, with what it holds.
+        for (let g = rb.parentGroup; g; g = g.parentGroup) if (g === item) { this.db.move(rb, this.root); break; }
+        this.db.move(item, rb);
     }
 
     /**
@@ -764,13 +797,13 @@ export class Vault {
         }
         this.dirty = true;
     }
-    /** Recycle bin is active -> group moves into it; otherwise permanent. */
+    /** Recycle bin is active -> group moves into it (a bin inside the group stays, see _discard); otherwise permanent. */
     removeGroup(group) {
         this._writable();
         group = this._current(group);
         if (group === this.root) throw new VaultError('Die Wurzelgruppe kann nicht geloescht werden.', 'e.root.delete');
         if (group === this.recycleBin) throw new VaultError('Der Papierkorb kann nicht geloescht werden - nur leeren.', 'e.bin.delete');
-        if (this.isInRecycleBin(group)) this.db.move(group, null); else this.db.remove(group);
+        this._discard(group);
         this.dirty = true;
     }
     canMoveGroup(group, target) {
@@ -1070,9 +1103,10 @@ export class Vault {
                     if (!(err instanceof KdbxError && err.code === Consts.ErrorCodes.MergeError)) throw err;
                     // Retrying changes nothing (every attempt would leave another conflict backup behind): background sync and auto-save stand down until the user saves again
                     this.mergeBlocked = true;
-                    if (/^duplicate/.test(err.message)) throw new VaultError('Ein Eintrag oder eine Gruppe kommt doppelt vor (lokal oder auf dem Server), das laesst sich nicht zusammenfuehren.', 'e.merge.dup');
+                    if (/\bduplicate:/.test(err.message)) throw new VaultError('Ein Eintrag oder eine Gruppe kommt doppelt vor (lokal oder auf dem Server), das laesst sich nicht zusammenfuehren.', 'e.merge.dup');
                     throw new VaultError('Die Datei auf dem Server ist eine andere Datenbank (ersetzt oder neu angelegt). Deine Aenderungen bleiben hier, zusammenfuehren geht nicht.', 'e.merge.server');
                 }
+                dropStaleListings(this.root);
                 if (header !== this.db.header) { this.db.header = header; this.db.meta.headerHash = undefined; }
                 this._pending = await this.db.save();
                 this.etag = remote.etag;
