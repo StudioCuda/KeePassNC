@@ -5,7 +5,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- CSV import understands German column names from a hand-made list too: Titel, Benutzername, Kennwort, Webseite, Bemerkung, Ordner, Schlagwörter and friends, in any case.
 - Bitwarden JSON import: SSH keys come along, the private key as a key file attachment (ready for KeePassXC's SSH agent), public key and fingerprint as fields. The import also says when an entry loses something on the way, such as a passkey.
+- When the database vanished from the server (moved or deleted somewhere else), the banner offers "Put the file back": it saves the open database at its old place again and never overwrites a file that turned up there in the meantime.
 
 ### Fixed
 - Databases with a raw key file of exactly 32 bytes: after another device's changes came in, a merge, the unlock screen's check or a new master password, the next save could encrypt the file with a key nobody can derive, so it no longer opened. If that happened to one of yours, the `.bak` copy next to it or an earlier Nextcloud file version still opens.
@@ -19,7 +21,6 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Search: a regular expression that doesn't work matches nothing (it used to match every entry with that field empty), and the list says so.
 - Search: custom fields with digits or underscores in the name work, like `_PIN2:1234` or `_KP2A_URL_1:example`, and names with spaces or colons go in quotes: `_"Security Question":blue`.
 - Search: wildcards like `a*a*b` no longer freeze the page for minutes on an entry with huge notes.
-
 - An entry deleted for good on one device and changed later on another no longer vanishes when the two versions meet (a save conflict or "Merge database"): the later change wins, and the group it sits in stays too. Whatever nobody touched since the deletion still goes.
 - Merging two versions no longer throws out custom icons that nothing happens to use right now, so your icon collection survives a save conflict.
 - An entry or group moved on another device (KeePassXC included) no longer turns up twice after a save conflict or "Merge database", in its old group and in the new one, which also made every merge after that fail. It now sits only in the group it was last moved to, on whichever device. And two groups moved into each other on two devices no longer vanish together.
@@ -35,6 +36,16 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - CSV import reads semicolon and tab separated files too, like the ones a German Excel saves, in UTF-8 or Excel's Windows encoding. They used to come in as a pile of empty entries, and umlauts as �.
 - A CSV file whose columns KeePassNC doesn't know now gets a clear message instead of turning into empty entries.
 - A stray quote in the middle of a CSV field (`pass"word`) no longer swallows the rows after it into one field.
+- Changing the master password or key file while the connection hiccups: when the server got the new file but its answer got lost, KeePassNC now checks with the server before it says "not changed", instead of leaving you with a password the file no longer opens with.
+- A password change that only made it into the offline copy survives a reload. If the file on the server changed meanwhile, KeePassNC asks once for the previous password to merge both, instead of blaming another device and quietly undoing your change.
+- A save whose answer got lost on the way back is recognized on the next sync, so it no longer gets merged with itself and leaves a conflict backup behind.
+- Copied passwords really leave the clipboard again. Browsers don't let a page clear it while you're pasting in another tab (Firefox and Safari not even a few seconds after your last click), so the password used to stay put while the status line promised otherwise. Now the status line says it's still there, and your next click or key press in the tab clears it. Whatever you copied elsewhere in the meantime stays, wherever the browser lets KeePassNC tell.
+- Same database open in two tabs with the offline copy on: changes made in both while the server was away are all kept now, even if one tab is closed before the server comes back. Before, the tab that saved last quietly pushed the other tab's changes out of the offline copy.
+- Opened a database offline and saved later? The backup copy made before that first upload now holds what was on the server, not your local copy.
+- A save the server never answers (a proxy swallowing it, a half-dead connection) gives up after a minute and goes the offline way, instead of holding up every later save until a reload. Big files on slow lines get extra time.
+- Closing the tab while a save is still on its way asks first, unless the offline copy already holds your changes.
+- A full server (HTTP 507) is an error that says so, instead of "saved offline" and a quiet retry every 30 seconds forever.
+- A full server, a locked file or a vanished one now gets the banner with "Save a copy", so your changes always have a way out.
 
 ### Changed
 - Nextcloud page: the Content Security Policy also says `form-action 'none'`, like the standalone page, so not even an injected form could send anything anywhere.
@@ -43,6 +54,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Strength meter in the entry editor: a password linked to another entry is rated like the password it points to, not like the `{REF:…}` text.
 - Password generator: a click on the password copies it in the entry editor too, like in the vault view and on the standalone page.
 - Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
+- Locking the database also clears a password you just copied from the clipboard.
 
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.
