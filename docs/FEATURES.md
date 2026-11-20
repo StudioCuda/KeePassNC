@@ -53,10 +53,11 @@ The short tour is in the [README](../README.md). This is the long version, for w
 
 Words separated by spaces must all match. Plain words look in title, user name, URL, notes and tags.
 
-- **Fields:** `title:`, `user:`, `url:`, `notes:`, `pass:`, `tag:`, `group:` (with a `/` it matches the path), `attr:` (field names), `att:` (attachment names), `uuid:`, and `_Name:` for the custom field *Name*. The start of a field name is enough.
+- **Fields:** `title:`, `user:`, `url:`, `notes:`, `pass:`, `tag:`, `group:` (with a `/` it matches the path), `attr:` (field names), `att:` (attachment names), `uuid:`. The start of a field name is enough.
+- **Custom fields:** `_Name:` looks in the custom field *Name*, like `_PIN2:1234` or `_KP2A_URL_1:example`. The whole name, case doesn't matter. Names with spaces or colons go in quotes: `_"Security Question":blue`.
 - **Filters:** `is:weak`, `is:expired`, `is:expired-30` (expired or expiring within 30 days), `has:totp`, `has:passkey`, `has:attachment`, `has:tags`, `has:url`, `has:notes`, `has:history`.
-- **Modifiers:** `-` or `!` excludes, `+` matches exactly (case included), `*` turns the rest into a regular expression.
-- **Wildcards:** `*`, `?` and `|` (or), and `"quotes"` for values with spaces.
+- **Modifiers:** `-` or `!` excludes, `+` matches the whole field exactly (case included, no wildcards), `*` turns the rest into a regular expression, like `*url:\.de$` (ignores case unless you add `+`). A regular expression that doesn't work matches nothing, and the list tells you.
+- **Wildcards:** `*` stands for any run of characters, `?` for exactly one (neither reaches past the end of a line), `|` means or. They ignore case and match anywhere in the field. `"Quotes"` for values with spaces.
 
 Example: `url:bank is:weak -tag:old`
 
