@@ -100,6 +100,24 @@ await step('Copy button and a click on the preview put the shown password on the
     expect(await page.evaluate(() => navigator.clipboard.readText()) === next, 'Klick auf die Vorschau kopiert nicht');
     await ctx.close();
 });
+await step('What was copied leaves the clipboard again after 20 s, something copied elsewhere stays', async () => {
+    if (browser.browserType().name() !== 'chromium') return 'nur Chromium (Zwischenablage-Rechte)';
+    const { ctx, page } = await open('en-GB');
+    const clip = () => page.evaluate(() => navigator.clipboard.readText());
+    await page.locator('#gen-copy').click();
+    expect(await page.locator('.toast').first().innerText().then((x) => /cleared from the clipboard in 20 s/.test(x)), 'Hinweis auf das Leeren fehlt');
+    const t0 = Date.now();
+    await page.waitForTimeout(15000);
+    expect((await clip()) === (await preview(page)).trim(), 'zu frueh geleert');
+    await page.waitForTimeout(Math.max(0, t0 + 22000 - Date.now())); // the page is left alone meanwhile (see clipIs in ui.mjs)
+    expect((await clip()) === '', `nach 20 s nicht geleert: ${JSON.stringify(await clip())}`);
+    // copied elsewhere after our copy: the timer leaves it alone
+    await page.locator('#gen-copy').click();
+    await page.evaluate(() => navigator.clipboard.writeText('from elsewhere'));
+    await page.waitForTimeout(22000);
+    expect((await clip()) === 'from elsewhere', 'fremden Inhalt geleert');
+    await ctx.close();
+});
 await step('Options are remembered in this browser', async () => {
     const { ctx, page } = await open('en-GB');
     await page.locator('#gen-words').fill('9'); await page.locator('#gen-words').dispatchEvent('change');
