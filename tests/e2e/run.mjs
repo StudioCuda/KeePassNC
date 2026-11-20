@@ -581,7 +581,7 @@ async function main() {
         const fTf = path.join(davRoot, 'twofish.kdbx');
         fs.copyFileSync(path.join(davRoot, 'vault3.kdbx'), fTf);
         // The app no longer switches to Twofish, so kdbxweb re-encrypts the copy
-        execFileSync(process.execPath, ['-r', 'ts-node/register/transpile-only', '-e', [
+        execFileSync(process.execPath, ['-r', './tools/ts-register.cjs', '-e', [
             `const k = require('./vendor/kdbxweb/lib/index'), fs = require('fs'), f = ${JSON.stringify(fTf)};`,
             `k.Kdbx.load(new Uint8Array(fs.readFileSync(f)).buffer, new k.Credentials(k.ProtectedValue.fromString(${JSON.stringify(PW)})))`,
             '    .then((db) => { db.header.dataCipherUuid = new k.KdbxUuid(k.Consts.CipherId.Twofish); return db.save(); })',
