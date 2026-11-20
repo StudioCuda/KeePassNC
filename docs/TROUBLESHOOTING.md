@@ -14,3 +14,12 @@ To find out, open the developer tools of your browser (F12 → Network), reload 
 - Check that a reverse proxy passes the `ETag` header on as it is.
 
 Old `*.conflict-….bak` files next to the database from earlier failed saves are safe to delete.
+
+## Saving fails: out of space, locked, or the file is gone
+
+Your changes stay where they are (in the tab, and in the offline copy if that's on), and a banner says what's up. **Save a copy** always downloads the database with your changes.
+
+- **"The server is out of space" (HTTP 507):** the storage or your quota is full. Free up some space and save again. With the offline copy on, KeePassNC keeps retrying quietly and uploads as soon as there's room.
+- **"The file is locked on the server" (HTTP 423):** another app or person holds a lock on the file. Save again once it's free.
+- **"This file is no longer on the server":** it was moved, renamed or deleted somewhere else, or its folder was. KeePassNC never creates it again on its own, since a moved file would then turn up twice. **Put the file back** saves the open database at its old place; if a file has turned up there by then, the two are merged, nothing is overwritten. Deleted by accident? Nextcloud's trash bin has the old version as well.
+- **"The server didn't answer in time":** a request went a minute without an answer (a proxy that swallows it, a dead connection). Without the offline copy your changes stay in the tab, just save again. With it they wait in the offline copy and go up once the server answers.

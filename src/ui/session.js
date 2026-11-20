@@ -12,6 +12,8 @@ let autoSaveTimer = null, syncing = false, pulls = 0; // pulls: running saves th
 // The server version no longer opens with this session's credentials: ask for the new ones (credentials-dialog.js), or for the
 // previous ones when the change was made here and never reached the server (e.merge.oldpw)
 const REMOTE_CREDS = new Set(['e.merge.pw', 'e.pull.pw', 'e.merge.oldpw']);
+// Banner text per Vault.writeBlocked
+const BLOCKED_TEXT = { full: 'blocked.full', locked: 'blocked.locked', gone: 'blocked.gone' };
 
 /** Call after every change to the vault: refresh the view, show the save state, schedule auto-save if needed. */
 export function changed() {
@@ -41,21 +43,25 @@ export function refreshDirtyIndicator() {
 }
 
 /**
- * Banner (never goes away on its own) and the dimmed actions: a share that only allows reading, a server that refused to save, or a
- * server file that can't be merged with our changes. "Save a copy" is there whenever changes exist that live only in this tab.
+ * Banner (never goes away on its own) and the dimmed actions: a share that only allows reading, a server that refused to save, a
+ * server file that can't be merged with our changes, or one that can't take them at all (no space left, locked, moved or deleted).
+ * "Save a copy" is there whenever changes exist that aren't on the server. A file that is gone gets the banner even without
+ * changes: this tab may hold the only open copy, and "Put the file back" writes it to the old place again.
  */
 export function refreshReadOnly() {
     const v = state.vault;
     const ro = !!v?.readOnly;
     const pending = !!v && (v.dirty || v.unsynced);
     const blocked = !ro && !!v?.mergeBlocked && pending;
+    const why = !ro && !blocked && (pending || v?.writeBlocked === 'gone') ? v?.writeBlocked : null;
     document.body.classList.toggle('readonly', ro);
     const banner = $('#readonly-banner');
     if (!banner) return;
-    banner.hidden = !(ro || blocked);
+    banner.hidden = !(ro || blocked || why);
     if (banner.hidden) return;
-    $('#ro-text', banner).textContent = t(blocked ? (v.mergeBlocked === 'etag' ? 'merge.banner.etag' : 'merge.banner') : pending ? 'ro.banner.dirty' : 'ro.banner');
-    $('#ro-copy', banner).hidden = !pending;
+    $('#ro-text', banner).textContent = t(why ? (why === 'gone' && !pending ? 'blocked.gone.clean' : BLOCKED_TEXT[why]) : blocked ? (v.mergeBlocked === 'etag' ? 'merge.banner.etag' : 'merge.banner') : pending ? 'ro.banner.dirty' : 'ro.banner');
+    $('#ro-copy', banner).hidden = !pending && !why;
+    $('#ro-recreate', banner).hidden = why !== 'gone';
 }
 
 /** From now on the session only reads. Changes made so far stay in memory (and can be saved as a copy). */
@@ -131,10 +137,11 @@ function tabsMerged() {
 /** Is a sync running that may replace the database (pull)? Then no editor may open: it would keep the old entry and group objects. */
 export const isSwapping = () => syncing || pulls > 0;
 
-export async function doSave({ auto = false } = {}) {
+/** recreate: the server file is gone, put it back at the same address (Vault.recreate) instead of saving the usual way. */
+export async function doSave({ auto = false, recreate = false } = {}) {
     const v = state.vault;
     if (!v) return;
-    if (auto && v.mergeBlocked) return; // the server file can't be merged: only an explicit save tries again
+    if (auto && v.waitsForUser) return; // the server file can't be merged, or is gone: only an explicit save tries again
     // Read-only: nothing goes to the server, Ctrl+S / the button hand out a copy instead (not on its own in the auto-lock)
     if (v.readOnly && (v.dirty || v.unsynced)) { if (!auto) await saveCopy(); return; }
     // Ctrl+S and the palette don't look at the button state. A local file has nothing to hand out without changes (no empty
@@ -147,10 +154,10 @@ export async function doSave({ auto = false } = {}) {
     const before = statusEl && [statusEl.textContent, statusEl.dataset.kind];
     const busyText = auto ? t('saving.auto') : t('saving');
     setStatus(busyText);
-    const mayPull = !v.dirty; // without changes of our own, sync() may pull and swap the database
+    const mayPull = !v.dirty && !recreate; // without changes of our own, sync() may pull and swap the database
     if (mayPull) pulls++;
     try {
-        const res = await (v.dirty ? v.save({ auto }) : v.sync({ background: auto }));
+        const res = await (recreate ? v.recreate() : v.dirty ? v.save({ auto }) : v.sync({ background: auto }));
         if (res.skipped) { // queued behind a save that failed to merge: nothing happened, the status stays as it was
             if (before && statusEl.textContent === busyText) { statusEl.textContent = before[0]; statusEl.dataset.kind = before[1]; } // not over the outcome of that save
             return;
@@ -171,6 +178,9 @@ export async function doSave({ auto = false } = {}) {
             redrawAfterSwap();
             setStatus(t(res.noBackup ? 'saved.merged.nobackup' : 'saved.merged'), 'warn');
             state.offlineMode = false;
+        } else if (res.recreated) {
+            state.offlineMode = false;
+            setStatus(t('blocked.recreated'));
         } else {
             state.offlineMode = false;
             if (mayPull && v.dirty) { if (statusEl?.textContent === busyText) setStatus(t('sync.dirty')); } // changed here while it synced (the pull stood down): not saved yet, the next save merges it
@@ -191,8 +201,10 @@ export async function doSave({ auto = false } = {}) {
 /** Background sync (interval, reconnect, tab visible): pushes local changes up or pulls changes from others. */
 export async function syncNow({ announce = false } = {}) {
     const v = state.vault;
-    if (!v || state.source?.type !== 'dav' || syncing || state.editing || state.softLocked || (v.mergeBlocked && !announce) || (v.readOnly && (v.dirty || v.unsynced))) return;
+    if (!v || state.source?.type !== 'dav' || syncing || state.editing || state.softLocked || (v.waitsForUser && !announce) || (v.readOnly && (v.dirty || v.unsynced))) return;
     syncing = true;
+    // No space left or a locked file: the banner already says so, a background retry that meets the same answer adds no toast every 30 s
+    const known = v.writeBlocked;
     $('#sync-state')?.classList.add('busy');
     try {
         const res = await (v.dirty ? v.save() : v.sync({ background: !announce }));
@@ -206,13 +218,13 @@ export async function syncNow({ announce = false } = {}) {
             if (res.pulled) { redrawAfterSwap(); setStatus(t('sync.pulled')); }
             else if (res.merged) { redrawAfterSwap(); setStatus(t(res.noBackup ? 'saved.merged.nobackup' : 'sync.merged'), 'warn'); }
             else if (res.noBackup) setStatus(t('saved.nobackup'), 'warn');
-            else if ((wasOffline || announce) && !v.dirty) setStatus(t('sync.done')); // changed here meanwhile: not in sync, the next save merges it
+            else if ((wasOffline || announce || known) && !v.dirty) setStatus(t('sync.done')); // changed here meanwhile: not in sync, the next save merges it
         }
     } catch (e) {
         if (!e?.key) console.error(e); // explained errors (with translation) show in the status, only unexpected ones go to the console
         state.lastSyncFailed = isOffline(e);
         if (e?.key === 'e.dav.readonly') refused();
-        else if (announce || !isOffline(e)) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
+        else if (announce || !(isOffline(e) || (known && v.writeBlocked === known))) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
         if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.({ previous: e.key === 'e.merge.oldpw' });
     } finally {
         syncing = false;
@@ -249,7 +261,7 @@ async function doLock(message) {
     if (v && (v.dirty || v.unsynced || stuck) && state.source.type === 'dav') {
         // WebDAV: save first. Locally saved (offline) versions may stay, unlocking transfers them later.
         if (v.dirty && !stuck) await doSave({ auto: true });
-        if (stuck || state.vault?.dirty) {
+        if (stuck || state.vault?.unsaved) {
             if (auto) { softLock(message); return; }
             if (!(await confirmDiscard())) return;
         }
@@ -275,12 +287,13 @@ function softLock(message) {
 /**
  * A save that was still running when the soft lock came up may end well after all: then nothing is unsaved anymore, the note
  * on the lock screen is wrong, and the entries would stay decrypted for no reason. Once the last save or sync is over and
- * nothing is dirty or unsynced, the soft lock becomes the real one.
+ * nothing would be lost (Vault.unsaved), the soft lock becomes the real one. That includes a save that ran out of time
+ * (webdav.js timeouts) but left its version in the offline copy: like doLock, the next unlock uploads it.
  */
 async function lockOnceSaved(v, message) {
     let chain;
     do { chain = v.settled(); await chain; } while (chain !== v.settled()); // a save queued meanwhile counts, too
-    if (!state.softLocked || state.vault !== v || v.dirty || v.unsynced) return;
+    if (!state.softLocked || state.vault !== v || v.unsaved) return;
     clearTimeout(autoSaveTimer);
     ctx.ui.showLogin(message ?? t('locked'));
 }
@@ -315,7 +328,8 @@ export function installGlobalListeners() {
     addEventListener('unhandledrejection', refusedNote);
     addEventListener('error', refusedNote);
     for (const ev of ['mousemove', 'keydown', 'click', 'touchstart']) addEventListener(ev, () => { state.lastActivity = Date.now(); }, { passive: true });
-    addEventListener('beforeunload', (e) => { if (state.vault?.dirty) { e.preventDefault(); e.returnValue = ''; } });
+    // Not only dirty: a save still on its way without an offline copy holds the only version, and so does the offline copy of a file gone from the server (Vault.unsaved)
+    addEventListener('beforeunload', (e) => { if (state.vault?.unsaved) { e.preventDefault(); e.returnValue = ''; } });
     addEventListener('online', () => { if (state.vault?.unsynced || state.offlineMode) syncNow({ announce: true }); });
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) { state.hiddenSince = Date.now(); return; }
