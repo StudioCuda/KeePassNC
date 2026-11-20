@@ -2,6 +2,7 @@
 import { t, errText } from '../i18n.js';
 import { fieldOf, domainOf, hasTotp, isPasskey, entryColor, openableUrl } from '../core/util.js';
 import { SORTS } from './common.js';
+import { invalidRegex } from '../core/search.js';
 import { ctx, copy, applyTheme, clearMarks, setStatus } from './ctx.js';
 import { $, h, icon, iconBtn, modal } from './dom.js';
 import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl, otpConfigOf } from './common.js';
@@ -49,6 +50,7 @@ export function showMain() {
         NC?.filesUrl && !NC.nav ? h('a', { href: NC.filesUrl, id: 'files-link', class: 'icon-btn hide-narrow', title: t('files'), 'aria-label': t('files') }, icon('folderOpen')) : null,
         iconBtn('lock', t('lock'), () => lock(t('locked')), { id: 'lock-btn' }));
     const banner = h('div', { class: 'ro-banner', id: 'readonly-banner', role: 'status', hidden: true }, icon('lock'), h('span', { id: 'ro-text' }),
+        h('button', { type: 'button', class: 'link', id: 'ro-recreate', text: t('blocked.recreate'), hidden: true, onclick: () => doSave({ recreate: true }) }),
         h('button', { type: 'button', class: 'link', id: 'ro-copy', text: t('ro.copy'), onclick: () => saveCopy() }));
     const shell = h('div', { class: 'shell', 'data-view': state.view, 'data-drawer': '0' }, bar, banner,
         h('main', { class: 'panes' }, // the workspace is the main landmark: on a phone only one of the panes is on screen at a time
@@ -95,6 +97,8 @@ ctx.ui.syncMarks = () => syncMarks();
 export async function selectEntry(e) {
     if (state.editing && !(await leaveEditor())) return; // from the command palette or a report, while an entry is being edited
     const v = state.vault;
+    e = v.find(e); // from a list drawn before a pull (palette, report)
+    if (!e) { setStatus(t('e.gone'), 'warn'); return; }
     clearMarks();
     state.query = ''; const s = $('#search'); if (s) s.value = '';
     state.filter = v.isInRecycleBin(e) ? { type: 'bin' } : { type: 'group', group: e.parentGroup };
@@ -144,7 +148,8 @@ export function renderList(entries = visibleEntries()) {
     const head = listHead(entries);
     const body = h('div', { class: 'entries' + (state.selecting ? ' selecting' : ''), role: 'listbox', 'aria-label': t('list.label'), 'aria-multiselectable': state.selecting ? 'true' : null });
     if (!entries.length) {
-        body.append(h('div', { class: 'empty small' }, icon(state.query ? 'search' : 'folderOpen'), h('p', { class: 'muted', text: state.query ? t('list.nomatch') : t('list.empty') }),
+        const bad = state.query ? invalidRegex(state.query) : null; // a broken regular expression matches nothing: say why
+        body.append(h('div', { class: 'empty small' }, icon(state.query ? 'search' : 'folderOpen'), h('p', { class: 'muted', text: bad !== null ? t('list.badregex', { re: bad }) : state.query ? t('list.nomatch') : t('list.empty') }),
             !state.query && state.filter.type === 'group' ? h('button', { type: 'button', class: 'btn', onclick: () => startEdit(null) }, icon('plus'), t('entry.new')) : null));
     }
     for (const e of entries.slice(0, shown)) {

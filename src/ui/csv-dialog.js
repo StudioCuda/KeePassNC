@@ -7,7 +7,7 @@ import { filePicker } from './file-picker.js';
 import { changed } from './session.js';
 import { setFilter } from './groups.js';
 import { toCsv } from '../core/csv.js';
-import { readImport, FORMAT_NAMES } from '../core/import.js';
+import { readImport, decodeImport, FORMAT_NAMES } from '../core/import.js';
 
 const { state } = ctx;
 
@@ -17,7 +17,7 @@ export function openCsv({ onBack } = {}) {
     let finished = false;
     let found = null; // {entries, ignored, name}
 
-    const fileInput = h('input', { id: 'csv-file', type: 'file', accept: '.csv,.json,text/csv,application/json' });
+    const fileInput = h('input', { id: 'csv-file', type: 'file', accept: '.csv,.tsv,.txt,.json,text/csv,text/tab-separated-values,text/plain,application/json' });
     const summary = h('p', { class: 'hint', id: 'csv-summary', 'aria-live': 'polite' });
     const importBtn = h('button', { type: 'button', class: 'primary', id: 'csv-import', text: t('csv.import'), disabled: true });
     fileInput.addEventListener('change', async () => {
@@ -25,11 +25,11 @@ export function openCsv({ onBack } = {}) {
         found = null; importBtn.disabled = true; summary.textContent = '';
         if (!f) return;
         try {
-            const { entries, ignored, refs, files, format } = readImport(await f.text());
+            const { entries, ignored, refs, files, partial, format } = readImport(decodeImport(await f.arrayBuffer())); // not f.text(): that is UTF-8 only
             if (!entries.length) { summary.textContent = t('csv.empty'); return; }
-            found = { entries, name: f.name.replace(/\.(csv|json)$/i, '') };
+            found = { entries, name: f.name.replace(/\.(csv|tsv|txt|json)$/i, '') };
             summary.textContent = (format ? t('csv.format', { name: FORMAT_NAMES[format] }) + ' ' : '') + t('csv.found', { n: entries.length }) + (ignored.length ? ' ' + t('csv.ignored', { cols: ignored.join(', ') }) : '')
-                + (refs ? ' ' + t('csv.refs', { n: refs }) : '') + (files ? ' ' + t('csv.files', { n: files }) : '');
+                + (refs ? ' ' + t('csv.refs', { n: refs }) : '') + (files ? ' ' + t('csv.files', { n: files }) : '') + (partial ? ' ' + t('csv.partial', { n: partial }) : '');
             importBtn.disabled = false;
         } catch (e) { summary.textContent = errText(e); }
     });

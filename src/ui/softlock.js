@@ -3,7 +3,7 @@
 // entry editor (as plain values, see editor.js parkEditor). No key derivation needed: the answer comes from comparing with the
 // credentials the session already holds.
 import { t } from '../i18n.js';
-import { ctx } from './ctx.js';
+import { ctx, clearClipboard } from './ctx.js';
 import { h, icon, iconBtn, closeAllDialogs, confirmDialog } from './dom.js';
 import { filePicker } from './file-picker.js';
 import { loginShell } from './login.js';
@@ -19,6 +19,7 @@ export function showSoftLock(message) {
     const v = state.vault;
     closeAllDialogs();
     stopDetailTimers();
+    clearClipboard(); // locked is locked, soft or not
     parkEditor(); // typed into the editor: kept for after unlocking, the form itself goes with the view
     state.selEntry = null; state.query = '';
     document.body.classList.remove('in-vault');

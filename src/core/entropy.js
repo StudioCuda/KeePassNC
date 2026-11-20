@@ -1,3 +1,5 @@
+import { simpleBits } from './generator.js';
+
 // Rough strength estimate of a password in bits (deliberately simple, no big dictionaries - a guide, not a guarantee).
 // Levels as in KeePassXC: <40 poor, <75 weak, <100 good, otherwise very good.
 const COMMON = new Set(('password passwort 123456 12345678 123456789 1234567890 qwerty qwertz qwertyuiop asdfgh asdfghjkl zxcvbn iloveyou letmein welcome willkommen admin administrator root login master ' +
@@ -16,7 +18,11 @@ export function charPool(pw) {
     return pool || 1;
 }
 
-export function estimateBits(pw) {
+/** A password from the "Simple" generator is recognised and exact; anything else is guessed from its characters. */
+export const estimateBits = (pw) => simpleBits(pw) ?? guessBits(pw);
+
+/** The character-based guess alone (the UI marks it with a "≈"). */
+export function guessBits(pw) {
     if (!pw) return 0;
     const chars = [...pw]; // characters instead of UTF-16 units (emoji)
     const lower = pw.toLowerCase();
