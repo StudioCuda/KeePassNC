@@ -71,7 +71,7 @@ export function startServer({ webRoot, davRoot, user = 'tester', pass = 'app-sec
             }
             if (req.method === 'DELETE') {
                 if (!fs.existsSync(file)) { res.writeHead(404).end(); return; }
-                fs.unlinkSync(file);
+                fs.rmSync(file, { recursive: true }); // like WebDAV (RFC 4918): a folder goes with everything in it
                 res.writeHead(204).end();
                 return;
             }

@@ -2,8 +2,11 @@
 import { estimateBits, strengthLabel } from './entropy.js';
 import { fieldOf, entryExpiry, daysUntil, hasTotp, isPasskey, groupPath, resolvePlaceholders } from './util.js';
 
-/** "Exclude from reports": KeePass 2 writes QualityCheck = False (KDBX 4.1), KeePassXC the CustomData item KnownBad. */
-export const excluded = (e) => e.qualityCheck === false || e.customData?.get?.('KnownBad')?.value === 'True';
+/**
+ * "Exclude from reports": KeePass 2 writes QualityCheck = False (KDBX 4.1), KeePassXC the CustomData item KnownBad = "true".
+ * KeePassXC compares that exactly; KeePassNC wrote "True" up to 1.2.0, so both spellings count here.
+ */
+export const excluded = (e) => e.qualityCheck === false || /^true$/i.test(e.customData?.get?.('KnownBad')?.value ?? '');
 
 /**
  * entries: only "real" entries (without recycle bin). Returns {items, stats}; items are sorted by score, ascending.
