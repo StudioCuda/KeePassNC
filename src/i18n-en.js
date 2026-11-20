@@ -165,6 +165,7 @@ export default {
     'e.att.exists':'An attachment named “{name}” already exists.',
     'e.badfile': 'This is not a valid KDBX file (or an unsupported version).',
     'e.badkey': 'Wrong master password or wrong key file. Or the file needs a hardware key like a YubiKey, which browsers can’t talk to.',
+    'e.corrupt': 'This file is damaged or incomplete, maybe an upload broke off. A good copy is usually right next to it as <name>.YYYYMMDD-HHMMSS.bak, or in Nextcloud under Files → Details → Versions.',
     'e.cred.empty': 'Without a master password and without a key file, anyone could open the database.',
     'e.cred.unconfirmed': 'The server didn’t confirm the upload. The old credentials still apply here: save again once the server answers, so it gets them back in case the new ones made it there anyway.',
     'e.dav.exists': 'That file already exists. Please pick another name, nothing gets overwritten here.',

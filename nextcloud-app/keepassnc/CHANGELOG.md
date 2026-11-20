@@ -10,6 +10,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Fixed
 - Databases with a raw key file of exactly 32 bytes: after another device's changes came in, a merge, the unlock screen's check or a new master password, the next save could encrypt the file with a key nobody can derive, so it no longer opened. If that happened to one of yours, the `.bak` copy next to it or an earlier Nextcloud file version still opens.
 - A KDBX 4 file that got cut off (an upload that never finished, say) is now reported as corrupt, instead of slipping past the integrity check and showing up as a wrong password.
+- A damaged or cut-off database no longer greets you with kdbxweb's raw "Error FileCorrupt: invalid hash block". It says the file is damaged or incomplete and where a good copy usually waits: the `.bak` next to it or Nextcloud's file versions.
 - Databases that still use the old Argon2 version 1.0 say so, with a hint how KeePassXC updates them, instead of claiming your password is wrong.
 - "Exclude from password health" now sticks in KeePassXC too: it only understands a lowercase `true`, and KeePassNC wrote `True`. Entries marked that way before are switched over the next time they're edited.
 - Cleaning up backup copies only ever deletes files. A *folder* that happened to be named like a backup (`Passwords.kdbx.20260101-120000.bak/`) was deleted along with everything in it.
