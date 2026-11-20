@@ -4,14 +4,26 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-### Changed
-- Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
-
 ### Fixed
-- CSV import reads semicolon and tab separated files too, like the ones a German Excel saves, in UTF-8 or Excel's Windows encoding. They used to come in as a pile of empty entries, and umlauts as �.
-- A CSV file whose columns KeePassNC doesn't know now gets a clear message instead of turning into empty entries.
-- A stray quote in the middle of a CSV field (`pass"word`) no longer swallows the rows after it into one field.
-- Bitwarden JSON: SSH keys come along, the private key as a key file attachment (ready for KeePassXC's SSH agent), public key and fingerprint as fields. The import also says when an entry loses something on the way, such as a passkey.
+- Databases with a raw key file of exactly 32 bytes: after another device's changes came in, a merge, the unlock screen's check or a new master password, the next save could encrypt the file with a key nobody can derive, so it no longer opened. If that happened to one of yours, the `.bak` copy next to it or an earlier Nextcloud file version still opens.
+- A KDBX 4 file that got cut off (an upload that never finished, say) is now reported as corrupt, instead of slipping past the integrity check and showing up as a wrong password.
+- Databases that still use the old Argon2 version 1.0 say so, with a hint how KeePassXC updates them, instead of claiming your password is wrong.
+- "Exclude from password health" now sticks in KeePassXC too: it only understands a lowercase `true`, and KeePassNC wrote `True`. Entries marked that way before are switched over the next time they're edited.
+- Cleaning up backup copies only ever deletes files. A *folder* that happened to be named like a backup (`Passwords.kdbx.20260101-120000.bak/`) was deleted along with everything in it.
+- Password generator: with "at least one of each group", the strength shown is now the exact entropy of what it draws. Short passwords were rated too high: four characters from four groups are about 20 bits, not 24.
+- The EFF word list has 7772 words (the four with a hyphen are left out), not 7776 as the tooltip said. The bits were already right.
+- Search: regular expressions keep their backslashes, so `*title:\d+` really looks for digits instead of the letter d.
+- Search: a regular expression that doesn't work matches nothing (it used to match every entry with that field empty), and the list says so.
+- Search: custom fields with digits or underscores in the name work, like `_PIN2:1234` or `_KP2A_URL_1:example`, and names with spaces or colons go in quotes: `_"Security Question":blue`.
+- Search: wildcards like `a*a*b` no longer freeze the page for minutes on an entry with huge notes.
+
+### Changed
+- Nextcloud page: the Content Security Policy also says `form-action 'none'`, like the standalone page, so not even an injected form could send anything anywhere.
+- Standalone pages: the shipped `.htaccess` files also send `Strict-Transport-Security`, so once a browser has been there it never tries plain `http://` again.
+- Strength meter: a password from the "Simple" generator is recognised by its shape and shows the same exact strength everywhere (editor, entry view, health report) instead of a much too high guess. Other passwords show a "≈" before the bits, since they are only estimated.
+- Strength meter in the entry editor: a password linked to another entry is rated like the password it points to, not like the `{REF:…}` text.
+- Password generator: a click on the password copies it in the entry editor too, like in the vault view and on the standalone page.
+- Icons are drawn with a crisp 1.5px line (2px for the large ones), so circles and curves no longer look jagged or soft.
 
 ## [1.2.0] - 2026-11-11
 A TOTP quick button in the list, plus a round of standalone-page polish.

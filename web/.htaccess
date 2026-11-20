@@ -1,6 +1,6 @@
 # Apache (e.g. Netcup shared hosting). Upload this file together with the rest of web/.
 
-# WebCrypto needs HTTPS, so send everyone there.
+# WebCrypto needs HTTPS, so send everyone there (and HSTS below keeps browsers on HTTPS from then on).
 <IfModule mod_rewrite.c>
 RewriteEngine On
 RewriteCond %{HTTPS} !=on
@@ -13,6 +13,7 @@ RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 Header always set Content-Security-Policy "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self' https:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 Header always set Referrer-Policy "no-referrer"
 Header always set X-Content-Type-Options "nosniff"
+Header always set Strict-Transport-Security "max-age=63072000"
 </IfModule>
 
 # Reuse files for two hours, then ask the server again, so an update shows up the same day.
