@@ -579,8 +579,9 @@ export class KdbxMeta {
             this._entryTemplatesGroup = remote.entryTemplatesGroup;
             this.entryTemplatesGroupChanged = remote.entryTemplatesGroupChanged;
         }
-        this.mergeMapWithDates(this.customData, remote.customData, objectMap);
-        this.mergeMapWithDates(this.customIcons, remote.customIcons, objectMap);
+        this.mergeMapWithDates(this.customData, remote.customData, objectMap.deleted);
+        // icons from both sides; their tombstones are applied afterwards against the icon's own time (Kdbx.merge)
+        this.mergeMapWithDates(this.customIcons, remote.customIcons);
         if (!this._editState?.historyMaxItemsChanged) {
             this.historyMaxItems = remote.historyMaxItems;
         }
@@ -604,7 +605,7 @@ export class KdbxMeta {
     private mergeMapWithDates<T extends { lastModified?: Date }>(
         local: Map<string, T>,
         remote: Map<string, T>,
-        objectMap: MergeObjectMap
+        deleted?: Map<string, Date>
     ) {
         for (const [key, remoteItem] of remote) {
             const existingItem = local.get(key);
@@ -616,7 +617,7 @@ export class KdbxMeta {
                 ) {
                     local.set(key, remoteItem);
                 }
-            } else if (!objectMap.deleted.has(key)) {
+            } else if (!deleted?.has(key)) {
                 local.set(key, remoteItem);
             }
         }

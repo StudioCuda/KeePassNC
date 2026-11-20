@@ -179,15 +179,13 @@ export class KdbxGroup {
             this.groups,
             remoteGroup.groups,
             objectMap.groups,
-            objectMap.remoteGroups,
-            objectMap.deleted
+            objectMap.remoteGroups
         );
         this.entries = this.mergeCollection(
             this.entries,
             remoteGroup.entries,
             objectMap.entries,
-            objectMap.remoteEntries,
-            objectMap.deleted
+            objectMap.remoteEntries
         );
         for (const group of this.groups) {
             group.merge(objectMap);
@@ -199,20 +197,19 @@ export class KdbxGroup {
 
     /**
      * Merge object collection with remote collection
-     * Implements 2P-set CRDT with tombstones stored in objectMap.deleted
-     * Assumes tombstones are already merged
+     * Deleted objects are merged like the others: Kdbx.merge applies the tombstones afterwards, against the merged times,
+     * so a change made after the deletion survives it (like KeePass 2)
      */
     private mergeCollection<T extends KdbxGroup | KdbxEntry>(
         collection: T[],
         remoteCollection: T[],
         objectMapItems: Map<string, T>,
-        remoteObjectMapItems: Map<string, T>,
-        deletedObjects: Map<string, Date>
+        remoteObjectMapItems: Map<string, T>
     ): T[] {
         const newItems: T[] = [];
         for (const item of collection) {
-            if (!item.uuid || deletedObjects.has(item.uuid.id)) {
-                continue; // item deleted
+            if (!item.uuid) {
+                continue;
             }
             const remoteItem = remoteObjectMapItems.get(item.uuid.id);
             if (!remoteItem) {
@@ -224,8 +221,8 @@ export class KdbxGroup {
         let ix = -1;
         for (const remoteItem of remoteCollection) {
             ix++;
-            if (!remoteItem.uuid || deletedObjects.has(remoteItem.uuid.id)) {
-                continue; // item already processed as local item or deleted
+            if (!remoteItem.uuid) {
+                continue;
             }
             const item = objectMapItems.get(remoteItem.uuid.id);
 
