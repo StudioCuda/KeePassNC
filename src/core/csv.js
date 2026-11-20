@@ -74,17 +74,18 @@ export const toCsv = (rows, { neutralize = false, keepNumbers = true } = {}) =>
     }).join(',')).join('\r\n') + '\r\n';
 
 // Column names of the known exports (lower case): KeePassXC, KeePass 2, Bitwarden, 1Password, Chrome/Edge/Brave, Firefox, LastPass, Proton Pass,
-// Nextcloud Passwords (German headers: its CSV export uses the language of whoever exports) and Passman
+// Nextcloud Passwords (German headers: its CSV export uses the language of whoever exports) and Passman. After them, German names
+// people give their own columns (an Excel list, say); English names come first, so English files map as before.
 const COLUMNS = {
-    group: ['group', 'folder', 'grouping', 'vault', 'ordner'],
-    title: ['title', 'name', 'account', 'label'],
-    user: ['username', 'login_username', 'login name', 'user', 'login', 'benutzer'],
+    group: ['group', 'folder', 'grouping', 'vault', 'ordner', 'gruppe'],
+    title: ['title', 'name', 'account', 'label', 'titel'],
+    user: ['username', 'login_username', 'login name', 'user', 'login', 'benutzer', 'benutzername', 'nutzername'],
     email: ['email'], // only used when there is no user name (Proton Pass, Passman)
-    password: ['password', 'login_password', 'passwort'],
-    url: ['url', 'login_uri', 'web site', 'website', 'uri', 'webseite'],
-    notes: ['notes', 'note', 'comments', 'extra', 'notizen', 'description'],
+    password: ['password', 'login_password', 'passwort', 'kennwort'],
+    url: ['url', 'login_uri', 'web site', 'website', 'uri', 'webseite', 'adresse'],
+    notes: ['notes', 'note', 'comments', 'extra', 'notizen', 'description', 'notiz', 'bemerkung', 'bemerkungen'],
     totp: ['totp', 'login_totp', 'otpauth', 'otp'],
-    tags: ['tags']
+    tags: ['tags', 'schlagwörter', 'schlagworte']
 };
 
 const EMPTY = /^(null|\[\]|\{\})$/; // what Passman writes for "nothing"

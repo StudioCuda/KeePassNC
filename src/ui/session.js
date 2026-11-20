@@ -52,8 +52,9 @@ export function refreshReadOnly() {
     const v = state.vault;
     const ro = !!v?.readOnly;
     const pending = !!v && (v.dirty || v.unsynced);
-    const blocked = !ro && !!v?.mergeBlocked && pending;
+    const blocked = !ro && !!v?.mergeBlocked && v.mergeBlocked !== 'dup' && pending; // 'dup' has a notice of its own
     const why = !ro && !blocked && (pending || v?.writeBlocked === 'gone') ? v?.writeBlocked : null;
+    refreshDuplicates();
     document.body.classList.toggle('readonly', ro);
     const banner = $('#readonly-banner');
     if (!banner) return;
@@ -62,6 +63,43 @@ export function refreshReadOnly() {
     $('#ro-text', banner).textContent = t(why ? (why === 'gone' && !pending ? 'blocked.gone.clean' : BLOCKED_TEXT[why]) : blocked ? (v.mergeBlocked === 'etag' ? 'merge.banner.etag' : 'merge.banner') : pending ? 'ro.banner.dirty' : 'ro.banner');
     $('#ro-copy', banner).hidden = !pending && !why;
     $('#ro-recreate', banner).hidden = why !== 'gone';
+}
+
+/**
+ * Notice for a file that holds an entry or group twice, or a server version that does (the save stopped with e.merge.dup). Opening
+ * changes nothing: only "Tidy up" repairs it (Vault.repairDuplicates). A read-only session can't, so it gets no notice.
+ */
+function refreshDuplicates() {
+    const banner = $('#dup-banner');
+    const v = state.vault;
+    if (!banner) return;
+    const server = !!v && v.mergeBlocked === 'dup';
+    const d = v && !v.readOnly ? v.duplicates() : { entries: 0, groups: 0 };
+    banner.hidden = !(!v?.readOnly && (server || d.entries || d.groups));
+    if (!banner.hidden) $('#dup-text', banner).textContent = t(d.entries || d.groups ? 'dup.banner' : 'dup.banner.server');
+}
+
+const nameList = (names) => {
+    const shown = names.slice(0, 5).map((n) => n || t('entry.untitled'));
+    return shown.join(', ') + (names.length > shown.length ? ', …' : '');
+};
+
+/** "Tidy up": one copy of every entry and group, the older state of an entry in its history. Saved like any other change. */
+export function repairDuplicates() {
+    const v = state.vault;
+    if (!v) return;
+    let done;
+    try { done = v.repairDuplicates(); } catch (e) {
+        if (!e?.key) console.error(e);
+        setStatus(errText(e), 'error');
+        return;
+    }
+    const n = done.entries + done.groups;
+    let msg = n ? t('dup.fixed', { n, names: nameList(done.names) }) : t('dup.fixed.server');
+    if (done.renamed.length) msg += t('dup.fixed.renamed', { names: nameList(done.renamed.map((r) => r.name)) });
+    rebind(); // the selection may point at a copy that is gone now
+    changed();
+    setStatus(msg);
 }
 
 /** From now on the session only reads. Changes made so far stay in memory (and can be saved as a copy). */

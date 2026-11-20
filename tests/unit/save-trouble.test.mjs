@@ -2,7 +2,7 @@
 // Whatever happens, changes may never be lost silently: they stay dirty, or sit in the offline copy, and Vault.unsaved says which.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MemoryDav, newDb, openDb, titles, DavError, NetworkError } from './vault-harness.mjs';
+import { MemoryDav, newDb, openDb, titles, DavError, NetworkError, Vault, PW } from './vault-harness.mjs';
 
 /** Pretends the offline copy is on and works (Node has no IndexedDB): every write to it succeeds. */
 function withOfflineCopy(v) {
@@ -164,4 +164,29 @@ test('Gone while the version sits only in the offline copy counts as unsaved: op
     assert.equal(v.dirty, false);
     assert.equal(v.unsynced, true);
     assert.equal(v.unsaved, true);
+});
+
+test('Opening the offline copy of a file that is gone (as login.js does after a 404): nothing goes to the server until the user puts it back', async () => {
+    const dav = new MemoryDav();
+    const v = withOfflineCopy(await newDb(dav, { entries: ['A'] }));
+    add(v, 'B');
+    await v.save();
+    const etag = v.etag;
+    add(v, 'C');
+    const cached = await v.copyBytes(); // what the offline copy holds: changes the server never got
+    dav.files.delete('/db.kdbx'); // moved or deleted in the Files app
+    const w = withOfflineCopy(await Vault.open({ buf: cached, password: PW, dav: dav.file('/db.kdbx'), etag, cache: { key: 'test', name: 'db.kdbx' }, unsynced: true, fromCache: true }));
+    w.writeBlocked = 'gone';
+    assert.deepEqual(titles(w), ['A', 'B', 'C']);
+    assert.equal(w.unsaved, true, 'the changes live only in the offline copy');
+    const from = dav.log.length;
+    assert.deepEqual(await w.sync({ background: true }), { skipped: true });
+    add(w, 'D');
+    assert.deepEqual(await w.save({ auto: true }), { skipped: true });
+    assert.deepEqual(dav.log.slice(from), [], 'no request without the user');
+    assert.equal(dav.files.has('/db.kdbx'), false);
+    const res = await w.recreate();
+    assert.equal(res.recreated, true);
+    assert.equal(w.writeBlocked, null);
+    assert.deepEqual(titles(await openDb(dav)), ['A', 'B', 'C', 'D']);
 });

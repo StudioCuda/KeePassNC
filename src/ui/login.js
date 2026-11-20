@@ -1,6 +1,6 @@
 // Login: pick a source (Nextcloud/WebDAV or local file), master password + optional key file, decrypt in the browser.
 import { Vault, VaultError } from '../vault.js';
-import { DavFile, DavError, NetworkError, isOffline, offlineFailKey } from '../webdav.js';
+import { DavFile, DavError, NetworkError, isOffline, offlineFailKey, writeProblem } from '../webdav.js';
 import { cacheGet } from '../cache.js';
 import { loadSettings, saveSettings } from '../settings.js';
 import { nextcloudAuth, warmNextcloudAuth, davUrlFor, normalizeUserPath, fetchPepper } from '../nextcloud.js';
@@ -143,7 +143,7 @@ export function showLogin(message) {
             const usePepper = !!(NC && NC.pepperUrl);
             let pepperP = null;
             const getPepper = () => (pepperP ||= fetchPepper(NC, ncAuth));
-            let buf, dav = null, etag = null, name, cacheInfo = null, unsynced = false, remoteBuf, fromCache = false, offlineOpen = false, cachedAt = null, newCreds = false, cacheRev;
+            let buf, dav = null, etag = null, name, cacheInfo = null, unsynced = false, remoteBuf, fromCache = false, offlineOpen = false, cachedAt = null, newCreds = false, cacheRev, gone = false;
             ctx.settings.offline = offlineBox.checked && src === 'dav';
             if (offlineBox.checked !== loadSettings().offline) saveSettings({ ...loadSettings(), offline: offlineBox.checked });
             if (src === 'dav') {
@@ -173,10 +173,14 @@ export function showLogin(message) {
                 try {
                     got = await dav.get();
                 } catch (e) {
-                    if (!isOffline(e)) throw e;
+                    // Moved or deleted on the server while the offline copy holds changes it never got: open those, marked as such.
+                    // Nothing goes to the server until the user puts the file back or saves a copy (the "gone" banner).
+                    gone = !!cached?.modified && writeProblem(e) === 'gone';
+                    if (!gone && !isOffline(e)) throw e;
                     if (!cached) throw new VaultError(t(offlineFailKey(e, !!cacheInfo), { status: e.status, ...e.vars }));
                 }
-                if (!got) { buf = cached.bytes; etag = cached.etag; unsynced = !!cached.modified; fromCache = true; offlineOpen = true; cachedAt = cached.syncDate; }
+                if (gone) { buf = cached.bytes; etag = cached.etag; unsynced = true; fromCache = true; cachedAt = cached.syncDate; }
+                else if (!got) { buf = cached.bytes; etag = cached.etag; unsynced = !!cached.modified; fromCache = true; offlineOpen = true; cachedAt = cached.syncDate; }
                 else if (cached?.modified) { buf = cached.bytes; etag = cached.etag; unsynced = true; fromCache = true; remoteBuf = got.buf; }
                 else { buf = got.buf; etag = got.etag; }
                 newCreds = unsynced && !!cached.newCreds;
@@ -214,8 +218,9 @@ export function showLogin(message) {
                 throw e;
             }
             vault.backupKeep = ctx.settings.backupKeep;
+            if (gone) vault.writeBlocked = 'gone'; // auto-save and background syncs stand down (waitsForUser), the banner offers the way back
             // Nextcloud reports the permissions (share read-only?); other WebDAV servers don't, then saving decides
-            const perms = NC && dav && !offlineOpen ? await dav.permissions() : null;
+            const perms = NC && dav && !offlineOpen && !gone ? await dav.permissions() : null;
             const readOnly = perms !== null && !perms.includes('W');
             vault.readOnly = readOnly;
             let kfNote = '';
@@ -249,11 +254,12 @@ export function showLogin(message) {
             if (!calm) { btn.classList.replace('busy', 'done'); btn.querySelector('.icon').replaceWith(icon('unlock')); await new Promise((r) => setTimeout(r, 260)); }
             ctx.ui.showMain();
             if (!calm) document.querySelector('.shell')?.classList.add('enter');
-            if (offlineOpen) setStatus(t('open.offline', { name, version: vault.versionLabel, date: fmtDate(cachedAt, true), extra: unsynced ? t('open.offline.unsynced') : '' }), 'warn');
+            if (gone) setStatus(t('open.gone', { name, version: vault.versionLabel, date: fmtDate(cachedAt, true) }), 'warn');
+            else if (offlineOpen) setStatus(t('open.offline', { name, version: vault.versionLabel, date: fmtDate(cachedAt, true), extra: unsynced ? t('open.offline.unsynced') : '' }), 'warn');
             else if (readOnly) setStatus(t('open.ok', { name, version: vault.versionLabel }) + ' ' + t('open.readonly') + kfNote, 'warn');
             else setStatus(t('open.ok', { name, version: vault.versionLabel }) + (unsynced ? ' ' + t('open.merging') : '') + kfNote);
             refreshDirtyIndicator(); startTimers(); ensureOfflineApp();
-            if (unsynced && !offlineOpen) syncNow({ announce: true });
+            if (unsynced && !offlineOpen && !gone) syncNow({ announce: true });
         } catch (e) {
             const known = e instanceof VaultError || e instanceof DavError || e instanceof NetworkError;
             err.textContent = known ? errText(e) : t('err.generic', { msg: e.message || e });
