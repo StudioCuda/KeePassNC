@@ -10,7 +10,11 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - When the database vanished from the server (moved or deleted somewhere else), the banner offers "Put the file back": it saves the open database at its old place again and never overwrites a file that turned up there in the meantime.
 
 ### Fixed
+- With the offline copy on, a file that was moved or deleted on the server while your changes were still waiting to go up no longer just says "File not found". The offline copy opens instead, with a notice that the file is gone, so you can put it back where it was or save a copy. Nothing is sent to the server until you click.
+- Files where an older merge left the same entry or group in two places no longer get stuck on every save. A notice offers "Tidy up": one copy stays (where it was moved last, with what was changed last), the other copy's state goes into the entry's history, and you're told what got folded. Nothing changes before you click.
 - Notes and fields with Windows line breaks (CR LF, as pykeepass or Windows scripts write them) keep them when KeePassNC saves. Before, the first save quietly turned them into plain LF in every entry of the file.
+- The standalone password generator page now clears what you copied from the clipboard again after 20 seconds, just like the app does.
+- Unlocking with a remembered key file no longer waits forever when the server's answer to the key file secret never comes. After 30 seconds it gives up and says the server can't be reached.
 - Databases with a raw key file of exactly 32 bytes: after another device's changes came in, a merge, the unlock screen's check or a new master password, the next save could encrypt the file with a key nobody can derive, so it no longer opened. If that happened to one of yours, the `.bak` copy next to it or an earlier Nextcloud file version still opens.
 - A KDBX 4 file that got cut off (an upload that never finished, say) is now reported as corrupt, instead of slipping past the integrity check and showing up as a wrong password.
 - A damaged or cut-off database no longer greets you with kdbxweb's raw "Error FileCorrupt: invalid hash block". It says the file is damaged or incomplete and where a good copy usually waits: the `.bak` next to it or Nextcloud's file versions.
