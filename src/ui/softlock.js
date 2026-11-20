@@ -2,7 +2,7 @@
 // (list, detail, timers, dialogs), the database stays in memory until the master password comes back. No key derivation needed:
 // the answer comes from comparing with the credentials the session already holds.
 import { t } from '../i18n.js';
-import { ctx } from './ctx.js';
+import { ctx, clearClipboard } from './ctx.js';
 import { h, icon, iconBtn, closeAllDialogs, confirmDialog } from './dom.js';
 import { filePicker } from './file-picker.js';
 import { loginShell } from './login.js';
@@ -17,6 +17,7 @@ export function showSoftLock(message) {
     const v = state.vault;
     closeAllDialogs();
     stopDetailTimers();
+    clearClipboard(); // locked is locked, soft or not
     state.editing = null; state.selEntry = null; state.query = '';
     document.body.classList.remove('in-vault');
     const pwInput = h('input', { id: 'sl-master', type: 'password', autocomplete: 'off', spellcheck: 'false', autocapitalize: 'off', placeholder: t('login.master'), 'aria-label': t('login.master') });
