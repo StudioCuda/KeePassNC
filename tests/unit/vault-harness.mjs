@@ -135,3 +135,31 @@ export async function openDb(dav, { path: p = '/db.kdbx', password = PW } = {}) 
     const f = dav.files.get(p);
     return Vault.open({ buf: f.buf.slice(0), password, dav: dav.file(p), etag: dav._tag(p) });
 }
+
+/**
+ * IndexedDB in memory, just as much as src/cache.js uses. Every transaction runs in one go (its requests and their callbacks), one
+ * after the other: like the readwrite transactions of two tabs on the same store, nothing gets in between. All Vaults of this
+ * process that use the same one share it, the way two tabs of one browser profile share the real one. Set it as globalThis.indexedDB;
+ * data is the store's content.
+ */
+export function memoryIndexedDB() {
+    const data = new Map();
+    const db = {
+        createObjectStore() {},
+        transaction() {
+            const t = {}, reqs = [];
+            const op = (fn) => { const r = {}; reqs.push(() => { r.result = fn(); r.onsuccess?.({ target: r }); }); return r; };
+            const store = {
+                get: (k) => op(() => structuredClone(data.get(k))),
+                put: (v, k) => op(() => { data.set(k, structuredClone(v)); return k; }),
+                delete: (k) => op(() => { data.delete(k); }),
+                clear: () => op(() => data.clear()),
+                getAllKeys: () => op(() => [...data.keys()])
+            };
+            t.objectStore = () => store;
+            setTimeout(() => { while (reqs.length) reqs.shift()(); t.oncomplete?.(); });
+            return t;
+        }
+    };
+    return { data, open() { const req = {}; setTimeout(() => { req.result = db; req.onupgradeneeded?.(); req.onsuccess?.(); }); return req; } };
+}

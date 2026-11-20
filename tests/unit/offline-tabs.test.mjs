@@ -3,35 +3,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-/**
- * IndexedDB in memory, just as much as src/cache.js uses. Every transaction runs in one go (its requests and their callbacks), one
- * after the other: like the readwrite transactions of two tabs on the same store, nothing gets in between. All Vaults of this
- * process share it, the way two tabs of one browser profile share the real one.
- */
-const idb = (() => {
-    const data = new Map();
-    const db = {
-        createObjectStore() {},
-        transaction() {
-            const t = {}, reqs = [];
-            const op = (fn) => { const r = {}; reqs.push(() => { r.result = fn(); r.onsuccess?.({ target: r }); }); return r; };
-            const store = {
-                get: (k) => op(() => structuredClone(data.get(k))),
-                put: (v, k) => op(() => { data.set(k, structuredClone(v)); return k; }),
-                delete: (k) => op(() => { data.delete(k); }),
-                clear: () => op(() => data.clear()),
-                getAllKeys: () => op(() => [...data.keys()])
-            };
-            t.objectStore = () => store;
-            setTimeout(() => { while (reqs.length) reqs.shift()(); t.oncomplete?.(); });
-            return t;
-        }
-    };
-    return { data, open() { const req = {}; setTimeout(() => { req.result = db; req.onupgradeneeded?.(); req.onsuccess?.(); }); return req; } };
-})();
-globalThis.indexedDB = idb;
 
-const { Vault, MemoryDav, NetworkError, kdbxweb, newDb, entryByTitle, field, PW, FAST } = await import('./vault-harness.mjs');
+const { Vault, MemoryDav, NetworkError, kdbxweb, newDb, entryByTitle, field, PW, FAST, memoryIndexedDB } = await import('./vault-harness.mjs');
+const idb = memoryIndexedDB(); // all Vaults of this process share it, the way two tabs of one browser profile share the real one
+globalThis.indexedDB = idb;
 
 const P = '/db.kdbx';
 const CACHE = { key: `dav:https://dav.test${P}`, name: 'db.kdbx' };
