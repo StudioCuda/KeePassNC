@@ -109,7 +109,7 @@ export function openCredentials({ onBack } = {}) {
             if (delBackups?.checked && !res.offline) {
                 try { notes.push(t('cred.backups.done', { n: (await v.deleteBackups()).length })); } catch (err) { notes.push(t('cred.backups.failed', { msg: errText(err) })); }
             }
-            const main = res.offline ? 'cred.done.offline' : state.source.type === 'file' ? 'cred.done.file' : 'cred.done';
+            const main = res.offline ? (res.unconfirmed ? 'cred.done.unconfirmed' : 'cred.done.offline') : state.source.type === 'file' ? 'cred.done.file' : 'cred.done';
             setStatus([t(main, { name: state.source.name }), ...notes].join(' '), res.offline || res.merged ? 'warn' : 'info');
         } finally {
             if (change?.keyfile) change.keyfile.fill(0);
@@ -162,8 +162,10 @@ let askingRemote = false;
  * The file on the server no longer opens with this session's credentials (changed on another device): ask for the new
  * ones instead of just saying "please log in again". With them, local changes are merged and saved, otherwise
  * the new state is simply fetched. "Later" leaves everything as is; the next save or sync asks again.
+ * previous: the change was made here and never reached the server, which changed since (e.merge.oldpw): ask for the credentials
+ * from before it, only to read the server version once; ours stay, and so does the remembered key file.
  */
-export function askRemoteCredentials() {
+export function askRemoteCredentials({ previous = false } = {}) {
     const v = state.vault;
     if (askingRemote || !v?.dav) return;
     askingRemote = true;
@@ -176,9 +178,18 @@ export function askRemoteCredentials() {
         if (okBtn.disabled) return;
         error.textContent = ''; okBtn.disabled = true;
         const picked = await readFile(kfInput);
-        const keyfile = picked || v.keyfileCopy(); // without a selection: the existing key file
-        if (!pwInput.value && !keyfile) { okBtn.disabled = false; error.textContent = t('err.login.empty'); return; }
+        // without a selection: the existing key file (previous: that one or none, the vault tries both)
+        const keyfile = picked || (previous ? null : v.keyfileCopy());
+        if (!pwInput.value && !keyfile && !(previous && v.hasKeyfile)) { okBtn.disabled = false; error.textContent = t('err.login.empty'); return; }
         try {
+            if (previous) {
+                const res = await v.previousCredentials({ password: pwInput.value, keyfile: keyfile || undefined });
+                m.close();
+                rebind(); ctx.ui.refresh?.();
+                if (!res.offline) { state.offlineMode = false; state.lastSyncFailed = false; } // it got here from an offline start, usually
+                setStatus(t(res.offline ? 'saved.offline' : res.merged ? 'pcred.done' : 'sync.done'), res.offline ? 'warn' : 'info');
+                return;
+            }
             const res = await v.adoptCredentials({ password: pwInput.value, keyfile: keyfile || undefined });
             m.close();
             rebind(); ctx.ui.refresh?.();
@@ -194,11 +205,11 @@ export function askRemoteCredentials() {
         }
     }
     const body = h('form', { class: 'stack', id: 'rcred-form', onsubmit: submit },
-        h('p', { text: t(v.dirty || v.unsynced ? 'rcred.msg.local' : 'rcred.msg') }),
-        h('label', {}, h('span', { text: t('cred.new') }), pwInput),
-        h('label', {}, h('span', { text: t('login.keyfile') }), filePicker(kfInput, { icon: 'key', button: t('login.keyfile.choose'), placeholder: v.hasKeyfile ? t('rcred.kf.same') : t('login.keyfile.none') })),
+        h('p', { text: t(previous ? 'pcred.msg' : v.dirty || v.unsynced ? 'rcred.msg.local' : 'rcred.msg') }),
+        h('label', {}, h('span', { text: t(previous ? 'pcred.pw' : 'cred.new') }), pwInput),
+        h('label', {}, h('span', { text: t('login.keyfile') }), filePicker(kfInput, { icon: 'key', button: t('login.keyfile.choose'), placeholder: v.hasKeyfile ? t(previous ? 'pcred.kf.same' : 'rcred.kf.same') : t('login.keyfile.none') })),
         error,
         h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', id: 'rcred-later', text: t('rcred.later'), onclick: () => m.close() }), okBtn));
-    const m = modal({ title: t('rcred.title'), body, size: 'sm', onClose: () => { askingRemote = false; } });
+    const m = modal({ title: t(previous ? 'pcred.title' : 'rcred.title'), body, size: 'sm', onClose: () => { askingRemote = false; } });
     pwInput.focus();
 }

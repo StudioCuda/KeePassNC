@@ -1,5 +1,6 @@
 // Local offline copy: stores the ENCRYPTED KDBX (exactly the bytes that also sit on the server) in IndexedDB.
-// Entry: {bytes: ArrayBuffer, etag, modified: boolean, name, syncDate}. "modified" = local changes the server doesn't have yet.
+// Entry: {bytes: ArrayBuffer, etag, modified: boolean, newCreds: boolean, name, syncDate}. "modified" = local changes the server doesn't have yet;
+// "newCreds" = among them new credentials: the server version (etag) still opens with the previous ones (which are not stored either).
 // Plaintext, master password and key file are never stored here.
 const DB_NAME = 'keepassnc';
 const STORE = 'files';
