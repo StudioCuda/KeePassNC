@@ -340,6 +340,6 @@ test('a server file that holds an entry twice stops the merge with e.merge.dup, 
     const server = dav.bytes('/db.kdbx');
     edit(a, 'X', { Notes: 'a' });
     await assert.rejects(a.save(), { key: 'e.merge.dup' });
-    assert.equal(a.mergeBlocked, true);
+    assert.equal(a.mergeBlocked, 'dup');
     assert.deepEqual(new Uint8Array(dav.bytes('/db.kdbx')), new Uint8Array(server));
 });

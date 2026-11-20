@@ -1411,6 +1411,48 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Datei mit doppeltem Eintrag (Ueberbleibsel des alten Zusammenfuehrens): Hinweis mit "Aufraeumen", erst der Klick repariert, die aeltere Fassung landet im Verlauf', async () => {
+        // kdbxweb writes the file: KeePassXC folds two copies of one UUID into one while reading, so it can't make such a file
+        const { kdbxweb } = await import('../unit/vault-harness.mjs');
+        const creds = () => new kdbxweb.Credentials(kdbxweb.ProtectedValue.fromString(PW));
+        const load = async (file) => kdbxweb.Kdbx.load(new Uint8Array(fs.readFileSync(file)).buffer, creds());
+        const f = path.join(davRoot, 'twice.kdbx');
+        const db = await load(path.join(davRoot, 'vault3.kdbx'));
+        const konto = [...db.getDefaultGroup().allEntries()].find((e) => e.fields.get('Title') === 'Konto');
+        const archiv = db.createGroup(db.getDefaultGroup(), 'Archiv');
+        const copy = new konto.constructor();
+        copy.copyFrom(konto);
+        copy.parentGroup = archiv; archiv.entries.push(copy);
+        const later = new Date(konto.lastModTime + 60000);
+        copy.times.locationChanged = later; copy.times.lastModTime = later;
+        copy.fields.set('Password', kdbxweb.ProtectedValue.fromString('pw-neuer'));
+        fs.writeFileSync(f, Buffer.from(await db.save()));
+        const before = fs.readFileSync(f);
+        const id = konto.uuid.id;
+        const copies = (d) => [...d.getDefaultGroup().allEntries()].filter((e) => e.uuid.id === id);
+
+        const p = await newPage();
+        await login(p, 'twice.kdbx'); await rows(p).first().waitFor();
+        await p.locator('#dup-banner').waitFor();
+        expect(/doppelt/.test(await p.locator('#dup-text').innerText()), 'Hinweistext fehlt');
+        expect(await p.locator('#readonly-banner').isHidden(), 'kein Lesemodus-Hinweis erwartet');
+        await p.waitForTimeout(500);
+        expect(Buffer.compare(before, fs.readFileSync(f)) === 0, 'die Datei wurde ohne Klick veraendert');
+        await p.click('#dup-fix');
+        await waitStatus(p, /^Aufgeräumt: 1 doppelte/);
+        expect(await p.locator('#dup-banner').isHidden(), 'Hinweis bleibt nach dem Aufraeumen');
+        expect(Buffer.compare(before, fs.readFileSync(f)) === 0, 'Aufraeumen allein darf nicht hochladen (Speichern ist aus)');
+        await p.click('#save-btn'); await waitStatus(p, /^(Gespeichert|Änderungen)/);
+        const after = await load(f);
+        const left = copies(after);
+        expect(left.length === 1, 'Konto steht ' + left.length + 'x in der Datei');
+        expect(left[0].parentGroup.name === 'Archiv', 'Konto steht nicht da, wohin es zuletzt verschoben wurde: ' + left[0].parentGroup.name);
+        expect(left[0].fields.get('Password').getText() === 'pw-neuer', 'neueste Fassung fehlt');
+        expect(left[0].history.some((h) => h.fields.get('Password').getText() === 'pw-v3-zwei'), 'aeltere Fassung fehlt im Verlauf');
+        expect(xc(['show', '-s', f, 'Archiv/Konto'], null).includes('pw-neuer'), 'KeePassXC liest das Ergebnis nicht');
+        await p.context().close();
+    });
+
     await step('Datenschutz/Sicherheit: keine externen Anfragen, keine JS-Fehler, CSP gesetzt, Server sah nie Klartext', async () => {
         expect(problems.external.length === 0, 'Externe Anfragen: ' + problems.external.join(', '));
         expect(problems.pageErrors.length === 0, 'Seitenfehler: ' + problems.pageErrors.join(' | '));
