@@ -171,6 +171,7 @@ export default {
     'e.att.exists':'Ein Anhang namens „{name}“ existiert bereits.',
     'e.badfile': 'Das ist keine gültige KDBX-Datei (oder eine nicht unterstützte Version).',
     'e.badkey': 'Falsches Master-Passwort oder falsche Schlüsseldatei. Oder die Datei braucht einen Hardware-Schlüssel wie einen YubiKey, den Browser nicht ansprechen können.',
+    'e.corrupt': 'Die Datei ist beschädigt oder unvollständig, vielleicht ist ein Upload abgebrochen. Eine heile Kopie findest du meist daneben als <Name>.JJJJMMTT-HHMMSS.bak oder in Nextcloud unter Dateien → Details → Versionen.',
     'e.cred.empty': 'Ohne Master-Passwort und ohne Schlüsseldatei könnte jeder die Datenbank öffnen.',
     'e.cred.unconfirmed': 'Der Server hat das Hochladen nicht bestätigt. Hier gelten weiter die alten Zugangsdaten: Speichere noch einmal, sobald der Server wieder antwortet, dann bekommt auch er sie zurück, falls die neuen doch angekommen sind.',
     'e.dav.exists': 'Diese Datei gibt es schon. Bitte einen anderen Namen wählen, überschrieben wird hier nichts.',
