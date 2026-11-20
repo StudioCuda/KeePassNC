@@ -833,7 +833,7 @@ async function main() {
         await login(p, 'semikolon.kdbx'); await rows(p).first().waitFor();
         const openCsv = async () => { if (!await p.locator('#csv-btn').isVisible()) { await p.click('#reports-btn'); await p.click('#rep-tab-info'); } await p.click('#csv-btn'); await p.locator('#csv-file').waitFor({ state: 'attached' }); };
         await openCsv();
-        await p.setInputFiles('#csv-file', { name: 'fremd.csv', mimeType: 'text/csv', buffer: Buffer.from('Titel;Benutzername;Kennwort\r\nGMX;bob;pw\r\n') });
+        await p.setInputFiles('#csv-file', { name: 'fremd.csv', mimeType: 'text/csv', buffer: Buffer.from('Konto;Kürzel;Geheimnis\r\nGMX;bob;pw\r\n') });
         await p.waitForFunction(() => /Spalten dieser CSV-Datei kennt KeePassNC nicht/.test(document.querySelector('#csv-summary')?.textContent || ''));
         expect(await p.isDisabled('#csv-import'), 'eine Datei ohne bekannte Spalte laesst sich importieren');
         await p.setInputFiles('#csv-file', { name: 'excel.csv', mimeType: 'text/csv', buffer: ansi });

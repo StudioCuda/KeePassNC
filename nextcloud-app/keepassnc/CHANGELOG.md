@@ -5,6 +5,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- CSV import understands German column names from a hand-made list too: Titel, Benutzername, Kennwort, Webseite, Bemerkung, Ordner, Schlagwörter and friends, in any case.
 - Bitwarden JSON import: SSH keys come along, the private key as a key file attachment (ready for KeePassXC's SSH agent), public key and fingerprint as fields. The import also says when an entry loses something on the way, such as a passkey.
 - When the database vanished from the server (moved or deleted somewhere else), the banner offers "Put the file back": it saves the open database at its old place again and never overwrites a file that turned up there in the meantime.
 
