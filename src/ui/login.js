@@ -143,7 +143,7 @@ export function showLogin(message) {
             const usePepper = !!(NC && NC.pepperUrl);
             let pepperP = null;
             const getPepper = () => (pepperP ||= fetchPepper(NC, ncAuth));
-            let buf, dav = null, etag = null, name, cacheInfo = null, unsynced = false, remoteBuf, fromCache = false, offlineOpen = false, cachedAt = null, newCreds = false;
+            let buf, dav = null, etag = null, name, cacheInfo = null, unsynced = false, remoteBuf, fromCache = false, offlineOpen = false, cachedAt = null, newCreds = false, cacheRev;
             ctx.settings.offline = offlineBox.checked && src === 'dav';
             if (offlineBox.checked !== loadSettings().offline) saveSettings({ ...loadSettings(), offline: offlineBox.checked });
             if (src === 'dav') {
@@ -168,6 +168,7 @@ export function showLogin(message) {
                 name = decodeURIComponent(new URL(dav.url, location.href).pathname.split('/').pop());
                 if (ctx.settings.offline) cacheInfo = { key: NC ? `nc:${NC.user}:${normalizeUserPath(ncPathInput.value)}` : `dav:${dav.url}`, name };
                 const cached = cacheInfo ? await cacheGet(cacheInfo.key).catch(() => null) : null;
+                cacheRev = cached?.rev; // which version of the offline copy this tab knows (another tab may write it meanwhile, see Vault._cacheWrite)
                 let got = null;
                 try {
                     got = await dav.get();
@@ -204,7 +205,7 @@ export function showLogin(message) {
             if (!(await confirmHeavyKdf(buf))) return;
             let vault;
             try {
-                vault = await Vault.open({ buf, password: masterInput.value, keyfile, dav, etag, cache: cacheInfo, unsynced, remoteBuf, fromCache, newCreds });
+                vault = await Vault.open({ buf, password: masterInput.value, keyfile, dav, etag, cache: cacheInfo, unsynced, remoteBuf, fromCache, newCreds, cacheRev });
             } catch (e) {
                 if (usedRemembered && e instanceof VaultError) throw new VaultError(t('err.kf.mismatch'));
                 // Unsynced local copy (old credentials) while new ones were set elsewhere: the way in goes through the old ones.

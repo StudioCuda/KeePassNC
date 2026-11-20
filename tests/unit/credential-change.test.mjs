@@ -3,38 +3,15 @@
 // change that only reached the offline copy must still merge after a reload of the page (the server version keeps the old credentials).
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MemoryDav, newDb, openDb, titles, Vault, DavError, NetworkError, kdbxweb, ProtectedValue, PW } from './vault-harness.mjs';
+import { MemoryDav, newDb, openDb, titles, Vault, DavError, NetworkError, kdbxweb, ProtectedValue, PW, memoryIndexedDB } from './vault-harness.mjs';
 
 const FILE = '/db.kdbx';
 const NEW = 'new-secret';
 
-// The offline copy lives in IndexedDB (src/cache.js), which Node doesn't have: a tiny stand-in with the calls cache.js makes.
-const idb = new Map();
-globalThis.indexedDB = {
-    open() {
-        const req = {};
-        setTimeout(() => {
-            req.result = {
-                createObjectStore() {},
-                transaction() {
-                    const t = {};
-                    t.objectStore = () => ({
-                        get: (k) => ({ result: structuredClone(idb.get(k)) }),
-                        put: (v, k) => { idb.set(k, structuredClone(v)); return { result: k }; },
-                        delete: (k) => { idb.delete(k); return {}; },
-                        clear: () => { idb.clear(); return {}; },
-                        getAllKeys: () => ({ result: [...idb.keys()] })
-                    });
-                    setTimeout(() => t.oncomplete?.());
-                    return t;
-                }
-            };
-            req.onupgradeneeded?.();
-            req.onsuccess?.();
-        });
-        return req;
-    }
-};
+// The offline copy lives in IndexedDB (src/cache.js), which Node doesn't have: the harness's stand-in.
+const fakeIdb = memoryIndexedDB();
+globalThis.indexedDB = fakeIdb;
+const idb = fakeIdb.data;
 let cacheNo = 0;
 const newCache = () => ({ key: `test:${++cacheNo}`, name: 'db.kdbx' });
 
