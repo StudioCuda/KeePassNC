@@ -2,8 +2,8 @@
 
 [kdbxweb](https://github.com/keeweb/kdbxweb) by Antelle, MIT (see `LICENSE`). Git state `UPSTREAM_COMMIT` (2.2.0, npm stops at 2.1.1).
 
-Seven local fixes and one addition, all already applied in `lib/`. The diffs in `patches/` record what changed, so it can be carried
-over after an update. They are not uniform: six are `git diff` output with different path prefixes (`a/lib/...` or
+Eight local fixes and one addition, all already applied in `lib/`. The diffs in `patches/` record what changed, so it can be carried
+over after an update. They are not uniform: seven are `git diff` output with different path prefixes (`a/lib/...` or
 `a/vendor/kdbxweb/lib/...`, and `date-overflow-fix.patch` doesn't apply cleanly to `UPSTREAM_COMMIT` as it is), `xml-tab-fix.patch` and
 `history-customdata-fix.patch` are plain `diff` output. Read them as a list of changes to redo, not as something to feed to
 `git apply`. A comparison of `lib/` with `UPSTREAM_COMMIT` (second review of 0.18.0) found exactly these changes and nothing else.
@@ -18,4 +18,5 @@ over after an update. They are not uniform: six are `git diff` output with diffe
 - `twofish.patch`: Twofish-256 as a third cipher next to AES and ChaCha20 (`lib/crypto/twofish.ts`, written from the 1998
   specification), so files KeePassXC encrypted with Twofish open and save. Upstream never had it.
 - `aes-rounds-limit.patch`: `KeyEncryptorAes.encrypt` refuses more than 1 000 000 000 rounds (`KdbxError` `Unsupported`, "too many aes rounds"). The round count comes from the file header; the app asks before opening files over 100 million rounds (`src/core/kdf-policy.js`) and this is the limit behind that question.
+- `hmac-end-block-fix.patch`: reading KDBX 4 also checks the HMAC of the empty block that ends the block stream, like KeePass 2 and KeePassXC. Upstream skipped it, although it is what authenticates the end of the file: a file cut off at a 1 MiB block boundary got past the HMAC and only failed later, by luck, in decryption or gzip (with AES as "wrong password"). A stream that stops before that block (cut at a block boundary or inside a block) is `FileCorrupt` too; bytes after it are never read and stay ignored, as in KeePass 2 and KeePassXC.
 - `recycle-bin-fix.patch`: write a missing `RecycleBinEnabled` as `True`, KeePass 2's default, instead of an empty element that KeePassXC reads as "off". `Kdbx.move` refuses to put a group into itself or one of its subgroups (`KdbxError` `InvalidArg`): that cut the group off from the tree, and it vanished on saving with everything in it (`remove()` did it to a group holding the recycle bin).

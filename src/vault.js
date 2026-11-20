@@ -10,7 +10,10 @@ import { EXPORT_HEAD, otpUri } from './core/csv.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
 
-kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type) => {
+kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type, version) => {
+    // hash-wasm only computes Argon2 1.3 (0x13); kdbxweb also lets 1.0 (0x10) through, which KeePass 2 and KeePassXC still read and
+    // keep. Computed as 1.3, such a file gets a different key and looked like a wrong password, so say what it really is.
+    if (version !== 0x13) throw new VaultError('Diese Datenbank nutzt Argon2 in der alten Version 1.0, die KeePassNC nicht berechnen kann.', 'e.kdf.argon2v10');
     let out;
     try {
         out = await argon2({
@@ -80,7 +83,7 @@ export async function createKeyfile() {
  * counts as the same. An unreadable file (XML with a wrong checksum) throws.
  */
 export async function sameKeyfile(a, b) {
-    const hash = async (x) => { const c = new Credentials(null, x); await c.ready; return c.keyFileHash.getBinary(); };
+    const hash = async (x) => { const c = credentials(null, x); await c.ready; return c.keyFileHash.getBinary(); };
     const [x, y] = await Promise.all([hash(a), hash(b)]);
     try { return sameBytes(x, y); } finally { x.fill(0); y.fill(0); }
 }
@@ -114,6 +117,14 @@ const sameBytes = (a, b) => {
     return d === 0;
 };
 const toArrayBuffer = (u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+/**
+ * kdbxweb's Credentials, always with a copy of the key file of its own. A key file of exactly 32 bytes is the key itself, and
+ * kdbxweb masks the very buffer it gets for it (ProtectedValue.fromBinary: "the contents will be destroyed") and keeps it as
+ * keyFileHash. Handed the vault's bytes (_kf, _base.kf), the database's credentials and the vault shared one buffer, and the next
+ * Credentials from it (a pull, a merge, the soft-lock check, a new password) masked it again: the following save encrypted the file
+ * with a key nobody can derive.
+ */
+const credentials = (pw, kf) => new Credentials(pw, kf ? (kf instanceof ArrayBuffer ? kf.slice(0) : toArrayBuffer(kf)) : kf);
 const stamp = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '-');
 
 export function generatePassword(length = 24) {
@@ -145,7 +156,7 @@ async function loadWith(buf, password, kf) {
     try {
         for (const [n, pw] of tries.entries()) {
             try {
-                return { db: await Kdbx.load(buf, new Credentials(pw, kf)), pw };
+                return { db: await Kdbx.load(buf, credentials(pw, kf)), pw };
             } catch (e) {
                 if (!(e instanceof KdbxError && e.code === Consts.ErrorCodes.InvalidKey) || n === tries.length - 1) throw e;
             }
@@ -198,7 +209,7 @@ export class Vault {
         const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
         const pw = password ? ProtectedValue.fromString(password) : null;
         if (!pw && !kf) throw new VaultError('Ohne Passwort und Schluesseldatei liesse sich die Datenbank von jedem oeffnen.', 'e.cred.empty');
-        const creds = new Credentials(pw, kf);
+        const creds = credentials(pw, kf);
         try { await creds.ready; } catch { throw new VaultError('Diese Schluesseldatei ist unlesbar.', 'e.keyfile.bad'); }
         const db = Kdbx.create(creds, name);
         const v = new Vault(db, pw, kf, dav, null, null, cache);
@@ -270,7 +281,7 @@ export class Vault {
 
     /** For reading the server version (merging, pulling): its credentials, not necessarily our own. */
     _baseCredentials() {
-        return new Credentials(this._base.pw, this._base.kf);
+        return credentials(this._base.pw, this._base.kf);
     }
 
     /** Does pw match this database's master password? Compares hashes only, no key derivation. Without a password: only "". */
@@ -309,7 +320,7 @@ export class Vault {
             const pw = password === undefined ? this._pw : ProtectedValue.fromString(password);
             const kf = keyfile === undefined ? this._kf : keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
             if (!pw && !kf) throw new VaultError('Ohne Passwort und Schluesseldatei liesse sich die Datenbank von jedem oeffnen.', 'e.cred.empty');
-            const creds = new Credentials(pw, kf);
+            const creds = credentials(pw, kf);
             // report an unreadable key file (e.g. XML with a wrong checksum) now, not only on save
             try { await creds.ready; } catch { throw new VaultError('Diese Schluesseldatei ist unlesbar.', 'e.keyfile.bad'); }
             const prev = { pw: this._pw, kf: this._kf, creds: this.db.credentials, keyChanged: this.db.meta.keyChanged };
@@ -339,7 +350,7 @@ export class Vault {
             const remote = await this.dav.get();
             const { db: remoteDb, pw } = await loadWith(remote.buf, password, kf);
             this._pw = pw; this._kf = kf; this._base = { pw, kf };
-            this.db.credentials = new Credentials(pw, kf);
+            this.db.credentials = credentials(pw, kf);
             if (this.dirty) return this._save();
             if (this.unsynced) return this._push();
             this.db = remoteDb; // nothing local: the server version wins (like _pull)
@@ -361,7 +372,7 @@ export class Vault {
         let other;
         try {
             other = creds ? (await loadWith(buf, creds.password, creds.keyfile ? toArrayBuffer(creds.keyfile) : undefined)).db
-                : await Kdbx.load(buf, new Credentials(this._pw, this._kf));
+                : await Kdbx.load(buf, credentials(this._pw, this._kf));
         } catch (e) { throw loadError(e); }
         const snapshot = (items) => new Map([...items].map((x) => [x.uuid.id, `${x.times.lastModTime?.getTime()}|${x.parentGroup?.uuid.id}`]));
         const diff = (before, after) => ({
@@ -463,8 +474,10 @@ export class Vault {
         if (data.color !== undefined && data.color !== (entryColor(entry) || '')) entry.bgColor = data.color || undefined;
         if (data.excludeReports !== undefined && data.excludeReports !== excluded(entry)) { // both spellings, so KeePass 2 and KeePassXC see it
             entry.qualityCheck = data.excludeReports ? false : undefined;
-            if (data.excludeReports) (entry.customData ??= new Map()).set('KnownBad', { value: 'True' });
+            if (data.excludeReports) (entry.customData ??= new Map()).set('KnownBad', { value: 'true' });
             else entry.customData?.delete('KnownBad');
+        } else if (entry.customData?.get('KnownBad')?.value === 'True') {
+            entry.customData.set('KnownBad', { value: 'true' }); // written by KeePassNC up to 1.2.0; KeePassXC only reads lowercase
         }
         entry.times.update();
         this.dirty = true;
