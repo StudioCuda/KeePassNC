@@ -11,6 +11,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 - With the offline copy on, a file that was moved or deleted on the server while your changes were still waiting to go up no longer just says "File not found". The offline copy opens instead, with a notice that the file is gone, so you can put it back where it was or save a copy. Nothing is sent to the server until you click.
+- Files where an older merge left the same entry or group in two places no longer get stuck on every save. A notice offers "Tidy up": one copy stays (where it was moved last, with what was changed last), the other copy's state goes into the entry's history, and you're told what got folded. Nothing changes before you click.
 - Notes and fields with Windows line breaks (CR LF, as pykeepass or Windows scripts write them) keep them when KeePassNC saves. Before, the first save quietly turned them into plain LF in every entry of the file.
 - The standalone password generator page now clears what you copied from the clipboard again after 20 seconds, just like the app does.
 - Databases with a raw key file of exactly 32 bytes: after another device's changes came in, a merge, the unlock screen's check or a new master password, the next save could encrypt the file with a key nobody can derive, so it no longer opened. If that happened to one of yours, the `.bak` copy next to it or an earlier Nextcloud file version still opens.
