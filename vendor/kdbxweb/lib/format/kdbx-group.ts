@@ -169,23 +169,29 @@ export class KdbxGroup {
 
     merge(objectMap: MergeObjectMap): void {
         const remoteGroup = objectMap.remoteGroups.get(this.uuid.id);
-        if (!remoteGroup) {
-            return;
+        if (remoteGroup) {
+            // the move time goes with the place Kdbx.merge picked, not with the newer content
+            const place = objectMap.remotePlace.has(this.uuid.id) ? remoteGroup : this;
+            const { previousParentGroup } = place;
+            const { locationChanged } = place.times;
+            if (remoteGroup.lastModTime > this.lastModTime) {
+                this.copyFrom(remoteGroup);
+            }
+            this.times.locationChanged = locationChanged;
+            this.previousParentGroup = previousParentGroup;
         }
-        if (remoteGroup.lastModTime > this.lastModTime) {
-            this.copyFrom(remoteGroup);
-        }
+        // a group only this side has is merged too: what's in it may have been changed or moved on the other side
         this.groups = this.mergeCollection(
             this.groups,
-            remoteGroup.groups,
+            remoteGroup?.groups ?? [],
             objectMap.groups,
-            objectMap.remoteGroups
+            objectMap.remotePlace
         );
         this.entries = this.mergeCollection(
             this.entries,
-            remoteGroup.entries,
+            remoteGroup?.entries ?? [],
             objectMap.entries,
-            objectMap.remoteEntries
+            objectMap.remotePlace
         );
         for (const group of this.groups) {
             group.merge(objectMap);
@@ -199,23 +205,21 @@ export class KdbxGroup {
      * Merge object collection with remote collection
      * Deleted objects are merged like the others: Kdbx.merge applies the tombstones afterwards, against the merged times,
      * so a change made after the deletion survives it (like KeePass 2)
+     * Where an object goes was decided up front (remotePlace, see Kdbx.merge), so that every object ends up in exactly one group
      */
     private mergeCollection<T extends KdbxGroup | KdbxEntry>(
         collection: T[],
         remoteCollection: T[],
         objectMapItems: Map<string, T>,
-        remoteObjectMapItems: Map<string, T>
+        remotePlace: Set<string>
     ): T[] {
         const newItems: T[] = [];
         for (const item of collection) {
             if (!item.uuid) {
                 continue;
             }
-            const remoteItem = remoteObjectMapItems.get(item.uuid.id);
-            if (!remoteItem) {
-                newItems.push(item); // item added locally
-            } else if (remoteItem.locationChanged <= item.locationChanged) {
-                newItems.push(item); // item not changed or moved to this group locally later than remote
+            if (!remotePlace.has(item.uuid.id)) {
+                newItems.push(item); // item added locally, not moved, or moved to this group locally later than remote
             }
         }
         let ix = -1;
@@ -226,7 +230,7 @@ export class KdbxGroup {
             }
             const item = objectMapItems.get(remoteItem.uuid.id);
 
-            if (item && remoteItem.locationChanged > item.locationChanged) {
+            if (item && remotePlace.has(item.uuid.id)) {
                 item.parentGroup = this; // item moved to this group remotely later than local
                 newItems.splice(KdbxGroup.findInsertIx(newItems, remoteCollection, ix), 0, item);
             } else if (!item) {
