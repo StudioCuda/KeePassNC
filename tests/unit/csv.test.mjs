@@ -75,3 +75,39 @@ test('toCsv entschaerft Formeln, wenn gewuenscht', () => {
     assert.equal(toCsv([['-1']], { neutralize: true, keepNumbers: false }), '"\'-1"\r\n');
     assert.equal(toCsv([['-1,5', '-1a']], { neutralize: true }), '"-1,5","\'-1a"\r\n');
 });
+
+test('parseCsv: the delimiter comes from the header line (comma, semicolon, tab, pipe), outside quotes only', () => {
+    // German Excel ("CSV UTF-8"): BOM, semicolons, CRLF, quotes only where needed, line breaks inside a cell are LF
+    const excel = '﻿Group;Title;Username;Password;URL;Notes\r\nPasswords/Bank;Sparkasse Köln;jürgen;"pa;ss""wört";https://sparkasse.de;"Zwei\nZeilen, mit Komma"\r\nPasswords;Müller & Söhne;anna;€uro,1;;Grüße\r\n';
+    assert.deepEqual(parseCsv(excel), [['Group', 'Title', 'Username', 'Password', 'URL', 'Notes'],
+        ['Passwords/Bank', 'Sparkasse Köln', 'jürgen', 'pa;ss"wört', 'https://sparkasse.de', 'Zwei\nZeilen, mit Komma'], ['Passwords', 'Müller & Söhne', 'anna', '€uro,1', '', 'Grüße']]);
+    assert.deepEqual(parseCsv('Title\tUsername\tPassword\nGMX\tbob\tpw,1;2\n"Tab\tin quotes"\t"x"\t'), [['Title', 'Username', 'Password'], ['GMX', 'bob', 'pw,1;2'], ['Tab\tin quotes', 'x', '']]);
+    assert.deepEqual(parseCsv('Title|Password\nA|p,w;1'), [['Title', 'Password'], ['A', 'p,w;1']]);
+    assert.deepEqual(parseCsv('"Title;a;b","Notes"\nA;B,C'), [['Title;a;b', 'Notes'], ['A;B', 'C']], 'semicolons inside quotes do not count');
+    assert.deepEqual(parseCsv('"Title,a,b";"Notes"\nA,B;C'), [['Title,a,b', 'Notes'], ['A,B', 'C']], 'commas inside quotes do not count');
+    assert.deepEqual(parseCsv('\r\n\r\nTitle;Password\nA;b'), [['Title', 'Password'], ['A', 'b']], 'leading empty lines are skipped before looking');
+    assert.deepEqual(parseCsv('Title,Notes\nA,"x;y;z"\nB,1;2;3'), [['Title', 'Notes'], ['A', 'x;y;z'], ['B', '1;2;3']], 'only the header decides, semicolons in the data do not');
+});
+
+test('parseCsv: a tie goes to the comma, a header without any delimiter is one comma column', () => {
+    assert.deepEqual(parseCsv('a,b;c\n1,2;3'), [['a', 'b;c'], ['1', '2;3']]);
+    assert.deepEqual(parseCsv('a;b\tc|d,e\n1;2\t3|4,5'), [['a;b\tc|d', 'e'], ['1;2\t3|4', '5']]);
+    assert.deepEqual(parseCsv('url\nhttps://a.example/?x=1,2'), [['url'], ['https://a.example/?x=1', '2']]);
+    assert.deepEqual(parseCsv(''), []);
+});
+
+test('parseCsv: a quote inside an unquoted field is a plain character and swallows nothing (like Excel and LibreOffice)', () => {
+    const rows = parseCsv('Title,Username,Password,URL\nGMX,bob,pass"word,https://gmx.net\nWeb,eve,pw2,https://web.de\nDisk,carol,5" floppy,\nEnd,dave,pw"","x"');
+    assert.deepEqual(rows, [['Title', 'Username', 'Password', 'URL'], ['GMX', 'bob', 'pass"word', 'https://gmx.net'], ['Web', 'eve', 'pw2', 'https://web.de'], ['Disk', 'carol', '5" floppy', ''], ['End', 'dave', 'pw""', 'x']]);
+    assert.deepEqual(parseCsv('a;b\nx"y;"q;""r"""\n1;2'), [['a', 'b'], ['x"y', 'q;"r"'], ['1', '2']], 'the same with semicolons');
+});
+
+test('parseCsv: a quote that opens a field but never closes is a plain character, the rows after it stay rows', () => {
+    assert.deepEqual(parseCsv('Title,Password\nA,"pw\nB,pw2\n'), [['Title', 'Password'], ['A', '"pw'], ['B', 'pw2']]);
+    assert.deepEqual(parseCsv('Title,Password\nA,"'), [['Title', 'Password'], ['A', '"']]);
+});
+
+test('parseCsv: comma files read exactly as before (quotes after spaces, text after a closing quote, a lone CR)', () => {
+    assert.deepEqual(parseCsv('a, "b, c" ,d\n"x"y,z'), [['a', ' b, c ', 'd'], ['xy', 'z']]);
+    assert.deepEqual(parseCsv('"a"\r"b"\r\n"c""d"'), [['a'], ['b'], ['c"d']]);
+});

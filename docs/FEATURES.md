@@ -37,8 +37,8 @@ The short tour is in the [README](../README.md). This is the long version, for w
 
 ## Moving in (and out)
 
-- Import CSV exports from KeePassXC, Bitwarden, 1Password, LastPass, Proton Pass, Chrome or Firefox.
-- Coming from Nextcloud Passwords, Passman or Bitwarden? Import their JSON export (Passwords: "Backup or export" → "Database backup"). Folders, tags and extra fields come along, Passman's files too.
+- Import CSV exports from KeePassXC, Bitwarden, 1Password, LastPass, Proton Pass, Chrome or Firefox. Commas, semicolons or tabs, UTF-8 or the Windows encoding Excel likes to use: a file that took a detour through a spreadsheet still comes in right.
+- Coming from Nextcloud Passwords, Passman or Bitwarden? Import their JSON export (Passwords: "Backup or export" → "Database backup"). Folders, tags and extra fields come along, Passman's files too, and a Bitwarden SSH key arrives as a key file attachment that KeePassXC's SSH agent can load.
 - Export to CSV the way KeePassXC does it.
 
 ## Playing nicely with Nextcloud
