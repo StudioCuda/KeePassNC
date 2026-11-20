@@ -2,6 +2,7 @@
 // switchable at the bottom. Builds with DOM methods only; the page's CSP forbids any connection (connect-src 'none').
 import { setLang, t } from './i18n.js';
 import { themeVars } from './theme.js';
+import { clipboardGuard } from './ui/clipboard.js';
 import { h, icon, toast } from './ui/dom.js';
 import { createGenerator } from './ui/generator-panel.js';
 
@@ -27,8 +28,15 @@ function pref(key, value) {
     } catch { /* storage unavailable - no problem */ }
     return '';
 }
+// A copied password leaves the clipboard again, like in the app (ui/clipboard.js), after the app's default time: this page has no
+// settings. Without a status line, the notes about a clear the browser holds back come as notices.
+const CLEAR_S = 20;
+const clipboard = clipboardGuard({
+    clipboard: navigator.clipboard, permissions: navigator.permissions, activation: navigator.userActivation, win: window, doc: document,
+    onState: (state, what) => toast(t('clipboard.' + state, { what }), { kind: state === 'failed' ? 'error' : 'info', timeout: state === 'cleared' || state === 'kept' ? 2500 : 8000 })
+});
 async function copy(text, label) {
-    try { await navigator.clipboard.writeText(text); toast(t('copied.short', { what: label }), { timeout: 1800 }); }
+    try { await clipboard.copy(text, label, CLEAR_S * 1000); toast(t('copied', { what: label, s: CLEAR_S }), { timeout: 3000 }); }
     catch { toast(t('copy.failed'), { kind: 'error' }); }
 }
 
