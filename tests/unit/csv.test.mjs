@@ -111,3 +111,19 @@ test('parseCsv: comma files read exactly as before (quotes after spaces, text af
     assert.deepEqual(parseCsv('a, "b, c" ,d\n"x"y,z'), [['a', ' b, c ', 'd'], ['xy', 'z']]);
     assert.deepEqual(parseCsv('"a"\r"b"\r\n"c""d"'), [['a'], ['b'], ['c"d']]);
 });
+
+test('mapRows: German column names from a hand-made list (Excel, semicolons), any case', () => {
+    const file = '\ufeffTitel;Benutzername;Kennwort;Webseite;Bemerkung;Ordner;Schlagwörter\r\nBank;anna;geheim;https://bank.example;PIN im Safe;Finanzen/Konten;wichtig, bank\r\n';
+    const { entries, ignored, known } = mapRows(parseCsv(file));
+    assert.ok(known);
+    assert.deepEqual(ignored, []);
+    assert.deepEqual(entries, [{ path: ['Finanzen', 'Konten'], title: 'Bank', user: 'anna', password: 'geheim', url: 'https://bank.example', notes: 'PIN im Safe', totp: '', tags: ['wichtig', 'bank'] }]);
+    // the other spellings, in any case
+    const other = mapRows([['TITEL', 'Nutzername', 'PASSWORT', 'Adresse', 'Notiz', 'Gruppe', 'Schlagworte'], ['t', 'u', 'p', 'a.example', 'n', 'G', 'x']]);
+    assert.deepEqual(other.entries[0], { path: ['G'], title: 't', user: 'u', password: 'p', url: 'a.example', notes: 'n', totp: '', tags: ['x'] });
+    assert.equal(mapRows([['Benutzer', 'Notizen', 'Bemerkungen'], ['u', 'n', '']]).entries[0].user, 'u');
+    // English names still win where both are there
+    const both = mapRows([['Title', 'Titel', 'Username', 'Benutzername'], ['en', 'de', 'en-user', 'de-user']]);
+    assert.equal(both.entries[0].title, 'en');
+    assert.equal(both.entries[0].user, 'en-user');
+});
