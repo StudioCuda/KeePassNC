@@ -413,9 +413,13 @@ export class Kdbx {
         }
 
         const objectMap = this.getObjectMap();
+        // tombstones of both sides, one per object; for the same object the later deletion counts (like KeePass 2)
         for (const rem of remote.deletedObjects) {
-            if (rem.uuid && rem.deletionTime && !objectMap.deleted.has(rem.uuid.id)) {
-                this.deletedObjects.push(rem);
+            if (!rem.uuid || !rem.deletionTime) {
+                continue;
+            }
+            const local = objectMap.deleted.get(rem.uuid.id);
+            if (!local || rem.deletionTime > local) {
                 objectMap.deleted.set(rem.uuid.id, rem.deletionTime);
             }
         }
@@ -431,8 +435,96 @@ export class Kdbx {
 
         this.meta.merge(remote.meta, objectMap);
         root.merge(objectMap);
+        this.applyDeletions(root, objectMap.deleted);
+        this.applyCustomIconDeletions(objectMap.deleted);
+        this.deletedObjects = this.deletedObjects
+            .filter((d) => !d.uuid || !d.deletionTime)
+            .concat([...objectMap.deleted].map(([id, time]) => Kdbx.tombstone(id, time)));
 
-        this.cleanup({ historyRules: true, customIcons: true, binaries: true });
+        // no custom icon cleanup here: an icon nobody uses right now may be a library icon, or used by the other side's history
+        this.cleanup({ historyRules: true, binaries: true });
+    }
+
+    /**
+     * Applies the merged tombstones to the merged tree, children first. Like KeePass 2, an item only goes if it wasn't changed after
+     * its deletion, and a group only once nothing is left in it; whatever stays loses its tombstone (removed from `deleted`), so the
+     * next merge doesn't delete it after all. Unlike KeePass 2, a move counts as a change too: restoring from the recycle bin only
+     * changes the location.
+     */
+    private applyDeletions(group: KdbxGroup, deleted: Map<string, Date>): void {
+        for (const subGroup of group.groups) {
+            this.applyDeletions(subGroup, deleted);
+        }
+        const stays = (item: KdbxEntry | KdbxGroup): boolean => {
+            const deletionTime = deleted.get(item.uuid.id);
+            if (!deletionTime) {
+                return true;
+            }
+            const notEmpty = item instanceof KdbxGroup && (item.entries.length > 0 || item.groups.length > 0);
+            if (
+                notEmpty ||
+                Kdbx.changedAfter(item.times.lastModTime, deletionTime) ||
+                Kdbx.changedAfter(item.times.locationChanged, deletionTime)
+            ) {
+                deleted.delete(item.uuid.id);
+                return true;
+            }
+            return false;
+        };
+        group.entries = group.entries.filter(stays);
+        group.groups = group.groups.filter(stays);
+    }
+
+    /**
+     * Tombstones of custom icons. Like KeePass 2, the icon goes unless it was changed after its deletion; it also stays if an entry or
+     * group using it was changed after the deletion (KDBX 4.0 has no icon times, and a newer use shouldn't lose its icon). An icon
+     * that stays loses its tombstone; anything still pointing to a deleted icon (history included) shows its standard icon again.
+     */
+    private applyCustomIconDeletions(deleted: Map<string, Date>): void {
+        const lastUse = new Map<string, Date>();
+        for (const item of this.getDefaultGroup().allGroupsAndEntries()) {
+            const id = item.customIcon?.id;
+            const time = item.times.lastModTime;
+            const known = id && lastUse.get(id);
+            if (id && time && (!known || time > known)) {
+                lastUse.set(id, time);
+            }
+        }
+        for (const [id, icon] of [...this.meta.customIcons]) {
+            const deletionTime = deleted.get(id);
+            if (!deletionTime) {
+                continue;
+            }
+            if (
+                Kdbx.changedAfter(icon.lastModified, deletionTime) ||
+                Kdbx.changedAfter(lastUse.get(id), deletionTime)
+            ) {
+                deleted.delete(id);
+            } else {
+                this.meta.customIcons.delete(id);
+            }
+        }
+        const gone = (item: KdbxEntry | KdbxGroup) =>
+            item.customIcon && deleted.has(item.customIcon.id) && !this.meta.customIcons.has(item.customIcon.id);
+        for (const item of this.getDefaultGroup().allGroupsAndEntries()) {
+            for (const state of item instanceof KdbxEntry ? [item, ...item.history] : [item]) {
+                if (gone(state)) {
+                    state.customIcon = undefined;
+                }
+            }
+        }
+    }
+
+    /** KDBX stores whole seconds: compare those, or the outcome would depend on whether a time comes from memory or from a file. */
+    private static changedAfter(time: Date | undefined, deletionTime: Date): boolean {
+        return !!time && Math.floor(time.getTime() / 1000) > Math.floor(deletionTime.getTime() / 1000);
+    }
+
+    private static tombstone(id: string, deletionTime: Date): KdbxDeletedObject {
+        const deletedObject = new KdbxDeletedObject();
+        deletedObject.uuid = new KdbxUuid(id);
+        deletedObject.deletionTime = deletionTime;
+        return deletedObject;
     }
 
     /**
@@ -530,8 +622,10 @@ export class Kdbx {
             }
         }
         for (const deletedObject of this.deletedObjects) {
-            if (deletedObject.uuid && deletedObject.deletionTime) {
-                objectMap.deleted.set(deletedObject.uuid.id, deletedObject.deletionTime);
+            const { uuid, deletionTime } = deletedObject;
+            const known = uuid && objectMap.deleted.get(uuid.id);
+            if (uuid && deletionTime && (!known || deletionTime > known)) {
+                objectMap.deleted.set(uuid.id, deletionTime); // the same object twice: the later deletion counts
             }
         }
         return objectMap;

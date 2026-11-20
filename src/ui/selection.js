@@ -4,7 +4,7 @@ import { t } from '../i18n.js';
 import { splitTags } from '../core/util.js';
 import { ctx, clearMarks, setStatus } from './ctx.js';
 import { h, iconBtn, modal, confirmDialog, toast } from './dom.js';
-import { allRealEntries } from './common.js';
+import { allRealEntries, stillThere } from './common.js';
 import { changed } from './session.js';
 import { groupSelect, selectedGroup } from './groups.js';
 import { restoreTarget } from './detail.js';
@@ -79,6 +79,7 @@ function moveEntriesDialog(list) {
     const m = modal({ title: t('sel.move.title'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (ev) => {
         ev.preventDefault();
         const g = selectedGroup(sel);
+        if (!stillThere([...list, g])) { m.close(); return; } // the dialog stayed open while a pull came in
         for (const e of list) v.moveEntry(e, g);
         m.close();
         finish([]);
@@ -103,6 +104,7 @@ function tagEntriesDialog(list) {
     const run = (mode) => {
         const tags = splitTags(input.value);
         if (!tags.length) { input.focus(); return; }
+        if (!stillThere(list)) { m.close(); return; }
         const n = v.editTags(list, mode === 'add' ? { add: tags } : { remove: tags });
         m.close();
         if (n) { changed(); toast(t('sel.tags.changed', { n }), { timeout: 2000 }); } else toast(t('sel.tags.same'), { timeout: 2000 });
@@ -116,11 +118,12 @@ function tagEntriesDialog(list) {
 
 /** Into the recycle bin with an Undo (permanent, after asking, when there is no bin or they are in it already). */
 export async function deleteEntries(list) {
-    if (!list.length) return;
+    if (!list.length || !stillThere(list)) return;
     const v = state.vault;
     const n = list.length;
     if (list.some((e) => v.deletesForever(e))) { // one of them would go for good: ask
         if (!(await confirmDialog({ title: t('delete.forever'), message: t('sel.delete.forever.msg', { n }), confirmLabel: t('delete.forever'), cancelLabel: t('cancel'), danger: true }))) return;
+        if (!stillThere(list)) return;
         for (const e of list) v.removeEntry(e);
         finish(list);
         setStatus(t('sel.deleted.forever', { n }));
@@ -130,11 +133,12 @@ export async function deleteEntries(list) {
     for (const e of list) v.removeEntry(e);
     finish(list);
     setStatus(t('sel.deleted.bin', { n }));
-    toast(t('sel.deleted.bin', { n }), { action: { label: t('undo'), run: () => { for (const [e, g] of prev) v.moveEntry(e, g); changed(); } }, timeout: 7000 });
+    toast(t('sel.deleted.bin', { n }), { action: { label: t('undo'), run: () => { if (!stillThere(prev.flat())) return; for (const [e, g] of prev) v.moveEntry(e, g); changed(); } }, timeout: 7000 });
 }
 
 function restoreEntries(list) {
     const v = state.vault;
+    if (!stillThere(list)) return;
     for (const e of list) v.moveEntry(e, restoreTarget(e));
     finish([]);
     toast(t('sel.restored', { n: list.length }));

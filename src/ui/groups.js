@@ -3,7 +3,7 @@ import { VaultError } from '../vault.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus, clearMarks } from './ctx.js';
 import { h, append, icon, iconBtn, popupMenu, modal, promptDialog, confirmDialog, toast } from './dom.js';
-import { allRealEntries, isWeak, groupIcon } from './common.js';
+import { allRealEntries, isWeak, groupIcon, stillThere } from './common.js';
 import { hasTotp, isPasskey, entryExpiry, daysUntil, fieldOf, splitTags } from '../core/util.js';
 import { changed, refreshDirtyIndicator } from './session.js';
 import { iconSelOf, iconPreview, pickIcon, commitIconSel } from './icon-picker.js';
@@ -72,7 +72,7 @@ export async function editGroup(g) {
     } }, iconPreview(iconSel, 'group'));
     // Like "Apply icon to ..." in KeePassXC
     const scope = h('select', { id: 'g-icon-scope' }, ['self', 'groups', 'entries', 'all'].map((k) => h('option', { value: k, text: t('icon.scope.' + k) })));
-    const m = modal({ title: t('group.edit'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); v.updateGroup(g, { name: name.value, notes: notes.value, ...commitIconSel(iconSel), iconScope: scope.value }); m.close(); changed(); } },
+    const m = modal({ title: t('group.edit'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); if (!stillThere([g])) { m.close(); return; } v.updateGroup(g, { name: name.value, notes: notes.value, ...commitIconSel(iconSel), iconScope: scope.value }); m.close(); changed(); } },
         h('div', { class: 'title-row' }, iconEl, h('label', { class: 'grow' }, h('span', { text: t('group.name') }), name)),
         h('label', {}, h('span', { text: t('icon.scope') }), scope),
         h('label', {}, h('span', { text: t('notes') }), notes),
@@ -82,7 +82,7 @@ export async function editGroup(g) {
 export function moveGroupDialog(g) {
     const v = state.vault;
     const sel = groupSelect({ value: g.parentGroup, exclude: g });
-    const m = modal({ title: t('group.move'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); const target = v.allGroups().map((x) => x.group).find((x) => x.uuid.id === sel.value); if (v.moveGroup(g, target)) { m.close(); changed(); } else toast(t('group.move.invalid'), { kind: 'warn' }); } },
+    const m = modal({ title: t('group.move'), size: 'sm', body: h('form', { class: 'stack', onsubmit: (e) => { e.preventDefault(); const target = v.allGroups().map((x) => x.group).find((x) => x.uuid.id === sel.value); if (!stillThere([g, target])) { m.close(); return; } if (v.moveGroup(g, target)) { m.close(); changed(); } else toast(t('group.move.invalid'), { kind: 'warn' }); } },
         h('label', {}, h('span', { text: t('group.move.to') }), sel), h('div', { class: 'modal-actions inline' }, h('button', { type: 'button', text: t('cancel'), onclick: () => m.close() }), h('button', { type: 'submit', class: 'primary', text: t('move') }))) });
 }
 
@@ -93,7 +93,7 @@ export async function deleteGroup(g) {
     const ok = await confirmDialog({ title: inBin ? t('delete.forever') : t('group.delete'), message: inBin ? t('group.delete.forever.msg', { name: g.name, n }) : t('group.delete.msg', { name: g.name, n }), confirmLabel: inBin ? t('delete.forever') : t('delete'), cancelLabel: t('cancel'), danger: true });
     if (!ok) return;
     try { v.removeGroup(g); } catch (e) { if (e instanceof VaultError) { setStatus(errText(e), 'error'); return; } throw e; }
-    if (state.filter.group === g) state.filter = { type: 'all' };
+    if (state.filter.group?.uuid.equals(g.uuid)) state.filter = { type: 'all' }; // g may be from before a pull, the filter isn't
     state.selEntry = null;
     changed();
 }
@@ -219,6 +219,7 @@ export function renderSidebar(host) {
             e.preventDefault();
             if (dragging.kind === 'entry') {
                 const n = dragging.items.length;
+                if (!stillThere(dragging.items)) { dragging = null; return; } // a pull came in during the drag
                 for (const x of dragging.items) v.moveEntry(x, g);
                 toast(t(n > 1 ? 'sel.moved' : 'entry.moved', { group: g.name, n }), { timeout: 2000 });
                 clearMarks();
@@ -246,7 +247,7 @@ export function renderSidebar(host) {
     if (rb && bin) {
         bin.firstChild.addEventListener('dragover', (e) => { if (dragging) { e.preventDefault(); bin.firstChild.classList.add('drop'); } });
         bin.firstChild.addEventListener('dragleave', () => bin.firstChild.classList.remove('drop'));
-        bin.firstChild.addEventListener('drop', (e) => { e.preventDefault(); bin.firstChild.classList.remove('drop'); if (!dragging) return; if (dragging.kind === 'entry') { for (const x of dragging.items) v.removeEntry(x); clearMarks(); } else v.removeGroup(dragging.item); dragging = null; changed(); });
+        bin.firstChild.addEventListener('drop', (e) => { e.preventDefault(); bin.firstChild.classList.remove('drop'); if (!dragging) return; if (dragging.kind === 'entry') { if (!stillThere(dragging.items)) { dragging = null; return; } for (const x of dragging.items) v.removeEntry(x); clearMarks(); } else v.removeGroup(dragging.item); dragging = null; changed(); });
     }
 
     const tools = h('div', { class: 'nav-section nav-tools' }, h('div', { class: 'nav-head' }, h('span', { text: t('tools') })),
