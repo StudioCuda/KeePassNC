@@ -149,6 +149,24 @@ async function main() {
         await p.context().close();
     });
 
+    await step('Argon2 version 1.0 (KeePassXC opens it, hash-wasm only computes 1.3) -> clear message instead of "wrong password"', async () => {
+        // A genuine 1.0 file: pykeepass derives the key with the version from the header (argon2-cffi knows both)
+        const f = path.join(davRoot, 'argon10.kdbx');
+        fs.copyFileSync(f4, f);
+        execFileSync('python3', ['-I', '-c', ['from pykeepass import PyKeePass', `kp = PyKeePass(${JSON.stringify(f)}, password=${JSON.stringify(PW)})`,
+            'kp.kdbx.header.value.dynamic_header.kdf_parameters.data.dict.V.value = 0x10', 'kp.save()'].join('\n')], { stdio: 'pipe' });
+        const d = fs.readFileSync(f), tag = Buffer.from([0x04, 1, 0, 0, 0, 0x56, 4, 0, 0, 0]); // VariantDictionary: UInt32, name "V", 4-byte value
+        expect(d.indexOf(tag) > 0 && d.readUInt32LE(d.indexOf(tag) + tag.length) === 0x10, 'setup: the Argon2 version in the header is not 1.0');
+        expect(xc(['show', f, 'Web/Mail']).includes('alice'), 'KeePassXC does not open the 1.0 file');
+        const p = await newPage();
+        await login(p, 'argon10.kdbx');
+        await p.waitForFunction(() => /Version 1\.0/.test(document.querySelector('#login-error')?.textContent || ''), null, { timeout: 30000 });
+        const msg = await p.locator('#login-error').innerText();
+        expect(/KeePassXC/.test(msg) && !/Falsches Master-Passwort|Fehler:/.test(msg), 'message: ' + msg);
+        expect(await rows(p).count() === 0 && await p.locator('#login-form').count() === 1 && await p.locator('#open-btn').isEnabled(), 'nothing may open');
+        await p.context().close();
+    });
+
     await step('Argon2 rechnet in einem Web Worker, der danach beendet wird; ohne Worker-Datei rechnet die Seite selbst', async () => {
         const p = await newPage();
         const workers = [];
@@ -333,7 +351,7 @@ async function main() {
         // KeePassXC reads KnownBad but doesn't output it in the XML export: hence pykeepass as a second opinion
         const knownBad = () => execFileSync('python3', ['-I', '-c', ['from pykeepass import PyKeePass', `kp = PyKeePass(${JSON.stringify(f4)}, password=${JSON.stringify(PW)})`,
             "cd = kp.find_entries(title='Neu E2E', first=True)._element.find('CustomData')",
-            "print(any(i.findtext('Key') == 'KnownBad' and i.findtext('Value') == 'True' for i in ([] if cd is None else cd)))"].join('\n')]).toString().trim() === 'True';
+            "print(any(i.findtext('Key') == 'KnownBad' and i.findtext('Value') == 'true' for i in ([] if cd is None else cd)))"].join('\n')]).toString().trim() === 'True'; // KeePassXC compares with lowercase "true"
         expect(await weakRows() === 1, '"pw-neu" sollte als schwach gelten');
         const toggle = async (on) => {
             await page.fill('#search', ''); await page.locator('[data-testid=entry-row]', { hasText: 'Neu E2E' }).click();
@@ -802,6 +820,57 @@ async function main() {
         await p.context().close();
     });
 
+    await step('CSV aus einem deutschen Excel (Semikolons, Windows-1252, Umlaute, Anfuehrungszeichen) kommt richtig an, KeePassXC sieht es; unbekannte Spalten werden gemeldet statt leer importiert', async () => {
+        const fSemi = path.join(davRoot, 'semikolon.kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fSemi);
+        // A KeePassXC export saved again by a German Excel as plain "CSV (Trennzeichen-getrennt)": Windows-1252 (€ = 0x80), semicolons,
+        // CRLF, quotes only where needed, LF inside a cell; the stray quote in 5"€uro must not swallow anything
+        const csv = 'Group;Title;Username;Password;URL;Notes;TOTP;Icon;Last Modified;Created\r\n'
+            + 'Passwords/Bank;Sparkasse Köln;jürgen;"pa;ss""wört";https://sparkasse.de;"Zwei\nZeilen; mit Grüßen";;0;;\r\n'
+            + 'Passwords;Bäckerei Müller;anna;5"€uro;https://baeckerei.example;;;0;;\r\n';
+        const ansi = Buffer.from(Array.from(csv, (c) => (c === '€' ? 0x80 : c.charCodeAt(0))));
+        const p = await newPage();
+        await login(p, 'semikolon.kdbx'); await rows(p).first().waitFor();
+        const openCsv = async () => { if (!await p.locator('#csv-btn').isVisible()) { await p.click('#reports-btn'); await p.click('#rep-tab-info'); } await p.click('#csv-btn'); await p.locator('#csv-file').waitFor({ state: 'attached' }); };
+        await openCsv();
+        await p.setInputFiles('#csv-file', { name: 'fremd.csv', mimeType: 'text/csv', buffer: Buffer.from('Titel;Benutzername;Kennwort\r\nGMX;bob;pw\r\n') });
+        await p.waitForFunction(() => /Spalten dieser CSV-Datei kennt KeePassNC nicht/.test(document.querySelector('#csv-summary')?.textContent || ''));
+        expect(await p.isDisabled('#csv-import'), 'eine Datei ohne bekannte Spalte laesst sich importieren');
+        await p.setInputFiles('#csv-file', { name: 'excel.csv', mimeType: 'text/csv', buffer: ansi });
+        await p.waitForFunction(() => /Gefundene Einträge: 2\. Nicht übernommen: Icon\./.test(document.querySelector('#csv-summary')?.textContent || ''));
+        await p.click('#csv-import');
+        expect(await rows(p).count() === 2, 'Liste zeigt nicht die neue Gruppe: ' + await rows(p).count());
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        await p.context().close();
+        const bank = xc(['show', '-s', fSemi, 'Import excel/Bank/Sparkasse Köln']);
+        expect(bank.includes('UserName: jürgen') && bank.includes('Password: pa;ss"wört') && bank.includes('URL: https://sparkasse.de') && bank.includes('Zwei\nZeilen; mit Grüßen'), 'Sparkasse in KeePassXC:\n' + bank);
+        const shop = xc(['show', '-s', fSemi, 'Import excel/Bäckerei Müller']);
+        expect(shop.includes('UserName: anna') && shop.includes('Password: 5"€uro') && shop.includes('URL: https://baeckerei.example'), 'Baeckerei in KeePassXC:\n' + shop);
+    });
+
+    await step('Bitwarden-JSON: SSH-Schluessel wird Schluesseldatei-Anhang plus Felder (KeePassXC sieht beides), ein Passkey wird als nicht vollstaendig gemeldet', async () => {
+        const fSsh = path.join(davRoot, 'ssh.kdbx');
+        fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fSsh);
+        const priv = '-----BEGIN OPENSSH PRIVATE KEY-----\nb3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAAAMwAAAAtzc2gtZW\n-----END OPENSSH PRIVATE KEY-----';
+        const bitwarden = JSON.stringify({ encrypted: false, folders: [], items: [
+            { type: 5, folderId: null, name: 'Server-Schluessel', notes: 'Laptop', sshKey: { privateKey: priv, publicKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest anna@laptop', keyFingerprint: 'SHA256:Test' } },
+            { type: 1, folderId: null, name: 'Mit Passkey', login: { username: 'pk', password: 'pw-pk', fido2Credentials: [{ credentialId: 'c', rpId: 'example.org' }] } }] });
+        const p = await newPage();
+        await login(p, 'ssh.kdbx'); await rows(p).first().waitFor();
+        if (!await p.locator('#csv-btn').isVisible()) { await p.click('#reports-btn'); await p.click('#rep-tab-info'); }
+        await p.click('#csv-btn'); await p.locator('#csv-file').waitFor({ state: 'attached' });
+        await p.setInputFiles('#csv-file', { name: 'bw-ssh.json', mimeType: 'application/json', buffer: Buffer.from(bitwarden) });
+        await p.waitForFunction(() => /Bitwarden \(JSON\)\. Gefundene Einträge: 2\. Einträge, die nicht vollständig mitkommen: 1\./.test(document.querySelector('#csv-summary')?.textContent || ''));
+        await p.click('#csv-import');
+        await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
+        await p.context().close();
+        const att = path.join(tmp, 'id_ed25519'); xc(['attachment-export', fSsh, 'Import bw-ssh/Server-Schluessel', 'id_ed25519', att]);
+        expect(fs.readFileSync(att, 'utf8') === priv + '\n', 'Schluesseldatei kommt byte-genau (mit Zeilenende) an');
+        expect(xc(['show', '-s', '-a', 'SSH public key', fSsh, 'Import bw-ssh/Server-Schluessel']).trim() === 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITest anna@laptop', 'Feld SSH public key');
+        expect(xc(['show', '-s', '-a', 'SSH fingerprint', fSsh, 'Import bw-ssh/Server-Schluessel']).trim() === 'SHA256:Test', 'Feld SSH fingerprint');
+        expect(xc(['show', '-s', fSsh, 'Import bw-ssh/Mit Passkey']).includes('Password: pw-pk'), 'der Login mit Passkey kommt ohne den Passkey mit');
+    });
+
     await step('JSON-Import: Passwords-Backup (Ordner, Tags, Zusatzfelder), Passman (Anhang), Bitwarden (zweite Adresse, TOTP) -> KeePassXC sieht alles; Backup mit Passwort wird abgewiesen', async () => {
         const fJson = path.join(davRoot, 'json.kdbx');
         fs.copyFileSync(path.join(davRoot, 'vault4.kdbx'), fJson);
@@ -1038,6 +1107,60 @@ async function main() {
         await p.click('#save-btn'); await waitStatus(p, /^Gespeichert\./);
         const k = xc(['show', '-s', f, 'Bank/Konto'], null);
         expect(k.includes('pw-im-editor') && k.includes('anderes-geraet'), 'Eintrag/Eingabe nach dem Abgleich: ' + k);
+        await p.context().close();
+    });
+
+    await step('Eintrag loeschen, waehrend ein Abgleich die Fassung eines anderen Geraets noch entschluesselt: der Abgleich nimmt sie nicht, das Loeschen bleibt, das naechste Speichern fuehrt zusammen', async () => {
+        const f = path.join(davRoot, 'pull-delete.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await login(p, 'pull-delete.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.waitForTimeout(1100);
+        xc(['edit', '-q', f, 'Web/Mail', '--url', 'https://anderes.example'], null); // "other device"
+        // The pull's key derivation (Argon2 in a worker) waits until the deletion is done: a long Argon2 run, made reliable
+        await p.evaluate(() => {
+            const send = Worker.prototype.postMessage;
+            let open;
+            const gate = new Promise((r) => { open = r; });
+            window.kdfHold = { waiting: 0, release: () => { Worker.prototype.postMessage = send; open(); } };
+            Worker.prototype.postMessage = function (...args) { window.kdfHold.waiting++; gate.then(() => send.apply(this, args)); };
+        });
+        await p.keyboard.press('Control+s'); // no changes of our own: a sync, which pulls
+        await p.waitForFunction(() => window.kdfHold.waiting === 1, null, { timeout: 15000 });
+        await p.keyboard.press('Delete'); // the open entry goes to the recycle bin
+        await waitStatus(p, /^In den Papierkorb/);
+        await p.evaluate(() => window.kdfHold.release());
+        await p.keyboard.press('Control+s'); // queued behind the pull: merges with the other device's version
+        await waitStatus(p, /zusammengef/, 60000); // three key derivations in a row (pull, conflict, save), on the file the KDF step above strengthened
+        expect(await rows(p).filter({ hasText: 'Konto' }).count() === 0, 'Konto ist nach dem Abgleich wieder in der Liste');
+        const ls = (g) => xc(['ls', f, g]).split('\n').map((l) => l.trim());
+        expect(!ls('Bank').includes('Konto'), 'Konto liegt auf dem Server noch in Bank: ' + ls('Bank').join(', '));
+        expect(ls('Recycle Bin').includes('Konto'), 'Konto fehlt im Papierkorb auf dem Server: ' + ls('Recycle Bin').join(', '));
+        expect(xc(['show', f, 'Web/Mail']).includes('https://anderes.example'), 'Aenderung des anderen Geraets fehlt');
+        await p.context().close();
+    });
+
+    await step('Verschieben-Dialog bleibt offen, waehrend ein Abgleich die Datenbank tauscht: verschoben wird der Eintrag der neuen Fassung, kein zweiter mit derselben UUID', async () => {
+        const f = path.join(davRoot, 'pull-dialog.kdbx');
+        fs.copyFileSync(f4, f);
+        const p = await newPage();
+        await p.evaluate(() => localStorage.setItem('kpnc.settings', JSON.stringify({ autosync: '5' }))); // syncs when the tab becomes visible again
+        await p.reload();
+        await login(p, 'pull-dialog.kdbx'); await rows(p).first().waitFor();
+        await p.locator('[data-testid=entry-row]', { hasText: 'Konto' }).click();
+        await p.click('#entry-more'); await p.locator('.menu-item', { hasText: 'Verschieben' }).click();
+        await p.locator('.modal select').waitFor();
+        await p.waitForTimeout(1100);
+        xc(['edit', '-q', f, 'Web/Mail', '--url', 'https://anderes.example'], null); // "other device"
+        await p.evaluate(() => document.dispatchEvent(new Event('visibilitychange'))); // back in the tab: a background sync, which pulls under the open dialog
+        await waitStatus(p, /^Änderungen von einem anderen/);
+        await p.locator('.modal select').selectOption({ label: 'Web' });
+        await p.click('.modal button[type=submit]');
+        await p.keyboard.press('Control+s'); await waitStatus(p, /^Gespeichert\./);
+        const ls = (g) => xc(['ls', f, g]).split('\n').map((l) => l.trim());
+        expect(ls('Web').includes('Konto') && !ls('Bank').includes('Konto'), `Konto in Web: ${ls('Web').join(', ')} / in Bank: ${ls('Bank').join(', ')}`);
+        expect(xc(['show', f, 'Web/Mail']).includes('https://anderes.example'), 'Aenderung des anderen Geraets fehlt');
         await p.context().close();
     });
 

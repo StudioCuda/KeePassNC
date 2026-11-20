@@ -189,6 +189,37 @@ async function main() {
         return '8 MiB / 1 -> 256 MiB / 8';
     });
 
+    await step('Raw 32-byte key file: two pulls of KeePassXC changes, then a save - KeePassXC still opens the file with the same key', async () => {
+        // A key file of exactly 32 bytes is the key itself; kdbxweb masked the buffer it was given, so the vault's copy broke after the
+        // second set of credentials made from it and the next save wrote a file nobody could open.
+        const dir = path.join(tmp, 'raw32'); fs.mkdirSync(dir);
+        const key = path.join(dir, 'raw.key'), db = path.join(davRoot, 'raw32.kdbx');
+        fs.writeFileSync(key, crypto.getRandomValues(new Uint8Array(32)));
+        const xc = (args) => execFileSync('keepassxc-cli', args, { input: meta.password + '\n' + meta.password + '\n', stdio: ['pipe', 'pipe', 'pipe'] }).toString();
+        xc(['db-create', '-q', '-p', '--set-key-file', key, '-t', '100', db]);
+        xc(['add', '-q', '-k', key, db, 'Start']);
+        expect(fs.statSync(key).size === 32, 'KeePassXC replaced the key file');
+        const ctx = await mkCtx(); const p = await ctx.newPage(); p.on('pageerror', (e) => errors.push(String(e)));
+        await p.goto(base);
+        await p.locator('input[value=dav]').check({ force: true });
+        await p.fill('#dav-url', `${base}/dav/raw32.kdbx`); await p.fill('#dav-user', 'tester'); await p.fill('#dav-pass', 'app-secret');
+        await p.fill('#master', meta.password); await p.setInputFiles('#keyfile', key);
+        await p.click('#open-btn'); await waitOpened(p, 60000);
+        const status = (re) => p.waitForFunction((src) => new RegExp(src).test(document.querySelector('#status')?.textContent || ''), re.source, { timeout: 30000 });
+        for (const title of ['From KeePassXC 1', 'From KeePassXC 2']) {
+            await new Promise((r) => setTimeout(r, 1100)); // keepassxc-cli and the app may not write in the same second (see CLAUDE.md)
+            xc(['add', '-q', '-k', key, db, title]);
+            await p.locator('body').click({ position: { x: 5, y: 5 } }); await p.keyboard.press('Control+s');
+            await status(/von einem anderen Gerät übernommen/);
+        }
+        await p.click('#new-btn'); await p.fill('#e-title', 'From KeePassNC');
+        await p.click('#apply-btn'); await p.click('#save-btn'); await status(/^Gespeichert\./);
+        const list = xc(['ls', '-R', '-k', key, db]);
+        for (const title of ['Start', 'From KeePassXC 1', 'From KeePassXC 2', 'From KeePassNC']) expect(list.includes(title), `${title} missing:\n${list}`);
+        await ctx.close();
+        return '4 entries, KeePassXC opens it';
+    });
+
     await step('Anderes Browserprofil (neuer Kontext) sieht nichts; keine JS-Fehler', async () => {
         const c2 = await mkCtx(); const p2 = await c2.newPage();
         await p2.goto(base);

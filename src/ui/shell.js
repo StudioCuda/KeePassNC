@@ -2,6 +2,7 @@
 import { t, errText } from '../i18n.js';
 import { fieldOf, domainOf, hasTotp, isPasskey, entryColor, openableUrl } from '../core/util.js';
 import { SORTS } from './common.js';
+import { invalidRegex } from '../core/search.js';
 import { ctx, copy, applyTheme, clearMarks, setStatus } from './ctx.js';
 import { $, h, icon, iconBtn, modal } from './dom.js';
 import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl, otpConfigOf } from './common.js';
@@ -94,6 +95,8 @@ ctx.ui.syncMarks = () => syncMarks();
 
 export function selectEntry(e) {
     const v = state.vault;
+    e = v.find(e); // from a list drawn before a pull (palette, report)
+    if (!e) { setStatus(t('e.gone'), 'warn'); return; }
     state.editing = null;
     clearMarks();
     state.query = ''; const s = $('#search'); if (s) s.value = '';
@@ -144,7 +147,8 @@ export function renderList(entries = visibleEntries()) {
     const head = listHead(entries);
     const body = h('div', { class: 'entries' + (state.selecting ? ' selecting' : ''), role: 'listbox', 'aria-label': t('list.label'), 'aria-multiselectable': state.selecting ? 'true' : null });
     if (!entries.length) {
-        body.append(h('div', { class: 'empty small' }, icon(state.query ? 'search' : 'folderOpen'), h('p', { class: 'muted', text: state.query ? t('list.nomatch') : t('list.empty') }),
+        const bad = state.query ? invalidRegex(state.query) : null; // a broken regular expression matches nothing: say why
+        body.append(h('div', { class: 'empty small' }, icon(state.query ? 'search' : 'folderOpen'), h('p', { class: 'muted', text: bad !== null ? t('list.badregex', { re: bad }) : state.query ? t('list.nomatch') : t('list.empty') }),
             !state.query && state.filter.type === 'group' ? h('button', { type: 'button', class: 'btn', onclick: () => startEdit(null) }, icon('plus'), t('entry.new')) : null));
     }
     for (const e of entries.slice(0, shown)) {

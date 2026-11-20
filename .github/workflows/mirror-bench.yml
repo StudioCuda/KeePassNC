@@ -8,6 +8,8 @@ on:
     paths:
       - .github/workflows/mirror-bench.yml
       - tools/ci-mirror-bench.sh
+permissions:
+  contents: read
 jobs:
   bench:
     name: bench (${{ matrix.runner }})

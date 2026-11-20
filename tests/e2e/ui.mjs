@@ -133,6 +133,25 @@ async function main() {
         await page.fill('#search', '');
     });
 
+    await step('Suche: Regex behaelt Backslashes, kaputte Regex trifft nichts (mit Hinweis), eigene Felder mit _, Ziffern, Leerzeichen, Doppelpunkt; Platzhalter auf 20-KB-Feld schnell', async () => {
+        const n = async (q) => { await page.fill('#search', q); return rows(page).count(); };
+        const listText = () => page.locator('#list').innerText();
+        expect(await n('*title:^Amaz\\w+$') === 1, 'Regex mit \\w');
+        expect(await n('_KPEX_PASSKEY_RELYING_PARTY:example.org') === 1, 'Feldname mit Unterstrichen');
+        expect(await n('_"Feld 07":"Wert 7"') === 1 && await n('_Feld\\ 07:wert') === 1, 'Feldname mit Ziffern und Leerzeichen');
+        expect(await n('_"KPH: zusaetzliche URL":alt.example') === 1, 'Feldname mit Doppelpunkt');
+        expect(await n('*url:(') === 0 && /„\(“ ist kein gültiger regulärer Ausdruck/.test(await listText()), 'kaputte Regex: kein Treffer (auch kein leeres Feld), mit Hinweis');
+        expect(await n('*url:\\(|zzzz') === 0 && !/regulärer Ausdruck/.test(await listText()), 'gueltige Regex ohne Treffer: kein Hinweis');
+        // "Ünïcödé 日本語 …" has 20 000 x in its notes: as /x.*x.*y/i this backtracked for hours, the wildcard matcher needs a blink
+        const t0 = Date.now();
+        expect(await n('title:日本語 notes:x*x*y') === 0 && await n('title:日本語 notes:x*x*x') === 1, 'Platzhalter auf grossem Feld');
+        expect(await n('title:日本語 notes:zeile1*') === 1 && await n('title:日本語 notes:zeile1*zeile2') === 0, 'Platzhalter nicht ueber Zeilenumbrueche');
+        const ms = Date.now() - t0;
+        expect(ms < 5000, `Platzhalter auf grossem Feld: ${ms} ms`);
+        await page.fill('#search', '');
+        return `${ms} ms`;
+    });
+
     await step('Gruppen: anlegen, Untergruppe (Kontextmenue), umbenennen, Eintrag per Drag&Drop, Gruppe verschieben, loeschen -> Papierkorb', async () => {
         await page.click('#new-group-btn'); await page.fill('#prompt-input', 'UI-Testgruppe'); await page.keyboard.press('Enter');
         const row = (t) => page.locator('.tree-row', { hasText: t }).first();
@@ -380,8 +399,22 @@ async function main() {
         }
         await page.keyboard.press('Escape');
         await pick(page, 'UI Ablauf-TOTP'); await page.click('#edit-btn'); await page.click('#gen-btn');
-        expect(await page.locator('#gen-preview.click-copy').count() === 0, 'In the editor dialog a click on the password does not copy');
-        await page.click('#gen-tab-pw'); await page.click('#gen-use'); await page.click('#e-show');
+        expect(await page.locator('#gen-preview.click-copy').count() === 1, 'In the editor dialog a click on the password copies it too');
+        if (browserName === 'chromium') {
+            const shown = (await page.locator('#gen-preview').innerText()).trim();
+            await page.locator('#gen-preview').click(); await page.locator('#gen-preview.copied').waitFor();
+            expect(await page.evaluate(() => navigator.clipboard.readText()) === shown, 'Editor dialog: click copies the password');
+        }
+        await page.click('#gen-tab-pw');
+        const genBits = (await page.locator('.gen .strength-label').innerText()).match(/· (\d+) bit/)?.[1];
+        await page.click('#gen-use'); await page.click('#e-show');
+        const meterText = () => page.locator('.meter .strength-label').first().innerText();
+        expect(genBits && (await meterText()).includes(`· ${genBits} bit`), `Editor shows the generator's exact bits (${genBits}): ${await meterText()}`);
+        await page.fill('#e-pass', 'Gotbupro 38 nigtalso');
+        expect((await meterText()).includes('· 70 bit'), 'Simple password typed by hand: exact, no ≈: ' + await meterText());
+        await page.fill('#e-pass', 'Tr0ub4dor&3xyz');
+        expect(/· ≈ \d+ bit/.test(await meterText()), 'Other passwords show an estimate with ≈: ' + await meterText());
+        await page.click('#gen-btn'); await page.click('#gen-tab-pw'); await page.click('#gen-use');
         const v = await page.inputValue('#e-pass');
         expect(v !== 'Ui-Passwort-123!' && v.length >= 20, 'Editor uebernimmt Passwort');
         await page.click('#cancel-btn');
@@ -699,6 +732,38 @@ async function main() {
         await chip('weg · 1').waitFor();
         await chip('weg · 1').click({ button: 'right' }); await menuItem(page, 'Tag entfernen').click();
         await noChip('weg');
+    });
+
+    await step('Papierkorb: was dort liegt, auf den Papierkorb ziehen aendert nichts; Bearbeiten laesst den Eintrag dort, ausser man waehlt eine Gruppe', async () => {
+        const binCount = () => count(page, 'nav-bin');
+        const binRow = page.locator('.tree-row.bin');
+        const wrapOf = (title) => page.locator('.entry-wrap', { has: page.locator('.title', { hasText: new RegExp(`^${title}$`) }) });
+        await page.click('#nav-bin');
+        const n0 = await binCount();
+        // from the bin view onto the bin, alone and ticked: stays (used to be deleted for good, without asking and without Undo)
+        await wrapOf('Posteo').dragTo(binRow);
+        await page.click('#sel-start'); await rowOf('Posteo').click();
+        await wrapOf('Posteo').dragTo(binRow);
+        await page.click('#sel-done');
+        expect(await page.locator('#confirm-ok').count() === 0, 'keine Rueckfrage');
+        // an entry from a group still goes into the bin; once that shows, the drops above are surely through
+        await group('Shopping');
+        await wrapOf('Etsy').dragTo(binRow);
+        await page.waitForFunction((n) => document.querySelector('#nav-bin .count')?.textContent === String(n), n0 + 1);
+        await page.click('#nav-bin');
+        expect(await rowOf('Posteo').count() === 1 && await rowOf('Etsy').count() === 1, 'Posteo und Etsy liegen im Papierkorb');
+        // editing an entry in the bin: the group field shows where it is, and it stays there
+        await rowOf('Posteo').click(); await page.click('#edit-btn');
+        expect(await page.locator('#e-group option:checked').innerText() === 'Recycle Bin', 'Gruppenfeld zeigt den Papierkorb: ' + await page.locator('#e-group option:checked').innerText());
+        await page.fill('#e-notes', 'Im Papierkorb bearbeitet'); await page.click('#apply-btn');
+        await page.waitForFunction(() => /Im Papierkorb bearbeitet/.test(document.querySelector('#detail')?.textContent || ''));
+        expect(await page.locator('#detail .crumbs').innerText() === 'Recycle Bin' && await binCount() === n0 + 1, 'Posteo bleibt im Papierkorb: ' + await page.locator('#detail .crumbs').innerText());
+        // picking a group moves it out
+        await page.click('#nav-bin'); await rowOf('Etsy').click(); await page.click('#edit-btn');
+        await page.selectOption('#e-group', await page.locator('#e-group option', { hasText: /^\s*Shopping$/ }).getAttribute('value'));
+        await page.click('#apply-btn');
+        await page.waitForFunction((n) => document.querySelector('#nav-bin .count')?.textContent === String(n), n0);
+        expect(/Shopping$/.test(await page.locator('#detail .crumbs').innerText()), 'Etsy zurueck in Shopping: ' + await page.locator('#detail .crumbs').innerText());
     });
 
     await step('Speichern (Strg+S) -> KeePassXC liest die Datei; alle UI-Aenderungen sind angekommen, nichts anderes ging verloren', async () => {
