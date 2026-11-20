@@ -4,6 +4,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Bitwarden JSON import: SSH keys come along, the private key as a key file attachment (ready for KeePassXC's SSH agent), public key and fingerprint as fields. The import also says when an entry loses something on the way, such as a passkey.
+
 ### Fixed
 - Databases with a raw key file of exactly 32 bytes: after another device's changes came in, a merge, the unlock screen's check or a new master password, the next save could encrypt the file with a key nobody can derive, so it no longer opened. If that happened to one of yours, the `.bak` copy next to it or an earlier Nextcloud file version still opens.
 - A KDBX 4 file that got cut off (an upload that never finished, say) is now reported as corrupt, instead of slipping past the integrity check and showing up as a wrong password.
@@ -16,6 +19,22 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Search: a regular expression that doesn't work matches nothing (it used to match every entry with that field empty), and the list says so.
 - Search: custom fields with digits or underscores in the name work, like `_PIN2:1234` or `_KP2A_URL_1:example`, and names with spaces or colons go in quotes: `_"Security Question":blue`.
 - Search: wildcards like `a*a*b` no longer freeze the page for minutes on an entry with huge notes.
+
+- An entry deleted for good on one device and changed later on another no longer vanishes when the two versions meet (a save conflict or "Merge database"): the later change wins, and the group it sits in stays too. Whatever nobody touched since the deletion still goes.
+- Merging two versions no longer throws out custom icons that nothing happens to use right now, so your icon collection survives a save conflict.
+- An entry or group moved on another device (KeePassXC included) no longer turns up twice after a save conflict or "Merge database", in its old group and in the new one, which also made every merge after that fail. It now sits only in the group it was last moved to, on whichever device. And two groups moved into each other on two devices no longer vanish together.
+- Moved an entry into a brand-new group while another device edited it? The merge no longer skips that edit.
+- A file that holds an entry twice now says so when a save runs into a conflict, instead of claiming the server has a different database.
+- Deleting a group that holds the recycle bin (KeePass 2 lets you pick any group for it) no longer makes the group, its entries and the bin vanish on the next save. The bin moves up to the top level and keeps everything, the group goes into it.
+- Files without a recycle bin setting: deleting really moves to the bin now, as the message says, and Undo brings it back. Before, it was gone for good. Saving such a file now writes the setting down as "on"; before, KeePassXC read what KeePassNC saved as "off".
+- Dragging something that's already in the recycle bin onto the bin leaves it alone instead of deleting it for good without asking.
+- Editing an entry in the recycle bin keeps it there instead of quietly moving it to the top group. Pick another group in the editor to move it out.
+- Deleting, moving or editing something while KeePassNC fetches another device's changes (it does that when you come back to the tab) no longer gets undone a moment later: the fetch steps aside, and the next save merges both.
+- A move or delete dialog, an Undo or a drag that was still open when those changes arrived now acts on the fresh copy. It used to slip in a second entry with the same ID, after which every merge with another device failed; if the entry was deleted over there, you now get a short note instead.
+- Merging another copy and importing a CSV wait for a running sync instead of racing it, so nothing they add goes missing.
+- CSV import reads semicolon and tab separated files too, like the ones a German Excel saves, in UTF-8 or Excel's Windows encoding. They used to come in as a pile of empty entries, and umlauts as �.
+- A CSV file whose columns KeePassNC doesn't know now gets a clear message instead of turning into empty entries.
+- A stray quote in the middle of a CSV field (`pass"word`) no longer swallows the rows after it into one field.
 
 ### Changed
 - Nextcloud page: the Content Security Policy also says `form-action 'none'`, like the standalone page, so not even an injected form could send anything anywhere.
