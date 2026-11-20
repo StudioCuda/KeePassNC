@@ -511,6 +511,7 @@ export default {
     'nch.apps': 'Apps', 'nch.apps.current': 'Open apps menu, currently in {app}', 'nch.apps.open': 'Open apps menu', 'nch.home': 'Home', 'nch.more': 'More apps', 'nch.more.actions': 'More', 'nch.actions': 'Actions', 'nch.offline': 'Can’t reach Nextcloud', 'nch.user': 'Account menu',
     'notes': 'Notes',
     'open.merging': '- reconciling local changes …',
+    'open.gone': '{name} opened from the offline copy ({version}, as of {date}): the file is no longer on the server, but your changes that never got there are in here.',
     'open.offline': '{name} opened from the offline copy ({version}, as of {date}) - server unreachable.{extra}',
     'open.offline.unsynced': ' Local changes will be uploaded later.',
     'open.ok': '{name} opened ({version})',
