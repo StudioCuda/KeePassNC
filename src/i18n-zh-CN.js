@@ -517,6 +517,7 @@ export default {
     'nch.apps': '应用', 'nch.apps.current': '打开应用菜单，当前在 {app}', 'nch.apps.open': '打开应用菜单', 'nch.home': '主页', 'nch.more': '更多应用', 'nch.more.actions': '更多', 'nch.actions': '操作', 'nch.offline': '无法连接 Nextcloud', 'nch.user': '账号菜单',
     'notes': '备注',
     'open.merging': '- 正在核对本地改动 …',
+    'open.gone': '已从离线副本打开 {name}（{version}，截至 {date}）：服务器上已没有此文件，但从未上传的更改都在这里。',
     'open.offline': '{name} 已从离线副本打开（{version}，{date} 的版本）- 服务器无法访问。{extra}',
     'open.offline.unsynced': ' 本地改动稍后会上传。',
     'open.ok': '{name} 已打开（{version}）',
