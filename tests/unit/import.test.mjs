@@ -153,12 +153,13 @@ test('CSV: a stray quote in a field keeps the rows after it apart', () => {
 
 test('CSV: a header without a single known column is reported instead of importing blank entries', () => {
     const unknown = (csv) => assert.throws(() => readImport(csv), (e) => e instanceof ImportError && e.key === 'import.unknowncsv', JSON.stringify(csv));
-    unknown('Titel;Benutzername;Kennwort\nGMX;bob;pw\n');
+    unknown('Konto;Kürzel;Geheimnis\nGMX;bob;pw\n');
     unknown('Konto:Kennwort\nGMX:pw\n'); // a delimiter nobody uses: one column
     unknown('just some text\nand more of it\n');
     unknown('group,tags\nWeb,a\n'); // nothing that makes an entry
     assert.deepEqual(readImport('Titel;Kennwort\n').entries, [], 'a header alone stays "no entries", not an error');
     assert.equal(readImport('url\nhttps://a.example\n').entries[0].title, 'a.example', 'one known column is enough');
+    assert.equal(readImport('Titel;Benutzername;Kennwort\nGMX;bob;pw\n').entries[0].user, 'bob', 'German column names are known ones');
 });
 
 test('decodeImport: UTF-8 (with or without BOM), Windows-1252 from a plain Excel CSV, UTF-16 with BOM', () => {
