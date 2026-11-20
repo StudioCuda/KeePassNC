@@ -37,32 +37,40 @@ The short tour is in the [README](../README.md). This is the long version, for w
 
 ## Moving in (and out)
 
-- Import CSV exports from KeePassXC, Bitwarden, 1Password, LastPass, Proton Pass, Chrome or Firefox.
-- Coming from Nextcloud Passwords, Passman or Bitwarden? Import their JSON export (Passwords: "Backup or export" → "Database backup"). Folders, tags and extra fields come along, Passman's files too.
+- Import CSV exports from KeePassXC, Bitwarden, 1Password, LastPass, Proton Pass, Chrome or Firefox. Commas, semicolons or tabs, UTF-8 or the Windows encoding Excel likes to use: a file that took a detour through a spreadsheet still comes in right.
+- Coming from Nextcloud Passwords, Passman or Bitwarden? Import their JSON export (Passwords: "Backup or export" → "Database backup"). Folders, tags and extra fields come along, Passman's files too, and a Bitwarden SSH key arrives as a key file attachment that KeePassXC's SSH agent can load.
 - Export to CSV the way KeePassXC does it.
 
 ## Playing nicely with Nextcloud
 
 - **Shared files:** databases someone shared with you open fine. Read-only shares say so.
 - **Feels at home:** picks up your instance's color and your light or dark choice, and keeps the Nextcloud header with the app menu on top. Search, notifications and the contacts menu sit this one out, [here's why](../SECURITY.md#model-in-short). The color, not the background image: Nextcloud has no public way to hand that one over.
-- **Careful saving:** a backup copy is made before every save. If two devices change the file at once, both changes are kept, even what you're typing into an entry at that moment. Got a "conflicted copy" from the Nextcloud desktop app anyway? Merge it back in from the "Database" dialog.
-- **Works offline:** turn on the encrypted offline copy and your passwords stay usable when the server or network is down. Changes sync back later.
+- **Careful saving:** before the first save of a session, a backup copy of the file goes next to it, and another one before every merge. If two devices change the file at once, both changes are kept, even what you're typing into an entry at that moment. Got a "conflicted copy" from the Nextcloud desktop app anyway? Merge it back in from the "Database" dialog. If the server can't take the file (full, locked, or the file was moved or deleted), a banner says why and your changes stay put: save a copy, or put the file back where it was. Closing the tab while changes aren't stored anywhere yet asks first.
+- **Works offline:** turn on the encrypted offline copy and your passwords stay usable when the server or network is down. Changes sync back later, also when the same database is open in two tabs. A server that stops answering counts as down after a minute (big files on slow lines get longer).
 - **Phone or big screen:** three panes on a desktop, one on a phone. Light and dark, English, German and Chinese.
 
 ## Search syntax
 
 Words separated by spaces must all match. Plain words look in title, user name, URL, notes and tags.
 
-- **Fields:** `title:`, `user:`, `url:`, `notes:`, `pass:`, `tag:`, `group:` (with a `/` it matches the path), `attr:` (field names), `att:` (attachment names), `uuid:`, and `_Name:` for the custom field *Name*. The start of a field name is enough.
+- **Fields:** `title:`, `user:`, `url:`, `notes:`, `pass:`, `tag:`, `group:` (with a `/` it matches the path), `attr:` (field names), `att:` (attachment names), `uuid:`. The start of a field name is enough.
+- **Custom fields:** `_Name:` looks in the custom field *Name*, like `_PIN2:1234` or `_KP2A_URL_1:example`. The whole name, case doesn't matter. Names with spaces or colons go in quotes: `_"Security Question":blue`.
 - **Filters:** `is:weak`, `is:expired`, `is:expired-30` (expired or expiring within 30 days), `has:totp`, `has:passkey`, `has:attachment`, `has:tags`, `has:url`, `has:notes`, `has:history`.
-- **Modifiers:** `-` or `!` excludes, `+` matches exactly (case included), `*` turns the rest into a regular expression.
-- **Wildcards:** `*`, `?` and `|` (or), and `"quotes"` for values with spaces.
+- **Modifiers:** `-` or `!` excludes, `+` matches the whole field exactly (case included, no wildcards), `*` turns the rest into a regular expression, like `*url:\.de$` (ignores case unless you add `+`). A regular expression that doesn't work matches nothing, and the list tells you.
+- **Wildcards:** `*` stands for any run of characters, `?` for exactly one (neither reaches past the end of a line), `|` means or. They ignore case and match anywhere in the field. `"Quotes"` for values with spaces.
 
 Example: `url:bank is:weak -tag:old`
 
 ## Locking
 
 The page locks after the idle time you choose (and, if you like, when the tab has been hidden for a minute). With changes that can't be saved right then, the unlock screen takes over instead and keeps them in memory: unlock it with the master password (and key file) to carry on, and it offers to save. An entry you were still editing counts too: after unlocking the editor is back with what you typed. Locking by hand with such an edit open asks first, and "Keep editing" keeps it. `SECURITY.md` says what that means for security.
+
+## Clipboard
+
+- Copied user names, passwords and codes leave the clipboard again after the time you pick in the settings, and when the database locks.
+- Browsers only let a page write the clipboard while you're using it: Chrome and Edge while the tab has the focus, Firefox and Safari within five seconds of a click or key press in it. So when the time runs out while you're pasting somewhere else (in Firefox and Safari, also when you just haven't touched the tab for a bit), the status line says the password is still on the clipboard, and your next click or key press in the tab clears it.
+- Copied something else in the meantime? It stays wherever KeePassNC can tell: a paste into KeePassNC shows what's on the clipboard (that's why a click into a text field, a right click or `Ctrl+V` doesn't clear yet), and Chrome and Edge look first if the site may read the clipboard (a site setting; KeePassNC never asks for it). Where it can't tell, it clears anyway: a password left behind is worse than copying something again.
+- Close the tab before that, and the password stays on the clipboard. A page can't do anything once it's gone.
 
 ## Keyboard shortcuts
 

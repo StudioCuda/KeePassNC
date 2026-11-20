@@ -1,6 +1,6 @@
 // Create/edit an entry. Fields that aren't shown (passkeys, browser data, Auto-Type ...) stay unchanged in the vault (see Vault.applyEntry).
 import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
-import { isSystemField, entryExpiry, entryColor, ENTRY_COLORS, splitTags, toOtpUri } from '../core/util.js';
+import { isSystemField, resolvePlaceholders, entryExpiry, entryColor, ENTRY_COLORS, splitTags, toOtpUri } from '../core/util.js';
 import { excluded, reusedBy } from '../core/audit.js';
 import { t, errText } from '../i18n.js';
 import { ctx, setStatus } from './ctx.js';
@@ -53,19 +53,18 @@ export function parkEditor() {
 }
 
 /**
- * The entry and group the editor works on, looked up again by UUID: after the database was swapped or merged with the server's version
+ * The entry and group the editor works on, looked up again (Vault.find): after the database was swapped or merged with the server's version
  * they may be other objects now, or gone. An entry deleted for good (not just into the recycle bin) stays as it was, marked gone:
  * Apply creates it again instead of writing into an object that is no longer part of the database.
  */
 function relocate(ed) {
     const v = state.vault;
     if (ed.entry) {
-        let found = null;
-        for (const e of v.root.allEntries()) if (e.uuid.equals(ed.entry.uuid)) { found = e; break; }
+        const found = v.find(ed.entry);
         if (found) ed.entry = found;
         ed.gone = !found;
     }
-    ed.group = (ed.group && v.db.getGroup(ed.group.uuid)) || firstGroup();
+    ed.group = v.find(ed.group) || firstGroup();
 }
 
 export function renderEditor(host) {
@@ -95,7 +94,7 @@ export function renderEditor(host) {
     i.expiry.value = exp ? dateStr(exp) : dateStr(new Date(Date.now() + 365 * 86400000));
     i.expiry.disabled = !i.expires.checked;
     i.expires.addEventListener('change', () => { i.expiry.disabled = !i.expires.checked; });
-    const groupSel = groupSelect({ value: group, id: 'e-group' });
+    const groupSel = groupSelect({ value: group, id: 'e-group', keep: !!entry }); // an entry in the recycle bin stays there unless another group is picked
     // TOTP from a QR code: pick a screenshot of the setup page, only otpauth:// is accepted
     const qrInput = h('input', { type: 'file', id: 'e-qr', accept: 'image/*', class: 'sr-only', onchange: async () => {
         const f = qrInput.files[0]; qrInput.value = '';
@@ -112,8 +111,16 @@ export function renderEditor(host) {
     };
     const colorBox = h('div', { class: 'swatches', id: 'e-color', role: 'radiogroup', 'aria-label': t('f.color') }, swatch(''), ...[...new Set([...ENTRY_COLORS, color, ed.draft?.color].filter(Boolean))].map(swatch));
     let generated = null; // {pw, bits} from the generator: exact strength as long as the field is unchanged
-    const meter = h('div', { class: 'meter' }, strengthBar(i.Password.value));
-    i.Password.addEventListener('input', () => meter.replaceChildren(strengthBar(i.Password.value, generated?.pw === i.Password.value ? generated.bits : undefined)));
+    // A field reference ({REF:P@I:…}, a linked copy) is rated like the password it points to; one that can't be resolved gets no rating
+    const rated = () => {
+        const v = i.Password.value;
+        if (!v.includes('{')) return v;
+        const r = resolvePlaceholders(v, entry, allRealEntries());
+        return r.includes('{REF:') ? '' : r;
+    };
+    const meterBar = () => strengthBar(rated(), generated?.pw === i.Password.value ? generated.bits : undefined);
+    const meter = h('div', { class: 'meter' }, meterBar());
+    i.Password.addEventListener('input', () => meter.replaceChildren(meterBar()));
     // A quiet note when another entry has the same password (the health report's rule); a pause after typing keeps it from flickering
     const reuse = h('p', { class: 'hint reuse', id: 'e-reuse', role: 'status', hidden: true });
     let reuseTimer = null;

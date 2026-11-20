@@ -51,7 +51,8 @@ async function main() {
     const browser = await launchBrowser();
     const pageErrors = [], external = [];
     async function newPage(viewport = { width: 1500, height: 950 }, settings = { autosync: 'off', clipboard: 10 }) {
-        const ctx = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport, permissions: browserName === 'chromium' ? ['clipboard-read', 'clipboard-write'] : [] }); // Firefox/WebKit don't know these permission names
+        // Firefox knows neither permission (a page may read what its own origin copied), WebKit only clipboard-read
+        const ctx = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport, permissions: { chromium: ['clipboard-read', 'clipboard-write'], webkit: ['clipboard-read'] }[browserName] ?? [] });
         await ctx.addInitScript(plainWebdav);
         await ctx.addInitScript((s) => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify(s)); } catch {} }, settings);
         const page = await ctx.newPage();
@@ -73,6 +74,32 @@ async function main() {
     const status = (p) => p.locator('#status').innerText();
     const waitStatus = (p, re, timeout = 30000) => p.waitForFunction((src) => new RegExp(src).test(document.querySelector('#status')?.textContent || ''), re.source, { timeout });
     const count = async (p, id) => Number(await p.locator(`#${id} .count`).innerText());
+    // Clipboard. waitForFunction can't wait for a promise (it is truthy at once), so these poll by hand. In Firefox and WebKit every
+    // evaluate hands the page a fresh user activation, and with it the clipboard timer may write where a real browser wouldn't let
+    // it: while a test waits for that timer, it reads the clipboard from a second tab and leaves the page alone.
+    const clipText = (p) => p.evaluate(() => navigator.clipboard.readText()).catch((e) => `(${String(e.message).split('\n')[0]})`);
+    async function clipIs(p, want, timeout = 15000) {
+        const until = Date.now() + timeout;
+        for (let now = await clipText(p); !(want instanceof RegExp ? want.test(now) : now === want); now = await clipText(p)) {
+            if (Date.now() > until) throw new Error(`Zwischenablage ${JSON.stringify(now)} statt ${want instanceof RegExp ? want : JSON.stringify(want)}`);
+            await p.waitForTimeout(200);
+        }
+    }
+    /** A second tab of the same browser; with front, it goes in front like when you paste elsewhere and the page loses the focus. */
+    async function otherTab(p, { front = true } = {}) {
+        const cdp = front && browserName === 'chromium' ? await p.context().newCDPSession(p) : null;
+        await cdp?.send('Emulation.setFocusEmulationEnabled', { enabled: false }); // Playwright makes every tab think it has the focus
+        const other = await p.context().newPage();
+        await other.goto(base);
+        await (front ? other : p).bringToFront();
+        return {
+            page: other,
+            back: () => p.bringToFront(),
+            async close() { await other.close(); await cdp?.send('Emulation.setFocusEmulationEnabled', { enabled: true }); await cdp?.detach(); }
+        };
+    }
+    /** Waits until the clipboard timer (10 s here) has fired, without touching the page meanwhile (see above). */
+    const pastTimer = (p, t0, ms = 12000) => p.waitForTimeout(Math.max(0, t0 + ms - Date.now()));
 
     const page = await newPage();
     // the entry list, the group tree and the tag chips of the main page
@@ -104,6 +131,25 @@ async function main() {
         expect(await n('url:beispiel.at -is:weak') > 0, 'Kombination');
         expect(await n('zzzz-nix') === 0 && /Keine Treffer/.test(await page.locator('#list').innerText()), 'Leerzustand');
         await page.fill('#search', '');
+    });
+
+    await step('Suche: Regex behaelt Backslashes, kaputte Regex trifft nichts (mit Hinweis), eigene Felder mit _, Ziffern, Leerzeichen, Doppelpunkt; Platzhalter auf 20-KB-Feld schnell', async () => {
+        const n = async (q) => { await page.fill('#search', q); return rows(page).count(); };
+        const listText = () => page.locator('#list').innerText();
+        expect(await n('*title:^Amaz\\w+$') === 1, 'Regex mit \\w');
+        expect(await n('_KPEX_PASSKEY_RELYING_PARTY:example.org') === 1, 'Feldname mit Unterstrichen');
+        expect(await n('_"Feld 07":"Wert 7"') === 1 && await n('_Feld\\ 07:wert') === 1, 'Feldname mit Ziffern und Leerzeichen');
+        expect(await n('_"KPH: zusaetzliche URL":alt.example') === 1, 'Feldname mit Doppelpunkt');
+        expect(await n('*url:(') === 0 && /„\(“ ist kein gültiger regulärer Ausdruck/.test(await listText()), 'kaputte Regex: kein Treffer (auch kein leeres Feld), mit Hinweis');
+        expect(await n('*url:\\(|zzzz') === 0 && !/regulärer Ausdruck/.test(await listText()), 'gueltige Regex ohne Treffer: kein Hinweis');
+        // "Ünïcödé 日本語 …" has 20 000 x in its notes: as /x.*x.*y/i this backtracked for hours, the wildcard matcher needs a blink
+        const t0 = Date.now();
+        expect(await n('title:日本語 notes:x*x*y') === 0 && await n('title:日本語 notes:x*x*x') === 1, 'Platzhalter auf grossem Feld');
+        expect(await n('title:日本語 notes:zeile1*') === 1 && await n('title:日本語 notes:zeile1*zeile2') === 0, 'Platzhalter nicht ueber Zeilenumbrueche');
+        const ms = Date.now() - t0;
+        expect(ms < 5000, `Platzhalter auf grossem Feld: ${ms} ms`);
+        await page.fill('#search', '');
+        return `${ms} ms`;
     });
 
     await step('Gruppen: anlegen, Untergruppe (Kontextmenue), umbenennen, Eintrag per Drag&Drop, Gruppe verschieben, loeschen -> Papierkorb', async () => {
@@ -295,7 +341,7 @@ async function main() {
         await page.fill('#search', 'title:"Mit TOTP (alt)"'); await rows(page).filter({ hasText: 'Mit TOTP (alt)' }).first().waitFor();
         const qb = page.locator('.entry-wrap', { has: rows(page).filter({ hasText: 'Mit TOTP (alt)' }) }).locator('.row-actions button');
         expect(await qb.count() >= 3 && await qb.last().getAttribute('title') === 'TOTP-Code kopieren', 'Schnellbutton TOTP in der Zeile');
-        if (browserName === 'chromium') { await qb.last().click({ force: true }); await page.waitForFunction(() => navigator.clipboard.readText().then((x) => /^\d{6}$/.test(x))); }
+        if (browserName === 'chromium') { await qb.last().click({ force: true }); await clipIs(page, /^\d{6}$/); }
         await page.fill('#search', '');
     });
 
@@ -357,8 +403,22 @@ async function main() {
         }
         await page.keyboard.press('Escape');
         await pick(page, 'UI Ablauf-TOTP'); await page.click('#edit-btn'); await page.click('#gen-btn');
-        expect(await page.locator('#gen-preview.click-copy').count() === 0, 'In the editor dialog a click on the password does not copy');
-        await page.click('#gen-tab-pw'); await page.click('#gen-use'); await page.click('#e-show');
+        expect(await page.locator('#gen-preview.click-copy').count() === 1, 'In the editor dialog a click on the password copies it too');
+        if (browserName === 'chromium') {
+            const shown = (await page.locator('#gen-preview').innerText()).trim();
+            await page.locator('#gen-preview').click(); await page.locator('#gen-preview.copied').waitFor();
+            expect(await page.evaluate(() => navigator.clipboard.readText()) === shown, 'Editor dialog: click copies the password');
+        }
+        await page.click('#gen-tab-pw');
+        const genBits = (await page.locator('.gen .strength-label').innerText()).match(/· (\d+) bit/)?.[1];
+        await page.click('#gen-use'); await page.click('#e-show');
+        const meterText = () => page.locator('.meter .strength-label').first().innerText();
+        expect(genBits && (await meterText()).includes(`· ${genBits} bit`), `Editor shows the generator's exact bits (${genBits}): ${await meterText()}`);
+        await page.fill('#e-pass', 'Gotbupro 38 nigtalso');
+        expect((await meterText()).includes('· 70 bit'), 'Simple password typed by hand: exact, no ≈: ' + await meterText());
+        await page.fill('#e-pass', 'Tr0ub4dor&3xyz');
+        expect(/· ≈ \d+ bit/.test(await meterText()), 'Other passwords show an estimate with ≈: ' + await meterText());
+        await page.click('#gen-btn'); await page.click('#gen-tab-pw'); await page.click('#gen-use');
         const v = await page.inputValue('#e-pass');
         expect(v !== 'Ui-Passwort-123!' && v.length >= 20, 'Editor uebernimmt Passwort');
         await page.click('#cancel-btn');
@@ -387,17 +447,29 @@ async function main() {
         await page.waitForFunction(() => ['dark', 'light'].includes(document.documentElement.dataset.theme));
     });
 
-    await step('Tastenkuerzel + Zwischenablage: Strg+B (Benutzer), Strg+C (Passwort), automatisches Leeren nach 10 s', async () => {
-        await pick(page, 'Amazon');
-        await page.locator('#list .entry.active').focus(); // focus in the list, not in the search field
-        await page.keyboard.press('Control+b');
-        const user = (await page.locator('[data-testid=f-user]').innerText()).trim();
-        if (browserName === 'webkit') return 'Kuerzel ausgeloest; Inhalt der Zwischenablage NICHT geprueft (WebKit verweigert dem Test das Lesen)';
-        await page.waitForFunction((u) => navigator.clipboard.readText().then((x) => x === u), user);
-        await page.keyboard.press('Control+c');
-        await page.click('[data-testid=pw-toggle]'); const pw = (await page.locator('[data-testid=pw-value]').innerText()).trim();
-        await page.waitForFunction((x) => navigator.clipboard.readText().then((y) => y === x), pw);
-        await page.waitForFunction(() => navigator.clipboard.readText().then((y) => y === ''), null, { timeout: 15000 });
+    await step('Tastenkuerzel + Zwischenablage: Strg+B (Benutzer), Strg+C (Passwort), Leeren nach 10 s (Firefox/WebKit: beim naechsten Klick, mit Hinweis)', async () => {
+        const reader = await otherTab(page, { front: false });
+        try {
+            await pick(page, 'Amazon');
+            await page.locator('#list .entry.active').focus(); // focus in the list, not in the search field
+            await page.keyboard.press('Control+b');
+            const user = (await page.locator('[data-testid=f-user]').innerText()).trim();
+            await clipIs(reader.page, user);
+            await page.click('[data-testid=pw-toggle]'); const pw = (await page.locator('[data-testid=pw-value]').innerText()).trim();
+            await page.locator('#list .entry.active').focus();
+            await page.keyboard.press('Control+c'); const t0 = Date.now(); // the last input: until the timer has fired, nothing touches the page
+            await clipIs(reader.page, pw);
+            await pastTimer(page, t0);
+            // The tab has the focus: Chromium lets the timer write. Firefox and WebKit only within 5 s of a click or key press, so
+            // there the status line says it waits, and the next click clears.
+            if (browserName === 'chromium') { await clipIs(reader.page, ''); return ''; }
+            expect(await clipText(reader.page) === pw, 'Ohne Klick geleert? Dann stimmt die Annahme ueber den Browser nicht mehr');
+            expect(/^Passwort noch in der Zwischenablage/.test(await status(page)), 'Statuszeile: ' + await status(page));
+            await page.click('#status');
+            await clipIs(reader.page, '');
+            expect(/^Zwischenablage geleert/.test(await status(page)), 'Statuszeile danach: ' + await status(page));
+            return 'geleert beim naechsten Klick';
+        } finally { await reader.close(); }
     });
 
     await step('Kopieren-Knopf zeigt kurz einen Haken, dann wieder das Kopier-Symbol', async () => {
@@ -409,7 +481,7 @@ async function main() {
     });
 
     await step('Zwischenablage: wurde zwischendurch etwas anderes kopiert, leert der Timer es nicht', async () => {
-        if (browserName !== 'chromium') return 'nur Chromium: Firefox/WebKit gewaehren das Lesen der Zwischenablage nicht';
+        if (browserName !== 'chromium') return 'nur Chromium: nur dort darf die Seite selbst nachsehen (Leseberechtigung); Firefox/WebKit: Einfuegen-Test unten';
         await pick(page, 'Amazon');
         await page.locator('#list .entry.active').focus();
         await page.keyboard.press('Control+c');
@@ -417,6 +489,46 @@ async function main() {
         await page.evaluate(() => navigator.clipboard.writeText('fremder Inhalt'));
         await page.waitForTimeout(12000); // clipboard setting of this page: 10 s
         expect(await page.evaluate(() => navigator.clipboard.readText()) === 'fremder Inhalt', 'Der Timer hat fremden Inhalt geleert');
+    });
+
+    await step('Zwischenablage, anderer Tab vorn: der Timer darf nicht leeren, die Statuszeile sagt das; zurueck im Tab leert der erste Klick', async () => {
+        await pick(page, 'Amazon');
+        await page.evaluate(() => navigator.clipboard.writeText('vorher'));
+        await page.locator('#list .entry.active').focus();
+        await page.keyboard.press('Control+c'); const t0 = Date.now(); // the last input: until the timer has fired, nothing touches the page
+        const tab = await otherTab(page);
+        try {
+            const pw = await clipText(tab.page);
+            expect(pw && pw !== 'vorher' && !pw.startsWith('('), 'Strg+C hat nichts kopiert: ' + pw);
+            await pastTimer(page, t0);
+            // Chromium refuses without the focus, Firefox and WebKit without a click or key press in the last 5 s
+            expect(await clipText(tab.page) === pw, 'Im Hintergrund geleert? Dann stimmt die Annahme ueber den Browser nicht mehr');
+            expect(/^Passwort noch in der Zwischenablage - wird beim nächsten Klick/.test(await status(page)), 'Statuszeile: ' + await status(page));
+            await tab.back();
+            if (browserName === 'chromium') await clipIs(tab.page, '', 5000); // with the read permission coming back is enough
+            await page.click('#status');
+            await clipIs(tab.page, '');
+            expect(/^Zwischenablage geleert/.test(await status(page)), 'Statuszeile danach: ' + await status(page));
+        } finally { await tab.close(); }
+    });
+
+    await step('Zwischenablage, anderer Tab vorn: was dort inzwischen kopiert wurde, bleibt (Chromium sieht nach, sonst zeigt es das Einfuegen)', async () => {
+        await pick(page, 'Amazon');
+        await page.locator('#list .entry.active').focus();
+        await page.keyboard.press('Control+c'); const t0 = Date.now();
+        const tab = await otherTab(page);
+        try {
+            await tab.page.evaluate(() => navigator.clipboard.writeText('anderswo kopiert'));
+            await pastTimer(page, t0);
+            await tab.back();
+            // a click into the field waits for the paste, and the paste shows what is on the clipboard
+            await page.click('#search'); await page.keyboard.press('Control+v');
+            expect(await page.inputValue('#search') === 'anderswo kopiert', 'eingefuegt: ' + await page.inputValue('#search'));
+            await waitStatus(page, /^Zwischenablage nicht geleert/, 5000);
+            await page.fill('#search', ''); await page.click('#status'); // a click that would clear if the page didn't know better
+            await page.waitForTimeout(500);
+            expect(await clipText(tab.page) === 'anderswo kopiert', 'fremder Inhalt geleert: ' + await clipText(tab.page));
+        } finally { await tab.close(); }
     });
 
     await step('Verknuepft duplizieren: Kopie zeigt per {REF:U@I:…}/{REF:P@I:…} auf das Original, Detail zeigt und kopiert die echten Werte', async () => {
@@ -432,9 +544,8 @@ async function main() {
         expect((await page.locator('[data-testid=pw-value]').innerText()).trim() === pw, 'Passwort aufgeloest');
         expect(await page.locator('.field.pw .strength').count() === 1, 'Staerke des Ziel-Passworts');
         await rows(page).filter({ hasText: 'Amazon - Kopie' }).first().focus();
-        if (browserName === 'webkit') return 'Anzeige geprueft; Zwischenablage NICHT (WebKit verweigert dem Test das Lesen)';
         await page.keyboard.press('Control+c');
-        await page.waitForFunction((x) => navigator.clipboard.readText().then((y) => y === x), pw);
+        await clipIs(page, pw);
         await page.click('#edit-btn');
         expect(await page.inputValue('#e-pass') === `{REF:P@I:${hex}}` && await page.inputValue('#e-user') === `{REF:U@I:${hex}}`, 'Editor zeigt die Referenzen selbst');
         await page.click('#cancel-btn');
@@ -625,6 +736,38 @@ async function main() {
         await chip('weg · 1').waitFor();
         await chip('weg · 1').click({ button: 'right' }); await menuItem(page, 'Tag entfernen').click();
         await noChip('weg');
+    });
+
+    await step('Papierkorb: was dort liegt, auf den Papierkorb ziehen aendert nichts; Bearbeiten laesst den Eintrag dort, ausser man waehlt eine Gruppe', async () => {
+        const binCount = () => count(page, 'nav-bin');
+        const binRow = page.locator('.tree-row.bin');
+        const wrapOf = (title) => page.locator('.entry-wrap', { has: page.locator('.title', { hasText: new RegExp(`^${title}$`) }) });
+        await page.click('#nav-bin');
+        const n0 = await binCount();
+        // from the bin view onto the bin, alone and ticked: stays (used to be deleted for good, without asking and without Undo)
+        await wrapOf('Posteo').dragTo(binRow);
+        await page.click('#sel-start'); await rowOf('Posteo').click();
+        await wrapOf('Posteo').dragTo(binRow);
+        await page.click('#sel-done');
+        expect(await page.locator('#confirm-ok').count() === 0, 'keine Rueckfrage');
+        // an entry from a group still goes into the bin; once that shows, the drops above are surely through
+        await group('Shopping');
+        await wrapOf('Etsy').dragTo(binRow);
+        await page.waitForFunction((n) => document.querySelector('#nav-bin .count')?.textContent === String(n), n0 + 1);
+        await page.click('#nav-bin');
+        expect(await rowOf('Posteo').count() === 1 && await rowOf('Etsy').count() === 1, 'Posteo und Etsy liegen im Papierkorb');
+        // editing an entry in the bin: the group field shows where it is, and it stays there
+        await rowOf('Posteo').click(); await page.click('#edit-btn');
+        expect(await page.locator('#e-group option:checked').innerText() === 'Recycle Bin', 'Gruppenfeld zeigt den Papierkorb: ' + await page.locator('#e-group option:checked').innerText());
+        await page.fill('#e-notes', 'Im Papierkorb bearbeitet'); await page.click('#apply-btn');
+        await page.waitForFunction(() => /Im Papierkorb bearbeitet/.test(document.querySelector('#detail')?.textContent || ''));
+        expect(await page.locator('#detail .crumbs').innerText() === 'Recycle Bin' && await binCount() === n0 + 1, 'Posteo bleibt im Papierkorb: ' + await page.locator('#detail .crumbs').innerText());
+        // picking a group moves it out
+        await page.click('#nav-bin'); await rowOf('Etsy').click(); await page.click('#edit-btn');
+        await page.selectOption('#e-group', await page.locator('#e-group option', { hasText: /^\s*Shopping$/ }).getAttribute('value'));
+        await page.click('#apply-btn');
+        await page.waitForFunction((n) => document.querySelector('#nav-bin .count')?.textContent === String(n), n0);
+        expect(/Shopping$/.test(await page.locator('#detail .crumbs').innerText()), 'Etsy zurueck in Shopping: ' + await page.locator('#detail .crumbs').innerText());
     });
 
     await step('Speichern (Strg+S) -> KeePassXC liest die Datei; alle UI-Aenderungen sind angekommen, nichts anderes ging verloren', async () => {
@@ -838,6 +981,39 @@ async function main() {
         await p.locator('#confirm-cancel').click();
         await pick(p, 'Amazon');
         expect((await p.locator('#detail').innerText()).includes('softlock-nutzer'), 'Aenderung nach dem Entsperren nicht mehr da');
+        await p.context().close();
+    });
+
+    await step('Zwischenablage beim Sperren: Strg+L leert sofort; die Auto-Sperre mit anderem Tab vorn leert beim Zurueckkommen', async () => {
+        const p = await newPage(undefined, { autosync: 'off', clipboard: 60 }); // the clipboard timer stays out of the way: the lock clears here
+        await p.goto(`${base}/?autolock=8`);
+        const openAndCopy = async () => {
+            await p.locator('input[value=file]').check({ force: true });
+            await p.setInputFiles('#local-file', dbFile);
+            await p.fill('#master', meta.password); await p.setInputFiles('#keyfile', KEY);
+            await p.click('#open-btn'); await waitOpened(p, 90000);
+            await pick(p, 'Amazon');
+            await p.locator('#list .entry.active').focus();
+            await p.keyboard.press('Control+c');
+            return Date.now(); // the last input: until the auto-lock, nothing touches the page
+        };
+        await openAndCopy();
+        await waitStatus(p, /kopiert/);
+        await p.keyboard.press('Control+l'); await p.locator('#login-form').waitFor();
+        await clipIs(p, '', 5000);
+        const t0 = await openAndCopy();
+        const tab = await otherTab(p);
+        try {
+            const pw = await clipText(tab.page);
+            expect(pw && !pw.startsWith('('), 'Strg+C hat nichts kopiert: ' + pw);
+            await pastTimer(p, t0); // the auto-lock comes after 8 s without input, while the other tab is in front
+            expect(await p.locator('#login-form').isVisible(), 'nicht automatisch gesperrt');
+            expect(await clipText(tab.page) === pw, 'Im Hintergrund geleert? Dann stimmt die Annahme ueber den Browser nicht mehr');
+            await tab.back();
+            await p.click('.login-top h2');
+            await clipIs(tab.page, '');
+            await p.locator('.toast', { hasText: 'Zwischenablage geleert' }).waitFor({ timeout: 3000 }); // no status line here: a notice instead
+        } finally { await tab.close(); }
         await p.context().close();
     });
 
