@@ -41,9 +41,8 @@ async function main() {
         if (!fresh) await c.addInitScript(() => { try { if (!localStorage.getItem('kpnc.mode')) localStorage.setItem('kpnc.mode', 'dav'); } catch {} });
         const p = await c.newPage();
         // When CORS blocks a request, WebKit reports it as a page error even though the app catches it (knownFetchNoise); uncaught
-        // errors still arrive via uncaughtWatch. Playwright splits this message at the first ":" ("http:") into name
-        // and message, so the whole text counts.
-        p.on('pageerror', (e) => { if (!knownFetchNoise(String(e)) && !knownFetchNoise(e.message)) errors.push(String(e)); });
+        // errors still arrive via uncaughtWatch.
+        p.on('pageerror', (e) => { if (!knownFetchNoise(e)) errors.push(String(e)); });
         p.on('console', (m) => { if (m.type() === 'error' && m.text().startsWith('UNCAUGHT: ')) errors.push(m.text()); });
         return p;
     };
