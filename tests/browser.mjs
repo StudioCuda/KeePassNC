@@ -15,8 +15,12 @@ export const knownEngineNoise = (text) => browserName === 'webkit'
 // Second quirk of WebKit: if a request aborts because the server goes away during the request, WebKit sometimes reports it as a
 // page error "Fetch API cannot load <URL> due to access control checks", although the app catches the error. Hide it only for WebDAV URLs
 // and only use together with uncaughtWatch: that still reports real, uncaught errors.
-export const knownFetchNoise = (text) => browserName === 'webkit'
-    && /^(?:TypeError: )?Fetch API cannot load [^ ]*:? ?\/[^ ]*\/dav\/\S* due to access control checks\.?$/.test(text);
+// Pass the page error itself, not its message: Playwright splits WebKit's text at the first ":" into name and message. With a
+// "TypeError: " in front that is fine; without it the split lands in "http://", the message starts with "/127.0.0.1:..." and only
+// String(e) ("Fetch API cannot load http: /127.0.0.1:...") still shows what it is.
+const fetchNoise = /^(?:TypeError: )?Fetch API cannot load [^ ]*:? ?\/[^ ]*\/dav\/\S* due to access control checks\.?$/;
+export const knownFetchNoise = (e) => browserName === 'webkit'
+    && (typeof e === 'string' ? fetchNoise.test(e) : fetchNoise.test(String(e)) || fetchNoise.test(e?.message ?? ''));
 export const uncaughtWatch = () => {
     addEventListener('unhandledrejection', (e) => console.error(`UNCAUGHT: ${(e.reason && (e.reason.stack || e.reason.message)) || e.reason}`));
     addEventListener('error', (e) => console.error(`UNCAUGHT: ${e.message}`));

@@ -46,7 +46,7 @@ async function main() {
     // The server is deliberately stopped in the middle of requests; WebKit occasionally reports that as a page error (knownFetchNoise).
     // Real, uncaught errors still get through: via uncaughtWatch as an "UNCAUGHT:" console message.
     const watchErrors = (p) => {
-        p.on('pageerror', (e) => { if (!knownFetchNoise(e.message)) pageErrors.push(String(e)); });
+        p.on('pageerror', (e) => { if (!knownFetchNoise(e)) pageErrors.push(String(e)); });
         p.on('console', (m) => { if (m.type() === 'error' && m.text().startsWith('UNCAUGHT: ')) pageErrors.push(m.text()); });
     };
     watchErrors(page);
@@ -224,7 +224,7 @@ async function main() {
     // Further pages in the same browser context (same offline copy), for the steps where the server misbehaves instead of being gone
     const openPage = async (q = '') => {
         const p = await ctx.newPage();
-        p.on('pageerror', (e) => { if (!knownFetchNoise(e.message)) pageErrors.push(String(e)); });
+        p.on('pageerror', (e) => { if (!knownFetchNoise(e)) pageErrors.push(String(e)); });
         p.on('console', (m) => { if (m.type() === 'error' && m.text().startsWith('UNCAUGHT: ')) pageErrors.push(m.text()); });
         await p.goto(url(q)); await p.locator('#login-form').waitFor();
         await p.fill('#dav-url', `${base}/dav/vault4.kdbx`); await p.fill('#dav-user', 'tester'); await p.fill('#dav-pass', 'app-secret');
@@ -298,7 +298,8 @@ async function main() {
         fs.renameSync(f4, moved); // someone moves the file in the Files app
         const movedBytes = fs.readFileSync(moved);
         const p2 = await ctx.newPage();
-        p2.on('pageerror', (e) => { if (!knownFetchNoise(e.message)) pageErrors.push(String(e)); });
+        p2.on('pageerror', (e) => { if (!knownFetchNoise(e)) pageErrors.push(String(e)); });
+        p2.on('console', (m) => { if (m.type() === 'error' && m.text().startsWith('UNCAUGHT: ')) pageErrors.push(m.text()); }); // the cross-check that belongs to knownFetchNoise
         await p2.goto(url()); await p2.locator('#login-form').waitFor();
         const from = srv.log.length;
         await login('vault4.kdbx', PW, p2);
