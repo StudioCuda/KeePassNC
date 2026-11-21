@@ -40,24 +40,7 @@ function makeFixtures() {
 
 // ---------- Mini test harness ----------
 const results = [];
-// E2E_SHARD=k/n splits the steps into n parts that run in separate processes (CI runs 1/2 and 2/2 side by side). Steps that
-// don't belong to the part are skipped: they count neither as passed nor as failed. Without the variable every step runs.
-// - Steps between group('name') and group() build on each other (one shared page, files they changed): a group is never
-//   split, it goes to the part given by its position among the groups.
-// - Every other step goes to the part that matches its position. Steps print their duration; the order below was checked so
-//   the parts take about the same time.
-// - `every: true` marks a step that has to run in each part (the final check of what the whole part did).
-const shard = (() => {
-    const m = /^(\d+)\/(\d+)$/.exec(process.env.E2E_SHARD || '');
-    if (process.env.E2E_SHARD && !(m && +m[1] >= 1 && +m[1] <= +m[2])) throw new Error(`E2E_SHARD must look like 1/2, got "${process.env.E2E_SHARD}"`);
-    return m ? { k: +m[1], n: +m[2] } : null;
-})();
-let stepNo = 0, stepsTotal = 0, stepsSkipped = 0, groupNo = 0, curGroup = null;
-function group(name) { curGroup = name ? { name, no: groupNo++ } : null; }
-async function step(name, fn, { every = false } = {}) {
-    stepsTotal++;
-    const no = curGroup ? curGroup.no : stepNo++;
-    if (shard && !every && no % shard.n !== shard.k - 1) { stepsSkipped++; return; }
+async function step(name, fn) {
     const t0 = Date.now();
     try { const info = (await fn()) || ''; results.push({ name, ok: true, info: `${info} (${Date.now() - t0} ms)`.trim() }); }
     catch (e) { results.push({ name, ok: false, info: String(e.message || e).split('\n').slice(0, 3).join(' | ') }); }
@@ -218,7 +201,6 @@ async function main() {
 
     // ---- Main run with the KDBX4 file ----
     const page = await newPage();
-    group('main run with vault4.kdbx');
     await step('KDBX4 (von KeePassXC gespeichert) oeffnen: Eintraege, Version, Gruppen', async () => {
         await login(page, 'vault4.kdbx');
         await rows(page).first().waitFor();
@@ -484,7 +466,6 @@ async function main() {
     });
     await page.context().close();
 
-    group();
     await step('Server verweigert das Schreiben (403, Freigabe ohne Bearbeiten): Sitzung wird schreibgeschuetzt, Aenderung bleibt, Banner, keine weiteren Versuche, "Kopie speichern" liefert sie, Bearbeiten wird abgewiesen', async () => {
         const f = path.join(davRoot, 'ro.kdbx');
         fs.copyFileSync(f4, f);
@@ -1801,13 +1782,13 @@ async function main() {
         for (const n of fs.readdirSync(davRoot)) expect(!fs.readFileSync(path.join(davRoot, n)).includes(Buffer.from(PW)), `Master-Passwort im Klartext in ${n}`);
         expect(!fs.readFileSync(path.join(davRoot, 'vault4.kdbx')).includes(Buffer.from('alice-neu')), 'Eintragsdaten im Klartext auf dem Server');
         expect(!log.some((l) => /innerHTML/.test(l)), 'n/a');
-    }, { every: true });
+    });
 
     await browser.close(); server.close();
     const w = Math.max(...results.map((r) => r.name.length));
     for (const r of results) console.log(`${r.ok ? 'OK  ' : 'FAIL'}  ${r.name.padEnd(w)}  ${r.info}`);
     const failed = results.filter((r) => !r.ok).length;
-    console.log(`\n${results.length - failed}/${results.length} E2E-Tests bestanden${shard ? ` (Teil ${shard.k}/${shard.n}: ${stepsTotal - stepsSkipped} von ${stepsTotal} Schritten gehoeren zu diesem Teil)` : ''} (Arbeitsverzeichnis: ${tmp})`);
+    console.log(`\n${results.length - failed}/${results.length} E2E-Tests bestanden (Arbeitsverzeichnis: ${tmp})`);
     process.exit(failed ? 1 : 0);
 }
 main().catch((e) => { console.error(e); process.exit(2); });
