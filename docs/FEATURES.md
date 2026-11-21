@@ -65,7 +65,7 @@ Example: `url:bank is:weak -tag:old`
 
 ## Locking
 
-The page locks after the idle time you choose (and, if you like, when the tab has been hidden for a minute). With changes that can't be saved right then, the unlock screen takes over instead and keeps them in memory: unlock it with the master password (and key file) to carry on, and it offers to save. An entry you were still editing counts too: after unlocking the editor is back with what you typed. Locking by hand with such an edit open asks first, and "Keep editing" keeps it. `SECURITY.md` says what that means for security.
+The page locks after the idle time you choose (and, if you like, when the tab has been hidden for a minute). With changes that can't be saved right then, the unlock screen takes over instead and keeps them in memory: unlock it with the master password (and key file) to carry on, and it offers to save. An entry you were still editing counts too: after unlocking the editor is back with what you typed. Locking by hand with such an edit open asks first, and "Keep editing" keeps it. `SECURITY.md` says what that means for security. A real lock overwrites the key file and the password hashes of the open database with zeros, as soon as the last save is through.
 
 ## Clipboard
 

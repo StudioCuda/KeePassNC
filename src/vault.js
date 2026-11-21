@@ -11,6 +11,8 @@ import { findDuplicates, repairDuplicates } from './core/duplicates.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
 
+// password and salt are views on kdbxweb's buffers (it zeroes the composite key itself once the derivation is through). out is ours:
+// together with the master seed from the unencrypted header it is the file key, so it is overwritten as soon as kdbxweb has its own copy.
 kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, length, parallelism, type, version) => {
     // hash-wasm only computes Argon2 1.3 (0x13); kdbxweb also lets 1.0 (0x10) through, which KeePass 2 and KeePassXC still read and
     // keep. Computed as 1.3, such a file gets a different key and looked like a wrong password, so say what it really is.
@@ -31,7 +33,7 @@ kdbxweb.CryptoEngine.setArgon2Impl(async (password, salt, memory, iterations, le
         if (isOutOfMemory(e)) throw new VaultError('Nicht genug Arbeitsspeicher fuer die Schluesselableitung (Argon2).', 'e.argonmem', { mb: Math.ceil(memory / 1024) });
         throw e;
     }
-    return out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength);
+    try { return out.buffer.slice(out.byteOffset, out.byteOffset + out.byteLength); } finally { out.fill(0); }
 });
 
 /**
@@ -241,7 +243,7 @@ export class Vault {
      * cacheRev: rev of the offline copy as the caller read it (see _cacheWrite).
      */
     static async open({ buf, password, keyfile, dav, etag, cache, unsynced, remoteBuf, fromCache, newCreds, cacheRev }) {
-        const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile : toArrayBuffer(keyfile)) : undefined;
+        const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined; // our own copy: wipe() overwrites it
         const { db, pw } = await loadWith(buf, password, kf);
         const v = new Vault(db, pw, kf, dav, etag ?? null, remoteBuf || buf, cache);
         v._cacheRev = cacheRev;
@@ -299,6 +301,7 @@ export class Vault {
         this._pending = null;
         this._unstored = false; // a save is under way whose version is neither on the server nor in the offline copy yet (see unsaved)
         this._chain = Promise.resolve();
+        this._wiped = false; // see wipe()
     }
 
     /**
@@ -317,7 +320,13 @@ export class Vault {
 
     /** Read-only session: changes are refused before they touch the database, so nothing looks saved or counts as dirty. */
     _writable() {
+        this._alive();
         if (this.readOnly) throw this.readOnlyError();
+    }
+
+    /** After wipe() the credentials are zeros: a save would encrypt the file with a key nobody can derive, so everything that writes asks here. */
+    _alive() {
+        if (this._wiped) throw new VaultError('Diese Datenbank ist schon gesperrt, hier wird nichts mehr gespeichert. Bitte neu oeffnen.', 'e.wiped');
     }
 
     readOnlyError() {
@@ -330,8 +339,25 @@ export class Vault {
     /** Resolves once the saves and syncs started so far are over (whatever their outcome). */
     settled() { return this._chain; }
 
+    /**
+     * The session drops this vault for good (locked for real, back to the login): overwrite the raw key file bytes, the master password
+     * and the hashes kdbxweb builds the file key from instead of leaving them to the garbage collector. JavaScript can't promise that no
+     * other copy is left anywhere, this only shortens how long they linger. kdbxweb derives the file key from db.credentials on every
+     * save, and a merge or pull reads the server version with _base: so this waits until all queued work is over (everything that
+     * writes goes through _exclusive), including what got queued meanwhile, and from then on all of it refuses (_alive). A request that
+     * never answers keeps it waiting: then nothing is wiped, the session drops the vault anyway. Not for the soft lock, which keeps the
+     * database for saving later on purpose.
+     */
+    async wipe() {
+        let chain;
+        do { chain = this._chain; await chain; } while (chain !== this._chain);
+        this._wiped = true;
+        for (const pv of [this._pw, this._base?.pw, this.db.credentials?.passwordHash, this.db.credentials?.keyFileHash]) { pv?.value.fill(0); pv?.salt.fill(0); }
+        for (const kf of [this._kf, this._base?.kf]) if (kf) new Uint8Array(kf).fill(0);
+    }
+
     _exclusive(fn) {
-        const run = this._chain.then(fn);
+        const run = this._chain.then(() => { this._alive(); return fn(); });
         this._chain = run.catch(() => {});
         return run;
     }
@@ -454,7 +480,7 @@ export class Vault {
     /** false: database with key file only (no password part, not even an empty password). */
     get hasPassword() { return !!this._pw; }
     /** Copy of the key file (to remember it again after changeCredentials) or null; the caller overwrites it with zeros afterwards. */
-    keyfileCopy() { return this._kf ? new Uint8Array(this._kf.slice(0)) : null; }
+    keyfileCopy() { this._alive(); return this._kf ? new Uint8Array(this._kf.slice(0)) : null; } // after wipe(): no zeros handed out as the key file
 
     /**
      * New master password and/or new key file, saved right away. password: new text or undefined (stays);
@@ -554,10 +580,11 @@ export class Vault {
 
     async _mergeFrom(buf, creds) {
         let other;
+        const kf = creds?.keyfile ? toArrayBuffer(creds.keyfile) : undefined; // only needed to open the other copy
         try {
-            other = creds ? (await loadWith(buf, creds.password, creds.keyfile ? toArrayBuffer(creds.keyfile) : undefined)).db
+            other = creds ? (await loadWith(buf, creds.password, kf)).db
                 : await Kdbx.load(buf, credentials(this._pw, this._kf));
-        } catch (e) { throw loadError(e); }
+        } catch (e) { throw loadError(e); } finally { kf && new Uint8Array(kf).fill(0); }
         const snapshot = (items) => new Map([...items].map((x) => [x.uuid.id, `${x.times.lastModTime?.getTime()}|${x.parentGroup?.uuid.id}`]));
         const diff = (before, after) => ({
             added: [...after.keys()].filter((id) => !before.has(id)).length,

@@ -38,7 +38,9 @@ const aad2 = (id, pepperId, name) => enc.encode(`${FORMAT2}\0${pepperId}\0${id}\
 
 /** pepper = {id, key: Uint8Array(32)} or null. With pepper: AES key = HKDF-SHA256(Argon2id(password), salt = pepper). */
 async function deriveKey(password, salt, { memoryKiB, iterations }, pepper = null) {
-    const raw = await argon2({ type: 'id', password: enc.encode(password), salt, parallelism: 1, iterations, memoryKiB, hashLength: 32 });
+    const pw = enc.encode(password); // the string itself can't be overwritten, its bytes can
+    let raw;
+    try { raw = await argon2({ type: 'id', password: pw, salt, parallelism: 1, iterations, memoryKiB, hashLength: 32 }); } finally { pw.fill(0); }
     try {
         if (!pepper) return await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']);
         const ikm = await crypto.subtle.importKey('raw', raw, 'HKDF', false, ['deriveKey']);
