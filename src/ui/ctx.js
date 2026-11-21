@@ -6,7 +6,7 @@ import { t } from '../i18n.js';
 import { ncThemeFrom, themeVars, THEME_VARS } from '../theme.js';
 import { $, toast } from './dom.js';
 import { timeouts } from '../webdav.js';
-import { clipboardGuard } from './clipboard.js';
+import { pageClipboard } from './clipboard.js';
 
 export const kfStore = createKeyfileStore(keyfileBackend);
 /** ID of a remembered key file for a locally chosen file (in Nextcloud additionally separated per user). */
@@ -75,13 +75,10 @@ export function setStatus(msg, kind = 'info') {
 
 // The clipboard clears again after the set time, or when the browser lets it (clipboard.js); the status line tells when that waits
 const CLIP_NOTES = { pending: ['clipboard.pending', 'info'], failed: ['clipboard.failed', 'error'], cleared: ['clipboard.cleared', 'info'], kept: ['clipboard.kept', 'info'] };
-const clipboard = clipboardGuard({
-    clipboard: navigator.clipboard, permissions: navigator.permissions, activation: navigator.userActivation, win: window, doc: document,
-    onState: (state, what) => {
-        const [key, kind] = CLIP_NOTES[state];
-        setStatus(t(key, { what }), kind);
-        if (kind === 'info' && !$('#status')) toast(t(key, { what })); // locked: no status line, a notice instead
-    }
+const clipboard = pageClipboard((state, what) => {
+    const [key, kind] = CLIP_NOTES[state];
+    setStatus(t(key, { what }), kind);
+    if (kind === 'info' && !$('#status')) toast(t(key, { what })); // locked: no status line, a notice instead
 });
 export async function copy(text, label) {
     try {

@@ -114,3 +114,6 @@ export function clipboardGuard({ clipboard, permissions, activation, win, doc, o
         }
     };
 }
+
+/** clipboardGuard for this page: the browser's clipboard, permissions and user activation, events from window and document. */
+export const pageClipboard = (onState) => clipboardGuard({ clipboard: navigator.clipboard, permissions: navigator.permissions, activation: navigator.userActivation, win: window, doc: document, onState });

@@ -276,7 +276,7 @@ async function main() {
             "    e = kp.add_entry(kp.root_group, title, 'anna', 'x')",
             "    for k, v in fields.items(): e.set_custom_property(k, v, protect=k.startswith('TimeOtp-Secret'))",
             '    if otp: e.otp = otp',
-            // KeePassXC 2.7 reads TimeOtp-Secret-Base32 (with length, period and algorithm) itself, so it is the reference here
+            // KeePassXC reads TimeOtp-Secret-Base32 (with length, period and algorithm) itself, so it is the reference here: 2.7.10 (CI) does, 2.7.6 (Ubuntu 24.04) not yet
             "add('KeePass 2', {'TimeOtp-Secret-Base32': 'JBSWY3DPEHPK3PXP', 'TimeOtp-Length': '8', 'TimeOtp-Period': '45', 'TimeOtp-Algorithm': 'HMAC-SHA-256'})",
             "add('Beide Felder', {'TimeOtp-Secret-Base32': 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ'}, 'otpauth://totp/x?secret=JBSWY3DPEHPK3PXP')",
             "add('Kaputt Hex', {'TimeOtp-Secret-Hex': 'xyz'})",

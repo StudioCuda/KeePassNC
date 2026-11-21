@@ -142,6 +142,8 @@ const sameBytes = (a, b) => {
     return d === 0;
 };
 const toArrayBuffer = (u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
+/** A copy of the key file bytes of our own (ArrayBuffer or a view on one), undefined without a key file. */
+const ownKeyfile = (kf) => (kf ? (kf instanceof ArrayBuffer ? kf.slice(0) : toArrayBuffer(kf)) : undefined);
 const newRev = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => b.toString(16).padStart(2, '0')).join('');
 /**
  * kdbxweb's Credentials, always with a copy of the key file of its own. A key file of exactly 32 bytes is the key itself, and
@@ -150,7 +152,7 @@ const newRev = () => Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) =
  * Credentials from it (a pull, a merge, the soft-lock check, a new password) masked it again: the following save encrypted the file
  * with a key nobody can derive.
  */
-const credentials = (pw, kf) => new Credentials(pw, kf ? (kf instanceof ArrayBuffer ? kf.slice(0) : toArrayBuffer(kf)) : kf);
+const credentials = (pw, kf) => new Credentials(pw, ownKeyfile(kf));
 const stamp = () => new Date().toISOString().replace(/[-:]/g, '').replace(/\..+/, '').replace('T', '-');
 
 export function generatePassword(length = 24) {
@@ -243,7 +245,7 @@ export class Vault {
      * cacheRev: rev of the offline copy as the caller read it (see _cacheWrite).
      */
     static async open({ buf, password, keyfile, dav, etag, cache, unsynced, remoteBuf, fromCache, newCreds, cacheRev }) {
-        const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined; // our own copy: wipe() overwrites it
+        const kf = ownKeyfile(keyfile); // our own copy: wipe() overwrites it
         const { db, pw } = await loadWith(buf, password, kf);
         const v = new Vault(db, pw, kf, dav, etag ?? null, remoteBuf || buf, cache);
         v._cacheRev = cacheRev;
@@ -260,7 +262,7 @@ export class Vault {
      * Afterwards the database is open as after open(). Returns {vault, bytes}.
      */
     static async create({ name, password, keyfile, security, dav, cache }) {
-        const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
+        const kf = ownKeyfile(keyfile);
         const pw = password ? ProtectedValue.fromString(password) : null;
         if (!pw && !kf) throw new VaultError('Ohne Passwort und Schluesseldatei liesse sich die Datenbank von jedem oeffnen.', 'e.cred.empty');
         const creds = credentials(pw, kf);
@@ -339,6 +341,12 @@ export class Vault {
     /** Resolves once the saves and syncs started so far are over (whatever their outcome). */
     settled() { return this._chain; }
 
+    /** Waits until the queue is empty, including work queued while waiting. */
+    async idle() {
+        let chain;
+        do { chain = this._chain; await chain; } while (chain !== this._chain);
+    }
+
     /**
      * The session drops this vault for good (locked for real, back to the login): overwrite the raw key file bytes, the master password
      * and the hashes kdbxweb builds the file key from instead of leaving them to the garbage collector. JavaScript can't promise that no
@@ -349,8 +357,7 @@ export class Vault {
      * database for saving later on purpose.
      */
     async wipe() {
-        let chain;
-        do { chain = this._chain; await chain; } while (chain !== this._chain);
+        await this.idle();
         this._wiped = true;
         for (const pv of [this._pw, this._base?.pw, this.db.credentials?.passwordHash, this.db.credentials?.keyFileHash]) { pv?.value.fill(0); pv?.salt.fill(0); }
         for (const kf of [this._kf, this._base?.kf]) if (kf) new Uint8Array(kf).fill(0);
@@ -495,7 +502,7 @@ export class Vault {
         this._writable();
         return this._exclusive(async () => {
             const pw = password === undefined ? this._pw : ProtectedValue.fromString(password);
-            const kf = keyfile === undefined ? this._kf : keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
+            const kf = keyfile === undefined ? this._kf : ownKeyfile(keyfile);
             if (!pw && !kf) throw new VaultError('Ohne Passwort und Schluesseldatei liesse sich die Datenbank von jedem oeffnen.', 'e.cred.empty');
             const creds = credentials(pw, kf);
             // report an unreadable key file (e.g. XML with a wrong checksum) now, not only on save
@@ -530,7 +537,7 @@ export class Vault {
      */
     adoptCredentials({ password, keyfile }) {
         return this._exclusive(async () => {
-            const kf = keyfile ? (keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)) : undefined;
+            const kf = ownKeyfile(keyfile);
             const remote = await this.dav.get();
             const { db: remoteDb, pw } = await loadWith(remote.buf, password, kf);
             this._pw = pw; this._kf = kf; this._base = { pw, kf };
@@ -555,7 +562,7 @@ export class Vault {
         return this._exclusive(async () => {
             if (!this.dirty && !this.unsynced) return {};
             const remote = await this.dav.get();
-            const kfs = keyfile ? [keyfile instanceof ArrayBuffer ? keyfile.slice(0) : toArrayBuffer(keyfile)] : this._kf ? [this._kf, undefined] : [undefined];
+            const kfs = keyfile ? [ownKeyfile(keyfile)] : this._kf ? [this._kf, undefined] : [undefined];
             let found;
             for (const [n, kf] of kfs.entries()) {
                 try { found = { pw: (await loadWith(remote.buf, password, kf)).pw, kf }; break; } catch (e) { if (e?.key !== 'e.badkey' || n === kfs.length - 1) throw e; }
@@ -580,7 +587,7 @@ export class Vault {
 
     async _mergeFrom(buf, creds) {
         let other;
-        const kf = creds?.keyfile ? toArrayBuffer(creds.keyfile) : undefined; // only needed to open the other copy
+        const kf = ownKeyfile(creds?.keyfile); // only needed to open the other copy
         try {
             other = creds ? (await loadWith(buf, creds.password, kf)).db
                 : await Kdbx.load(buf, credentials(this._pw, this._kf));
@@ -1091,7 +1098,7 @@ export class Vault {
         ({ entry, index } = this._currentVersion(entry, index));
         const old = entry.history[index];
         if (!old) return;
-        const created = entry.times.creationTime, keep = entry.history, uuid = entry.uuid, parent = entry.parentGroup, prev = entry.previousParentGroup, loc = entry.times.locationChanged, usage = entry.times.usageCount;
+        const created = entry.times.creationTime, uuid = entry.uuid, parent = entry.parentGroup, prev = entry.previousParentGroup, loc = entry.times.locationChanged, usage = entry.times.usageCount;
         this._pushHistory(entry);
         const hist = entry.history;
         entry.copyFrom(old);
@@ -1323,23 +1330,23 @@ export class Vault {
             await this._prune();
         }
         let merged = false, tabMerged = false;
+        const done = async (out, etag) => {
+            const after = await this._uploaded(out, etag);
+            return { ...after, merged: merged || !!after.merged, noBackup: this.noBackup, ...(tabMerged ? { tabMerged } : {}) };
+        };
         for (let attempt = 1; ; attempt++) {
             const out = this._pending;
             try {
                 // A server that sends no ETag (or a CORS setup that hides it) can't check If-Match. Then compare with what we last read,
                 // right before writing; a difference takes the usual conflict path (backup of the other version, merge, retry).
                 if (!this.etag && !(await this._serverUnchanged())) throw new ConflictError();
-                const after = await this._uploaded(out, await this._put(out));
-                return { ...after, merged: merged || !!after.merged, noBackup: this.noBackup, ...(tabMerged ? { tabMerged } : {}) };
+                return await done(out, await this._put(out));
             } catch (e) {
                 if (!(e instanceof ConflictError)) throw e;
                 if (attempt >= 3) throw new VaultError('Die Datei wird gerade von einem anderen Geraet laufend geaendert - bitte spaeter erneut speichern. Deine Aenderungen sind lokal gesichert.', 'e.busy');
                 const remote = await this.dav.get();
                 // Our own upload is there already: its answer got lost on the way back, maybe before the page was reloaded. Nothing to merge.
-                if (sameBytes(remote.buf, out)) {
-                    const after = await this._uploaded(out, remote.etag);
-                    return { ...after, merged: merged || !!after.merged, noBackup: this.noBackup, ...(tabMerged ? { tabMerged } : {}) };
-                }
+                if (sameBytes(remote.buf, out)) return done(out, remote.etag);
                 // An earlier upload of ours that never got its answer, with changes made here since: the same database, only further along.
                 // It becomes the base (with the credentials it was written with), and this state goes on top of it without merging.
                 const sent = this._unconfirmed;
