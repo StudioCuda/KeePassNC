@@ -5,7 +5,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ## [1.3.0] - 2026-11-21
-The hard cases, sorted: flaky connections, two tabs on one file, merges, a full server or a file that vanished, what you type in the editor while it locks, plus KeePass 2's own TOTP and the CSV a German Excel saves. Most of this came from @sbuchweitz, who sent 24 careful pull requests in a row and wrote down every oddity they ran into on the way. Thanks a lot, that was a real pleasure to review!
+The hard cases, sorted: flaky connections, two tabs on one file, merges, a full server or a file that vanished, what you type in the editor while it locks, plus KeePass 2's own TOTP and the CSV a German Excel saves. Most of this came from @sbuchweitz, who sent 24 careful pull requests in a row and wrote down every oddity he ran into on the way. Thanks a lot, that was a real pleasure to review!
 
 ### Added
 - CSV import understands German column names from a hand-made list too: Titel, Benutzername, Kennwort, Webseite, Bemerkung, Ordner, Schlagwörter and friends, in any case.
