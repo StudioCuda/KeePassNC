@@ -9,13 +9,13 @@ import { visibleEntries, filterTitle, avatar, expiryBadge, resolvedField, resolv
 import { renderSidebar, newGroup, setFilter, startEntryDrag, emptyBin, tagMenu } from './groups.js';
 import { renderDetail, deleteEntry, stopDetailTimers } from './detail.js';
 import { pruneMarks, markClick, selectAll, selectionBar, deleteEntries } from './selection.js';
-import { renderEditor, startEdit, cancelEdit } from './editor.js';
+import { renderEditor, startEdit, cancelEdit, editorChanged } from './editor.js';
 import { openGenerator } from './generator-dialog.js';
 import { openReports } from './reports.js';
 import { openMerge } from './merge-dialog.js';
 import { openCsv } from './csv-dialog.js';
 import { openSettings } from './settings-dialog.js';
-import { doSave, lock, refreshDirtyIndicator, refreshReadOnly, saveCopy, syncNow } from './session.js';
+import { doSave, lock, refreshDirtyIndicator, refreshReadOnly, repairDuplicates, saveCopy, syncNow } from './session.js';
 import { totp } from '../totp.js';
 import { saveSettings } from '../settings.js';
 import { installMobileNav } from './mobile-nav.js';
@@ -52,7 +52,9 @@ export function showMain() {
     const banner = h('div', { class: 'ro-banner', id: 'readonly-banner', role: 'status', hidden: true }, icon('lock'), h('span', { id: 'ro-text' }),
         h('button', { type: 'button', class: 'link', id: 'ro-recreate', text: t('blocked.recreate'), hidden: true, onclick: () => doSave({ recreate: true }) }),
         h('button', { type: 'button', class: 'link', id: 'ro-copy', text: t('ro.copy'), onclick: () => saveCopy() }));
-    const shell = h('div', { class: 'shell', 'data-view': state.view, 'data-drawer': '0' }, bar, banner,
+    const dupBanner = h('div', { class: 'ro-banner', id: 'dup-banner', role: 'status', hidden: true }, icon('duplicate'), h('span', { id: 'dup-text' }),
+        h('button', { type: 'button', class: 'link', id: 'dup-fix', text: t('dup.fix'), onclick: () => repairDuplicates() }));
+    const shell = h('div', { class: 'shell', 'data-view': state.view, 'data-drawer': '0' }, bar, banner, dupBanner,
         h('main', { class: 'panes' }, // the workspace is the main landmark: on a phone only one of the panes is on screen at a time
             h('div', { class: 'scrim', onclick: () => { $('.shell').dataset.drawer = '0'; } }),
             h('nav', { id: 'groups', class: 'sidebar', 'aria-label': t('nav.groups') }),
@@ -243,6 +245,7 @@ export function installShortcuts() {
 
 ctx.ui.refresh = refresh;
 ctx.ui.renderEditor = renderEditor;
+ctx.ui.editorChanged = editorChanged; // session.js asks before locking
 ctx.ui.applyView = applyView;
 ctx.ui.selectEntry = selectEntry;
 ctx.ui.showMain = showMain;

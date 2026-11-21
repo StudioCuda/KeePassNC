@@ -118,15 +118,35 @@ export function warmNextcloudAuth(ctx) {
 }
 
 /**
+ * How long the server secret may take, sign-in token and answer included. It is a few bytes, so a request still open after that
+ * hangs (a proxy that swallows it, a connection that died half-way) and would hold up unlocking with a remembered key file. Then
+ * it is aborted and ends as a NetworkError, like an outage. An object so tests can shorten it.
+ */
+export const pepperTimeout = { ms: 30000 };
+
+/**
  * Fetches (or renews with rotate=true) the server secret for remembered key files.
- * @returns {Promise<{id: string, key: Uint8Array}>} throws NetworkError/DavError on outage or expired session
+ * @returns {Promise<{id: string, key: Uint8Array}>} throws NetworkError/DavError on outage, expired session or no answer in time
  */
 export async function fetchPepper(ctx, auth, { rotate = false } = {}) {
     if (!ctx?.pepperUrl) throw new DavError(0, 'Kein Server-Geheimwert verfuegbar.', 'e.kf.nopepper');
+    const ctl = new AbortController();
+    let timer;
+    const expired = new Promise((_, reject) => {
+        timer = setTimeout(() => { ctl.abort(); reject(new NetworkError(new Error('timeout'))); }, pepperTimeout.ms);
+    });
+    try {
+        return await Promise.race([pepperRequest(ctx, auth, rotate, ctl.signal), expired]);
+    } finally {
+        clearTimeout(timer);
+    }
+}
+
+async function pepperRequest(ctx, auth, rotate, signal) {
     const url = rotate ? ctx.pepperUrl.replace(/\/?$/, '/rotate') : ctx.pepperUrl;
     const send = async () => {
         try {
-            return await fetch(url, { method: rotate ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', headers: { ...(await auth.headers()), Accept: 'application/json' } });
+            return await fetch(url, { method: rotate ? 'POST' : 'GET', credentials: 'same-origin', cache: 'no-store', signal, headers: { ...(await auth.headers()), Accept: 'application/json' } });
         } catch (e) {
             if (e instanceof DavError || e instanceof NetworkError) throw e; // from auth.headers(), already reported there
             console.warn('Server secret request failed', url, e);

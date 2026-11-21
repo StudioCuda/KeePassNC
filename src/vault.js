@@ -7,6 +7,7 @@ import { cachePutUnless } from './cache.js';
 import { excluded } from './core/audit.js';
 import { editTags, entryColor, groupPath, isOutOfMemory, isPasskeyField, isSystemField, resolvePlaceholders, toOtpUri, uuidHex, valueText } from './core/util.js';
 import { EXPORT_HEAD, otpUri } from './core/csv.js';
+import { findDuplicates, repairDuplicates } from './core/duplicates.js';
 
 const { Kdbx, Credentials, ProtectedValue, KdbxError, Consts, KdbxUuid, KdbxHeader, BinaryStream, Int64, VarDictionary } = kdbxweb;
 
@@ -169,7 +170,7 @@ async function loadWith(buf, password, kf) {
     }
 }
 
-/** Errors from Kdbx.load as understandable VaultErrors (wrong credentials, no/unknown KDBX file), otherwise unchanged. */
+/** Errors from Kdbx.load as understandable VaultErrors (wrong credentials, no/unknown KDBX file, damaged file), otherwise unchanged. */
 /** A file header asks for more AES-KDF rounds than we ever open (core/kdf-policy.js, REFUSE_AES_ROUNDS). */
 export const tooManyRoundsError = () => new VaultError('Die Datei verlangt unsinnig viele Durchlaeufe der Schluesselableitung und wird nicht geoeffnet.', 'e.kdf.rounds');
 
@@ -182,6 +183,11 @@ function loadError(e) {
     }
     if (e instanceof KdbxError && [Consts.ErrorCodes.BadSignature, Consts.ErrorCodes.InvalidVersion, Consts.ErrorCodes.Unsupported].includes(e.code)) {
         return new VaultError('Das ist keine gueltige KDBX-Datei (oder eine nicht unterstuetzte Version).', 'e.badfile');
+    }
+    // Damaged or cut off (an upload that broke off, a disk error): the hash blocks don't match, or the header ends early, which
+    // kdbxweb's DataView reads report as a bare RangeError. Running out of memory is a RangeError too, but it says so.
+    if ((e instanceof KdbxError && e.code === Consts.ErrorCodes.FileCorrupt) || (e instanceof RangeError && !/memory|alloc/i.test(e.message))) {
+        return Object.assign(new VaultError('Die Datei ist beschaedigt oder unvollstaendig.', 'e.corrupt'), { cause: e });
     }
     return e;
 }
@@ -262,7 +268,8 @@ export class Vault {
         this.backupKeep = 10; // number of backup copies kept per kind (0 = never delete)
         this.dirty = false; // changes in memory only (not serialized yet)
         this.readOnly = false; // share without write permission (or a 403 on saving): every change is turned away, see _writable
-        this.mergeBlocked = false; // the last upload failed because the server file can't be merged, or 'etag' if the server refuses our If-Match for nothing (see _push)
+        this._repairDups = false; // the user had duplicates repaired: versions merged in later get the same repair first (see _mergeIn)
+        this.mergeBlocked = false; // the last upload failed because the server file can't be merged ('dup': an entry or group in it is there twice), or 'etag' if the server refuses our If-Match for nothing (see _push)
         this.writeBlocked = null; // why the last save or sync was turned down: 'full', 'locked' or 'gone' (writeProblem in webdav.js), for the banner
         this.cache = cache || null;
         this._cacheRev = undefined; // rev of the offline copy as this vault last wrote or read it (another one: written by another tab)
@@ -540,6 +547,7 @@ export class Vault {
         const entries = snapshot(this.root.allEntries()), groups = snapshot(this.root.allGroups());
         const { keyChanged, settingsChanged } = this.db.meta; // credentials and file header stay our own, so do their timestamps
         try {
+            this._repairIncoming(other);
             this.db.merge(other);
             dropStaleListings(this.root);
             Object.assign(this.db.meta, { keyChanged, settingsChanged });
@@ -560,6 +568,28 @@ export class Vault {
 
     get root() {
         return this.db.getDefaultGroup();
+    }
+
+    /** Extra copies of entries and groups in this database ({entries, groups}, see core/duplicates.js); 0 and 0 for a healthy file. */
+    duplicates() { return findDuplicates(this.root); }
+
+    /**
+     * Keeps one copy of every entry and group the file holds twice (core/duplicates.js), only when the user asks for it. Versions
+     * from the server or another tab merged in afterwards get the same repair first: they come from the same file, with the same
+     * leftovers, and would stop the merge otherwise. Returns what repairDuplicates did.
+     */
+    repairDuplicates() {
+        this._writable();
+        const done = repairDuplicates(this.root);
+        this._repairDups = true;
+        if (this.mergeBlocked === 'dup') this.mergeBlocked = false;
+        this._stuckRev = null; // another tab's version that stopped on a duplicate can be merged now
+        if (done.entries || done.groups) this.dirty = true;
+        return done;
+    }
+
+    _repairIncoming(other) {
+        if (this._repairDups) repairDuplicates(other.getDefaultGroup());
     }
 
     get recycleBin() {
@@ -1285,8 +1315,8 @@ export class Vault {
                 } catch (err) {
                     if (!(err instanceof KdbxError && err.code === Consts.ErrorCodes.MergeError)) throw err;
                     // Retrying changes nothing (every attempt would leave another conflict backup behind): background sync and auto-save stand down until the user saves again
-                    this.mergeBlocked = true;
-                    if (/\bduplicate:/.test(err.message)) throw new VaultError('Ein Eintrag oder eine Gruppe kommt doppelt vor (lokal oder auf dem Server), das laesst sich nicht zusammenfuehren.', 'e.merge.dup');
+                    this.mergeBlocked = /\bduplicate:/.test(err.message) ? 'dup' : true;
+                    if (this.mergeBlocked === 'dup') throw new VaultError('Ein Eintrag oder eine Gruppe kommt doppelt vor (lokal oder auf dem Server), das laesst sich nicht zusammenfuehren.', 'e.merge.dup');
                     throw new VaultError('Die Datei auf dem Server ist eine andere Datenbank (ersetzt oder neu angelegt). Deine Aenderungen bleiben hier, zusammenfuehren geht nicht.', 'e.merge.server');
                 }
                 // The offline copy names the server version the merge is based on now. Until it is written, _pending is the old version:
@@ -1309,6 +1339,7 @@ export class Vault {
 
     /** Merges another version of this database into ours, with the file header _mergedHeader picks. A different database: KdbxError MergeError. */
     _mergeIn(other) {
+        this._repairIncoming(other);
         const header = this._mergedHeader(other);
         this.db.merge(other);
         dropStaleListings(this.root);

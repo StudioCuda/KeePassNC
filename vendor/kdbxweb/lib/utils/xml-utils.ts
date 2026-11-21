@@ -72,6 +72,10 @@ export function serialize(doc: Document, prettyPrint = false): string {
         prettyPrintXmlNode(doc, 0);
     }
     let xml = createXMLSerializer().serializeToString(doc);
+    // A raw CR in text would come back as LF (XML line-end normalization turns CR LF into LF on every read), so field values
+    // written with CR LF (Windows tools, pykeepass) lost it on the first save. Written as a character reference it stays. A raw
+    // CR can only be part of a value here: the serializer and the pretty-printer only ever add LF.
+    xml = xml.replace(/\r/g, '&#13;');
     if (prettyPrint && xml.startsWith('<?')) {
         xml = xml.replace(/^(<\?.*?\?>)</, '$1\n<');
     }
