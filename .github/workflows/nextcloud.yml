@@ -84,8 +84,7 @@ jobs:
           echo "CHROMIUM=$(node -e "console.log(require('playwright-core').chromium.executablePath())")" >> $GITHUB_ENV
       - run: npm run build && npm run test:unit && npm run test:compat
         if: steps.changes.outputs.docs_only != 'true'
-      # The same two lanes as in the browsers job. Measured on the runner with Chromium: 8:35 one after the other, about 4:35 in two
-      # lanes (four runs, none failed). Three lanes were no faster: the runner has four cores.
+      # The same two lanes as in the browsers job (see the comment there; three lanes were no faster, the runner has four cores).
       - name: Browser suites
         run: tools/ci-suites.sh "e2e offline credentials" "keyfile ui create remote fidelity theme pass"
         if: matrix.browser && steps.changes.outputs.docs_only != 'true'
@@ -180,10 +179,11 @@ jobs:
         if: steps.changes.outputs.docs_only != 'true'
       - run: npm run build
         if: steps.changes.outputs.docs_only != 'true'
-      # Two lanes that run at the same time, about 40 % faster than one after the other (measured on the runner: Firefox 9:30
-      # to about 5:40, WebKit 9:08 to about 6:50, eight parallel runs without a failure). Lane 1 has the long e2e suite alone: it
-      # sets the pace (November 2026: 9:10 to 12:50, by browser), and lane 2 with all the others ends a little before it. The
-      # suites don't share ports or folders. A failing suite shows its whole log below.
+      # Two lanes that run at the same time, about 40 % faster than one after the other. More lanes don't help: the runner has
+      # four cores, and e2e cut in two halves plus a lane for the Nextcloud test came out slower (WebKit 11:42 to 13:00 against
+      # 11:12). The e2e fixture file has a cheap key derivation (tests/compat/make-pykeepass-ref.py), which took the e2e suite
+      # from 9:10 - 12:50 to about 6 minutes; lane 1 now has e2e, offline and credentials, lane 2 the rest (November 2026,
+      # about 9:45 in WebKit, 8 min in Firefox). The suites don't share ports or folders. A failing suite shows its whole log below.
       - name: Browser suites
         run: tools/ci-suites.sh "e2e offline credentials" "keyfile ui create remote fidelity theme pass"
         if: steps.changes.outputs.docs_only != 'true'
