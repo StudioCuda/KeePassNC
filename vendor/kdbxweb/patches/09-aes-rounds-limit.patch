@@ -1,7 +1,7 @@
-diff --git a/vendor/kdbxweb/lib/crypto/key-encryptor-aes.ts b/vendor/kdbxweb/lib/crypto/key-encryptor-aes.ts
+diff --git a/lib/crypto/key-encryptor-aes.ts b/lib/crypto/key-encryptor-aes.ts
 index 0a9ad83..3d045ec 100644
---- a/vendor/kdbxweb/lib/crypto/key-encryptor-aes.ts
-+++ b/vendor/kdbxweb/lib/crypto/key-encryptor-aes.ts
+--- a/lib/crypto/key-encryptor-aes.ts
++++ b/lib/crypto/key-encryptor-aes.ts
 @@ -1,7 +1,12 @@
  import * as CryptoEngine from './crypto-engine';
  import { arrayToBuffer, zeroBuffer } from '../utils/byte-utils';
