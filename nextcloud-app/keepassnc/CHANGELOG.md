@@ -4,6 +4,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-21
+The hard cases, sorted: flaky connections, two tabs on one file, merges, a full server or a file that vanished, what you type in the editor while it locks, plus KeePass 2's own TOTP and the CSV a German Excel saves. Most of this came from @sbuchweitz, who sent 24 careful pull requests in a row and wrote down every oddity they ran into on the way. Thanks a lot, that was a real pleasure to review!
+
 ### Added
 - CSV import understands German column names from a hand-made list too: Titel, Benutzername, Kennwort, Webseite, Bemerkung, Ordner, Schlagwörter and friends, in any case.
 - Bitwarden JSON import: SSH keys come along, the private key as a key file attachment (ready for KeePassXC's SSH agent), public key and fingerprint as fields. The import also says when an entry loses something on the way, such as a passkey.
@@ -16,8 +19,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - The standalone password generator page now clears what you copied from the clipboard again after 20 seconds, just like the app does.
 - Unlocking with a remembered key file no longer waits forever when the server's answer to the key file secret never comes. After 30 seconds it gives up and says the server can't be reached.
 - Databases with a raw key file of exactly 32 bytes: after another device's changes came in, a merge, the unlock screen's check or a new master password, the next save could encrypt the file with a key nobody can derive, so it no longer opened. If that happened to one of yours, the `.bak` copy next to it or an earlier Nextcloud file version still opens.
-- A KDBX 4 file that got cut off (an upload that never finished, say) is now reported as corrupt, instead of slipping past the integrity check and showing up as a wrong password.
-- A damaged or cut-off database no longer greets you with kdbxweb's raw "Error FileCorrupt: invalid hash block". It says the file is damaged or incomplete and where a good copy usually waits: the `.bak` next to it or Nextcloud's file versions.
+- A damaged or cut-off database (an upload that never finished, say) says so, and where a good copy usually waits: the `.bak` next to it or Nextcloud's file versions. Before, a cut-off KDBX 4 file slipped past the integrity check and showed up as a wrong password, and other damage greeted you with kdbxweb's raw "Error FileCorrupt: invalid hash block".
 - Databases that still use the old Argon2 version 1.0 say so, with a hint how KeePassXC updates them, instead of claiming your password is wrong.
 - "Exclude from password health" now sticks in KeePassXC too: it only understands a lowercase `true`, and KeePassNC wrote `True`. Entries marked that way before are switched over the next time they're edited.
 - Cleaning up backup copies only ever deletes files. A *folder* that happened to be named like a backup (`Passwords.kdbx.20260101-120000.bak/`) was deleted along with everything in it.
@@ -51,8 +53,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Opened a database offline and saved later? The backup copy made before that first upload now holds what was on the server, not your local copy.
 - A save the server never answers (a proxy swallowing it, a half-dead connection) gives up after a minute and goes the offline way, instead of holding up every later save until a reload. Big files on slow lines get extra time.
 - Closing the tab while a save is still on its way asks first, unless the offline copy already holds your changes.
-- A full server (HTTP 507) is an error that says so, instead of "saved offline" and a quiet retry every 30 seconds forever.
-- A full server, a locked file or a vanished one now gets the banner with "Save a copy", so your changes always have a way out.
+- A full server (HTTP 507), a locked file or a vanished one now gets a banner that says so, with "Save a copy", so your changes always have a way out. A full server used to count as "saved offline", with a quiet retry every 30 seconds forever.
 - What you type in the entry editor survives locking. Locking by hand with unapplied changes asks first; the auto-lock takes the unlock screen instead and gives you the editor back afterwards. A merge, Undo or a language switch keeps the open editor too, and if the entry was deleted on another device meanwhile, "Apply" brings your version back as a new entry.
 - Leaving the editor with unapplied changes (another entry, "New", a search hit, `Esc`) asks first, and closing the tab warns.
 - "Apply" keeps field names exactly as they are: `" PIN "` no longer overwrites `PIN`, and fields like `"Title "` no longer vanish. A name you type that's already taken gets a message instead.
