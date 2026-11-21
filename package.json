@@ -7,6 +7,8 @@
     "build": "node tools/build.mjs && node tools/build-nextcloud.mjs && node tools/build-pass.mjs",
     "test:compat": "node -r ./tools/ts-register.cjs tests/compat/run.ts",
     "test:e2e": "node tests/e2e/run.mjs",
+    "test:e2e1": "E2E_SHARD=1/2 node tests/e2e/run.mjs",
+    "test:e2e2": "E2E_SHARD=2/2 node tests/e2e/run.mjs",
     "test:unit": "node --test tests/unit/*.test.mjs",
     "test": "npm run build && npm run test:unit && npm run test:compat && npm run test:e2e && npm run test:ui && npm run test:theme && npm run test:keyfile && npm run test:credentials && npm run test:create && npm run test:remote && npm run test:offline && npm run test:fidelity && npm run test:pass",
     "package:nc": "npm run build && tar czf keepassnc-nextcloud-app.tar.gz -C nextcloud-app keepassnc",
@@ -19,7 +21,8 @@
     "test:credentials": "node tests/e2e/credentials.mjs",
     "test:create": "node tests/e2e/create.mjs",
     "test:remote": "node tests/e2e/remote.mjs",
-    "test:pass": "node tests/e2e/pass.mjs"
+    "test:pass": "node tests/e2e/pass.mjs",
+    "test:nextcloud": "node tests/nextcloud/run.mjs"
   },
   "dependencies": {
     "@xmldom/xmldom": "^0.9.12",

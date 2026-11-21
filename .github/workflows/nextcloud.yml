@@ -84,11 +84,6 @@ jobs:
           echo "CHROMIUM=$(node -e "console.log(require('playwright-core').chromium.executablePath())")" >> $GITHUB_ENV
       - run: npm run build && npm run test:unit && npm run test:compat
         if: steps.changes.outputs.docs_only != 'true'
-      # The same two lanes as in the browsers job. Measured on the runner with Chromium: 8:35 one after the other, about 4:35 in two
-      # lanes (four runs, none failed). Three lanes were no faster: the runner has four cores.
-      - name: Browser suites
-        run: tools/ci-suites.sh "e2e" "keyfile ui offline credentials create remote fidelity theme pass"
-        if: matrix.browser && steps.changes.outputs.docs_only != 'true'
       # The package is cached by its published checksum, so the cache is only used while the file is unchanged.
       - name: Checksum of the release package
         id: ncsum
@@ -113,8 +108,14 @@ jobs:
         run: |
           git clone --depth 1 --branch ${{ matrix.ref }} https://github.com/nextcloud/server.git nc
           cd nc && git submodule update --init --depth 1 && npm ci && npm run build
+      # nc34 also runs the browser suites. The Nextcloud test is one more lane next to them: it has its own port (NC_PORT) and
+      # temp folder, so it needn't wait for them. The e2e suite is cut in two halves (E2E_SHARD, see tests/e2e/run.mjs).
+      - name: Browser suites and Nextcloud
+        run: tools/ci-suites.sh "e2e1" "e2e2" "keyfile ui offline credentials create remote fidelity theme pass" "nextcloud"
+        env: { NC_DIR: '${{ github.workspace }}/nc', NC_PORT: '18080' }
+        if: matrix.browser && steps.changes.outputs.docs_only != 'true'
       - run: NC_DIR=$PWD/nc NC_PORT=18080 node tests/nextcloud/run.mjs
-        if: steps.changes.outputs.docs_only != 'true'
+        if: ${{ !matrix.browser && steps.changes.outputs.docs_only != 'true' }}
       - name: Make the apt cache readable for the cache action
         if: always() && steps.apt-cache.outputs.cache-hit != 'true' && steps.changes.outputs.docs_only != 'true'
         run: sudo chown -R "$(id -u):$(id -g)" ~/.cache/ci-apt
@@ -185,7 +186,7 @@ jobs:
       # sets the pace (November 2026: 9:10 to 12:50, by browser), and lane 2 with all the others ends a little before it. The
       # suites don't share ports or folders. A failing suite shows its whole log below.
       - name: Browser suites
-        run: tools/ci-suites.sh "e2e" "keyfile ui offline credentials create remote fidelity theme pass"
+        run: tools/ci-suites.sh "e2e1" "e2e2" "keyfile ui offline credentials create remote fidelity theme pass"
         if: steps.changes.outputs.docs_only != 'true'
       - name: Make the apt cache readable for the cache action
         if: always() && steps.apt-cache.outputs.cache-hit != 'true' && steps.changes.outputs.docs_only != 'true'
