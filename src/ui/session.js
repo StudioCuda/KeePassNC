@@ -12,6 +12,7 @@ let autoSaveTimer = null, syncing = false, pulls = 0; // pulls: running saves th
 // The server version no longer opens with this session's credentials: ask for the new ones (credentials-dialog.js), or for the
 // previous ones when the change was made here and never reached the server (e.merge.oldpw)
 const REMOTE_CREDS = new Set(['e.merge.pw', 'e.pull.pw', 'e.merge.oldpw']);
+const askCredentialsFor = (e) => { if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.({ previous: e.key === 'e.merge.oldpw' }); };
 // Banner text per Vault.writeBlocked
 const BLOCKED_TEXT = { full: 'blocked.full', locked: 'blocked.locked', gone: 'blocked.gone' };
 
@@ -230,7 +231,7 @@ export async function doSave({ auto = false, recreate = false } = {}) {
         state.lastSyncFailed = isOffline(e);
         if (e?.key === 'e.dav.readonly') refused(); // the server says no: keep the changes, stop trying
         else setStatus(t('save.failed', { msg: errText(e) }), 'error');
-        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.({ previous: e.key === 'e.merge.oldpw' });
+        askCredentialsFor(e);
     } finally {
         if (mayPull) pulls--;
         refreshDirtyIndicator();
@@ -264,7 +265,7 @@ export async function syncNow({ announce = false } = {}) {
         state.lastSyncFailed = isOffline(e);
         if (e?.key === 'e.dav.readonly') refused();
         else if (announce || !(isOffline(e) || (known && v.writeBlocked === known))) setStatus(t('sync.failed', { msg: errText(e) }), 'error');
-        if (REMOTE_CREDS.has(e?.key)) ctx.ui.askRemoteCredentials?.({ previous: e.key === 'e.merge.oldpw' });
+        askCredentialsFor(e);
     } finally {
         syncing = false;
         $('#sync-state')?.classList.remove('busy');
@@ -346,8 +347,7 @@ function softLock(message) {
  * editor kept in it: that is still unsaved.
  */
 async function lockOnceSaved(v, message) {
-    let chain;
-    do { chain = v.settled(); await chain; } while (chain !== v.settled()); // a save queued meanwhile counts, too
+    await v.idle(); // a save queued meanwhile counts, too
     if (!state.softLocked || state.vault !== v || v.unsaved || state.editing) return;
     clearTimeout(autoSaveTimer);
     ctx.ui.showLogin(message ?? t('locked'));
