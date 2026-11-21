@@ -7,7 +7,7 @@ import path from 'node:path';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { launchBrowser, browserName, waitOpened, plainWebdav } from '../browser.mjs';
+import { launchBrowser, browserName, waitOpened, plainWebdav, openTrace } from '../browser.mjs';
 import { DOMParser } from '@xmldom/xmldom';
 import { startServer } from './davserver.mjs';
 
@@ -54,6 +54,7 @@ async function main() {
         // Firefox knows neither permission (a page may read what its own origin copied), WebKit only clipboard-read
         const ctx = await browser.newContext({ locale: 'de-DE', acceptDownloads: true, viewport, permissions: { chromium: ['clipboard-read', 'clipboard-write'], webkit: ['clipboard-read'] }[browserName] ?? [] });
         await ctx.addInitScript(plainWebdav);
+        await ctx.addInitScript(openTrace);
         await ctx.addInitScript((s) => { try { if (!localStorage.getItem('kpnc.settings')) localStorage.setItem('kpnc.settings', JSON.stringify(s)); } catch {} }, settings);
         const page = await ctx.newPage();
         page.on('pageerror', (e) => pageErrors.push(String(e)));
