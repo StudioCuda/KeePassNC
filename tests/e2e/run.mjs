@@ -28,7 +28,7 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 // ---------- Fixtures ----------
 function makeFixtures() {
     // KDBX4 (Argon2, attachment, TOTP, tags, protected field) via pykeepass, then saved by KeePassXC itself
-    execFileSync('python3', ['-I', path.join(root, 'tests/compat/make-pykeepass-ref.py')], { cwd: tmp });
+    execFileSync('python3', ['-I', path.join(root, 'tests/compat/make-pykeepass-ref.py')], { cwd: tmp, env: { ...process.env, KPNC_CHEAP_KDF: '1' } });
     fs.renameSync(path.join(tmp, 'ref4.kdbx'), path.join(davRoot, 'vault4.kdbx'));
     xc(['edit', '-q', path.join(davRoot, 'vault4.kdbx'), 'Web/Mail', '--notes', 'Notiz äöü € (KeePassXC)'], null);
     // KDBX3.1 (that's how keepassxc-cli 2.7.6 creates new databases)
