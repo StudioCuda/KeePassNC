@@ -1,8 +1,8 @@
-diff --git a/vendor/kdbxweb/lib/utils/xml-utils.ts b/vendor/kdbxweb/lib/utils/xml-utils.ts
-index dd96a1e..db206b5 100644
---- a/vendor/kdbxweb/lib/utils/xml-utils.ts
-+++ b/vendor/kdbxweb/lib/utils/xml-utils.ts
-@@ -27,23 +27,10 @@ function createDOMParser() {
+diff --git a/lib/utils/xml-utils.ts b/lib/utils/xml-utils.ts
+index ed62e6b..403d514 100644
+--- a/lib/utils/xml-utils.ts
++++ b/lib/utils/xml-utils.ts
+@@ -25,23 +25,10 @@ function createDOMParser() {
          return new global.DOMParser();
      }
  

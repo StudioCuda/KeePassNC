@@ -1,7 +1,7 @@
-diff --git a/vendor/kdbxweb/lib/format/kdbx-meta.ts b/vendor/kdbxweb/lib/format/kdbx-meta.ts
+diff --git a/lib/format/kdbx-meta.ts b/lib/format/kdbx-meta.ts
 index 6b4ce08..dfdb3ba 100644
---- a/vendor/kdbxweb/lib/format/kdbx-meta.ts
-+++ b/vendor/kdbxweb/lib/format/kdbx-meta.ts
+--- a/lib/format/kdbx-meta.ts
++++ b/lib/format/kdbx-meta.ts
 @@ -507,9 +507,10 @@ export class KdbxMeta {
              XmlUtils.addChildNode(node, XmlNames.Elem.DbKeyChangeForce),
              this.keyChangeForce
@@ -14,10 +14,10 @@ index 6b4ce08..dfdb3ba 100644
          );
          XmlUtils.setUuid(
              XmlUtils.addChildNode(node, XmlNames.Elem.RecycleBinUuid),
-diff --git a/vendor/kdbxweb/lib/format/kdbx.ts b/vendor/kdbxweb/lib/format/kdbx.ts
+diff --git a/lib/format/kdbx.ts b/lib/format/kdbx.ts
 index 729d803..b5eaa42 100644
---- a/vendor/kdbxweb/lib/format/kdbx.ts
-+++ b/vendor/kdbxweb/lib/format/kdbx.ts
+--- a/lib/format/kdbx.ts
++++ b/lib/format/kdbx.ts
 @@ -202,6 +202,13 @@ export class Kdbx {
          toGroup: KdbxGroup | undefined | null,
          atIndex?: number

@@ -1,7 +1,7 @@
-diff --git a/vendor/kdbxweb/lib/format/kdbx-group.ts b/vendor/kdbxweb/lib/format/kdbx-group.ts
+diff --git a/lib/format/kdbx-group.ts b/lib/format/kdbx-group.ts
 index 9ec6788..431a8a2 100644
---- a/vendor/kdbxweb/lib/format/kdbx-group.ts
-+++ b/vendor/kdbxweb/lib/format/kdbx-group.ts
+--- a/lib/format/kdbx-group.ts
++++ b/lib/format/kdbx-group.ts
 @@ -179,15 +179,13 @@ export class KdbxGroup {
              this.groups,
              remoteGroup.groups,
@@ -57,11 +57,11 @@ index 9ec6788..431a8a2 100644
              }
              const item = objectMapItems.get(remoteItem.uuid.id);
  
-diff --git a/vendor/kdbxweb/lib/format/kdbx-meta.ts b/vendor/kdbxweb/lib/format/kdbx-meta.ts
-index 6b4ce08..c751fce 100644
---- a/vendor/kdbxweb/lib/format/kdbx-meta.ts
-+++ b/vendor/kdbxweb/lib/format/kdbx-meta.ts
-@@ -579,8 +579,9 @@ export class KdbxMeta {
+diff --git a/lib/format/kdbx-meta.ts b/lib/format/kdbx-meta.ts
+index dfdb3ba..dab5d53 100644
+--- a/lib/format/kdbx-meta.ts
++++ b/lib/format/kdbx-meta.ts
+@@ -580,8 +580,9 @@ export class KdbxMeta {
              this._entryTemplatesGroup = remote.entryTemplatesGroup;
              this.entryTemplatesGroupChanged = remote.entryTemplatesGroupChanged;
          }
@@ -73,7 +73,7 @@ index 6b4ce08..c751fce 100644
          if (!this._editState?.historyMaxItemsChanged) {
              this.historyMaxItems = remote.historyMaxItems;
          }
-@@ -604,7 +605,7 @@ export class KdbxMeta {
+@@ -605,7 +606,7 @@ export class KdbxMeta {
      private mergeMapWithDates<T extends { lastModified?: Date }>(
          local: Map<string, T>,
          remote: Map<string, T>,
@@ -82,7 +82,7 @@ index 6b4ce08..c751fce 100644
      ) {
          for (const [key, remoteItem] of remote) {
              const existingItem = local.get(key);
-@@ -616,7 +617,7 @@ export class KdbxMeta {
+@@ -617,7 +618,7 @@ export class KdbxMeta {
                  ) {
                      local.set(key, remoteItem);
                  }
@@ -91,11 +91,11 @@ index 6b4ce08..c751fce 100644
                  local.set(key, remoteItem);
              }
          }
-diff --git a/vendor/kdbxweb/lib/format/kdbx.ts b/vendor/kdbxweb/lib/format/kdbx.ts
-index 729d803..a6591ee 100644
---- a/vendor/kdbxweb/lib/format/kdbx.ts
-+++ b/vendor/kdbxweb/lib/format/kdbx.ts
-@@ -413,9 +413,13 @@ export class Kdbx {
+diff --git a/lib/format/kdbx.ts b/lib/format/kdbx.ts
+index b5eaa42..1c1b8a0 100644
+--- a/lib/format/kdbx.ts
++++ b/lib/format/kdbx.ts
+@@ -420,9 +420,13 @@ export class Kdbx {
          }
  
          const objectMap = this.getObjectMap();
@@ -111,7 +111,7 @@ index 729d803..a6591ee 100644
                  objectMap.deleted.set(rem.uuid.id, rem.deletionTime);
              }
          }
-@@ -431,8 +435,96 @@ export class Kdbx {
+@@ -438,8 +442,96 @@ export class Kdbx {
  
          this.meta.merge(remote.meta, objectMap);
          root.merge(objectMap);
@@ -209,7 +209,7 @@ index 729d803..a6591ee 100644
      }
  
      /**
-@@ -530,8 +622,10 @@ export class Kdbx {
+@@ -537,8 +629,10 @@ export class Kdbx {
              }
          }
          for (const deletedObject of this.deletedObjects) {

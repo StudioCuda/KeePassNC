@@ -1,7 +1,7 @@
-diff --git a/vendor/kdbxweb/lib/crypto/hmac-block-transform.ts b/vendor/kdbxweb/lib/crypto/hmac-block-transform.ts
+diff --git a/lib/crypto/hmac-block-transform.ts b/lib/crypto/hmac-block-transform.ts
 index 1ce106e..82e7825 100644
---- a/vendor/kdbxweb/lib/crypto/hmac-block-transform.ts
-+++ b/vendor/kdbxweb/lib/crypto/hmac-block-transform.ts
+--- a/lib/crypto/hmac-block-transform.ts
++++ b/lib/crypto/hmac-block-transform.ts
 @@ -44,32 +44,40 @@ export function decrypt(data: ArrayBuffer, key: ArrayBuffer): Promise<ArrayBuffe
              blockHash: ArrayBuffer,
              totalLength = 0;

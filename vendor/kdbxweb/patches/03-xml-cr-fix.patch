@@ -1,8 +1,8 @@
-diff --git a/vendor/kdbxweb/lib/utils/xml-utils.ts b/vendor/kdbxweb/lib/utils/xml-utils.ts
-index db206b5..1538ebd 100644
---- a/vendor/kdbxweb/lib/utils/xml-utils.ts
-+++ b/vendor/kdbxweb/lib/utils/xml-utils.ts
-@@ -72,6 +72,10 @@ export function serialize(doc: Document, prettyPrint = false): string {
+diff --git a/lib/utils/xml-utils.ts b/lib/utils/xml-utils.ts
+index 403d514..bf4584b 100644
+--- a/lib/utils/xml-utils.ts
++++ b/lib/utils/xml-utils.ts
+@@ -70,6 +70,10 @@ export function serialize(doc: Document, prettyPrint = false): string {
          prettyPrintXmlNode(doc, 0);
      }
      let xml = createXMLSerializer().serializeToString(doc);
