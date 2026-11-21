@@ -19,6 +19,7 @@ The short tour is in the [README](../README.md). This is the long version, for w
 - Colors, tags and expiry dates.
 - Attachments. Pictures and text files get a preview.
 - Recycle bin and the full history of every entry, so an unlucky edit is never final.
+- An edit doesn't get lost on the way: leaving it before "Apply" (another entry, "New", the palette, `Esc`, closing the tab) asks first. "Apply" without a change leaves the entry and its history alone, and field names keep their exact spelling, spaces included.
 
 ## Passwords and codes
 

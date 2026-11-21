@@ -386,8 +386,9 @@ export function installGlobalListeners() {
     addEventListener('unhandledrejection', refusedNote);
     addEventListener('error', refusedNote);
     for (const ev of ['mousemove', 'keydown', 'click', 'touchstart']) addEventListener(ev, () => { state.lastActivity = Date.now(); }, { passive: true });
-    // Not only dirty: a save still on its way without an offline copy holds the only version, and so does the offline copy of a file gone from the server (Vault.unsaved)
-    addEventListener('beforeunload', (e) => { if (state.vault?.unsaved) { e.preventDefault(); e.returnValue = ''; } });
+    // Closing the tab asks with unsaved changes (Vault.unsaved: also a save still on its way without an offline copy, or the offline copy of a
+    // file gone from the server), and with changes in the entry editor not applied yet (open, or waiting in the soft lock)
+    addEventListener('beforeunload', (e) => { if (state.vault?.unsaved || ctx.ui.editorChanged?.()) { e.preventDefault(); e.returnValue = ''; } });
     addEventListener('online', () => { if (state.vault?.unsynced || state.offlineMode) syncNow({ announce: true }); });
     document.addEventListener('visibilitychange', () => {
         if (document.hidden) { state.hiddenSince = Date.now(); return; }
