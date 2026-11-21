@@ -24,7 +24,7 @@ async function step(name, fn) {
 const expect = (c, m) => { if (!c) throw new Error(m); };
 
 async function main() {
-    execFileSync('python3', ['-I', path.join(root, 'tests/compat/make-pykeepass-ref.py')], { cwd: tmp });
+    execFileSync('python3', ['-I', path.join(root, 'tests/compat/make-pykeepass-ref.py')], { cwd: tmp, env: { ...process.env, KPNC_CHEAP_KDF: '1' } });
     const f4 = path.join(davRoot, 'vault4.kdbx');
     fs.renameSync(path.join(tmp, 'ref4.kdbx'), f4);
     xc(['edit', '-q', f4, 'Web/Mail', '--notes', 'Notiz äöü € (KeePassXC)']);
