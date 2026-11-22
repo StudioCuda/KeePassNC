@@ -4,6 +4,9 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- "Lock when the tab has been in the background for more than 60 s" is on by default now. A tab you aren't looking at locks itself after a minute, instead of waiting for the full auto-lock time. If you saved your settings before, your choice stays as it was; the switch is in the settings under security.
+
 ## [1.3.0] - 2026-11-21
 The hard cases, sorted: flaky connections, two tabs on one file, merges, a full server or a file that vanished, what you type in the editor while it locks, plus KeePass 2's own TOTP and the CSV a German Excel saves. Most of this came from @sbuchweitz, who sent 24 careful pull requests in a row and wrote down every oddity he ran into on the way. Thanks a lot, that was a real pleasure to review!
 
