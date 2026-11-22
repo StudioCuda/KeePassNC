@@ -11,7 +11,7 @@ export const DEFAULTS = {
     autosync: 'change', // 'change' | '1' | '2' | '5' | '10' | 'off'
     autolock: 10, // minutes
     clipboard: 20, // seconds
-    lockOnHide: false, // lock when the tab has been in the background for more than 60 s
+    lockOnHide: true, // lock when the tab has been in the background for more than 60 s
     offline: false, // keep an encrypted copy + app page in this browser
     backupKeep: 10, // backups on the server (0 = keep all)
     theme: 'nextcloud', // like the light/dark choice in Nextcloud
@@ -44,7 +44,7 @@ export function loadSettings(search = location.search) {
     s.theme = oneOf(THEME_OPTIONS, s.theme, DEFAULTS.theme);
     s.lang = oneOf(LANG_OPTIONS, s.lang, 'auto');
     s.sort = ['title', 'modified', 'created', 'username', 'group'].includes(s.sort) ? s.sort : 'title';
-    s.lockOnHide = !!s.lockOnHide;
+    s.lockOnHide = s.lockOnHide !== false;
     s.offline = !!s.offline;
     s.compact = !!s.compact;
     s.ncAccent = s.ncAccent !== false;
