@@ -5,7 +5,7 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
-- Text attachments (UTF-8, up to 1 MiB) can be edited in place: the pencil next to the preview opens a small editor, and saving keeps the old file as a version in the entry's history. BOM and line endings stay as they were (a file that mixes line endings says so and gets the most common one). The history view now lists the attachments of an old version, and an edited file shows up as a change there.
+- Text attachments (UTF-8, up to 1 MiB) can be edited in place: the pencil next to the preview opens a small editor, and saving keeps the old file as a version in the entry's history. BOM and line endings stay as they were (a file that mixes them gets the most common one). The history view now lists the attachments of an old version, and an edited file shows up as a change there.
 
 ### Changed
 - "Lock when the tab has been in the background for more than 60 s" is on by default now. A tab you aren't looking at locks itself after a minute, instead of waiting for the full auto-lock time. If you saved your settings before, your choice stays as it was; the switch is in the settings under security.

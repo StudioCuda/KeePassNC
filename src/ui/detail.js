@@ -200,9 +200,7 @@ function editAttachment(e, name) {
     };
     const saveBtn = h('button', { type: 'button', class: 'primary', 'data-testid': 'attachment-save', onclick: save, text: t('save') });
     const cancelBtn = h('button', { type: 'button', onclick: () => m.close(), text: t('cancel') });
-    const m = modal({ title: name, size: 'lg', body: h('div', {}, src.mixed ? h('p', { class: 'hint', 'data-testid': 'attachment-mixed', text: t('attachment.edit.mixed', { eol: { '
-': 'CRLF', '': 'CR', '
-': 'LF' }[src.eol] }) }) : null, area), actions: [cancelBtn, saveBtn], onClose: () => { gone = true; } });
+    const m = modal({ title: name, size: 'lg', body: area, actions: [cancelBtn, saveBtn], onClose: () => { gone = true; } });
     area.focus();
 }
 export const sizeLabel = (n) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KiB` : `${(n / 1048576).toFixed(1)} MiB`);

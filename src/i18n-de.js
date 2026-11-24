@@ -11,7 +11,6 @@ export default {
     'attachment.one': 'Anhang',
     'attachment.edit': 'Datei bearbeiten',
     'attachment.edit.saved': '„{name}“ gespeichert. Die alte Fassung steht im Verlauf.',
-    'attachment.edit.mixed': 'Diese Datei mischt Zeilenenden. Beim Speichern werden alle zu {eol}, dem häufigsten. Die alte Fassung bleibt im Verlauf.',
     'attachment.edit.nochange': 'Keine Änderungen.',
     'attachment.edit.toolarge': '„{name}“ wäre größer als 1 MiB, die Grenze fürs Bearbeiten hier.',
     'attachment.toolarge': '„{name}“ ist zu groß (max. 64 MiB).',

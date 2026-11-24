@@ -165,8 +165,8 @@ export function previewOf(name, bytes) {
 
 /**
  * An attachment the in-app editor may open: the same text files the preview shows (up to 1 MiB, valid UTF-8, no null bytes), plus what
- * saving has to put back: {text, bom, eol, mixed}. `text` has LF line endings. `eol` is the line ending most lines had ('\r\n', '\r' or
- * '\n'; a tie goes to '\n'). `mixed` is true when the file used more than one kind: saving then makes them all `eol`.
+ * saving has to put back: {text, bom, eol}. `text` has LF line endings. `eol` is the line ending most lines had ('\r\n', '\r' or
+ * '\n'; a tie goes to '\n'). A file that mixes several kinds is saved with `eol` for all of them.
  */
 export function editableText(name, bytes) {
     if (previewKind(name, bytes.byteLength) !== 'text') return null;
@@ -175,9 +175,8 @@ export function editableText(name, bytes) {
     if (!p) return null;
     const n = { '\r\n': 0, '\n': 0, '\r': 0 };
     for (const m of p.text.matchAll(/\r\n|\n|\r/g)) n[m[0]]++;
-    const kinds = Object.values(n).filter(Boolean).length;
     const eol = ['\n', '\r\n', '\r'].reduce((best, k) => (n[k] > n[best] ? k : best), '\n');
-    return { text: p.text.replace(/\r\n?/g, '\n'), bom, eol, mixed: kinds > 1 };
+    return { text: p.text.replace(/\r\n?/g, '\n'), bom, eol };
 }
 /** The bytes for an edited text: line endings and BOM as the file had them (see editableText). */
 export function encodeText(text, { bom = false, eol = '\n' } = {}) {

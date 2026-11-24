@@ -7,14 +7,14 @@ import { editableText, encodeText } from '../../src/core/util.js';
 const enc = (s) => new TextEncoder().encode(s);
 const dec = (b) => new TextDecoder().decode(b);
 
-test('editableText: plain, BOM and CRLF are remembered; mixed endings are offered and say so; binary and big files are not', () => {
-    assert.deepEqual(editableText('a.txt', enc('one\ntwo')), { text: 'one\ntwo', bom: false, eol: '\n', mixed: false });
-    assert.deepEqual(editableText('a.txt', enc('one\r\ntwo\r\n')), { text: 'one\ntwo\n', bom: false, eol: '\r\n', mixed: false });
+test('editableText: plain, BOM and CRLF are remembered; mixed endings are offered and get the most common one; binary and big files are not', () => {
+    assert.deepEqual(editableText('a.txt', enc('one\ntwo')), { text: 'one\ntwo', bom: false, eol: '\n' });
+    assert.deepEqual(editableText('a.txt', enc('one\r\ntwo\r\n')), { text: 'one\ntwo\n', bom: false, eol: '\r\n' });
     const withBom = new Uint8Array([0xef, 0xbb, 0xbf, ...enc('hi')]);
-    assert.deepEqual(editableText('a.txt', withBom), { text: 'hi', bom: true, eol: '\n', mixed: false });
-    assert.deepEqual(editableText('a.txt', enc('a\r\nb\r\nc\nd')), { text: 'a\nb\nc\nd', bom: false, eol: '\r\n', mixed: true }, 'the more common ending wins');
-    assert.deepEqual(editableText('a.txt', enc('a\r\nb\nc')), { text: 'a\nb\nc', bom: false, eol: '\n', mixed: true }, 'a tie goes to LF');
-    assert.deepEqual(editableText('a.txt', enc('a\rb\rc')), { text: 'a\nb\nc', bom: false, eol: '\r', mixed: false }, 'old Mac files keep CR');
+    assert.deepEqual(editableText('a.txt', withBom), { text: 'hi', bom: true, eol: '\n' });
+    assert.deepEqual(editableText('a.txt', enc('a\r\nb\r\nc\nd')), { text: 'a\nb\nc\nd', bom: false, eol: '\r\n' }, 'the more common ending wins');
+    assert.deepEqual(editableText('a.txt', enc('a\r\nb\nc')), { text: 'a\nb\nc', bom: false, eol: '\n' }, 'a tie goes to LF');
+    assert.deepEqual(editableText('a.txt', enc('a\rb\rc')), { text: 'a\nb\nc', bom: false, eol: '\r' }, 'old Mac files keep CR');
     assert.equal(dec(encodeText('a\nb', { eol: '\r' })), 'a\rb');
     assert.equal(editableText('a.zip', enc('x')), null);
     assert.equal(editableText('a.txt', new Uint8Array([0xff, 0xfe, 0x41])), null, 'not UTF-8');

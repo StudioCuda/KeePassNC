@@ -11,7 +11,6 @@ export default {
     'attachment.one': 'Attachment',
     'attachment.edit': 'Edit file',
     'attachment.edit.saved': '“{name}” saved. The old version is in the history.',
-    'attachment.edit.mixed': 'This file mixes line endings. Saving makes them all {eol}, the most common one. The old version stays in the history.',
     'attachment.edit.nochange': 'No changes.',
     'attachment.edit.toolarge': '“{name}” would be larger than 1 MiB, the limit for editing here.',
     'attachment.toolarge': '“{name}” is too large (max. 64 MiB).',
