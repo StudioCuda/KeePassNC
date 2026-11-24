@@ -163,6 +163,31 @@ export function previewOf(name, bytes) {
     return null;
 }
 
+/**
+ * An attachment the in-app editor may open: the same text files the preview shows (up to 1 MiB, valid UTF-8, no null bytes), plus what
+ * saving has to put back: {text, bom, eol}. `text` has LF line endings. `eol` is the line ending most lines had ('\r\n', '\r' or
+ * '\n'; a tie goes to '\n'). A file that mixes several kinds is saved with `eol` for all of them.
+ */
+export function editableText(name, bytes) {
+    if (previewKind(name, bytes.byteLength) !== 'text') return null;
+    const bom = bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
+    const p = previewOf(name, bytes);
+    if (!p) return null;
+    const n = { '\r\n': 0, '\n': 0, '\r': 0 };
+    for (const m of p.text.matchAll(/\r\n|\n|\r/g)) n[m[0]]++;
+    const eol = ['\n', '\r\n', '\r'].reduce((best, k) => (n[k] > n[best] ? k : best), '\n');
+    return { text: p.text.replace(/\r\n?/g, '\n'), bom, eol };
+}
+/** The bytes for an edited text: line endings and BOM as the file had them (see editableText). */
+export function encodeText(text, { bom = false, eol = '\n' } = {}) {
+    const lf = text.replace(/\r\n?/g, '\n');
+    const body = new TextEncoder().encode(eol === '\n' ? lf : lf.replace(/\n/g, eol));
+    if (!bom) return body;
+    const out = new Uint8Array(body.length + 3);
+    out.set([0xef, 0xbb, 0xbf]); out.set(body, 3);
+    return out;
+}
+
 /** Tags typed into a field: separated by comma or semicolon, trimmed, empty ones dropped. */
 export const splitTags = (text) => String(text || '').split(/[,;]/).map((x) => x.trim()).filter(Boolean);
 /** Tags after adding and removing some (exact spelling), without duplicates and sorted like the editor saves them. */

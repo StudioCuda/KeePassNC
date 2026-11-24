@@ -31,7 +31,7 @@ try {
 const mod = await import(pathToFileURL(outfile).href);
 fs.rmSync(dir, { recursive: true, force: true });
 
-export const { Vault, VaultError, ConflictError, DavError, NetworkError, kdbxweb } = mod;
+export const { Vault, binaryBytes, VaultError, ConflictError, DavError, NetworkError, kdbxweb } = mod;
 export const { ProtectedValue } = kdbxweb;
 
 /** Fast settings for test databases: AES-KDF with few rounds (Argon2 would take seconds per open). */

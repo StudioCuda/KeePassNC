@@ -141,6 +141,12 @@ const sameBytes = (a, b) => {
     for (let i = 0; i < Math.min(x.length, y.length); i++) d |= x[i] ^ y[i];
     return d === 0;
 };
+/** The bytes of an attachment as stored in an entry (with or without the binary pool's wrapper, protected or not); null if unreadable. */
+export const binaryBytes = (bin) => {
+    let d = bin?.value ?? bin;
+    if (d && typeof d.getBinary === 'function') d = d.getBinary();
+    return d instanceof ArrayBuffer ? new Uint8Array(d) : ArrayBuffer.isView(d) ? new Uint8Array(d.buffer, d.byteOffset, d.byteLength) : null;
+};
 const toArrayBuffer = (u8) => u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength);
 /** A copy of the key file bytes of our own (ArrayBuffer or a view on one), undefined without a key file. */
 const ownKeyfile = (kf) => (kf ? (kf instanceof ArrayBuffer ? kf.slice(0) : toArrayBuffer(kf)) : undefined);
@@ -1113,6 +1119,26 @@ export class Vault {
     // ---------------------------------------------------------------- Attachments
     /** Stores file contents in the database for applyEntry's `attachments.add` (nothing is attached until the entry is applied). */
     makeBinary(buffer) { return this.db.createBinary(buffer); }
+    /**
+     * Replaces the contents of an attachment (same name); the old file stays in the history. Returns false when nothing changed:
+     * same bytes, or the attachment is gone (a merge came in while the editor was open).
+     */
+    async replaceAttachment(entry, name, bytes) {
+        this._writable();
+        const bin = await this.makeBinary(toArrayBuffer(bytes));
+        this._writable(); // the database may have turned read-only while the file was stored
+        entry = this._current(entry);
+        const old = entry.binaries.get(name);
+        if (!old) return false;
+        const a = bytes, b = binaryBytes(old);
+        if (b && a.length === b.length && a.every((x, i) => x === b[i])) return false;
+        if (bin?.hash && !this.db.binaries.getValueByHash(bin.hash)) this.db.binaries.addWithHash(bin); // a pull may have swapped the database
+        this._pushHistory(entry);
+        entry.binaries.set(name, bin);
+        entry.times.update();
+        this.dirty = true;
+        return true;
+    }
     /** Remove the passkey from the entry; the previous version stays in the history (recoverable until the history is cleared). */
     removePasskey(entry) {
         this._writable();

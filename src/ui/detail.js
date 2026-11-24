@@ -1,8 +1,8 @@
 // Detail view of an entry: fields, password (strength, large view), TOTP ring, passkey info, attachments, history.
-import { fieldText, isProtected, STANDARD_FIELDS } from '../vault.js';
+import { fieldText, isProtected, STANDARD_FIELDS, binaryBytes } from '../vault.js';
 import { totp } from '../totp.js';
-import { entryExpiry, domainOf, openableUrl, isSystemField, isPasskey, groupPath, fieldOf, previewKind, previewOf } from '../core/util.js';
-import { t, fmtDate } from '../i18n.js';
+import { entryExpiry, domainOf, openableUrl, isSystemField, isPasskey, groupPath, fieldOf, previewKind, previewOf, editableText, encodeText } from '../core/util.js';
+import { t, fmtDate, errText } from '../i18n.js';
 import { ctx, copy, download, setStatus, pref } from './ctx.js';
 import { h, icon, iconBtn, modal, toast, confirmDialog, popupMenu } from './dom.js';
 import { avatar, expiryBadge, resolvedField, resolvedUrl, openEntryUrl, otpConfigOf, otpProblem, stillThere } from './common.js';
@@ -166,6 +166,7 @@ function attachmentsCard(e) {
         const data = binData(bin);
         rows.push(h('div', { class: 'att-row' }, icon('clip'), h('span', { class: 'grow', text: name }), h('span', { class: 'muted', text: sizeLabel(data?.byteLength ?? 0) }),
             data && previewKind(name, data.byteLength) ? iconBtn('eye', t('preview'), () => showPreview(name, data), { 'data-testid': 'attachment-preview' }) : null,
+            data && !state.vault.readOnly && editableText(name, new Uint8Array(data)) ? iconBtn('edit', t('attachment.edit'), () => editAttachment(e, name), { 'data-testid': 'attachment-edit' }) : null,
             h('button', { type: 'button', class: 'small', 'data-testid': 'attachment', onclick: () => download(name, data) }, icon('download'), h('span', { text: t('download') }))));
     }
     // adding and removing happens in the editor
@@ -175,6 +176,32 @@ function showPreview(name, data) {
     const p = previewOf(name, new Uint8Array(data));
     if (!p) { toast(t('preview.none', { name }), { kind: 'warn' }); return; }
     modal({ title: name, size: 'lg', body: p.image ? h('img', { class: 'att-preview', src: p.image, alt: name }) : h('pre', { class: 'att-preview-text', text: p.text }) });
+}
+/** Edits a text attachment in place; saving keeps the old file as a history version of the entry (Vault.replaceAttachment). */
+function editAttachment(e, name) {
+    const v = state.vault;
+    const data = binData(v.find(e)?.binaries.get(name));
+    const src = data && editableText(name, new Uint8Array(data));
+    if (!src) { toast(t('preview.none', { name }), { kind: 'warn' }); return; }
+    const area = h('textarea', { class: 'att-edit mono', 'data-testid': 'attachment-text', spellcheck: false, autocomplete: 'off', 'aria-label': name });
+    area.value = src.text;
+    let busy = false, gone = false;
+    const save = async () => {
+        if (busy) return;
+        busy = true; saveBtn.disabled = true;
+        try {
+            const bytes = encodeText(area.value, src);
+            if (bytes.byteLength > 1024 * 1024) { toast(t('attachment.edit.toolarge', { name }), { kind: 'warn' }); return; }
+            const did = await v.replaceAttachment(e, name, bytes);
+            if (gone) return; // locked or closed while the file was stored: nothing to show
+            if (did) { changed(); toast(t('attachment.edit.saved', { name })); } else toast(t('attachment.edit.nochange'));
+            m.close();
+        } catch (err) { toast(errText(err), { kind: 'error' }); } finally { busy = false; saveBtn.disabled = false; }
+    };
+    const saveBtn = h('button', { type: 'button', class: 'primary', 'data-testid': 'attachment-save', onclick: save, text: t('save') });
+    const cancelBtn = h('button', { type: 'button', onclick: () => m.close(), text: t('cancel') });
+    const m = modal({ title: name, size: 'lg', body: area, actions: [cancelBtn, saveBtn], onClose: () => { gone = true; } });
+    area.focus();
 }
 export const sizeLabel = (n) => (n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KiB` : `${(n / 1048576).toFixed(1)} MiB`);
 
@@ -197,8 +224,18 @@ function changedFields(e, i) {
     const a = e.history[i], b = i + 1 < e.history.length ? e.history[i + 1] : e;
     const names = [];
     for (const k of new Set([...a.fields.keys(), ...b.fields.keys()])) if (fieldText(a.fields.get(k)) !== fieldText(b.fields.get(k))) names.push(k === 'UserName' ? t('f.user') : k === 'Password' ? t('f.password') : k === 'Title' ? t('f.title') : k === 'Notes' ? t('notes') : k);
-    if (a.binaries.size !== b.binaries.size) names.push(t('attachments'));
+    if (!sameBinaries(a.binaries, b.binaries)) names.push(t('attachments'));
     return names.join(', ') || t('history.nochange');
+}
+/** Same names with the same contents (a file edited in place keeps its name and size count, but not its bytes). */
+function sameBinaries(a, b) {
+    if (a.size !== b.size) return false;
+    for (const [name, x] of a) {
+        if (!b.has(name)) return false;
+        const p = binaryBytes(x), q = binaryBytes(b.get(name));
+        if (p !== q && (!p || !q || p.length !== q.length || p.some((v, i) => v !== q[i]))) return false;
+    }
+    return true;
 }
 function viewHistory(hh) {
     const rows = [];
@@ -207,6 +244,12 @@ function viewHistory(hh) {
         const prot = k === 'Password' || isProtected(val);
         const span = h('span', { class: 'mono', text: prot ? DOTS : text });
         rows.push(field(k, span, prot ? [iconBtn('eye', t('show'), (ev) => { const on = span.dataset.on !== '1'; span.dataset.on = on ? '1' : '0'; span.textContent = on ? text : DOTS; ev.currentTarget.replaceChildren(icon(on ? 'eyeOff' : 'eye')); })] : []));
+    }
+    for (const [name, bin] of hh.binaries || []) {
+        const data = binData(bin);
+        rows.push(field(t('attachment.one'), h('span', { text: `${name} · ${sizeLabel(data?.byteLength ?? 0)}` }), [
+            data && previewKind(name, data.byteLength) ? iconBtn('eye', t('preview'), () => showPreview(name, data), { 'data-testid': 'history-attachment-preview' }) : null,
+            iconBtn('download', t('download'), () => download(name, data), { 'data-testid': 'history-attachment-download' })].filter(Boolean)));
     }
     modal({ title: t('history.version', { date: fmtDate(hh.times.lastModTime, true) }), body: h('div', { class: 'card flat' }, ...rows), size: 'md' });
 }

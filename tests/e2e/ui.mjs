@@ -242,6 +242,26 @@ async function main() {
         expect(await page.locator('.att-row', { hasText: 'neu.txt' }).count() === 1 && await page.locator('.att-row', { hasText: 'zufall.bin' }).count() === 0, 'Uebernehmen setzt Hinzufuegen/Entfernen um');
     });
 
+    await step('Anhaenge: Textdatei bearbeiten -> Download zeigt den neuen Inhalt, der alte Stand steht im Verlauf; Binaerdatei hat keinen Stift', async () => {
+        const row = page.locator('.att-row', { hasText: 'notiz.txt' });
+        expect(await page.locator('.att-row', { hasText: 'neu.txt' }).locator('[data-testid=attachment-edit]').count() === 1, 'neu.txt ist Text');
+        expect(await page.locator('.att-row', { hasText: 'zufall.bin' }).count() === 0 || await page.locator('.att-row', { hasText: 'zufall.bin' }).locator('[data-testid=attachment-edit]').count() === 0, 'Binaerdatei: kein Stift');
+        await row.locator('[data-testid=attachment-edit]').click();
+        const area = page.locator('[data-testid=attachment-text]');
+        expect(await area.inputValue() === 'Hallo Anhang\nZeile 2\n', 'Editor zeigt den Inhalt');
+        await area.fill('Hallo Anhang\nZeile 2 geaendert\n');
+        await page.click('[data-testid=attachment-save]');
+        await area.waitFor({ state: 'detached' });
+        const [dl] = await Promise.all([page.waitForEvent('download'), row.locator('[data-testid=attachment]').click()]);
+        expect(fs.readFileSync(await dl.path()).toString() === 'Hallo Anhang\nZeile 2 geaendert\n', 'neuer Inhalt');
+        const det = page.locator('[data-testid=history]');
+        await det.locator('summary').click();
+        expect(/Anh/.test(await det.locator('[data-testid=history-row]').first().innerText()), 'Verlaufszeile nennt die Anhaenge: ' + await det.locator('[data-testid=history-row]').first().innerText());
+        await det.locator('[data-testid=history-row]').first().locator('button').first().click();
+        await page.locator('[data-testid=history-attachment-preview]').first().waitFor();
+        await page.keyboard.press('Escape');
+    });
+
     await step('Verlauf: Eintrag mit 5 Staenden -> anzeigen, frueheren Stand wiederherstellen (aktueller wird selbst Verlauf)', async () => {
         await pick(page, 'Mit Verlauf');
         const det = page.locator('[data-testid=history]');
