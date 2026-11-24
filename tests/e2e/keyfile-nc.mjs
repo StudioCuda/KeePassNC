@@ -236,12 +236,12 @@ async function main() {
         return 'v1 8 MiB/1 -> v2 256 MiB/8';
     });
 
-    await step('Login in Nextcloud: das Master-Passwort-Feld ragt ab 760 px ueber die Karte, schmaler nicht', async () => {
+    await step('Login in Nextcloud: das Master-Passwort-Feld bleibt in der Karte, breit ist es etwas hoeher', async () => {
         const pW = await cA.newPage(); pW.on('pageerror', (e) => errors.push(String(e)));
         const widths = async () => pW.evaluate(() => { const m = document.querySelector('#master').getBoundingClientRect(), f = document.querySelector('#login-form').getBoundingClientRect(); return { m: m.width, f: f.width, h: m.height }; });
         await pW.setViewportSize({ width: 1100, height: 800 }); await pW.goto(appUrl); await pW.locator('#login-form').waitFor();
         const wide = await widths();
-        expect(wide.m > wide.f + 100 && wide.h >= 70, `breit: Feld ${wide.m}px, Karte ${wide.f}px, Hoehe ${wide.h}px`);
+        expect(wide.m <= wide.f + 1 && wide.h > 46 && wide.h < 60, `breit: Feld ${wide.m}px, Karte ${wide.f}px, Hoehe ${wide.h}px`);
         await pW.setViewportSize({ width: 600, height: 800 });
         const narrow = await widths();
         expect(narrow.m <= narrow.f + 1 && narrow.h < 60, `schmal: Feld ${narrow.m}px, Karte ${narrow.f}px, Hoehe ${narrow.h}px`);

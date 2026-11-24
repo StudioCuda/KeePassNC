@@ -204,15 +204,11 @@ details > summary.card-title { cursor: pointer; list-style: none; margin: 0; } d
 .login { --placeholder: color-mix(in srgb, var(--muted) 62%, var(--surface)); } .login input::placeholder { color: var(--placeholder); opacity: 1; } /* clearly a placeholder, not a real value */
 .login .pw-row { margin-block: 14px; }
 .login #master { border-width: 2px; padding-left: 11px; } .login #master:focus { box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 24%, transparent), 0 6px 18px -8px color-mix(in srgb, var(--accent) 45%, transparent); }
-/* The card is a size container: where there is room beside the form (wide windows, in Nextcloud and on the web page alike), the master password field is the centrepiece,
-   bigger than the form and reaching over its edges, never further than the room allows. Phones and narrow windows keep the normal field. */
+/* Where there is room (wide windows, in Nextcloud and on the web page alike) the master password field is a little taller and rounder, but it stays inside the form: a field that reaches over the card's edge looks like a CSS error. */
 .login-card { container-type: inline-size; }
 @container (min-width: 600px) {
-    .login .pw-row { margin-block: 8px 6px; margin-inline: calc(-1 * min(80px, (100cqw - 460px) / 2 + 10px)); }
-    .login #master { min-height: 72px; font-size: 24px; padding-inline: 51px 64px; border-radius: 16px; } /* 51 = the 80 px it reaches out, less the form's 1 px border and 26 px padding and its own 2 px border: the caret blinks on the card's left edge */
-    .login #master:focus { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent); }
-    .login #master::placeholder { text-align: center; } /* input and caret stay left, so the caret blinks at the left edge; only the placeholder is centred (Chromium, Firefox and WebKit all honour this) */
-    .login .pw-field { filter: drop-shadow(0 8px 16px rgb(0 0 0 / .06)); } .login .pw-field > .icon-btn { right: 18px; }
+    .login #master { min-height: 48px; font-size: 16px; border-radius: 10px; }
+    .login .pw-field > .icon-btn { right: 6px; }
 }
 .login-more[open] > summary { margin-bottom: 14px; }
 /* New database: name with fixed extension, folder row, folder browser */
