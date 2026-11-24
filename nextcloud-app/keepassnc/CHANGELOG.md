@@ -4,6 +4,8 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-24
+
 ### Added
 - Text attachments (UTF-8, up to 1 MiB) can be edited in place: the pencil next to the preview opens a small editor, and saving keeps the old file as a version in the entry's history. BOM and line endings stay as they were (a file that mixes them gets the most common one). The history view now lists the attachments of an old version, and an edited file shows up as a change there.
 
