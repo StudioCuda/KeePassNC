@@ -165,22 +165,24 @@ export function previewOf(name, bytes) {
 
 /**
  * An attachment the in-app editor may open: the same text files the preview shows (up to 1 MiB, valid UTF-8, no null bytes), plus what
- * saving has to put back: {text, bom, eol}. `text` has LF line endings; `eol` is '\r\n' when every line break was CRLF, else '\n'.
- * A file that mixes both (or has lone CRs) can't be written back unchanged, so it isn't offered here (null).
+ * saving has to put back: {text, bom, eol, mixed}. `text` has LF line endings. `eol` is the line ending most lines had ('\r\n', '\r' or
+ * '\n'; a tie goes to '\n'). `mixed` is true when the file used more than one kind: saving then makes them all `eol`.
  */
 export function editableText(name, bytes) {
     if (previewKind(name, bytes.byteLength) !== 'text') return null;
     const bom = bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf;
     const p = previewOf(name, bytes);
     if (!p) return null;
-    const crlf = (p.text.match(/\r\n/g) || []).length, lf = (p.text.match(/\n/g) || []).length - crlf;
-    if (/\r(?!\n)/.test(p.text) || (crlf && lf)) return null;
-    return { text: crlf ? p.text.replace(/\r\n/g, '\n') : p.text, bom, eol: crlf ? '\r\n' : '\n' };
+    const n = { '\r\n': 0, '\n': 0, '\r': 0 };
+    for (const m of p.text.matchAll(/\r\n|\n|\r/g)) n[m[0]]++;
+    const kinds = Object.values(n).filter(Boolean).length;
+    const eol = ['\n', '\r\n', '\r'].reduce((best, k) => (n[k] > n[best] ? k : best), '\n');
+    return { text: p.text.replace(/\r\n?/g, '\n'), bom, eol, mixed: kinds > 1 };
 }
 /** The bytes for an edited text: line endings and BOM as the file had them (see editableText). */
 export function encodeText(text, { bom = false, eol = '\n' } = {}) {
     const lf = text.replace(/\r\n?/g, '\n');
-    const body = new TextEncoder().encode(eol === '\r\n' ? lf.replace(/\n/g, '\r\n') : lf);
+    const body = new TextEncoder().encode(eol === '\n' ? lf : lf.replace(/\n/g, eol));
     if (!bom) return body;
     const out = new Uint8Array(body.length + 3);
     out.set([0xef, 0xbb, 0xbf]); out.set(body, 3);

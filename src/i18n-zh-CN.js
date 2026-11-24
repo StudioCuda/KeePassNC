@@ -11,6 +11,7 @@ export default {
     'attachment.one': '附件',
     'attachment.edit': '编辑文件',
     'attachment.edit.saved': '“{name}”已保存。旧版本在历史记录中。',
+    'attachment.edit.mixed': '此文件混用了换行符。保存时会统一为最常见的 {eol}。旧版本保留在历史记录中。',
     'attachment.edit.nochange': '没有更改。',
     'attachment.edit.toolarge': '“{name}”将超过 1 MiB，这是此处编辑的上限。',
     'attachment.toolarge': '“{name}”太大了（最大 64 MiB）。',
